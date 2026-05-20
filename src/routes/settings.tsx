@@ -7,7 +7,7 @@ import { PageHeader, Badge } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { getAppSettings, getSyncLogs, listAirtableSlots } from "@/lib/data.functions";
-import { updateAppSetting, updateAirtableSlot, syncClaimsNow } from "@/lib/admin.functions";
+import { updateAppSetting, updateAirtableSlot, syncClaimsNow, syncAssetsNow } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/settings")({

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as PermissionsRouteImport } from './routes/permissions'
+import { Route as ClaimsRouteImport } from './routes/claims'
 import { Route as IndexRouteImport } from './routes/index'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -29,6 +30,11 @@ const PermissionsRoute = PermissionsRouteImport.update({
   path: '/permissions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClaimsRoute = ClaimsRouteImport.update({
+  id: '/claims',
+  path: '/claims',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -37,12 +43,14 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/claims': typeof ClaimsRoute
   '/permissions': typeof PermissionsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/claims': typeof ClaimsRoute
   '/permissions': typeof PermissionsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
@@ -50,20 +58,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/claims': typeof ClaimsRoute
   '/permissions': typeof PermissionsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/permissions' | '/search' | '/settings'
+  fullPaths: '/' | '/claims' | '/permissions' | '/search' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/permissions' | '/search' | '/settings'
-  id: '__root__' | '/' | '/permissions' | '/search' | '/settings'
+  to: '/' | '/claims' | '/permissions' | '/search' | '/settings'
+  id: '__root__' | '/' | '/claims' | '/permissions' | '/search' | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ClaimsRoute: typeof ClaimsRoute
   PermissionsRoute: typeof PermissionsRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PermissionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/claims': {
+      id: '/claims'
+      path: '/claims'
+      fullPath: '/claims'
+      preLoaderRoute: typeof ClaimsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -104,6 +121,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ClaimsRoute: ClaimsRoute,
   PermissionsRoute: PermissionsRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,

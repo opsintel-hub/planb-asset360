@@ -565,18 +565,24 @@ function AssetHealthTab({
     };
   });
 
-  // Combined trend (per bucket, per type) — granularity = month or year
+  // Combined trend (per bucket, aggregated across all selected assets) — granularity = month or year
+  const thMonthsShort = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const fmtBucket = (m: string) => {
+    if (gran === "year") return `พ.ศ. ${Number(m) + 543}`;
+    const [y, mo] = m.split("-");
+    return `${thMonthsShort[Number(mo) - 1]} ${String(Number(y) + 543).slice(-2)}`;
+  };
   const buckets = new Set<string>();
   history.forEach((h) => { if (h.opened_at) buckets.add(h.opened_at.slice(0, keyLen)); });
   const bucketLabels = Array.from(buckets).sort();
   const chartData = bucketLabels.map((m) => {
-    const row: Record<string, string | number> = { bucket: m };
-    for (const a of assets) {
-      if (sel.PM) row[`${a.old_code} · PM`] = history.filter((h) => h.asset_id === a.id && h.type === "PM" && h.opened_at?.startsWith(m)).length;
-      if (sel.Claim) row[`${a.old_code} · Claim`] = history.filter((h) => h.asset_id === a.id && h.type === "Claim" && h.opened_at?.startsWith(m)).length;
-      if (sel.Monitor) row[`${a.old_code} · Mon`] = history.filter((h) => h.asset_id === a.id && h.type === "Monitor" && h.opened_at?.startsWith(m)).length;
-    }
-    return row;
+    const inBucket = history.filter((h) => h.opened_at?.startsWith(m));
+    return {
+      bucket: fmtBucket(m),
+      PM: sel.PM ? inBucket.filter((h) => h.type === "PM").length : 0,
+      Claim: sel.Claim ? inBucket.filter((h) => h.type === "Claim").length : 0,
+      Monitor: sel.Monitor ? inBucket.filter((h) => h.type === "Monitor").length : 0,
+    };
   });
 
   // Avg MTBF across selected assets

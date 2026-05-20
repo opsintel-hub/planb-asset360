@@ -193,8 +193,9 @@ function AirtableSection() {
 function AirtableSlotCard({ slot }: { slot: { id: number; name: string | null; base_id: string | null; table_name: string | null; enabled: boolean } }) {
   const fn = useServerFn(updateAirtableSlot);
   const qc = useQueryClient();
+  type SlotUpdate = { id: number; name?: string; base_id?: string; table_name?: string; enabled?: boolean };
   const m = useMutation({
-    mutationFn: (vars: Parameters<typeof fn>[0]["data"]) => fn({ data: vars }),
+    mutationFn: (vars: SlotUpdate) => fn({ data: vars }),
     onSuccess: () => { toast.success("บันทึกการเชื่อมต่อแล้ว"); qc.invalidateQueries({ queryKey: ["airtable-slots"] }); },
     onError: (e: Error) => toast.error(e.message),
   });

@@ -7,7 +7,7 @@ import { PageHeader, Badge } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { getAppSettings, getSyncLogs, listAirtableSlots } from "@/lib/data.functions";
-import { updateAppSetting, updateAirtableSlot, syncClaimsNow } from "@/lib/admin.functions";
+import { updateAppSetting, updateAirtableSlot, syncClaimsNow, syncAssetsNow } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/settings")({
@@ -77,6 +77,7 @@ function MainSettings() {
   const assetDbUser = assetDb.username ?? "planb_viewer";
   const assetDbTable = assetDb.table ?? "Asset";
   const assetSyncDays: number[] = Array.isArray(settings.asset_sync_days) ? settings.asset_sync_days : [];
+  const assetGatewayUrl = (settings.asset_gateway_url as string | undefined) ?? "";
 
   const saveMutation = useMutation({
     mutationFn: (vars: { key: string; value: unknown }) => updateFn({ data: vars }),
@@ -94,16 +95,32 @@ function MainSettings() {
     onError: (e: Error) => toast.error(`Sync ล้มเหลว: ${e.message}`),
   });
 
+  const syncAssetsFn = useServerFn(syncAssetsNow);
+  const assetSyncMutation = useMutation({
+    mutationFn: () => syncAssetsFn({}),
+    onSuccess: (r) => {
+      toast.success(`ดึงข้อมูล Asset สำเร็จ: ${r.rows ?? 0} รายการ`);
+      qc.invalidateQueries({ queryKey: ["sync-logs"] });
+      qc.invalidateQueries({ queryKey: ["assets"] });
+    },
+    onError: (e: Error) => toast.error(`ดึงข้อมูลล้มเหลว: ${e.message}`),
+  });
+
   return (
     <div className="space-y-6">
       <Section title="Modern Corporate Server (Asset Database)" desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB (รหัสผ่านเก็บอย่างปลอดภัยใน Secret Store)">
         <AssetDbForm
           defaults={{ host: assetDbHost, database: assetDbName, username: assetDbUser, table: assetDbTable }}
           syncDays={assetSyncDays}
+          gatewayUrl={assetGatewayUrl}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
           onSaveDays={(days) => saveMutation.mutate({ key: "asset_sync_days", value: days })}
+          onSaveGateway={(url) => saveMutation.mutate({ key: "asset_gateway_url", value: url })}
+          onTest={() => assetSyncMutation.mutate()}
+          testing={assetSyncMutation.isPending}
         />
       </Section>
+
 
       <Section title="API ค้นหาประวัติ Asset" desc="ใช้สำหรับดึงประวัติทรัพย์สินจากระบบ PlanB">
 
@@ -307,13 +324,21 @@ function EditableField({ label, defaultValue, onSave }: { label: string; default
 function AssetDbForm({
   defaults,
   syncDays,
+  gatewayUrl,
   onSave,
   onSaveDays,
+  onSaveGateway,
+  onTest,
+  testing,
 }: {
   defaults: { host: string; database: string; username: string; table: string };
   syncDays: number[];
+  gatewayUrl: string;
   onSave: (v: { host: string; database: string; username: string; table: string; password_updated_at?: string }) => void;
   onSaveDays: (days: number[]) => void;
+  onSaveGateway: (url: string) => void;
+  onTest: () => void;
+  testing: boolean;
 }) {
   const [host, setHost] = useState(defaults.host);
   const [database, setDatabase] = useState(defaults.database);
@@ -321,6 +346,7 @@ function AssetDbForm({
   const [table, setTable] = useState(defaults.table);
   const [password, setPassword] = useState("");
   const [days, setDays] = useState<number[]>(syncDays);
+  const [gateway, setGateway] = useState(gatewayUrl);
 
   const toggleDay = (d: number) => {
     setDays((prev) => {
@@ -389,6 +415,35 @@ function AssetDbForm({
         )}
       </div>
 
+      <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+        <div className="text-sm font-medium">HTTP / REST API Gateway สำหรับ Auto-Sync</div>
+        <p className="text-xs text-muted-foreground">
+          Edge runtime ไม่สามารถต่อ SQL Server โดยตรงได้ — กรอก URL ของ HTTP gateway ที่คืน JSON list ของ Asset (รองรับ field: oldCode, name, department, area, status, latitude, longitude, installedAt) ระบบจะใช้ endpoint นี้ทั้งการกด "ทดสอบ" และการ Auto-Sync เวลา 04:00 น.
+        </p>
+        <div className="flex gap-2">
+          <input
+            value={gateway}
+            onChange={(e) => setGateway(e.target.value)}
+            placeholder="https://your-gateway.example.com/planb/assets"
+            className="flex-1 h-10 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <button
+            onClick={() => onSaveGateway(gateway.trim())}
+            className="rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+          >
+            บันทึก URL
+          </button>
+        </div>
+        <button
+          onClick={onTest}
+          disabled={testing}
+          className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+        >
+          <RefreshCw className={cn("size-4", testing && "animate-spin")} />
+          {testing ? "กำลังดึงข้อมูล..." : "ทดสอบดึงข้อมูล Asset"}
+        </button>
+      </div>
+
       <div className="flex flex-wrap gap-2 pt-2 border-t">
         <button
           onClick={() => {
@@ -398,7 +453,7 @@ function AssetDbForm({
             if (password) payload.password_updated_at = new Date().toISOString();
             onSave(payload);
             if (password) {
-              toast.info("รหัสผ่านจะถูกอัปเดตใน Secret Store โดยผู้ดูแลระบบในรอบถัดไป");
+              toast.info("รหัสผ่านถูกอัปเดตในตั้งค่า; ค่าจริงเก็บใน Secret Store");
               setPassword("");
             }
           }}

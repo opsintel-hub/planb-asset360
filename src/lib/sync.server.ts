@@ -115,7 +115,18 @@ export async function runAssetHistorySync(oldCode: string) {
     // Clear previous synthetic rows for this asset to avoid stale duplicates
     await supabaseAdmin.from("asset_history").delete().eq("asset_old_code", oldCode);
 
-    const rows: Record<string, unknown>[] = [];
+    type HistoryRow = {
+      asset_id: string | null;
+      asset_old_code: string;
+      ticket_code: string;
+      type: string;
+      title: string | null;
+      status: string | null;
+      opened_at: string | null;
+      closed_at: string | null;
+      payload: never;
+    };
+    const rows: HistoryRow[] = [];
     for (const g of groups) {
       const list = Array.isArray(raw?.[g.key]) ? (raw[g.key] as Record<string, unknown>[]) : [];
       list.forEach((item, idx) => {

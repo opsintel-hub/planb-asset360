@@ -16,6 +16,8 @@ const corsHeaders = {
 
 interface AssetDbConn {
   host?: string;
+  server?: string;
+  port?: number | string;
   database?: string;
   username?: string;
   table?: string;
@@ -108,12 +110,15 @@ Deno.serve(async (req: Request) => {
       .eq("key", "asset_db_connection")
       .maybeSingle();
     const conn = (connRow?.value ?? {}) as AssetDbConn;
-    const host = conn.host ?? "magicticket.magicsigncloud.com";
+    const host = conn.server ?? conn.host ?? "magicticket.magicsigncloud.com";
     const database = conn.database ?? "planb";
     const user = conn.username ?? "planb_viewer";
     const table = quoteTableName(conn.table ?? "Asset");
 
-    const { server, port } = parseHostPort(host);
+    const parsed = parseHostPort(host);
+    const server = parsed.server;
+    const port = conn.port ? Number(conn.port) : parsed.port;
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("invalid MSSQL port");
     targetHost = `${server}:${port}`;
 
     pool = await sql.connect({

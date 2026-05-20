@@ -14,16 +14,351 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      airtable_connections: {
+        Row: {
+          base_id: string | null
+          enabled: boolean
+          id: number
+          last_synced_at: string | null
+          name: string | null
+          schedule: Json
+          table_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          base_id?: string | null
+          enabled?: boolean
+          id: number
+          last_synced_at?: string | null
+          name?: string | null
+          schedule?: Json
+          table_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          base_id?: string | null
+          enabled?: boolean
+          id?: number
+          last_synced_at?: string | null
+          name?: string | null
+          schedule?: Json
+          table_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      asset_history: {
+        Row: {
+          asset_id: string | null
+          asset_old_code: string | null
+          closed_at: string | null
+          created_at: string
+          id: string
+          opened_at: string | null
+          payload: Json
+          sla_hours: number | null
+          status: string | null
+          ticket_code: string | null
+          title: string | null
+          type: string
+        }
+        Insert: {
+          asset_id?: string | null
+          asset_old_code?: string | null
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          opened_at?: string | null
+          payload?: Json
+          sla_hours?: number | null
+          status?: string | null
+          ticket_code?: string | null
+          title?: string | null
+          type: string
+        }
+        Update: {
+          asset_id?: string | null
+          asset_old_code?: string | null
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          opened_at?: string | null
+          payload?: Json
+          sla_hours?: number | null
+          status?: string | null
+          ticket_code?: string | null
+          title?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_history_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assets: {
+        Row: {
+          area: string | null
+          created_at: string
+          department: string | null
+          id: string
+          installed_at: string | null
+          last_claim_at: string | null
+          last_monitor_ok_at: string | null
+          last_pm_at: string | null
+          latitude: number | null
+          longitude: number | null
+          name: string | null
+          old_code: string
+          payload: Json
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          area?: string | null
+          created_at?: string
+          department?: string | null
+          id?: string
+          installed_at?: string | null
+          last_claim_at?: string | null
+          last_monitor_ok_at?: string | null
+          last_pm_at?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          name?: string | null
+          old_code: string
+          payload?: Json
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          area?: string | null
+          created_at?: string
+          department?: string | null
+          id?: string
+          installed_at?: string | null
+          last_claim_at?: string | null
+          last_monitor_ok_at?: string | null
+          last_pm_at?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          name?: string | null
+          old_code?: string
+          payload?: Json
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      claims: {
+        Row: {
+          age_hours: number | null
+          asset_id: string | null
+          asset_old_code: string | null
+          id: string
+          opened_at: string | null
+          payload: Json
+          severity: string | null
+          sla_status: string | null
+          synced_at: string
+          ticket_code: string
+          title: string | null
+        }
+        Insert: {
+          age_hours?: number | null
+          asset_id?: string | null
+          asset_old_code?: string | null
+          id?: string
+          opened_at?: string | null
+          payload?: Json
+          severity?: string | null
+          sla_status?: string | null
+          synced_at?: string
+          ticket_code: string
+          title?: string | null
+        }
+        Update: {
+          age_hours?: number | null
+          asset_id?: string | null
+          asset_old_code?: string | null
+          id?: string
+          opened_at?: string | null
+          payload?: Json
+          severity?: string | null
+          sla_status?: string | null
+          synced_at?: string
+          ticket_code?: string
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "claims_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monitoring_status: {
+        Row: {
+          asset_id: string
+          asset_old_code: string | null
+          error_code: string | null
+          last_seen_at: string | null
+          message: string | null
+          online: boolean
+          updated_at: string
+          uptime_7d: number | null
+        }
+        Insert: {
+          asset_id: string
+          asset_old_code?: string | null
+          error_code?: string | null
+          last_seen_at?: string | null
+          message?: string | null
+          online?: boolean
+          updated_at?: string
+          uptime_7d?: number | null
+        }
+        Update: {
+          asset_id?: string
+          asset_old_code?: string | null
+          error_code?: string | null
+          last_seen_at?: string | null
+          message?: string | null
+          online?: boolean
+          updated_at?: string
+          uptime_7d?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoring_status_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: true
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      sync_logs: {
+        Row: {
+          finished_at: string | null
+          id: number
+          message: string | null
+          rows_affected: number | null
+          source: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          finished_at?: string | null
+          id?: number
+          message?: string | null
+          rows_affected?: number | null
+          source: string
+          started_at?: string
+          status: string
+        }
+        Update: {
+          finished_at?: string | null
+          id?: number
+          message?: string | null
+          rows_affected?: number | null
+          source?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "manager" | "technician" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +485,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "manager", "technician", "viewer"],
+    },
   },
 } as const

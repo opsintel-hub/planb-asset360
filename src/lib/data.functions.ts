@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { runAssetHistorySync } from "./sync.server";
 
 // ---------- Dashboard ----------
 export const getDashboardOverview = createServerFn({ method: "GET" })

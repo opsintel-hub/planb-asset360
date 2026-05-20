@@ -219,7 +219,6 @@ export const getAssetWithHistory = createServerFn({ method: "POST" })
     let syncError: string | null = null;
     if (data.forceSync || (count ?? 0) === 0) {
       try {
-        const { runAssetHistorySync } = await import("./sync.server");
         await runAssetHistorySync(data.oldCode);
         synced = true;
       } catch (e) {

@@ -7,7 +7,7 @@ import {
   Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon,
 } from "lucide-react";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, Legend, ResponsiveContainer, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, Legend, ResponsiveContainer, CartesianGrid, Cell,
 } from "recharts";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";

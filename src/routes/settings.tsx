@@ -115,7 +115,7 @@ function MainSettings() {
 
   return (
     <div className="space-y-6">
-      <Section title="Modern Corporate Server (Asset Database)" desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB (รหัสผ่านเก็บอย่างปลอดภัยใน Secret Store)">
+      <Section title="Modern Corporate Server (Asset Database)" desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB โดยรหัสผ่านเก็บแยกใน Secret Store">
         <AssetDbForm
           defaults={{ server: assetDbServer, port: assetDbPort, database: assetDbName, username: assetDbUser, table: assetDbTable }}
           syncDays={assetSyncDays}
@@ -336,7 +336,7 @@ function AssetDbForm({
 }: {
   defaults: { server: string; port: string; database: string; username: string; table: string };
   syncDays: number[];
-  onSave: (v: { server: string; port: number; database: string; username: string; table: string; password_updated_at?: string }) => void;
+  onSave: (v: { server: string; port: number; database: string; username: string; table: string }) => void;
   onSaveDays: (days: number[]) => void;
   onTest: () => void;
   testing: boolean;
@@ -346,7 +346,6 @@ function AssetDbForm({
   const [database, setDatabase] = useState(defaults.database);
   const [username, setUsername] = useState(defaults.username);
   const [table, setTable] = useState(defaults.table);
-  const [password, setPassword] = useState("");
   const [days, setDays] = useState<number[]>(syncDays);
 
 
@@ -369,18 +368,6 @@ function AssetDbForm({
         <Field label="Database" value={database} onChange={setDatabase} />
         <Field label="User" value={username} onChange={setUsername} />
         <Field label="Table" value={table} onChange={setTable} />
-        <div className="md:col-span-2 space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">
-            Password <span className="text-muted-foreground/70">(เก็บใน Secret Store — เว้นว่างถ้าไม่ต้องการเปลี่ยน)</span>
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••••••"
-            className="w-full h-10 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
       </div>
 
       <div className="space-y-2 rounded-lg border bg-background/50 p-3">
@@ -450,15 +437,10 @@ function AssetDbForm({
               toast.error("Port ต้องเป็นตัวเลขระหว่าง 1-65535");
               return;
             }
-            const payload: { server: string; port: number; database: string; username: string; table: string; password_updated_at?: string } = {
+            const payload: { server: string; port: number; database: string; username: string; table: string } = {
               server: server.trim(), port: parsedPort, database: database.trim(), username: username.trim(), table: table.trim(),
             };
-            if (password) payload.password_updated_at = new Date().toISOString();
             onSave(payload);
-            if (password) {
-              toast.info("รหัสผ่านถูกอัปเดตในตั้งค่า; ค่าจริงเก็บใน Secret Store");
-              setPassword("");
-            }
           }}
           className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90"
         >

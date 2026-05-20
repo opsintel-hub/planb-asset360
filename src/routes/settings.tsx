@@ -120,12 +120,17 @@ function MainSettings() {
         <AssetDbForm
           defaults={{ server: assetDbServer, port: assetDbPort, database: assetDbName, username: assetDbUser, table: assetDbTable }}
           syncDays={assetSyncDays}
+          syncTimes={assetSyncTimes}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
           onSaveDays={(days) => saveMutation.mutate({ key: "asset_sync_days", value: days })}
+          onSaveTimes={(times) => saveMutation.mutate({ key: "asset_sync_times", value: times })}
           onTest={() => assetSyncMutation.mutate()}
           testing={assetSyncMutation.isPending}
         />
       </Section>
+
+      <SchemaAlertSection />
+
 
 
       <Section title="API ค้นหาประวัติ Asset" desc="ใช้สำหรับดึงประวัติทรัพย์สินจากระบบ PlanB">

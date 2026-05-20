@@ -42,6 +42,14 @@ const PALETTE = [
   "oklch(0.6 0.22 25)",
   "oklch(0.55 0.2 305)",
 ];
+// สีเดียวกันทั้งระบบต่อ "ประเภทงาน" — PM / Claim / Monitor
+const TYPE_COLOR: Record<"PM" | "Claim" | "Monitor", string> = {
+  PM: "oklch(0.62 0.19 255)",      // น้ำเงิน
+  Claim: "oklch(0.6 0.22 25)",     // แดง
+  Monitor: "oklch(0.65 0.16 155)", // เขียว
+};
+// รูปแบบเส้นแยกตามป้าย (สูงสุด 5 slots)
+const ASSET_DASH = ["", "6 3", "2 3", "8 3 2 3", "4 2 1 2"];
 
 function useDebounced<T>(value: T, ms = 250): T {
   const [v, setV] = useState(value);

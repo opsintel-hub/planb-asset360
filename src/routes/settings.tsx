@@ -416,24 +416,11 @@ function AssetDbForm({
       </div>
 
       <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
-        <div className="text-sm font-medium">HTTP / REST API Gateway สำหรับ Auto-Sync</div>
+        <div className="text-sm font-medium">เชื่อมต่อ MSSQL โดยตรง (Supabase Edge Function)</div>
         <p className="text-xs text-muted-foreground">
-          Edge runtime ไม่สามารถต่อ SQL Server โดยตรงได้ — กรอก URL ของ HTTP gateway ที่คืน JSON list ของ Asset (รองรับ field: oldCode, name, department, area, status, latitude, longitude, installedAt) ระบบจะใช้ endpoint นี้ทั้งการกด "ทดสอบ" และการ Auto-Sync เวลา 04:00 น.
+          ระบบใช้ Supabase Edge Function (Deno + <code>npm:mssql</code>) เชื่อมต่อ MS SQL Server ตรงด้วยค่า host/database/user/password ด้านบน
+          ไม่ต้องมี HTTP gateway คั่นกลาง — ใช้ทั้งการกด "ทดสอบ" และ Auto-Sync เวลา 04:00 น.
         </p>
-        <div className="flex gap-2">
-          <input
-            value={gateway}
-            onChange={(e) => setGateway(e.target.value)}
-            placeholder="https://your-gateway.example.com/planb/assets"
-            className="flex-1 h-10 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <button
-            onClick={() => onSaveGateway(gateway.trim())}
-            className="rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
-          >
-            บันทึก URL
-          </button>
-        </div>
         <button
           onClick={onTest}
           disabled={testing}
@@ -443,6 +430,7 @@ function AssetDbForm({
           {testing ? "กำลังดึงข้อมูล..." : "ทดสอบดึงข้อมูล Asset"}
         </button>
       </div>
+
 
       <div className="flex flex-wrap gap-2 pt-2 border-t">
         <button

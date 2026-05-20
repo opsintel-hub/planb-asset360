@@ -565,12 +565,12 @@ function AssetHealthTab({
     };
   });
 
-  // Combined trend (per month, per type)
-  const months = new Set<string>();
-  history.forEach((h) => { if (h.opened_at) months.add(h.opened_at.slice(0, 7)); });
-  const monthLabels = Array.from(months).sort();
-  const chartData = monthLabels.map((m) => {
-    const row: Record<string, string | number> = { month: m };
+  // Combined trend (per bucket, per type) — granularity = month or year
+  const buckets = new Set<string>();
+  history.forEach((h) => { if (h.opened_at) buckets.add(h.opened_at.slice(0, keyLen)); });
+  const bucketLabels = Array.from(buckets).sort();
+  const chartData = bucketLabels.map((m) => {
+    const row: Record<string, string | number> = { bucket: m };
     for (const a of assets) {
       if (sel.PM) row[`${a.old_code} · PM`] = history.filter((h) => h.asset_id === a.id && h.type === "PM" && h.opened_at?.startsWith(m)).length;
       if (sel.Claim) row[`${a.old_code} · Claim`] = history.filter((h) => h.asset_id === a.id && h.type === "Claim" && h.opened_at?.startsWith(m)).length;

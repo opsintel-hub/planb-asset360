@@ -1128,12 +1128,12 @@ function CalendarOverlay({
       </div>
       <div className="grid grid-cols-7 gap-1">
         {cells.map((c, i) => {
-          if (!c.date) return <div key={i} className="aspect-square rounded border border-dashed border-border/40 bg-muted/20" />;
+          if (!c.date) return <div key={i} className="h-16 rounded border border-dashed border-border/40 bg-muted/20" />;
           const isToday = c.date === todayKey;
           return (
             <div
               key={c.date}
-              className={cn("aspect-square rounded border bg-background p-1.5 relative flex flex-col", isToday && "border-primary ring-1 ring-primary/30")}
+              className={cn("h-16 rounded border bg-background p-1 relative flex flex-col", isToday && "border-primary ring-1 ring-primary/30")}
               title={`${c.date} — ${c.events.length} รายการ`}
             >
               <div className={cn("text-[11px]", isToday ? "font-semibold text-primary" : "text-muted-foreground")}>{c.day}</div>

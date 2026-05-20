@@ -233,7 +233,8 @@ export const getAppSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { data } = await context.supabase.from("app_settings").select("key, value");
-    const map: Record<string, unknown> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const map: Record<string, any> = {};
     for (const r of data ?? []) map[r.key] = r.value;
     return { settings: map };
   });

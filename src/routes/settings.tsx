@@ -515,8 +515,15 @@ function AssetDbForm({
           onClick={() => onSaveDays(days)}
           className="rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
         >
-          บันทึกตารางเวลา Auto-Sync
+          บันทึกวันที่
         </button>
+        <button
+          onClick={() => onSaveTimes(times)}
+          className="rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+        >
+          บันทึกเวลา
+        </button>
+
       </div>
     </div>
   );

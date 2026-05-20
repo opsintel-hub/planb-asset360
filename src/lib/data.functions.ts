@@ -236,6 +236,97 @@ export const getAssetWithHistory = createServerFn({ method: "POST" })
     return { asset, history: history ?? [], synced, syncError };
   });
 
+// Comparison: fetch up to 5 assets + history filtered by tab + date range + slicers.
+// Auto-syncs from PlanB for any asset with no local history (best-effort, non-blocking errors).
+export const getAssetsComparison = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z.object({
+      oldCodes: z.array(z.string().min(1).max(100)).min(1).max(5),
+      tab: z.enum(["PM", "Claim", "Monitor", "AssetHealth"]).optional().default("PM"),
+      from: z.string().optional(),
+      to: z.string().optional(),
+      department: z.string().optional(),
+      region: z.string().optional(),
+      mediaType: z.string().optional(),
+      forceSync: z.boolean().optional().default(false),
+    }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: assets } = await supabase
+      .from("assets")
+      .select("id, old_code, name, department, area, status, payload, last_pm_at, last_claim_at, last_monitor_ok_at")
+      .in("old_code", data.oldCodes);
+    const list = assets ?? [];
+
+    // Sync missing
+    const syncErrors: Record<string, string> = {};
+    for (const code of data.oldCodes) {
+      const a = list.find((x) => x.old_code === code);
+      const needsSync = data.forceSync || !a;
+      if (needsSync || a) {
+        const { count } = a
+          ? await supabase.from("asset_history").select("id", { count: "exact", head: true }).eq("asset_id", a.id)
+          : { count: 0 };
+        if (data.forceSync || (count ?? 0) === 0) {
+          try { await runAssetHistorySync(code); } catch (e) { syncErrors[code] = (e as Error).message; }
+        }
+      }
+    }
+
+    // re-fetch assets in case sync created any
+    const { data: assets2 } = await supabase
+      .from("assets")
+      .select("id, old_code, name, department, area, status, payload, last_pm_at, last_claim_at, last_monitor_ok_at")
+      .in("old_code", data.oldCodes);
+    const finalAssets = assets2 ?? [];
+
+    const ids = finalAssets.map((a) => a.id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let history: any[] = [];
+
+    if (ids.length) {
+      let q = supabase
+        .from("asset_history")
+        .select("id, asset_id, asset_old_code, ticket_code, type, title, status, opened_at, closed_at, sla_hours, payload")
+        .in("asset_id", ids)
+        .order("opened_at", { ascending: false })
+        .limit(2000);
+      if (data.tab !== "AssetHealth") q = q.eq("type", data.tab);
+      if (data.from) q = q.gte("opened_at", data.from);
+      if (data.to) q = q.lte("opened_at", data.to);
+      const { data: h } = await q;
+      history = h ?? [];
+    }
+
+    // slicer filter (in-memory; reads asset's department/area/payload.mediaType)
+    const filtered = finalAssets.filter((a) => {
+      if (data.department && (a.department ?? "") !== data.department) return false;
+      if (data.region && (a.area ?? "") !== data.region) return false;
+      if (data.mediaType) {
+        const mt = (a.payload as Record<string, unknown> | null)?.mediaType ?? (a.payload as Record<string, unknown> | null)?.MediaType;
+        if (String(mt ?? "") !== data.mediaType) return false;
+      }
+      return true;
+    });
+
+    // available slicer values across all selected assets
+    const departments = Array.from(new Set(finalAssets.map((a) => a.department).filter(Boolean))) as string[];
+    const regions = Array.from(new Set(finalAssets.map((a) => a.area).filter(Boolean))) as string[];
+    const mediaTypes = Array.from(new Set(finalAssets.map((a) => {
+      const p = a.payload as Record<string, unknown> | null;
+      return (p?.mediaType ?? p?.MediaType) as string | undefined;
+    }).filter(Boolean))) as string[];
+
+    return {
+      assets: filtered,
+      history,
+      slicers: { departments, regions, mediaTypes },
+      syncErrors,
+    };
+  });
+
 export const getAssetDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => z.object({ oldCode: z.string().min(1).max(100) }).parse(i))

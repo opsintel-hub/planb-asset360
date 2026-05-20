@@ -406,8 +406,8 @@ function AssetDbForm({
       <div className="space-y-2 rounded-lg border bg-background/50 p-3">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-sm font-medium">Auto-Sync (เซิร์ฟเวอร์รันอัตโนมัติ)</div>
-            <div className="text-xs text-muted-foreground">เลือกวันที่ในเดือน (สูงสุด 4 วัน) — รันเวลา 04:00 น.</div>
+            <div className="text-sm font-medium">Auto-Sync — วันในเดือน</div>
+            <div className="text-xs text-muted-foreground">เลือกได้สูงสุด 4 วัน/เดือน</div>
           </div>
           <Badge tone={days.length > 0 ? "success" : "warning"}>{days.length}/4 วัน</Badge>
         </div>
@@ -432,11 +432,43 @@ function AssetDbForm({
           })}
         </div>
         {days.length > 0 && (
-          <div className="text-xs text-muted-foreground">
-            จะรันในวันที่ {days.join(", ")} ของทุกเดือน เวลา 04:00 น.
-          </div>
+          <div className="text-xs text-muted-foreground">วันที่ {days.join(", ")} ของทุกเดือน</div>
         )}
       </div>
+
+      <div className="space-y-2 rounded-lg border bg-background/50 p-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium">Auto-Sync — เวลาที่รัน</div>
+            <div className="text-xs text-muted-foreground">เลือกได้สูงสุด 12 ช่วงเวลา/วัน</div>
+          </div>
+          <Badge tone={times.length > 0 ? "success" : "warning"}>{times.length}/12 ช่วง</Badge>
+        </div>
+        <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 gap-1.5">
+          {HOURS.map((t) => {
+            const active = times.includes(t);
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => toggleTime(t)}
+                className={cn(
+                  "h-9 rounded-md text-xs font-medium border transition tabular-nums",
+                  active
+                    ? "bg-primary text-primary-foreground border-primary shadow"
+                    : "bg-card hover:bg-accent border-border",
+                )}
+              >
+                {t}
+              </button>
+            );
+          })}
+        </div>
+        {times.length > 0 && (
+          <div className="text-xs text-muted-foreground">รันเวลา {times.join(", ")} น. ของวันที่เลือก</div>
+        )}
+      </div>
+
 
       <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
         <div className="text-sm font-medium">เชื่อมต่อ MSSQL โดยตรง (Lovable Cloud Function)</div>

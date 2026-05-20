@@ -665,7 +665,7 @@ function AssetHealthTab({
             if (!h.opened_at?.startsWith(matrixYear)) return;
             const mo = Number(h.opened_at.slice(5, 7)) - 1;
             if (mo >= 0 && mo < 12 && (h.type === "PM" || h.type === "Claim" || h.type === "Monitor")) {
-              matrix[h.type][mo]++;
+              matrix[h.type as "PM" | "Claim" | "Monitor"][mo]++;
             }
           });
           const maxVal = Math.max(1, ...matrix.PM, ...matrix.Claim, ...matrix.Monitor);

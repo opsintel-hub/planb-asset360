@@ -591,16 +591,22 @@ function AssetHealthTab({
   const reduction = baselinePm > 0 ? Math.max(-80, Math.min(80, ((baselinePm - pmFreqDays) / baselinePm) * 60)) : 0;
 
   // Maintenance debt: if delayed N months, expected extra failures
-  const expectedExtraFailures = avgMtbf > 0
-    ? Math.round((debtMonths * 30 / avgMtbf) * Math.max(assets.length, 1))
-    : 0;
+  // Use a default MTBF (90 days) when there's no claim history so the simulator is still meaningful
+  const effMtbf = avgMtbf > 0 ? avgMtbf : 90;
+  const expectedExtraFailures = Math.round((debtMonths * 30 / effMtbf) * Math.max(assets.length, 1));
 
-  // Service-level estimate
+  // Service-level estimate (current)
   const avgResponse = (() => {
     const rt = history.filter((h) => h.type === "Claim").map((h) => Number(h.payload?.responseTime)).filter((n) => Number.isFinite(n));
     return rt.length ? rt.reduce((a, b) => a + b, 0) / rt.length : 0;
   })();
-  const availability = avgMtbf > 0 && avgResponse > 0 ? Math.max(0, Math.min(100, 100 - (avgResponse / (avgMtbf * 24)) * 100)) : 0;
+  const curResponse = avgResponse > 0 ? avgResponse : 24; // default 24h if unknown
+  const availability = Math.max(0, Math.min(100, 100 - (curResponse / (effMtbf * 24)) * 100));
+
+  // Simulator 3: user-adjustable target response time → projected availability
+  const [targetResponse, setTargetResponse] = useState<number>(() => Math.max(1, Math.round(curResponse)));
+  const projAvailability = Math.max(0, Math.min(100, 100 - (targetResponse / (effMtbf * 24)) * 100));
+  const availDelta = projAvailability - availability;
 
   return (
     <div className="space-y-6">

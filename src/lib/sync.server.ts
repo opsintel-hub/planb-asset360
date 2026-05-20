@@ -54,7 +54,7 @@ export async function runClaimSync() {
           age_hours: ageHours,
           sla_status: sla,
           severity: (item.severity ?? null) as string | null,
-          payload: item,
+          payload: item as never,
           synced_at: new Date().toISOString(),
         },
         { onConflict: "ticket_code" },
@@ -104,7 +104,7 @@ export async function runAssetHistorySync(oldCode: string) {
           status: (item.status ?? null) as string | null,
           opened_at: (item.openedAt ?? item.createdAt ?? null) as string | null,
           closed_at: (item.closedAt ?? null) as string | null,
-          payload: item,
+          payload: item as never,
         },
         { onConflict: "ticket_code,type" },
       );

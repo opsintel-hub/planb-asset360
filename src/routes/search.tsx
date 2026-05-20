@@ -651,25 +651,116 @@ function AssetHealthTab({
         </div>
       </div>
 
-      {/* Per-asset metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {perAsset.map((p) => (
-          <div key={p.asset.id} className="rounded-xl border p-4 bg-card">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="size-3 rounded-full" style={{ background: colorByAsset.get(p.asset.id) }} />
-              <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted">{p.asset.old_code}</span>
-              <span className="text-sm font-medium truncate">{p.asset.name ?? "—"}</span>
+      {/* Per-asset metrics + 12-month matrix */}
+      <div className="space-y-4">
+        {perAsset.map((p) => {
+          const ph = history.filter((h) => h.asset_id === p.asset.id);
+          // pick most recent year with data, fallback current year
+          const years = Array.from(new Set(ph.map((h) => h.opened_at?.slice(0, 4)).filter(Boolean))) as string[];
+          const matrixYear = years.sort().pop() ?? String(new Date().getFullYear());
+          const matrix: Record<"PM" | "Claim" | "Monitor", number[]> = {
+            PM: Array(12).fill(0), Claim: Array(12).fill(0), Monitor: Array(12).fill(0),
+          };
+          ph.forEach((h) => {
+            if (!h.opened_at?.startsWith(matrixYear)) return;
+            const mo = Number(h.opened_at.slice(5, 7)) - 1;
+            if (mo >= 0 && mo < 12 && (h.type === "PM" || h.type === "Claim" || h.type === "Monitor")) {
+              matrix[h.type][mo]++;
+            }
+          });
+          const maxVal = Math.max(1, ...matrix.PM, ...matrix.Claim, ...matrix.Monitor);
+
+          return (
+            <div key={p.asset.id} className="rounded-xl border bg-card overflow-hidden">
+              <div className="p-4 border-b flex items-center gap-2 flex-wrap">
+                <span className="size-3 rounded-full" style={{ background: colorByAsset.get(p.asset.id) }} />
+                <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted">{p.asset.old_code}</span>
+                <span className="text-sm font-medium truncate flex-1">{p.asset.name ?? "—"}</span>
+                <span className="text-xs text-muted-foreground">ปี {Number(matrixYear) + 543}</span>
+              </div>
+
+              <div className="grid lg:grid-cols-[260px_1fr] gap-0">
+                {/* KPI ซ้าย */}
+                <div className="p-4 lg:border-r">
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div title="ระยะเวลาเฉลี่ยระหว่าง Claim 2 ครั้ง — ยิ่งสูง = ป้ายเสียห่างขึ้น = ดี">
+                      <div className="text-xl font-bold tabular-nums">{p.mtbf.toFixed(0)}</div>
+                      <div className="text-muted-foreground leading-tight">MTBF<br/>(วัน)</div>
+                    </div>
+                    <div title="ความถี่ที่ทำ PM โดยเฉลี่ย — ยิ่งต่ำ = บำรุงรักษาบ่อย">
+                      <div className="text-xl font-bold tabular-nums">{p.pmInterval.toFixed(0)}</div>
+                      <div className="text-muted-foreground leading-tight">PM ทุก<br/>(วัน)</div>
+                    </div>
+                    <div title="ความถี่การตรวจสอบ (Monitoring) โดยเฉลี่ย">
+                      <div className="text-xl font-bold tabular-nums">{p.monInterval.toFixed(0)}</div>
+                      <div className="text-muted-foreground leading-tight">ตรวจทุก<br/>(วัน)</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-3 text-xs text-muted-foreground border-t pt-2 justify-between">
+                    <span>PM {p.counts.PM}</span><span>Claim {p.counts.Claim}</span><span>Monitor {p.counts.Monitor}</span>
+                  </div>
+                  <details className="mt-2 text-[11px] text-muted-foreground">
+                    <summary className="cursor-pointer hover:text-foreground">ตัวเลขนี้หมายถึงอะไร?</summary>
+                    <ul className="mt-1.5 space-y-1 pl-3 list-disc">
+                      <li><b>MTBF</b> = ระยะห่างเฉลี่ยระหว่าง Claim (ค่าสูง = ป้ายเสถียร)</li>
+                      <li><b>PM ทุก</b> = ทำบำรุงรักษาทุกกี่วันโดยเฉลี่ย</li>
+                      <li><b>ตรวจทุก</b> = เข้าตรวจ Monitoring ทุกกี่วันโดยเฉลี่ย</li>
+                      <li>แถวล่าง = ยอดรวมตลอดช่วงข้อมูล</li>
+                    </ul>
+                  </details>
+                </div>
+
+                {/* Matrix 12 เดือน × 3 ประเภท */}
+                <div className="p-4 overflow-x-auto">
+                  <div className="text-[11px] text-muted-foreground mb-1.5">จำนวนงานรายเดือน ปี {Number(matrixYear) + 543} (สีเข้ม = เยอะ)</div>
+                  <table className="w-full text-[11px] border-separate border-spacing-0.5">
+                    <thead>
+                      <tr>
+                        <th className="text-left font-normal text-muted-foreground w-14"></th>
+                        {thMonthsShort.map((m) => (
+                          <th key={m} className="font-normal text-muted-foreground text-center">{m.replace(".", "")}</th>
+                        ))}
+                        <th className="font-medium text-center w-10">รวม</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(["PM", "Claim", "Monitor"] as const).map((t) => {
+                        const sum = matrix[t].reduce((a, b) => a + b, 0);
+                        return (
+                          <tr key={t}>
+                            <td className="text-muted-foreground pr-1">
+                              <span className="inline-flex items-center gap-1">
+                                <span className="size-2 rounded-sm" style={{ background: TYPE_COLOR[t] }} />
+                                {t}
+                              </span>
+                            </td>
+                            {matrix[t].map((v, i) => {
+                              const alpha = v === 0 ? 0 : 0.15 + (v / maxVal) * 0.75;
+                              return (
+                                <td
+                                  key={i}
+                                  className="text-center tabular-nums rounded h-7 align-middle"
+                                  style={{
+                                    background: v === 0 ? "transparent" : `color-mix(in oklab, ${TYPE_COLOR[t]} ${Math.round(alpha * 100)}%, transparent)`,
+                                    color: alpha > 0.55 ? "white" : undefined,
+                                  }}
+                                  title={`${t} • ${thMonthsShort[i]} ${Number(matrixYear) + 543}: ${v} ครั้ง`}
+                                >
+                                  {v || ""}
+                                </td>
+                              );
+                            })}
+                            <td className="text-center font-semibold tabular-nums bg-muted/40 rounded">{sum}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-3 text-center text-xs">
-              <div><div className="text-2xl font-bold tabular-nums">{p.mtbf.toFixed(0)}</div><div className="text-muted-foreground">MTBF (วัน)</div></div>
-              <div><div className="text-2xl font-bold tabular-nums">{p.pmInterval.toFixed(0)}</div><div className="text-muted-foreground">PM ทุก (วัน)</div></div>
-              <div><div className="text-2xl font-bold tabular-nums">{p.monInterval.toFixed(0)}</div><div className="text-muted-foreground">ตรวจทุก (วัน)</div></div>
-            </div>
-            <div className="mt-3 flex gap-3 text-xs text-muted-foreground border-t pt-2">
-              <span>PM {p.counts.PM}</span><span>Claim {p.counts.Claim}</span><span>Monitor {p.counts.Monitor}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* View */}

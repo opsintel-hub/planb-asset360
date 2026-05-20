@@ -161,10 +161,11 @@ Deno.serve(async (req: Request) => {
     let n = 0;
     const batchSize = 200;
     for (let i = 0; i < list.length; i += batchSize) {
-      const rows = list.slice(i, i + batchSize).map((item) => {
-        const oldCode =
-          pickStr(item, ["oldCode", "OldCode", "old_code", "assetCode", "AssetCode", "code", "Code"]) ?? "";
-        return {
+      const rowsByCode = new Map<string, Record<string, unknown>>();
+      for (const item of list.slice(i, i + batchSize)) {
+        const oldCode = pickStr(item, ["oldCode", "OldCode", "old_code", "assetCode", "AssetCode", "code", "Code"]);
+        if (!oldCode) continue;
+        rowsByCode.set(oldCode, {
           old_code: oldCode,
           name: pickStr(item, ["name", "Name", "assetName", "AssetName"]),
           department: pickStr(item, ["department", "Department"]),
@@ -175,8 +176,9 @@ Deno.serve(async (req: Request) => {
           installed_at: pickStr(item, ["installedAt", "InstalledAt", "installed_at", "InstallDate"]),
           payload: item,
           updated_at: new Date().toISOString(),
-        };
-      }).filter((r) => r.old_code);
+        });
+      }
+      const rows = Array.from(rowsByCode.values());
 
       if (rows.length) {
         const { error } = await admin.from("assets").upsert(rows, { onConflict: "old_code" });

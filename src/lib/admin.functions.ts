@@ -152,3 +152,10 @@ export const syncAssetHistoryNow = createServerFn({ method: "POST" })
     const result = await runAssetHistorySync(data.oldCode);
     return result;
   });
+
+export const syncAssetsNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    return runAssetListSync();
+  });

@@ -196,10 +196,9 @@ function SearchPage() {
   async function handleResync() {
     if (!codes.length || inFlightRef.current) return;
     inFlightRef.current = true;
-    toast.promise(
-      cmpFn({ data: { oldCodes: codes, tab, from: fromIso, to: toIso, forceSync: true } }).then(() => refetch()),
-      { loading: "กำลังดึงประวัติจาก PlanB...", success: "ซิงค์ประวัติสำเร็จ", error: (e) => `ซิงค์ไม่สำเร็จ: ${e?.message ?? e}` },
-    ).finally(() => { inFlightRef.current = false; });
+    const p = cmpFn({ data: { oldCodes: codes, tab, from: fromIso, to: toIso, forceSync: true } }).then(() => refetch());
+    p.finally(() => { inFlightRef.current = false; });
+    toast.promise(p, { loading: "กำลังดึงประวัติจาก PlanB...", success: "ซิงค์ประวัติสำเร็จ", error: (e) => `ซิงค์ไม่สำเร็จ: ${e?.message ?? e}` });
   }
 
   const assets = data?.assets ?? [];

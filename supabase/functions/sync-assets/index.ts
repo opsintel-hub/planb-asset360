@@ -111,7 +111,7 @@ Deno.serve(async (req: Request) => {
       user,
       password: DB_PASSWORD,
       options: { encrypt: true, trustServerCertificate: true, enableArithAbort: true },
-      connectionTimeout: 30_000,
+      connectionTimeout: 10_000,
       requestTimeout: 60_000,
     });
 

@@ -21,6 +21,7 @@ interface AssetDbConn {
   database?: string;
   username?: string;
   table?: string;
+  encrypt?: boolean;
 }
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -51,6 +52,30 @@ function toUserFacingError(message: string, host: string) {
 function parseHostPort(raw: string): { server: string; port: number } {
   const [server, portStr] = raw.split(":");
   return { server: server.trim(), port: portStr ? Number(portStr.trim()) : 1433 };
+}
+
+async function connectMssql(config: {
+  server: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  encrypt: boolean;
+}) {
+  return sql.connect({
+    server: config.server,
+    port: config.port,
+    database: config.database,
+    user: config.user,
+    password: config.password,
+    options: {
+      encrypt: config.encrypt,
+      trustServerCertificate: true,
+      enableArithAbort: true,
+    },
+    connectionTimeout: 30_000,
+    requestTimeout: 120_000,
+  });
 }
 
 function pickStr(o: Record<string, unknown>, keys: string[]): string | null {

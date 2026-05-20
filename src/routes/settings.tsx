@@ -69,6 +69,15 @@ function MainSettings() {
     settings.asset_history_endpoint ?? "https://uat-magicticket.magicsigncloud.com/planb_api/api/Ticket/AssetHistory?oldCode={id}";
   const claimAutoSync = settings.claim_auto_sync ?? true;
 
+  const assetDb = (settings.asset_db_connection ?? {}) as {
+    host?: string; database?: string; username?: string; table?: string;
+  };
+  const assetDbHost = assetDb.host ?? "magicticket.magicsigncloud.com";
+  const assetDbName = assetDb.database ?? "planb";
+  const assetDbUser = assetDb.username ?? "planb_viewer";
+  const assetDbTable = assetDb.table ?? "Asset";
+  const assetSyncDays: number[] = Array.isArray(settings.asset_sync_days) ? settings.asset_sync_days : [];
+
   const saveMutation = useMutation({
     mutationFn: (vars: { key: string; value: unknown }) => updateFn({ data: vars }),
     onSuccess: () => { toast.success("บันทึกแล้ว"); qc.invalidateQueries({ queryKey: ["settings"] }); },

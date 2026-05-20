@@ -543,6 +543,8 @@ function AssetHealthTab({
   debtMonths: number; setDebtMonths: (n: number) => void;
 }) {
   const [view, setView] = useState<"graph" | "table" | "calendar">("graph");
+  const [gran, setGran] = useState<"month" | "year">("month");
+  const keyLen = gran === "month" ? 7 : 4;
 
   // Per-asset metrics
   const perAsset = assets.map((a) => {

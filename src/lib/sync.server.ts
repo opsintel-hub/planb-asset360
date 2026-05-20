@@ -31,43 +31,16 @@ async function fetchPlanB(url: string): Promise<unknown> {
 }
 
 export async function runAssetListSync() {
-  const id = await logStart("asset");
-  try {
-    const url = (await readSetting("asset_gateway_url")) as string | undefined;
-    if (!url) throw new Error("ยังไม่ได้ตั้งค่า HTTP/REST Gateway สำหรับ Asset (asset_gateway_url)");
-    const raw = await fetchPlanB(url);
-    const list = Array.isArray(raw) ? raw : ((raw as { data?: unknown[] })?.data ?? []);
-    let n = 0;
-    for (const item of list as Record<string, unknown>[]) {
-      const oldCode = String(
-        item.oldCode ?? item.OldCode ?? item.old_code ?? item.assetCode ?? item.AssetCode ?? item.code ?? "",
-      ).trim();
-      if (!oldCode) continue;
-      const lat = item.latitude ?? item.Latitude ?? item.lat;
-      const lng = item.longitude ?? item.Longitude ?? item.lng;
-      await supabaseAdmin.from("assets").upsert(
-        {
-          old_code: oldCode,
-          name: (item.name ?? item.Name ?? item.assetName ?? null) as string | null,
-          department: (item.department ?? item.Department ?? null) as string | null,
-          area: (item.area ?? item.Area ?? item.location ?? null) as string | null,
-          status: (item.status ?? item.Status ?? null) as string | null,
-          latitude: lat == null ? null : Number(lat),
-          longitude: lng == null ? null : Number(lng),
-          installed_at: (item.installedAt ?? item.InstalledAt ?? null) as string | null,
-          payload: item as never,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "old_code" },
-      );
-      n++;
-    }
-    await logFinish(id, "success", `synced ${n} assets`, n);
-    return { ok: true, rows: n };
-  } catch (e) {
-    await logFinish(id, "error", (e as Error).message, 0);
-    throw e;
-  }
+  // Direct MSSQL connection is not possible from the Cloudflare Worker runtime
+  // (no TDS / raw TCP). Delegate to the Supabase Edge Function `sync-assets`
+  // which runs on Deno and uses `npm:mssql` to connect directly.
+  const { data, error } = await supabaseAdmin.functions.invoke("sync-assets", {
+    body: {},
+  });
+  if (error) throw new Error(`sync-assets edge function failed: ${error.message}`);
+  const result = data as { ok?: boolean; rows?: number; error?: string } | null;
+  if (!result?.ok) throw new Error(result?.error ?? "sync-assets returned no result");
+  return { ok: true, rows: result.rows ?? 0 };
 }
 
 

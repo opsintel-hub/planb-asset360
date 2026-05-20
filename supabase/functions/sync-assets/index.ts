@@ -21,6 +21,7 @@ interface AssetDbConn {
   database?: string;
   username?: string;
   table?: string;
+  encrypt?: boolean;
 }
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -51,6 +52,30 @@ function toUserFacingError(message: string, host: string) {
 function parseHostPort(raw: string): { server: string; port: number } {
   const [server, portStr] = raw.split(":");
   return { server: server.trim(), port: portStr ? Number(portStr.trim()) : 1433 };
+}
+
+async function connectMssql(config: {
+  server: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  encrypt: boolean;
+}) {
+  return sql.connect({
+    server: config.server,
+    port: config.port,
+    database: config.database,
+    user: config.user,
+    password: config.password,
+    options: {
+      encrypt: config.encrypt,
+      trustServerCertificate: true,
+      enableArithAbort: true,
+    },
+    connectionTimeout: 30_000,
+    requestTimeout: 120_000,
+  });
 }
 
 function pickStr(o: Record<string, unknown>, keys: string[]): string | null {
@@ -121,16 +146,14 @@ Deno.serve(async (req: Request) => {
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("invalid MSSQL port");
     targetHost = `${server}:${port}`;
 
-    pool = await sql.connect({
-      server,
-      port,
-      database,
-      user,
-      password: DB_PASSWORD,
-      options: { encrypt: true, trustServerCertificate: true, enableArithAbort: true },
-      connectionTimeout: 10_000,
-      requestTimeout: 60_000,
-    });
+    const encrypt = conn.encrypt ?? false;
+    try {
+      pool = await connectMssql({ server, port, database, user, password: DB_PASSWORD, encrypt });
+    } catch (firstError) {
+      if (encrypt) throw firstError;
+      console.warn("sync-assets retrying MSSQL connection with encrypt=true", (firstError as Error).message);
+      pool = await connectMssql({ server, port, database, user, password: DB_PASSWORD, encrypt: true });
+    }
 
     const result = await pool.request().query(`SELECT * FROM ${table}`);
     const list = (result.recordset ?? []) as Record<string, unknown>[];
@@ -138,10 +161,11 @@ Deno.serve(async (req: Request) => {
     let n = 0;
     const batchSize = 200;
     for (let i = 0; i < list.length; i += batchSize) {
-      const rows = list.slice(i, i + batchSize).map((item) => {
-        const oldCode =
-          pickStr(item, ["oldCode", "OldCode", "old_code", "assetCode", "AssetCode", "code", "Code"]) ?? "";
-        return {
+      const rowsByCode = new Map<string, Record<string, unknown>>();
+      for (const item of list.slice(i, i + batchSize)) {
+        const oldCode = pickStr(item, ["oldCode", "OldCode", "old_code", "assetCode", "AssetCode", "code", "Code"]);
+        if (!oldCode) continue;
+        rowsByCode.set(oldCode, {
           old_code: oldCode,
           name: pickStr(item, ["name", "Name", "assetName", "AssetName"]),
           department: pickStr(item, ["department", "Department"]),
@@ -152,8 +176,9 @@ Deno.serve(async (req: Request) => {
           installed_at: pickStr(item, ["installedAt", "InstalledAt", "installed_at", "InstallDate"]),
           payload: item,
           updated_at: new Date().toISOString(),
-        };
-      }).filter((r) => r.old_code);
+        });
+      }
+      const rows = Array.from(rowsByCode.values());
 
       if (rows.length) {
         const { error } = await admin.from("assets").upsert(rows, { onConflict: "old_code" });

@@ -95,16 +95,32 @@ function MainSettings() {
     onError: (e: Error) => toast.error(`Sync ล้มเหลว: ${e.message}`),
   });
 
+  const syncAssetsFn = useServerFn(syncAssetsNow);
+  const assetSyncMutation = useMutation({
+    mutationFn: () => syncAssetsFn({}),
+    onSuccess: (r) => {
+      toast.success(`ดึงข้อมูล Asset สำเร็จ: ${r.rows ?? 0} รายการ`);
+      qc.invalidateQueries({ queryKey: ["sync-logs"] });
+      qc.invalidateQueries({ queryKey: ["assets"] });
+    },
+    onError: (e: Error) => toast.error(`ดึงข้อมูลล้มเหลว: ${e.message}`),
+  });
+
   return (
     <div className="space-y-6">
       <Section title="Modern Corporate Server (Asset Database)" desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB (รหัสผ่านเก็บอย่างปลอดภัยใน Secret Store)">
         <AssetDbForm
           defaults={{ host: assetDbHost, database: assetDbName, username: assetDbUser, table: assetDbTable }}
           syncDays={assetSyncDays}
+          gatewayUrl={assetGatewayUrl}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
           onSaveDays={(days) => saveMutation.mutate({ key: "asset_sync_days", value: days })}
+          onSaveGateway={(url) => saveMutation.mutate({ key: "asset_gateway_url", value: url })}
+          onTest={() => assetSyncMutation.mutate()}
+          testing={assetSyncMutation.isPending}
         />
       </Section>
+
 
       <Section title="API ค้นหาประวัติ Asset" desc="ใช้สำหรับดึงประวัติทรัพย์สินจากระบบ PlanB">
 

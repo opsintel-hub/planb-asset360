@@ -360,7 +360,7 @@ function Slicer({ label, value, onChange, options }: { label: string; value: str
 }
 
 // ============ Regular Tab (PM/Claim/Monitor) ============
-type Asset = { id: string; old_code: string; name: string | null; department: string | null; area: string | null; status: string | null };
+type Asset = { id: string; old_code: string; name: string | null; department: string | null; area: string | null; status: string | null; latitude?: number | null; longitude?: number | null; installed_at?: string | null; last_pm_at?: string | null; last_claim_at?: string | null; last_monitor_ok_at?: string | null };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type HistRow = any;
 

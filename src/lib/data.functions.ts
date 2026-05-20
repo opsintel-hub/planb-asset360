@@ -410,3 +410,41 @@ export const listAirtableSlots = createServerFn({ method: "GET" })
       .order("id", { ascending: true });
     return { slots: data ?? [] };
   });
+
+// ---------- Schema change detection ----------
+// Compares current Asset payload keys vs a saved snapshot to alert when upstream changes.
+export const getSchemaStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: sample } = await context.supabase
+      .from("assets")
+      .select("payload, updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const currentKeys = sample?.payload && typeof sample.payload === "object"
+      ? Object.keys(sample.payload as Record<string, unknown>).sort()
+      : [];
+
+    const { data: snap } = await context.supabase
+      .from("app_settings")
+      .select("value, updated_at")
+      .eq("key", "asset_schema_snapshot")
+      .maybeSingle();
+    const snapVal = (snap?.value ?? null) as { keys?: string[]; takenAt?: string } | null;
+    const snapKeys = Array.isArray(snapVal?.keys) ? [...(snapVal!.keys as string[])].sort() : [];
+
+    const added = currentKeys.filter((k) => !snapKeys.includes(k));
+    const removed = snapKeys.filter((k) => !currentKeys.includes(k));
+
+    return {
+      currentKeys,
+      snapshotKeys: snapKeys,
+      added,
+      removed,
+      hasSnapshot: snapKeys.length > 0,
+      snapshotAt: snapVal?.takenAt ?? snap?.updated_at ?? null,
+      lastAssetAt: sample?.updated_at ?? null,
+      hasData: currentKeys.length > 0,
+    };
+  });

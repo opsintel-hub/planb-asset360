@@ -2,11 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Database, RefreshCw, CheckCircle2, Server } from "lucide-react";
+import { Database, RefreshCw, CheckCircle2, Server, AlertTriangle } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { getAppSettings, getSyncLogs, listAirtableSlots } from "@/lib/data.functions";
+import { getAppSettings, getSyncLogs, listAirtableSlots, getSchemaStatus } from "@/lib/data.functions";
 import { updateAppSetting, updateAirtableSlot, syncClaimsNow, syncAssetsNow } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -79,6 +79,7 @@ function MainSettings() {
   const assetDbUser = assetDb.username ?? "planb_viewer";
   const assetDbTable = assetDb.table ?? "Asset";
   const assetSyncDays: number[] = Array.isArray(settings.asset_sync_days) ? settings.asset_sync_days : [];
+  const assetSyncTimes: string[] = Array.isArray(settings.asset_sync_times) ? settings.asset_sync_times : ["04:00"];
   
 
   const saveMutation = useMutation({
@@ -119,12 +120,17 @@ function MainSettings() {
         <AssetDbForm
           defaults={{ server: assetDbServer, port: assetDbPort, database: assetDbName, username: assetDbUser, table: assetDbTable }}
           syncDays={assetSyncDays}
+          syncTimes={assetSyncTimes}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
           onSaveDays={(days) => saveMutation.mutate({ key: "asset_sync_days", value: days })}
+          onSaveTimes={(times) => saveMutation.mutate({ key: "asset_sync_times", value: times })}
           onTest={() => assetSyncMutation.mutate()}
           testing={assetSyncMutation.isPending}
         />
       </Section>
+
+      <SchemaAlertSection />
+
 
 
       <Section title="API ค้นหาประวัติ Asset" desc="ใช้สำหรับดึงประวัติทรัพย์สินจากระบบ PlanB">
@@ -329,15 +335,19 @@ function EditableField({ label, defaultValue, onSave }: { label: string; default
 function AssetDbForm({
   defaults,
   syncDays,
+  syncTimes,
   onSave,
   onSaveDays,
+  onSaveTimes,
   onTest,
   testing,
 }: {
   defaults: { server: string; port: string; database: string; username: string; table: string };
   syncDays: number[];
+  syncTimes: string[];
   onSave: (v: { server: string; port: number; database: string; username: string; table: string }) => void;
   onSaveDays: (days: number[]) => void;
+  onSaveTimes: (times: string[]) => void;
   onTest: () => void;
   testing: boolean;
 }) {
@@ -347,6 +357,17 @@ function AssetDbForm({
   const [username, setUsername] = useState(defaults.username);
   const [table, setTable] = useState(defaults.table);
   const [days, setDays] = useState<number[]>(syncDays);
+  const [times, setTimes] = useState<string[]>(syncTimes);
+
+  const HOURS = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}:00`);
+  const toggleTime = (t: string) => {
+    setTimes((prev) => {
+      if (prev.includes(t)) return prev.filter((x) => x !== t);
+      if (prev.length >= 12) { toast.error("เลือกได้สูงสุด 12 ช่วงเวลา/วัน"); return prev; }
+      return [...prev, t].sort();
+    });
+  };
+
 
 
   const toggleDay = (d: number) => {
@@ -385,8 +406,8 @@ function AssetDbForm({
       <div className="space-y-2 rounded-lg border bg-background/50 p-3">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-sm font-medium">Auto-Sync (เซิร์ฟเวอร์รันอัตโนมัติ)</div>
-            <div className="text-xs text-muted-foreground">เลือกวันที่ในเดือน (สูงสุด 4 วัน) — รันเวลา 04:00 น.</div>
+            <div className="text-sm font-medium">Auto-Sync — วันในเดือน</div>
+            <div className="text-xs text-muted-foreground">เลือกได้สูงสุด 4 วัน/เดือน</div>
           </div>
           <Badge tone={days.length > 0 ? "success" : "warning"}>{days.length}/4 วัน</Badge>
         </div>
@@ -411,11 +432,43 @@ function AssetDbForm({
           })}
         </div>
         {days.length > 0 && (
-          <div className="text-xs text-muted-foreground">
-            จะรันในวันที่ {days.join(", ")} ของทุกเดือน เวลา 04:00 น.
-          </div>
+          <div className="text-xs text-muted-foreground">วันที่ {days.join(", ")} ของทุกเดือน</div>
         )}
       </div>
+
+      <div className="space-y-2 rounded-lg border bg-background/50 p-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium">Auto-Sync — เวลาที่รัน</div>
+            <div className="text-xs text-muted-foreground">เลือกได้สูงสุด 12 ช่วงเวลา/วัน</div>
+          </div>
+          <Badge tone={times.length > 0 ? "success" : "warning"}>{times.length}/12 ช่วง</Badge>
+        </div>
+        <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 gap-1.5">
+          {HOURS.map((t) => {
+            const active = times.includes(t);
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => toggleTime(t)}
+                className={cn(
+                  "h-9 rounded-md text-xs font-medium border transition tabular-nums",
+                  active
+                    ? "bg-primary text-primary-foreground border-primary shadow"
+                    : "bg-card hover:bg-accent border-border",
+                )}
+              >
+                {t}
+              </button>
+            );
+          })}
+        </div>
+        {times.length > 0 && (
+          <div className="text-xs text-muted-foreground">รันเวลา {times.join(", ")} น. ของวันที่เลือก</div>
+        )}
+      </div>
+
 
       <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
         <div className="text-sm font-medium">เชื่อมต่อ MSSQL โดยตรง (Lovable Cloud Function)</div>
@@ -462,10 +515,116 @@ function AssetDbForm({
           onClick={() => onSaveDays(days)}
           className="rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
         >
-          บันทึกตารางเวลา Auto-Sync
+          บันทึกวันที่
         </button>
+        <button
+          onClick={() => onSaveTimes(times)}
+          className="rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+        >
+          บันทึกเวลา
+        </button>
+
       </div>
     </div>
+  );
+}
+
+function SchemaAlertSection() {
+  const fn = useServerFn(getSchemaStatus);
+  const updFn = useServerFn(updateAppSetting);
+  const qc = useQueryClient();
+  const { data, isLoading, refetch } = useQuery({ queryKey: ["schema-status"], queryFn: () => fn({}) });
+
+  const acceptMutation = useMutation({
+    mutationFn: () =>
+      updFn({ data: { key: "asset_schema_snapshot", value: { keys: data?.currentKeys ?? [], takenAt: new Date().toISOString() } } }),
+    onSuccess: () => {
+      toast.success("บันทึก Schema ปัจจุบันเป็นค่าอ้างอิงแล้ว");
+      qc.invalidateQueries({ queryKey: ["schema-status"] });
+      refetch();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const hasChange = (data?.added.length ?? 0) > 0 || (data?.removed.length ?? 0) > 0;
+  const tone = !data?.hasData ? "warning" : !data.hasSnapshot ? "warning" : hasChange ? "danger" : "success";
+
+  return (
+    <Section title="Schema Change Alert" desc="แจ้งเตือนเมื่อโครงสร้างข้อมูล Asset จากต้นทางมีการเพิ่ม/ลบ field">
+      {isLoading ? (
+        <Skeleton className="h-24" />
+      ) : !data?.hasData ? (
+        <div className="text-sm text-muted-foreground">ยังไม่มีข้อมูล Asset — กดทดสอบดึงข้อมูลก่อน</div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Badge tone={tone}>
+              {!data.hasSnapshot ? "ยังไม่มี Snapshot" : hasChange ? "ตรวจพบการเปลี่ยนแปลง" : "ไม่มีการเปลี่ยนแปลง"}
+            </Badge>
+            {data.snapshotAt && (
+              <span className="text-xs text-muted-foreground">
+                Snapshot ล่าสุด: {new Date(data.snapshotAt).toLocaleString("th-TH")}
+              </span>
+            )}
+          </div>
+
+          {hasChange && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2 text-sm">
+              <div className="flex items-center gap-2 font-medium text-destructive">
+                <AlertTriangle className="size-4" /> Schema เปลี่ยนแปลง
+              </div>
+              {data.added.length > 0 && (
+                <div>
+                  <span className="text-xs text-muted-foreground">เพิ่ม ({data.added.length}):</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {data.added.map((k) => (
+                      <code key={k} className="text-xs px-2 py-0.5 rounded bg-success/10 text-success">+{k}</code>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {data.removed.length > 0 && (
+                <div>
+                  <span className="text-xs text-muted-foreground">หายไป ({data.removed.length}):</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {data.removed.map((k) => (
+                      <code key={k} className="text-xs px-2 py-0.5 rounded bg-destructive/10 text-destructive">−{k}</code>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground">
+              ดู Field ปัจจุบันทั้งหมด ({data.currentKeys.length})
+            </summary>
+            <div className="flex flex-wrap gap-1 mt-2">
+              {data.currentKeys.map((k) => (
+                <code key={k} className="text-xs px-2 py-0.5 rounded bg-muted">{k}</code>
+              ))}
+            </div>
+          </details>
+
+          <div className="flex gap-2 pt-2 border-t">
+            <button
+              onClick={() => acceptMutation.mutate()}
+              disabled={acceptMutation.isPending}
+              className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {data.hasSnapshot ? "ยืนยันใช้ Schema ใหม่" : "บันทึก Snapshot เริ่มต้น"}
+            </button>
+            <button
+              onClick={() => refetch()}
+              className="rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent inline-flex items-center gap-2"
+            >
+              <RefreshCw className="size-4" /> ตรวจซ้ำ
+            </button>
+          </div>
+        </div>
+      )}
+    </Section>
   );
 }
 

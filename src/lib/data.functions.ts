@@ -1,0 +1,248 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+// ---------- Dashboard ----------
+export const getDashboardOverview = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+
+    const [assetsRes, claimsRes, monitorRes, historyRes] = await Promise.all([
+      supabase.from("assets").select("id, department, status", { count: "exact" }),
+      supabase.from("claims").select("id, sla_status, age_hours", { count: "exact" }),
+      supabase.from("monitoring_status").select("online, error_code"),
+      supabase
+        .from("asset_history")
+        .select("id, type, title, status, opened_at, ticket_code, asset_old_code")
+        .order("opened_at", { ascending: false })
+        .limit(15),
+    ]);
+
+    const assets = assetsRes.data ?? [];
+    const claims = claimsRes.data ?? [];
+    const monitor = monitorRes.data ?? [];
+    const history = historyRes.data ?? [];
+
+    // by department
+    const deptMap = new Map<string, number>();
+    for (const a of assets) {
+      const k = a.department ?? "Unknown";
+      deptMap.set(k, (deptMap.get(k) ?? 0) + 1);
+    }
+    const deptData = Array.from(deptMap, ([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+
+    // status pie
+    const statusMap = new Map<string, number>();
+    for (const a of assets) {
+      const k = a.status ?? "Unknown";
+      statusMap.set(k, (statusMap.get(k) ?? 0) + 1);
+    }
+    const total = assets.length || 1;
+    const colorFor = (s: string) =>
+      s.toLowerCase().includes("finish") || s.toLowerCase().includes("ok")
+        ? "oklch(0.65 0.16 155)"
+        : s.toLowerCase().includes("work")
+          ? "oklch(0.62 0.19 255)"
+          : s.toLowerCase().includes("pend")
+            ? "oklch(0.78 0.16 75)"
+            : "oklch(0.6 0.22 25)";
+    const statusData = Array.from(statusMap, ([name, value]) => ({
+      name,
+      value: Math.round((value / total) * 100),
+      color: colorFor(name),
+    }));
+
+    // trend (last 5 months)
+    const now = new Date();
+    const monthLabels: string[] = [];
+    const trendBuckets: Record<string, { pm: number; claim: number; monitor: number }> = {};
+    for (let i = 4; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("th-TH", { month: "short" });
+      monthLabels.push(label);
+      trendBuckets[key] = { pm: 0, claim: 0, monitor: 0 };
+    }
+    const { data: histAll } = await supabase
+      .from("asset_history")
+      .select("type, opened_at")
+      .gte("opened_at", new Date(now.getFullYear(), now.getMonth() - 4, 1).toISOString());
+    for (const h of histAll ?? []) {
+      if (!h.opened_at) continue;
+      const d = new Date(h.opened_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const b = trendBuckets[key];
+      if (!b) continue;
+      if (h.type === "PM") b.pm++;
+      else if (h.type === "Claim") b.claim++;
+      else if (h.type === "Monitor") b.monitor++;
+    }
+    const trendData = monthLabels.map((label, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (4 - i), 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const b = trendBuckets[key];
+      return { month: label, ...b };
+    });
+
+    // stats
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const { count: pmThisMonth } = await supabase
+      .from("asset_history")
+      .select("id", { count: "exact", head: true })
+      .eq("type", "PM")
+      .gte("opened_at", monthStart);
+
+    const avgClaimAge = claims.length
+      ? claims.reduce((s, c) => s + (Number(c.age_hours) || 0), 0) / claims.length / 24
+      : 0;
+    const errorCount = monitor.filter((m) => !m.online).length;
+
+    return {
+      stats: {
+        totalAssets: assetsRes.count ?? 0,
+        pmThisMonth: pmThisMonth ?? 0,
+        claimsOpen: claimsRes.count ?? 0,
+        avgClaimDays: Math.round(avgClaimAge * 10) / 10,
+        monitorErrors: errorCount,
+      },
+      deptData,
+      statusData,
+      trendData,
+      recent: history.map((h) => ({
+        id: h.ticket_code ?? h.id,
+        type: h.type,
+        status: h.status ?? "—",
+        title: h.title ?? "",
+        opened_at: h.opened_at,
+        asset_old_code: h.asset_old_code,
+      })),
+    };
+  });
+
+// ---------- Search ----------
+export const searchAssets = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        q: z.string().max(200).optional().default(""),
+        tab: z.enum(["PM", "Claim", "Monitor", "AssetHealth"]).optional().default("PM"),
+        limit: z.number().int().min(1).max(200).optional().default(50),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const q = data.q.trim();
+    let assetsQuery = supabase
+      .from("assets")
+      .select("id, old_code, name, department, area, status, last_pm_at, last_claim_at, last_monitor_ok_at")
+      .order("updated_at", { ascending: false })
+      .limit(data.limit);
+    if (q) {
+      assetsQuery = assetsQuery.or(
+        `old_code.ilike.%${q}%,name.ilike.%${q}%,area.ilike.%${q}%`,
+      );
+    }
+    const { data: assets } = await assetsQuery;
+
+    let history: unknown[] = [];
+    if (assets && assets.length) {
+      const ids = assets.map((a) => a.id);
+      const { data: h } = await supabase
+        .from("asset_history")
+        .select("id, asset_id, ticket_code, type, title, status, opened_at, closed_at, sla_hours")
+        .in("asset_id", ids)
+        .eq("type", data.tab)
+        .order("opened_at", { ascending: false })
+        .limit(200);
+      history = h ?? [];
+    }
+    return { assets: assets ?? [], history };
+  });
+
+export const getAssetDetail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ oldCode: z.string().min(1).max(100) }).parse(i))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: asset } = await supabase
+      .from("assets")
+      .select("*")
+      .eq("old_code", data.oldCode)
+      .maybeSingle();
+    if (!asset) return { asset: null, history: [] };
+    const { data: history } = await supabase
+      .from("asset_history")
+      .select("*")
+      .eq("asset_id", asset.id)
+      .order("opened_at", { ascending: false })
+      .limit(100);
+    return { asset, history: history ?? [] };
+  });
+
+// ---------- Claims ----------
+export const listClaims = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z.object({ sla: z.enum(["all", "ontrack", "atrisk", "breached"]).optional().default("all") }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    let q = context.supabase
+      .from("claims")
+      .select("*")
+      .order("age_hours", { ascending: false })
+      .limit(200);
+    if (data.sla !== "all") q = q.eq("sla_status", data.sla);
+    const { data: rows } = await q;
+    return { claims: rows ?? [] };
+  });
+
+// ---------- Monitoring ----------
+export const listMonitoring = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data } = await context.supabase
+      .from("monitoring_status")
+      .select(
+        "asset_id, asset_old_code, online, last_seen_at, uptime_7d, error_code, message, updated_at",
+      )
+      .order("online", { ascending: true })
+      .limit(500);
+    return { rows: data ?? [] };
+  });
+
+// ---------- Sync logs ----------
+export const getSyncLogs = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data } = await context.supabase
+      .from("sync_logs")
+      .select("*")
+      .order("started_at", { ascending: false })
+      .limit(60);
+    return { logs: data ?? [] };
+  });
+
+// ---------- Settings ----------
+export const getAppSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data } = await context.supabase.from("app_settings").select("key, value");
+    const map: Record<string, unknown> = {};
+    for (const r of data ?? []) map[r.key] = r.value;
+    return { settings: map };
+  });
+
+export const listAirtableSlots = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data } = await context.supabase
+      .from("airtable_connections")
+      .select("*")
+      .order("id", { ascending: true });
+    return { slots: data ?? [] };
+  });

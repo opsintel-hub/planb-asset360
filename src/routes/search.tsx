@@ -828,45 +828,45 @@ function AssetHealthTab({
             );
           })()}
 
-          {/* Service Level */}
+          {/* Service Level — interactive */}
           {(() => {
-            const status = availability >= 95 ? "better" : availability >= 80 ? "neutral" : "worse";
+            const status = projAvailability >= 95 ? "better" : projAvailability >= 80 ? "neutral" : "worse";
+            const trend = availDelta > 0.1 ? "better" : availDelta < -0.1 ? "worse" : "neutral";
             return (
               <div className="bg-card p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Activity className="size-4 text-primary" />
-                  <h4 className="font-semibold text-sm">ระดับการให้บริการปัจจุบัน</h4>
+                  <h4 className="font-semibold text-sm">ถ้าตอบสนอง Claim เร็ว/ช้าลง</h4>
                 </div>
                 <p className="text-xs text-muted-foreground mb-3">
-                  คำนวณจากความเร็วในการตอบสนอง Claim และ MTBF — <strong>ไม่ต้องปรับ</strong> แสดงสถานะปัจจุบัน
+                  ปัจจุบันตอบสนองเฉลี่ย <strong className="text-foreground">{curResponse.toFixed(1)} ชม.</strong> · ลองปรับเป้าหมายใหม่ดู Availability ที่จะได้
                 </p>
-                <div className="grid grid-cols-2 gap-2 text-xs mb-3">
-                  <div className="rounded-lg bg-muted p-2">
-                    <div className="text-muted-foreground">เวลาตอบสนอง</div>
-                    <div className="font-semibold text-foreground">{avgResponse.toFixed(1)} ชม.</div>
-                  </div>
-                  <div className="rounded-lg bg-muted p-2">
-                    <div className="text-muted-foreground">MTBF</div>
-                    <div className="font-semibold text-foreground">{avgMtbf.toFixed(0)} วัน</div>
-                  </div>
+                <input type="range" min={1} max={72} step={1} value={targetResponse} onChange={(e) => setTargetResponse(Number(e.target.value))} className="w-full" />
+                <div className="mt-1 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">ตอบเร็ว 1 ชม.</span>
+                  <span className="font-medium">เป้าหมาย {targetResponse} ชม.</span>
+                  <span className="text-muted-foreground">ตอบช้า 72 ชม.</span>
                 </div>
                 <div className={cn(
-                  "rounded-lg p-3 text-center",
+                  "mt-3 rounded-lg p-3 text-center",
                   status === "better" && "bg-success/10 text-success",
                   status === "neutral" && "bg-warning/10 text-[oklch(0.45_0.15_75)]",
                   status === "worse" && "bg-destructive/10 text-destructive",
                 )}>
-                  <div className="text-3xl font-bold">{availability.toFixed(1)}%</div>
+                  <div className="text-3xl font-bold">{projAvailability.toFixed(1)}%</div>
                   <div className="text-xs mt-0.5">
-                    System Availability — {status === "better" ? "🟢 ดีมาก (≥95%)" : status === "neutral" ? "🟡 พอใช้ (80–95%)" : "🔴 ต้องปรับปรุง (<80%)"}
+                    Availability ที่คาด — {status === "better" ? "🟢 ดีมาก (≥95%)" : status === "neutral" ? "🟡 พอใช้ (80–95%)" : "🔴 ต้องปรับปรุง (<80%)"}
+                  </div>
+                  <div className="text-[11px] mt-1 opacity-80">
+                    เทียบกับปัจจุบัน {availability.toFixed(1)}%: {trend === "better" ? `🟢 ดีขึ้น +${availDelta.toFixed(1)}%` : trend === "worse" ? `🔴 แย่ลง ${availDelta.toFixed(1)}%` : "⚪ เท่าเดิม"}
                   </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-2">
-                  💡 บอกว่าป้ายพร้อมใช้งานกี่ % ของเวลาทั้งหมด — ยิ่งสูงยิ่งดี
+                  💡 ใช้ตั้งเป้า SLA — ตอบเร็วเท่าไหร่ถึงจะถึงเป้า Availability ที่ต้องการ
                 </p>
                 <details className="mt-2 text-[11px] text-muted-foreground">
                   <summary className="cursor-pointer">วิธีคำนวณ</summary>
-                  <p className="mt-1">100 − (เวลาตอบสนองเฉลี่ย ÷ (MTBF × 24)) × 100 — ยิ่งซ่อมเร็วและเสียน้อย ค่าจะยิ่งสูง</p>
+                  <p className="mt-1">100 − (เวลาตอบสนองเป้าหมาย ÷ (MTBF × 24)) × 100 — MTBF = {effMtbf.toFixed(0)} วัน {avgMtbf > 0 ? "(จากข้อมูลจริง)" : "(ค่าตั้งต้น เนื่องจากไม่มีประวัติ Claim)"}</p>
                 </details>
               </div>
             );

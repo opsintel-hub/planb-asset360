@@ -415,6 +415,35 @@ function AssetDbForm({
         )}
       </div>
 
+      <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+        <div className="text-sm font-medium">HTTP / REST API Gateway สำหรับ Auto-Sync</div>
+        <p className="text-xs text-muted-foreground">
+          Edge runtime ไม่สามารถต่อ SQL Server โดยตรงได้ — กรอก URL ของ HTTP gateway ที่คืน JSON list ของ Asset (รองรับ field: oldCode, name, department, area, status, latitude, longitude, installedAt) ระบบจะใช้ endpoint นี้ทั้งการกด "ทดสอบ" และการ Auto-Sync เวลา 04:00 น.
+        </p>
+        <div className="flex gap-2">
+          <input
+            value={gateway}
+            onChange={(e) => setGateway(e.target.value)}
+            placeholder="https://your-gateway.example.com/planb/assets"
+            className="flex-1 h-10 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <button
+            onClick={() => onSaveGateway(gateway.trim())}
+            className="rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+          >
+            บันทึก URL
+          </button>
+        </div>
+        <button
+          onClick={onTest}
+          disabled={testing}
+          className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+        >
+          <RefreshCw className={cn("size-4", testing && "animate-spin")} />
+          {testing ? "กำลังดึงข้อมูล..." : "ทดสอบดึงข้อมูล Asset"}
+        </button>
+      </div>
+
       <div className="flex flex-wrap gap-2 pt-2 border-t">
         <button
           onClick={() => {
@@ -424,7 +453,7 @@ function AssetDbForm({
             if (password) payload.password_updated_at = new Date().toISOString();
             onSave(payload);
             if (password) {
-              toast.info("รหัสผ่านจะถูกอัปเดตใน Secret Store โดยผู้ดูแลระบบในรอบถัดไป");
+              toast.info("รหัสผ่านถูกอัปเดตในตั้งค่า; ค่าจริงเก็บใน Secret Store");
               setPassword("");
             }
           }}

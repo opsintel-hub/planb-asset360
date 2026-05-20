@@ -77,6 +77,7 @@ function MainSettings() {
   const assetDbUser = assetDb.username ?? "planb_viewer";
   const assetDbTable = assetDb.table ?? "Asset";
   const assetSyncDays: number[] = Array.isArray(settings.asset_sync_days) ? settings.asset_sync_days : [];
+  const assetGatewayUrl = (settings.asset_gateway_url as string | undefined) ?? "";
 
   const saveMutation = useMutation({
     mutationFn: (vars: { key: string; value: unknown }) => updateFn({ data: vars }),

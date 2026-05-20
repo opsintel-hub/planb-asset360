@@ -367,6 +367,18 @@ function AssetDbForm({
         <Field label="Port" value={port} onChange={setPort} />
         <Field label="Database" value={database} onChange={setDatabase} />
         <Field label="User" value={username} onChange={setUsername} />
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Password</label>
+          <input
+            type="password"
+            value="••••••••••••"
+            readOnly
+            className="w-full h-10 rounded-lg border bg-muted/40 px-3 text-sm text-muted-foreground cursor-not-allowed"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            เก็บไว้ใน Secret Store (MODERN_CORP_DB_PASSWORD) — แจ้งแอดมินเพื่ออัปเดต
+          </p>
+        </div>
         <Field label="Table" value={table} onChange={setTable} />
       </div>
 

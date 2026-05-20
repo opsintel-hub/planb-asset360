@@ -70,9 +70,11 @@ function MainSettings() {
   const claimAutoSync = settings.claim_auto_sync ?? true;
 
   const assetDb = (settings.asset_db_connection ?? {}) as {
-    host?: string; database?: string; username?: string; table?: string;
+    host?: string; server?: string; port?: number | string; database?: string; username?: string; table?: string;
   };
-  const assetDbHost = assetDb.host ?? "magicticket.magicsigncloud.com";
+  const [legacyServer, legacyPort] = String(assetDb.host ?? "magicticket.magicsigncloud.com").split(":");
+  const assetDbServer = assetDb.server ?? legacyServer;
+  const assetDbPort = String(assetDb.port ?? legacyPort ?? 1433);
   const assetDbName = assetDb.database ?? "planb";
   const assetDbUser = assetDb.username ?? "planb_viewer";
   const assetDbTable = assetDb.table ?? "Asset";
@@ -113,9 +115,9 @@ function MainSettings() {
 
   return (
     <div className="space-y-6">
-      <Section title="Modern Corporate Server (Asset Database)" desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB (รหัสผ่านเก็บอย่างปลอดภัยใน Secret Store)">
+      <Section title="Modern Corporate Server (Asset Database)" desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB โดยรหัสผ่านเก็บแยกใน Secret Store">
         <AssetDbForm
-          defaults={{ host: assetDbHost, database: assetDbName, username: assetDbUser, table: assetDbTable }}
+          defaults={{ server: assetDbServer, port: assetDbPort, database: assetDbName, username: assetDbUser, table: assetDbTable }}
           syncDays={assetSyncDays}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
           onSaveDays={(days) => saveMutation.mutate({ key: "asset_sync_days", value: days })}
@@ -332,18 +334,18 @@ function AssetDbForm({
   onTest,
   testing,
 }: {
-  defaults: { host: string; database: string; username: string; table: string };
+  defaults: { server: string; port: string; database: string; username: string; table: string };
   syncDays: number[];
-  onSave: (v: { host: string; database: string; username: string; table: string; password_updated_at?: string }) => void;
+  onSave: (v: { server: string; port: number; database: string; username: string; table: string }) => void;
   onSaveDays: (days: number[]) => void;
   onTest: () => void;
   testing: boolean;
 }) {
-  const [host, setHost] = useState(defaults.host);
+  const [server, setServer] = useState(defaults.server);
+  const [port, setPort] = useState(defaults.port);
   const [database, setDatabase] = useState(defaults.database);
   const [username, setUsername] = useState(defaults.username);
   const [table, setTable] = useState(defaults.table);
-  const [password, setPassword] = useState("");
   const [days, setDays] = useState<number[]>(syncDays);
 
 
@@ -361,22 +363,11 @@ function AssetDbForm({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Field label="Modern Corporate Server (host:port)" value={host} onChange={setHost} />
+        <Field label="Server Name" value={server} onChange={setServer} />
+        <Field label="Port" value={port} onChange={setPort} />
         <Field label="Database" value={database} onChange={setDatabase} />
         <Field label="User" value={username} onChange={setUsername} />
         <Field label="Table" value={table} onChange={setTable} />
-        <div className="md:col-span-2 space-y-1.5">
-          <label className="text-xs font-medium text-muted-foreground">
-            Password <span className="text-muted-foreground/70">(เก็บใน Secret Store — เว้นว่างถ้าไม่ต้องการเปลี่ยน)</span>
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••••••"
-            className="w-full h-10 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
       </div>
 
       <div className="space-y-2 rounded-lg border bg-background/50 p-3">
@@ -415,10 +406,10 @@ function AssetDbForm({
       </div>
 
       <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
-        <div className="text-sm font-medium">เชื่อมต่อ MSSQL โดยตรง (Supabase Edge Function)</div>
+        <div className="text-sm font-medium">เชื่อมต่อ MSSQL โดยตรง (Lovable Cloud Function)</div>
         <p className="text-xs text-muted-foreground">
-          ระบบใช้ Lovable Cloud Function เชื่อมต่อ MS SQL Server ตรงด้วยค่า host/database/user/password ด้านบน
-          ไม่ต้องมี HTTP gateway คั่นกลาง — ใช้ทั้งการกด "ทดสอบ" และ Auto-Sync เวลา 04:00 น.
+          ระบบเชื่อมต่อ MS SQL Server ตรงด้วย Server Name, Database, Username, Port และ Password จาก Secret Store
+          โดยไม่ต้องมี HTTP gateway คั่นกลาง — ใช้ทั้งการกด "ทดสอบ" และ Auto-Sync เวลา 04:00 น.
         </p>
         <p className="text-xs text-muted-foreground">
           หาก timeout ที่พอร์ต 1433 ให้ตรวจ firewall/allowlist ของ Modern Corporate Server เพื่อเปิดทางเชื่อมต่อจาก Lovable Cloud
@@ -437,15 +428,19 @@ function AssetDbForm({
       <div className="flex flex-wrap gap-2 pt-2 border-t">
         <button
           onClick={() => {
-            const payload: { host: string; database: string; username: string; table: string; password_updated_at?: string } = {
-              host, database, username, table,
-            };
-            if (password) payload.password_updated_at = new Date().toISOString();
-            onSave(payload);
-            if (password) {
-              toast.info("รหัสผ่านถูกอัปเดตในตั้งค่า; ค่าจริงเก็บใน Secret Store");
-              setPassword("");
+            const parsedPort = Number(port);
+            if (!server.trim() || !database.trim() || !username.trim() || !table.trim()) {
+              toast.error("กรุณากรอก Server, Database, User และ Table ให้ครบ");
+              return;
             }
+            if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
+              toast.error("Port ต้องเป็นตัวเลขระหว่าง 1-65535");
+              return;
+            }
+            const payload: { server: string; port: number; database: string; username: string; table: string } = {
+              server: server.trim(), port: parsedPort, database: database.trim(), username: username.trim(), table: table.trim(),
+            };
+            onSave(payload);
           }}
           className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90"
         >

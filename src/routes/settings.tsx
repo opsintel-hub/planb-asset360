@@ -77,7 +77,7 @@ function MainSettings() {
   const assetDbUser = assetDb.username ?? "planb_viewer";
   const assetDbTable = assetDb.table ?? "Asset";
   const assetSyncDays: number[] = Array.isArray(settings.asset_sync_days) ? settings.asset_sync_days : [];
-  const assetGatewayUrl = (settings.asset_gateway_url as string | undefined) ?? "";
+  
 
   const saveMutation = useMutation({
     mutationFn: (vars: { key: string; value: unknown }) => updateFn({ data: vars }),
@@ -112,10 +112,8 @@ function MainSettings() {
         <AssetDbForm
           defaults={{ host: assetDbHost, database: assetDbName, username: assetDbUser, table: assetDbTable }}
           syncDays={assetSyncDays}
-          gatewayUrl={assetGatewayUrl}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
           onSaveDays={(days) => saveMutation.mutate({ key: "asset_sync_days", value: days })}
-          onSaveGateway={(url) => saveMutation.mutate({ key: "asset_gateway_url", value: url })}
           onTest={() => assetSyncMutation.mutate()}
           testing={assetSyncMutation.isPending}
         />
@@ -324,19 +322,15 @@ function EditableField({ label, defaultValue, onSave }: { label: string; default
 function AssetDbForm({
   defaults,
   syncDays,
-  gatewayUrl,
   onSave,
   onSaveDays,
-  onSaveGateway,
   onTest,
   testing,
 }: {
   defaults: { host: string; database: string; username: string; table: string };
   syncDays: number[];
-  gatewayUrl: string;
   onSave: (v: { host: string; database: string; username: string; table: string; password_updated_at?: string }) => void;
   onSaveDays: (days: number[]) => void;
-  onSaveGateway: (url: string) => void;
   onTest: () => void;
   testing: boolean;
 }) {
@@ -346,7 +340,7 @@ function AssetDbForm({
   const [table, setTable] = useState(defaults.table);
   const [password, setPassword] = useState("");
   const [days, setDays] = useState<number[]>(syncDays);
-  const [gateway, setGateway] = useState(gatewayUrl);
+
 
   const toggleDay = (d: number) => {
     setDays((prev) => {

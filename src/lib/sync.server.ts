@@ -30,6 +30,55 @@ async function fetchPlanB(url: string): Promise<unknown> {
   return res.json();
 }
 
+export async function runAssetListSync() {
+  const id = await logStart("asset");
+  try {
+    const url = (await readSetting("asset_gateway_url")) as string | undefined;
+    if (!url) throw new Error("ยังไม่ได้ตั้งค่า HTTP/REST Gateway สำหรับ Asset (asset_gateway_url)");
+    const raw = await fetchPlanB(url);
+    const list = Array.isArray(raw) ? raw : ((raw as { data?: unknown[] })?.data ?? []);
+    let n = 0;
+    for (const item of list as Record<string, unknown>[]) {
+      const oldCode = String(
+        item.oldCode ?? item.OldCode ?? item.old_code ?? item.assetCode ?? item.AssetCode ?? item.code ?? "",
+      ).trim();
+      if (!oldCode) continue;
+      const lat = item.latitude ?? item.Latitude ?? item.lat;
+      const lng = item.longitude ?? item.Longitude ?? item.lng;
+      await supabaseAdmin.from("assets").upsert(
+        {
+          old_code: oldCode,
+          name: (item.name ?? item.Name ?? item.assetName ?? null) as string | null,
+          department: (item.department ?? item.Department ?? null) as string | null,
+          area: (item.area ?? item.Area ?? item.location ?? null) as string | null,
+          status: (item.status ?? item.Status ?? null) as string | null,
+          latitude: lat == null ? null : Number(lat),
+          longitude: lng == null ? null : Number(lng),
+          installed_at: (item.installedAt ?? item.InstalledAt ?? null) as string | null,
+          payload: item as never,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "old_code" },
+      );
+      n++;
+    }
+    await logFinish(id, "success", `synced ${n} assets`, n);
+    return { ok: true, rows: n };
+  } catch (e) {
+    await logFinish(id, "error", (e as Error).message, 0);
+    throw e;
+  }
+}
+
+async function fetchPlanBLegacy(url: string): Promise<unknown> {
+  const apiKey = process.env.PLANB_API_KEY;
+  const res = await fetch(url, {
+    headers: apiKey ? { Authorization: `Bearer ${apiKey}`, Accept: "application/json" } : { Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+  return res.json();
+}
+
 export async function runClaimSync() {
   const id = await logStart("claim");
   try {

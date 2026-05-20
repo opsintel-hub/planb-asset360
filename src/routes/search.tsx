@@ -1136,13 +1136,13 @@ function CalendarOverlay({
               className={cn("h-16 rounded border bg-background p-1 relative flex flex-col", isToday && "border-primary ring-1 ring-primary/30")}
               title={`${c.date} — ${c.events.length} รายการ`}
             >
-              <div className={cn("text-[11px]", isToday ? "font-semibold text-primary" : "text-muted-foreground")}>{c.day}</div>
+              <div className={cn("text-[10px] leading-none", isToday ? "font-semibold text-primary" : "text-muted-foreground")}>{c.day}</div>
               {c.events.length > 0 && (
                 <div className="mt-auto flex flex-col gap-0.5 overflow-hidden">
-                  {c.events.slice(0, 3).map((e) => (
+                  {c.events.slice(0, 2).map((e) => (
                     <span
                       key={e.id}
-                      className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium leading-tight text-white truncate"
+                      className="inline-flex items-center gap-1 rounded px-1 py-px text-[9px] font-medium leading-tight text-white truncate"
                       style={{ background: typeColor(e.type) }}
                       title={`${e.type} • ${e.asset_old_code}${e.status ? " • " + e.status : ""}`}
                     >
@@ -1150,8 +1150,8 @@ function CalendarOverlay({
                       <span className="truncate">{e.asset_old_code}</span>
                     </span>
                   ))}
-                  {c.events.length > 3 && (
-                    <span className="text-[10px] text-muted-foreground leading-none">+{c.events.length - 3} อื่นๆ</span>
+                  {c.events.length > 2 && (
+                    <span className="text-[9px] text-muted-foreground leading-none">+{c.events.length - 2}</span>
                   )}
                 </div>
               )}

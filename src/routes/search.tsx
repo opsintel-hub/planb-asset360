@@ -588,7 +588,7 @@ function AssetHealthTab({
   // Simulator: if PM frequency = X days, expected claim reduction ratio
   // baseline assumption: shorter PM interval reduces claim rate proportionally
   const baselinePm = avgPmInterval || 30;
-  const reduction = baselinePm > 0 ? Math.max(0, Math.min(80, ((baselinePm - pmFreqDays) / baselinePm) * 60)) : 0;
+  const reduction = baselinePm > 0 ? Math.max(-80, Math.min(80, ((baselinePm - pmFreqDays) / baselinePm) * 60)) : 0;
 
   // Maintenance debt: if delayed N months, expected extra failures
   const expectedExtraFailures = avgMtbf > 0

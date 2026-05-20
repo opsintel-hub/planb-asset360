@@ -774,14 +774,115 @@ function AssetHealthTab({
   );
 }
 
-// Calendar — monthly view with prev/next navigation
-function CalendarOverlay({ history, colorByAsset: _c }: { history: HistRow[]; colorByAsset: Map<string, string> }) {
+// Calendar — monthly view with prev/next navigation, plus yearly overview
+function CalendarOverlay({
+  history,
+  colorByAsset: _c,
+  gran,
+  setGran,
+}: {
+  history: HistRow[];
+  colorByAsset: Map<string, string>;
+  gran: "month" | "year";
+  setGran: (g: "month" | "year") => void;
+}) {
   const today = new Date();
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
 
-  const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
+  const typeColor = (t: string) =>
+    t === "Claim" ? "oklch(0.6 0.22 25)" : t === "PM" ? "oklch(0.62 0.19 255)" : "oklch(0.65 0.16 155)";
+  const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+
+  // ===== Year view =====
+  if (gran === "year") {
+    const yearKey = String(year);
+    const yearEvents = history.filter((h) => h.opened_at?.startsWith(yearKey));
+    const buddhistYear = year + 543;
+    const months = Array.from({ length: 12 }, (_, m) => {
+      const mk = `${year}-${String(m + 1).padStart(2, "0")}`;
+      const evs = yearEvents.filter((h) => h.opened_at?.startsWith(mk));
+      const pm = evs.filter((e) => e.type === "PM").length;
+      const claim = evs.filter((e) => e.type === "Claim").length;
+      const monitor = evs.filter((e) => e.type === "Monitor").length;
+      return { m, label: thMonths[m], total: evs.length, pm, claim, monitor };
+    });
+    const maxTotal = Math.max(1, ...months.map((x) => x.total));
+
+    return (
+      <div className="rounded-xl border p-4">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="text-sm font-medium flex items-center gap-2">
+            <CalIcon className="size-4" /> Maintenance Calendar — ภาพรวมรายปี
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-md border overflow-hidden">
+              <button onClick={() => setGran("month")} className="px-3 py-1 text-xs bg-background hover:bg-accent">รายเดือน</button>
+              <button onClick={() => setGran("year")} className="px-3 py-1 text-xs bg-primary text-primary-foreground">รายปี</button>
+            </div>
+            <button onClick={() => setCursor(new Date(year - 1, 0, 1))} className="px-2.5 py-1 rounded-md border bg-background hover:bg-accent text-sm" aria-label="ปีก่อนหน้า">‹</button>
+            <button onClick={() => setCursor(new Date(today.getFullYear(), today.getMonth(), 1))} className="px-3 py-1 rounded-md border bg-background hover:bg-accent text-xs">ปีนี้</button>
+            <div className="min-w-[6rem] text-center text-sm font-medium tabular-nums">พ.ศ. {buddhistYear}</div>
+            <button onClick={() => setCursor(new Date(year + 1, 0, 1))} className="px-2.5 py-1 rounded-md border bg-background hover:bg-accent text-sm" aria-label="ปีถัดไป">›</button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {months.map((mo) => {
+            const isCurrent = mo.m === today.getMonth() && year === today.getFullYear();
+            return (
+              <button
+                key={mo.m}
+                onClick={() => { setCursor(new Date(year, mo.m, 1)); setGran("month"); }}
+                className={cn(
+                  "text-left rounded-lg border bg-background p-3 hover:bg-accent transition-colors",
+                  isCurrent && "border-primary ring-1 ring-primary/30",
+                )}
+                title={`${mo.label} ${buddhistYear} — รวม ${mo.total} รายการ`}
+              >
+                <div className="flex items-baseline justify-between mb-2">
+                  <div className={cn("text-sm font-semibold", isCurrent && "text-primary")}>{mo.label}</div>
+                  <div className="text-xs text-muted-foreground tabular-nums">{mo.total}</div>
+                </div>
+                {/* stacked intensity bar */}
+                <div className="h-2 w-full rounded-full bg-muted overflow-hidden flex">
+                  {mo.total > 0 ? (
+                    <>
+                      <div style={{ width: `${(mo.pm / mo.total) * 100}%`, background: typeColor("PM") }} />
+                      <div style={{ width: `${(mo.claim / mo.total) * 100}%`, background: typeColor("Claim") }} />
+                      <div style={{ width: `${(mo.monitor / mo.total) * 100}%`, background: typeColor("Monitor") }} />
+                    </>
+                  ) : null}
+                </div>
+                {/* intensity hint */}
+                <div className="mt-1 h-1 w-full rounded-full bg-muted overflow-hidden">
+                  <div className="h-full bg-primary/40" style={{ width: `${(mo.total / maxTotal) * 100}%` }} />
+                </div>
+                <div className="mt-2 flex gap-2 text-[11px] tabular-nums">
+                  <span style={{ color: typeColor("PM") }}>P {mo.pm}</span>
+                  <span style={{ color: typeColor("Claim") }}>C {mo.claim}</span>
+                  <span style={{ color: typeColor("Monitor") }}>M {mo.monitor}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex gap-4 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.62_0.19_255)]" /> PM</span>
+            <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.6_0.22_25)]" /> Claim</span>
+            <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.65_0.16_155)]" /> Monitor</span>
+          </div>
+          <div className="text-xs text-muted-foreground">รวมทั้งปี {yearEvents.length} รายการ • คลิกที่เดือนเพื่อดูรายละเอียด</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ===== Month view =====
+  const firstDow = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const monthLabel = cursor.toLocaleDateString("th-TH", { year: "numeric", month: "long" });
   const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
@@ -796,33 +897,23 @@ function CalendarOverlay({ history, colorByAsset: _c }: { history: HistRow[]; co
   }
   while (cells.length % 7 !== 0) cells.push({ date: null, day: null, events: [] });
 
-  const typeColor = (t: string) =>
-    t === "Claim" ? "oklch(0.6 0.22 25)" : t === "PM" ? "oklch(0.62 0.19 255)" : "oklch(0.65 0.16 155)";
-
   const dows = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 
   return (
     <div className="rounded-xl border p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="text-sm font-medium flex items-center gap-2">
           <CalIcon className="size-4" /> Maintenance Calendar
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCursor(new Date(year, month - 1, 1))}
-            className="px-2.5 py-1 rounded-md border bg-background hover:bg-accent text-sm"
-            aria-label="เดือนก่อนหน้า"
-          >‹</button>
-          <button
-            onClick={() => setCursor(new Date(today.getFullYear(), today.getMonth(), 1))}
-            className="px-3 py-1 rounded-md border bg-background hover:bg-accent text-xs"
-          >วันนี้</button>
+          <div className="inline-flex rounded-md border overflow-hidden">
+            <button onClick={() => setGran("month")} className="px-3 py-1 text-xs bg-primary text-primary-foreground">รายเดือน</button>
+            <button onClick={() => setGran("year")} className="px-3 py-1 text-xs bg-background hover:bg-accent">รายปี</button>
+          </div>
+          <button onClick={() => setCursor(new Date(year, month - 1, 1))} className="px-2.5 py-1 rounded-md border bg-background hover:bg-accent text-sm" aria-label="เดือนก่อนหน้า">‹</button>
+          <button onClick={() => setCursor(new Date(today.getFullYear(), today.getMonth(), 1))} className="px-3 py-1 rounded-md border bg-background hover:bg-accent text-xs">วันนี้</button>
           <div className="min-w-[10rem] text-center text-sm font-medium tabular-nums">{monthLabel}</div>
-          <button
-            onClick={() => setCursor(new Date(year, month + 1, 1))}
-            className="px-2.5 py-1 rounded-md border bg-background hover:bg-accent text-sm"
-            aria-label="เดือนถัดไป"
-          >›</button>
+          <button onClick={() => setCursor(new Date(year, month + 1, 1))} className="px-2.5 py-1 rounded-md border bg-background hover:bg-accent text-sm" aria-label="เดือนถัดไป">›</button>
         </div>
       </div>
 
@@ -867,8 +958,8 @@ function CalendarOverlay({ history, colorByAsset: _c }: { history: HistRow[]; co
 
       <div className="mt-3 flex items-center justify-between">
         <div className="flex gap-4 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.6_0.22_25)]" /> Claim</span>
           <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.62_0.19_255)]" /> PM</span>
+          <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.6_0.22_25)]" /> Claim</span>
           <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.65_0.16_155)]" /> Monitor</span>
         </div>
         <div className="text-xs text-muted-foreground">รวม {monthEvents.length} รายการในเดือนนี้</div>

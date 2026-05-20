@@ -324,13 +324,21 @@ function EditableField({ label, defaultValue, onSave }: { label: string; default
 function AssetDbForm({
   defaults,
   syncDays,
+  gatewayUrl,
   onSave,
   onSaveDays,
+  onSaveGateway,
+  onTest,
+  testing,
 }: {
   defaults: { host: string; database: string; username: string; table: string };
   syncDays: number[];
+  gatewayUrl: string;
   onSave: (v: { host: string; database: string; username: string; table: string; password_updated_at?: string }) => void;
   onSaveDays: (days: number[]) => void;
+  onSaveGateway: (url: string) => void;
+  onTest: () => void;
+  testing: boolean;
 }) {
   const [host, setHost] = useState(defaults.host);
   const [database, setDatabase] = useState(defaults.database);
@@ -338,6 +346,7 @@ function AssetDbForm({
   const [table, setTable] = useState(defaults.table);
   const [password, setPassword] = useState("");
   const [days, setDays] = useState<number[]>(syncDays);
+  const [gateway, setGateway] = useState(gatewayUrl);
 
   const toggleDay = (d: number) => {
     setDays((prev) => {

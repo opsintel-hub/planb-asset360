@@ -96,7 +96,17 @@ function MainSettings() {
 
   return (
     <div className="space-y-6">
+      <Section title="Modern Corporate Server (Asset Database)" desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB (รหัสผ่านเก็บอย่างปลอดภัยใน Secret Store)">
+        <AssetDbForm
+          defaults={{ host: assetDbHost, database: assetDbName, username: assetDbUser, table: assetDbTable }}
+          syncDays={assetSyncDays}
+          onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
+          onSaveDays={(days) => saveMutation.mutate({ key: "asset_sync_days", value: days })}
+        />
+      </Section>
+
       <Section title="API ค้นหาประวัติ Asset" desc="ใช้สำหรับดึงประวัติทรัพย์สินจากระบบ PlanB">
+
         <EditableField
           label="API Endpoint"
           defaultValue={assetHistoryEndpoint}

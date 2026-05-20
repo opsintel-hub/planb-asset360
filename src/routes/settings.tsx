@@ -441,8 +441,17 @@ function AssetDbForm({
       <div className="flex flex-wrap gap-2 pt-2 border-t">
         <button
           onClick={() => {
-            const payload: { host: string; database: string; username: string; table: string; password_updated_at?: string } = {
-              host, database, username, table,
+            const parsedPort = Number(port);
+            if (!server.trim() || !database.trim() || !username.trim() || !table.trim()) {
+              toast.error("กรุณากรอก Server, Database, User และ Table ให้ครบ");
+              return;
+            }
+            if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
+              toast.error("Port ต้องเป็นตัวเลขระหว่าง 1-65535");
+              return;
+            }
+            const payload: { server: string; port: number; database: string; username: string; table: string; password_updated_at?: string } = {
+              server: server.trim(), port: parsedPort, database: database.trim(), username: username.trim(), table: table.trim(),
             };
             if (password) payload.password_updated_at = new Date().toISOString();
             onSave(payload);

@@ -608,18 +608,34 @@ function AssetHealthTab({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           {(["PM", "Claim", "Monitor"] as const).map((t) => (
-            <label key={t} className={cn("inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer text-sm", sel[t] ? "bg-primary/10 border-primary text-primary" : "bg-background")}>
+            <label
+              key={t}
+              className={cn(
+                "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer text-sm",
+                sel[t] ? "text-white" : "bg-background",
+              )}
+              style={sel[t] ? { background: TYPE_COLOR[t], borderColor: TYPE_COLOR[t] } : undefined}
+            >
               <input type="checkbox" checked={sel[t]} onChange={(e) => onSel({ ...sel, [t]: e.target.checked })} className="size-3.5" />
               {t}
             </label>
           ))}
         </div>
-        <div className="inline-flex rounded-lg border overflow-hidden">
-          {(["graph", "table", "calendar"] as const).map((v) => (
-            <button key={v} onClick={() => setView(v)} className={cn("px-3 py-1.5 text-sm capitalize", view === v ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent")}>
-              {v === "graph" ? "Graph" : v === "table" ? "Table" : "Calendar"}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-lg border overflow-hidden">
+            {(["month", "year"] as const).map((g) => (
+              <button key={g} onClick={() => setGran(g)} className={cn("px-3 py-1.5 text-sm", gran === g ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent")}>
+                {g === "month" ? "รายเดือน" : "รายปี"}
+              </button>
+            ))}
+          </div>
+          <div className="inline-flex rounded-lg border overflow-hidden">
+            {(["graph", "table", "calendar"] as const).map((v) => (
+              <button key={v} onClick={() => setView(v)} className={cn("px-3 py-1.5 text-sm capitalize", view === v ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent")}>
+                {v === "graph" ? "Graph" : v === "table" ? "Table" : "Calendar"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

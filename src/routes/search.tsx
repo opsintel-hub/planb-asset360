@@ -675,38 +675,42 @@ function AssetHealthTab({
       {/* View */}
       {view === "graph" && (
         <div className="rounded-xl border p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-medium">Trend Overlay — PM / Claim / Monitor</div>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              {(["PM", "Claim", "Monitor"] as const).map((t) => (
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div>
+              <div className="text-sm font-medium">จำนวนงานต่อ{gran === "month" ? "เดือน" : "ปี"} (รวมทุกป้ายที่เลือก)</div>
+              <div className="text-xs text-muted-foreground mt-0.5">แต่ละแท่งคือจำนวนครั้งที่เกิดในช่วงเวลานั้น แยกสีตามประเภท</div>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              {(["PM", "Claim", "Monitor"] as const).filter((t) => sel[t]).map((t) => (
                 <span key={t} className="inline-flex items-center gap-1.5">
-                  <span className="inline-block w-4 h-0.5" style={{ background: TYPE_COLOR[t] }} />
+                  <span className="inline-block w-3 h-3 rounded-sm" style={{ background: TYPE_COLOR[t] }} />
                   {t}
                 </span>
               ))}
             </div>
           </div>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0 0)" />
-                <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <RTooltip />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                {assets.flatMap((a, idx) => {
-                  const out: React.ReactNode[] = [];
-                  const dash = ASSET_DASH[idx % ASSET_DASH.length];
-                  if (sel.PM) out.push(<Line key={`${a.id}-pm`} type="monotone" dataKey={`${a.old_code} · PM`} stroke={TYPE_COLOR.PM} strokeWidth={2} dot strokeDasharray={dash} />);
-                  if (sel.Claim) out.push(<Line key={`${a.id}-cl`} type="monotone" dataKey={`${a.old_code} · Claim`} stroke={TYPE_COLOR.Claim} strokeWidth={2} dot strokeDasharray={dash} />);
-                  if (sel.Monitor) out.push(<Line key={`${a.id}-mn`} type="monotone" dataKey={`${a.old_code} · Mon`} stroke={TYPE_COLOR.Monitor} strokeWidth={2} dot strokeDasharray={dash} />);
-                  return out;
-                })}
-              </LineChart>
-            </ResponsiveContainer>
+            {chartData.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                ไม่มีข้อมูลในช่วงที่เลือก
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 8, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0 0)" vertical={false} />
+                  <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <RTooltip cursor={{ fill: "oklch(0.95 0 0 / 0.5)" }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  {sel.PM && <Bar dataKey="PM" fill={TYPE_COLOR.PM} radius={[4, 4, 0, 0]} maxBarSize={48} />}
+                  {sel.Claim && <Bar dataKey="Claim" fill={TYPE_COLOR.Claim} radius={[4, 4, 0, 0]} maxBarSize={48} />}
+                  {sel.Monitor && <Bar dataKey="Monitor" fill={TYPE_COLOR.Monitor} radius={[4, 4, 0, 0]} maxBarSize={48} />}
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            สี = ประเภทงาน (PM/Claim/Monitor) — รูปแบบเส้น (ทึบ/ประ) = แต่ละป้าย
+            💡 อ่านยังไง: ดูแท่งสูง = ช่วงนั้นเกิดงานเยอะ · ถ้าแท่งแดง (Claim) เยอะ = มีปัญหาเยอะ · ถ้าแท่งฟ้า (PM) เยอะ = ทำการบำรุงรักษาบ่อย
           </p>
         </div>
       )}

@@ -406,10 +406,10 @@ function AssetDbForm({
       </div>
 
       <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
-        <div className="text-sm font-medium">เชื่อมต่อ MSSQL โดยตรง (Supabase Edge Function)</div>
+        <div className="text-sm font-medium">เชื่อมต่อ MSSQL โดยตรง (Lovable Cloud Function)</div>
         <p className="text-xs text-muted-foreground">
-          ระบบใช้ Lovable Cloud Function เชื่อมต่อ MS SQL Server ตรงด้วยค่า host/database/user/password ด้านบน
-          ไม่ต้องมี HTTP gateway คั่นกลาง — ใช้ทั้งการกด "ทดสอบ" และ Auto-Sync เวลา 04:00 น.
+          ระบบเชื่อมต่อ MS SQL Server ตรงด้วย Server Name, Database, Username, Port และ Password จาก Secret Store
+          โดยไม่ต้องมี HTTP gateway คั่นกลาง — ใช้ทั้งการกด "ทดสอบ" และ Auto-Sync เวลา 04:00 น.
         </p>
         <p className="text-xs text-muted-foreground">
           หาก timeout ที่พอร์ต 1433 ให้ตรวจ firewall/allowlist ของ Modern Corporate Server เพื่อเปิดทางเชื่อมต่อจาก Lovable Cloud

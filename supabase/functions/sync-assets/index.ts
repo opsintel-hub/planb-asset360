@@ -21,6 +21,22 @@ interface AssetDbConn {
   table?: string;
 }
 
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function quoteTableName(raw: string): string {
+  const parts = raw
+    .split(".")
+    .map((part) => part.replace(/[^a-zA-Z0-9_]/g, ""))
+    .filter(Boolean);
+  if (!parts.length) throw new Error("invalid table name");
+  return parts.map((part) => `[${part}]`).join(".");
+}
+
 function parseHostPort(raw: string): { server: string; port: number } {
   const [server, portStr] = raw.split(":");
   return { server: server.trim(), port: portStr ? Number(portStr.trim()) : 1433 };
@@ -70,6 +86,8 @@ Deno.serve(async (req: Request) => {
         .eq("id", logId);
   };
 
+  let pool: { close: () => Promise<void> } | null = null;
+
   try {
     if (!DB_PASSWORD) throw new Error("MODERN_CORP_DB_PASSWORD secret not set");
 
@@ -82,12 +100,11 @@ Deno.serve(async (req: Request) => {
     const host = conn.host ?? "magicticket.magicsigncloud.com";
     const database = conn.database ?? "planb";
     const user = conn.username ?? "planb_viewer";
-    const table = (conn.table ?? "Asset").replace(/[^a-zA-Z0-9_]/g, "");
-    if (!table) throw new Error("invalid table name");
+    const table = quoteTableName(conn.table ?? "Asset");
 
     const { server, port } = parseHostPort(host);
 
-    const pool = await sql.connect({
+    pool = await sql.connect({
       server,
       port,
       database,
@@ -98,7 +115,7 @@ Deno.serve(async (req: Request) => {
       requestTimeout: 60_000,
     });
 
-    const result = await pool.request().query(`SELECT * FROM [${table}]`);
+    const result = await pool.request().query(`SELECT * FROM ${table}`);
     const list = (result.recordset ?? []) as Record<string, unknown>[];
 
     let n = 0;
@@ -129,18 +146,15 @@ Deno.serve(async (req: Request) => {
     }
 
     await pool.close();
+    pool = null;
     await finish("success", `synced ${n} assets via MSSQL`, n);
 
-    return new Response(JSON.stringify({ ok: true, rows: n }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ ok: true, rows: n });
   } catch (e) {
     const msg = (e as Error).message;
+    console.error("sync-assets failed", msg);
+    if (pool) await pool.close().catch(() => null);
     await finish("error", msg, 0);
-    return new Response(JSON.stringify({ ok: false, error: msg }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ ok: false, rows: 0, error: msg, fallback: true });
   }
 });

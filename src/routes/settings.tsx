@@ -334,14 +334,15 @@ function AssetDbForm({
   onTest,
   testing,
 }: {
-  defaults: { host: string; database: string; username: string; table: string };
+  defaults: { server: string; port: string; database: string; username: string; table: string };
   syncDays: number[];
-  onSave: (v: { host: string; database: string; username: string; table: string; password_updated_at?: string }) => void;
+  onSave: (v: { server: string; port: number; database: string; username: string; table: string; password_updated_at?: string }) => void;
   onSaveDays: (days: number[]) => void;
   onTest: () => void;
   testing: boolean;
 }) {
-  const [host, setHost] = useState(defaults.host);
+  const [server, setServer] = useState(defaults.server);
+  const [port, setPort] = useState(defaults.port);
   const [database, setDatabase] = useState(defaults.database);
   const [username, setUsername] = useState(defaults.username);
   const [table, setTable] = useState(defaults.table);
@@ -363,7 +364,8 @@ function AssetDbForm({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Field label="Modern Corporate Server (host:port)" value={host} onChange={setHost} />
+        <Field label="Server Name" value={server} onChange={setServer} />
+        <Field label="Port" value={port} onChange={setPort} />
         <Field label="Database" value={database} onChange={setDatabase} />
         <Field label="User" value={username} onChange={setUsername} />
         <Field label="Table" value={table} onChange={setTable} />

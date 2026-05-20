@@ -1,7 +1,10 @@
-import { createRootRouteWithContext, Outlet, HeadContent, Scripts, Link, useRouter } from "@tanstack/react-router";
+import { createRootRouteWithContext, Outlet, HeadContent, Scripts, Link, useRouter, useLocation, useNavigate } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "sonner";
+import { useEffect } from "react";
 import appCss from "../styles.css?url";
 import { AppShell } from "@/components/app-shell";
+import { AuthProvider, useAuth } from "@/lib/auth-context";
 
 function NotFoundComponent() {
   return (
@@ -69,7 +72,32 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <AppShell><Outlet /></AppShell>
+      <AuthProvider>
+        <AuthGate />
+        <Toaster richColors position="top-right" />
+      </AuthProvider>
     </QueryClientProvider>
   );
+}
+
+function AuthGate() {
+  const { user, loading } = useAuth();
+  const { pathname } = useLocation();
+  const nav = useNavigate();
+  const isLogin = pathname === "/login";
+
+  useEffect(() => {
+    if (!loading && !user && !isLogin) nav({ to: "/login" });
+  }, [loading, user, isLogin, nav]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">
+        กำลังโหลด...
+      </div>
+    );
+  }
+  if (isLogin) return <Outlet />;
+  if (!user) return null;
+  return <AppShell><Outlet /></AppShell>;
 }

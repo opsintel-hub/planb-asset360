@@ -13,6 +13,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as MonitoringRouteImport } from './routes/monitoring'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ClaimsRouteImport } from './routes/claims'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -36,6 +37,11 @@ const MonitoringRoute = MonitoringRouteImport.update({
   path: '/monitoring',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClaimsRoute = ClaimsRouteImport.update({
   id: '/claims',
   path: '/claims',
@@ -50,6 +56,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/claims': typeof ClaimsRoute
+  '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
   '/permissions': typeof PermissionsRoute
   '/search': typeof SearchRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/claims': typeof ClaimsRoute
+  '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
   '/permissions': typeof PermissionsRoute
   '/search': typeof SearchRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/claims': typeof ClaimsRoute
+  '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
   '/permissions': typeof PermissionsRoute
   '/search': typeof SearchRoute
@@ -77,16 +86,25 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/claims'
+    | '/login'
     | '/monitoring'
     | '/permissions'
     | '/search'
     | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/claims' | '/monitoring' | '/permissions' | '/search' | '/settings'
+  to:
+    | '/'
+    | '/claims'
+    | '/login'
+    | '/monitoring'
+    | '/permissions'
+    | '/search'
+    | '/settings'
   id:
     | '__root__'
     | '/'
     | '/claims'
+    | '/login'
     | '/monitoring'
     | '/permissions'
     | '/search'
@@ -96,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClaimsRoute: typeof ClaimsRoute
+  LoginRoute: typeof LoginRoute
   MonitoringRoute: typeof MonitoringRoute
   PermissionsRoute: typeof PermissionsRoute
   SearchRoute: typeof SearchRoute
@@ -132,6 +151,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MonitoringRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/claims': {
       id: '/claims'
       path: '/claims'
@@ -152,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClaimsRoute: ClaimsRoute,
+  LoginRoute: LoginRoute,
   MonitoringRoute: MonitoringRoute,
   PermissionsRoute: PermissionsRoute,
   SearchRoute: SearchRoute,

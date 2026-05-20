@@ -774,34 +774,96 @@ function AssetHealthTab({
   );
 }
 
-// Calendar overlay (basic grid of last 90 days)
-function CalendarOverlay({ history, colorByAsset }: { history: HistRow[]; colorByAsset: Map<string, string> }) {
-  const days: { date: string; events: HistRow[] }[] = [];
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  for (let i = 89; i >= 0; i--) {
-    const d = new Date(today); d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
-    days.push({ date: key, events: history.filter((h) => h.opened_at?.slice(0, 10) === key) });
+// Calendar — monthly view with prev/next navigation
+function CalendarOverlay({ history, colorByAsset: _c }: { history: HistRow[]; colorByAsset: Map<string, string> }) {
+  const today = new Date();
+  const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+
+  const firstDow = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthLabel = cursor.toLocaleDateString("th-TH", { year: "numeric", month: "long" });
+  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const monthEvents = history.filter((h) => h.opened_at?.startsWith(monthKey));
+  const todayKey = new Date().toISOString().slice(0, 10);
+
+  const cells: { date: string | null; day: number | null; events: HistRow[] }[] = [];
+  for (let i = 0; i < firstDow; i++) cells.push({ date: null, day: null, events: [] });
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    cells.push({ date: key, day: d, events: monthEvents.filter((h) => h.opened_at?.slice(0, 10) === key) });
   }
+  while (cells.length % 7 !== 0) cells.push({ date: null, day: null, events: [] });
+
+  const typeColor = (t: string) =>
+    t === "Claim" ? "oklch(0.6 0.22 25)" : t === "PM" ? "oklch(0.62 0.19 255)" : "oklch(0.65 0.16 155)";
+
+  const dows = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+
   return (
     <div className="rounded-xl border p-4">
-      <div className="text-sm font-medium mb-3 flex items-center gap-2"><CalIcon className="size-4" /> Maintenance Calendar — 90 วันล่าสุด</div>
-      <div className="grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1">
-        {days.map((d) => (
-          <div key={d.date} className="aspect-square rounded border bg-background p-1 relative group" title={d.date}>
-            <div className="text-[10px] text-muted-foreground">{d.date.slice(8, 10)}</div>
-            <div className="absolute bottom-1 left-1 right-1 flex flex-wrap gap-0.5">
-              {d.events.slice(0, 4).map((e) => (
-                <span key={e.id} className="size-1.5 rounded-full" style={{ background: e.type === "Claim" ? "oklch(0.6 0.22 25)" : e.type === "PM" ? colorByAsset.get(e.asset_id) ?? "oklch(0.62 0.19 255)" : "oklch(0.65 0.16 155)" }} />
-              ))}
-            </div>
-          </div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-sm font-medium flex items-center gap-2">
+          <CalIcon className="size-4" /> Maintenance Calendar
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCursor(new Date(year, month - 1, 1))}
+            className="px-2.5 py-1 rounded-md border bg-background hover:bg-accent text-sm"
+            aria-label="เดือนก่อนหน้า"
+          >‹</button>
+          <button
+            onClick={() => setCursor(new Date(today.getFullYear(), today.getMonth(), 1))}
+            className="px-3 py-1 rounded-md border bg-background hover:bg-accent text-xs"
+          >วันนี้</button>
+          <div className="min-w-[10rem] text-center text-sm font-medium tabular-nums">{monthLabel}</div>
+          <button
+            onClick={() => setCursor(new Date(year, month + 1, 1))}
+            className="px-2.5 py-1 rounded-md border bg-background hover:bg-accent text-sm"
+            aria-label="เดือนถัดไป"
+          >›</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {dows.map((d) => (
+          <div key={d} className="text-[11px] text-muted-foreground text-center py-1">{d}</div>
         ))}
       </div>
-      <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.6_0.22_25)]" /> Claim</span>
-        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.62_0.19_255)]" /> PM</span>
-        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.65_0.16_155)]" /> Monitor</span>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((c, i) => {
+          if (!c.date) return <div key={i} className="aspect-square rounded border border-dashed border-border/40 bg-muted/20" />;
+          const isToday = c.date === todayKey;
+          return (
+            <div
+              key={c.date}
+              className={cn("aspect-square rounded border bg-background p-1.5 relative flex flex-col", isToday && "border-primary ring-1 ring-primary/30")}
+              title={`${c.date} — ${c.events.length} รายการ`}
+            >
+              <div className={cn("text-[11px]", isToday ? "font-semibold text-primary" : "text-muted-foreground")}>{c.day}</div>
+              {c.events.length > 0 && (
+                <div className="mt-auto flex flex-wrap gap-0.5">
+                  {c.events.slice(0, 6).map((e) => (
+                    <span key={e.id} className="size-1.5 rounded-full" style={{ background: typeColor(e.type) }} />
+                  ))}
+                  {c.events.length > 6 && (
+                    <span className="text-[9px] text-muted-foreground leading-none">+{c.events.length - 6}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between">
+        <div className="flex gap-4 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.6_0.22_25)]" /> Claim</span>
+          <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.62_0.19_255)]" /> PM</span>
+          <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.65_0.16_155)]" /> Monitor</span>
+        </div>
+        <div className="text-xs text-muted-foreground">รวม {monthEvents.length} รายการในเดือนนี้</div>
       </div>
     </div>
   );

@@ -335,15 +335,19 @@ function EditableField({ label, defaultValue, onSave }: { label: string; default
 function AssetDbForm({
   defaults,
   syncDays,
+  syncTimes,
   onSave,
   onSaveDays,
+  onSaveTimes,
   onTest,
   testing,
 }: {
   defaults: { server: string; port: string; database: string; username: string; table: string };
   syncDays: number[];
+  syncTimes: string[];
   onSave: (v: { server: string; port: number; database: string; username: string; table: string }) => void;
   onSaveDays: (days: number[]) => void;
+  onSaveTimes: (times: string[]) => void;
   onTest: () => void;
   testing: boolean;
 }) {
@@ -353,6 +357,17 @@ function AssetDbForm({
   const [username, setUsername] = useState(defaults.username);
   const [table, setTable] = useState(defaults.table);
   const [days, setDays] = useState<number[]>(syncDays);
+  const [times, setTimes] = useState<string[]>(syncTimes);
+
+  const HOURS = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}:00`);
+  const toggleTime = (t: string) => {
+    setTimes((prev) => {
+      if (prev.includes(t)) return prev.filter((x) => x !== t);
+      if (prev.length >= 12) { toast.error("เลือกได้สูงสุด 12 ช่วงเวลา/วัน"); return prev; }
+      return [...prev, t].sort();
+    });
+  };
+
 
 
   const toggleDay = (d: number) => {

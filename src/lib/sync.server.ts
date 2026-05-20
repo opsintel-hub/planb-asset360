@@ -96,40 +96,62 @@ export async function runAssetHistorySync(oldCode: string) {
     const tmpl = (await readSetting("asset_api_url")) as string | undefined;
     if (!tmpl) throw new Error("ยังไม่ได้ตั้งค่า asset_api_url");
     const url = tmpl.replace("{id}", encodeURIComponent(oldCode));
-    const raw = await fetchPlanB(url);
-    const list = Array.isArray(raw) ? raw : ((raw as { data?: unknown[] })?.data ?? []);
+    const raw = (await fetchPlanB(url)) as Record<string, unknown>;
+
     const { data: asset } = await supabaseAdmin
       .from("assets")
       .upsert({ old_code: oldCode }, { onConflict: "old_code" })
       .select("id")
       .single();
-    let n = 0;
-    for (const item of list as Record<string, unknown>[]) {
-      const ticket = String(item.ticketCode ?? item.TicketCode ?? item.id ?? "");
-      if (!ticket) continue;
-      const rawType = String(item.type ?? item.Type ?? "").toLowerCase();
-      const type = rawType.includes("pm")
-        ? "PM"
-        : rawType.includes("claim")
-          ? "Claim"
-          : rawType.includes("monitor")
-            ? "Monitor"
-            : "AssetHealth";
-      await supabaseAdmin.from("asset_history").upsert(
-        {
+
+    // API shape: { pm: [...], monitoring: [...], claim: [...] }
+    // Items: { createdDate, status, ... } — no ticket code, so synthesize stable key.
+    const groups: Array<{ key: string; type: "PM" | "Monitor" | "Claim" }> = [
+      { key: "pm", type: "PM" },
+      { key: "monitoring", type: "Monitor" },
+      { key: "claim", type: "Claim" },
+    ];
+
+    // Clear previous synthetic rows for this asset to avoid stale duplicates
+    await supabaseAdmin.from("asset_history").delete().eq("asset_old_code", oldCode);
+
+    const rows: Record<string, unknown>[] = [];
+    for (const g of groups) {
+      const list = Array.isArray(raw?.[g.key]) ? (raw[g.key] as Record<string, unknown>[]) : [];
+      list.forEach((item, idx) => {
+        const createdDate = (item.createdDate ?? item.CreatedDate ?? null) as string | null;
+        const status = (item.status ?? item.Status ?? null) as string | null;
+        const solutionDetail = (item.solutionDetail ?? null) as string | null;
+        const solutionCategory = (item.solutionCategory ?? null) as string | null;
+        const title =
+          g.type === "Claim"
+            ? solutionDetail || solutionCategory || "Claim"
+            : g.type === "PM"
+              ? "Preventive Maintenance"
+              : "Monitoring Check";
+        const syntheticTicket = `${g.type}-${oldCode}-${createdDate ?? "na"}-${idx}`;
+        rows.push({
           asset_id: asset?.id ?? null,
           asset_old_code: oldCode,
-          ticket_code: ticket,
-          type,
-          title: (item.title ?? item.subject ?? null) as string | null,
-          status: (item.status ?? null) as string | null,
-          opened_at: (item.openedAt ?? item.createdAt ?? null) as string | null,
-          closed_at: (item.closedAt ?? null) as string | null,
+          ticket_code: syntheticTicket,
+          type: g.type,
+          title,
+          status,
+          opened_at: createdDate,
+          closed_at:
+            status && /finish|approved|closed|done/i.test(status) ? createdDate : null,
           payload: item as never,
-        },
-        { onConflict: "ticket_code,type" },
-      );
-      n++;
+        });
+      });
+    }
+
+    let n = 0;
+    if (rows.length) {
+      const { error } = await supabaseAdmin
+        .from("asset_history")
+        .upsert(rows, { onConflict: "ticket_code,type" });
+      if (error) throw error;
+      n = rows.length;
     }
     await logFinish(id, "success", `synced ${n} history rows for ${oldCode}`, n);
     return { ok: true, rows: n };

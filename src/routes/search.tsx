@@ -7,7 +7,7 @@ import {
   Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon,
 } from "lucide-react";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, Legend, ResponsiveContainer, CartesianGrid,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
@@ -49,7 +49,7 @@ const TYPE_COLOR: Record<"PM" | "Claim" | "Monitor", string> = {
   Monitor: "oklch(0.65 0.16 155)", // เขียว
 };
 // รูปแบบเส้นแยกตามป้าย (สูงสุด 5 slots)
-const ASSET_DASH = ["", "6 3", "2 3", "8 3 2 3", "4 2 1 2"];
+
 
 function useDebounced<T>(value: T, ms = 250): T {
   const [v, setV] = useState(value);
@@ -565,18 +565,24 @@ function AssetHealthTab({
     };
   });
 
-  // Combined trend (per bucket, per type) — granularity = month or year
+  // Combined trend (per bucket, aggregated across all selected assets) — granularity = month or year
+  const thMonthsShort = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const fmtBucket = (m: string) => {
+    if (gran === "year") return `พ.ศ. ${Number(m) + 543}`;
+    const [y, mo] = m.split("-");
+    return `${thMonthsShort[Number(mo) - 1]} ${String(Number(y) + 543).slice(-2)}`;
+  };
   const buckets = new Set<string>();
   history.forEach((h) => { if (h.opened_at) buckets.add(h.opened_at.slice(0, keyLen)); });
   const bucketLabels = Array.from(buckets).sort();
   const chartData = bucketLabels.map((m) => {
-    const row: Record<string, string | number> = { bucket: m };
-    for (const a of assets) {
-      if (sel.PM) row[`${a.old_code} · PM`] = history.filter((h) => h.asset_id === a.id && h.type === "PM" && h.opened_at?.startsWith(m)).length;
-      if (sel.Claim) row[`${a.old_code} · Claim`] = history.filter((h) => h.asset_id === a.id && h.type === "Claim" && h.opened_at?.startsWith(m)).length;
-      if (sel.Monitor) row[`${a.old_code} · Mon`] = history.filter((h) => h.asset_id === a.id && h.type === "Monitor" && h.opened_at?.startsWith(m)).length;
-    }
-    return row;
+    const inBucket = history.filter((h) => h.opened_at?.startsWith(m));
+    return {
+      bucket: fmtBucket(m),
+      PM: sel.PM ? inBucket.filter((h) => h.type === "PM").length : 0,
+      Claim: sel.Claim ? inBucket.filter((h) => h.type === "Claim").length : 0,
+      Monitor: sel.Monitor ? inBucket.filter((h) => h.type === "Monitor").length : 0,
+    };
   });
 
   // Avg MTBF across selected assets
@@ -669,38 +675,42 @@ function AssetHealthTab({
       {/* View */}
       {view === "graph" && (
         <div className="rounded-xl border p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-medium">Trend Overlay — PM / Claim / Monitor</div>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              {(["PM", "Claim", "Monitor"] as const).map((t) => (
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div>
+              <div className="text-sm font-medium">จำนวนงานต่อ{gran === "month" ? "เดือน" : "ปี"} (รวมทุกป้ายที่เลือก)</div>
+              <div className="text-xs text-muted-foreground mt-0.5">แต่ละแท่งคือจำนวนครั้งที่เกิดในช่วงเวลานั้น แยกสีตามประเภท</div>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              {(["PM", "Claim", "Monitor"] as const).filter((t) => sel[t]).map((t) => (
                 <span key={t} className="inline-flex items-center gap-1.5">
-                  <span className="inline-block w-4 h-0.5" style={{ background: TYPE_COLOR[t] }} />
+                  <span className="inline-block w-3 h-3 rounded-sm" style={{ background: TYPE_COLOR[t] }} />
                   {t}
                 </span>
               ))}
             </div>
           </div>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0 0)" />
-                <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <RTooltip />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                {assets.flatMap((a, idx) => {
-                  const out: React.ReactNode[] = [];
-                  const dash = ASSET_DASH[idx % ASSET_DASH.length];
-                  if (sel.PM) out.push(<Line key={`${a.id}-pm`} type="monotone" dataKey={`${a.old_code} · PM`} stroke={TYPE_COLOR.PM} strokeWidth={2} dot strokeDasharray={dash} />);
-                  if (sel.Claim) out.push(<Line key={`${a.id}-cl`} type="monotone" dataKey={`${a.old_code} · Claim`} stroke={TYPE_COLOR.Claim} strokeWidth={2} dot strokeDasharray={dash} />);
-                  if (sel.Monitor) out.push(<Line key={`${a.id}-mn`} type="monotone" dataKey={`${a.old_code} · Mon`} stroke={TYPE_COLOR.Monitor} strokeWidth={2} dot strokeDasharray={dash} />);
-                  return out;
-                })}
-              </LineChart>
-            </ResponsiveContainer>
+            {chartData.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                ไม่มีข้อมูลในช่วงที่เลือก
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 8, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0 0)" vertical={false} />
+                  <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <RTooltip cursor={{ fill: "oklch(0.95 0 0 / 0.5)" }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  {sel.PM && <Bar dataKey="PM" fill={TYPE_COLOR.PM} radius={[4, 4, 0, 0]} maxBarSize={48} />}
+                  {sel.Claim && <Bar dataKey="Claim" fill={TYPE_COLOR.Claim} radius={[4, 4, 0, 0]} maxBarSize={48} />}
+                  {sel.Monitor && <Bar dataKey="Monitor" fill={TYPE_COLOR.Monitor} radius={[4, 4, 0, 0]} maxBarSize={48} />}
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            สี = ประเภทงาน (PM/Claim/Monitor) — รูปแบบเส้น (ทึบ/ประ) = แต่ละป้าย
+            💡 อ่านยังไง: ดูแท่งสูง = ช่วงนั้นเกิดงานเยอะ · ถ้าแท่งแดง (Claim) เยอะ = มีปัญหาเยอะ · ถ้าแท่งฟ้า (PM) เยอะ = ทำการบำรุงรักษาบ่อย
           </p>
         </div>
       )}

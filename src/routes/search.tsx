@@ -49,7 +49,7 @@ const TYPE_COLOR: Record<"PM" | "Claim" | "Monitor", string> = {
   Monitor: "oklch(0.65 0.16 155)", // เขียว
 };
 // รูปแบบเส้นแยกตามป้าย (สูงสุด 5 slots)
-const ASSET_DASH = ["", "6 3", "2 3", "8 3 2 3", "4 2 1 2"];
+
 
 function useDebounced<T>(value: T, ms = 250): T {
   const [v, setV] = useState(value);

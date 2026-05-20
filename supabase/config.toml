@@ -1,1 +1,4 @@
 project_id = "rmedzljblzngrlsalfsd"
+
+[functions.sync-assets]
+verify_jwt = false

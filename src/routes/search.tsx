@@ -843,12 +843,20 @@ function CalendarOverlay({ history, colorByAsset: _c }: { history: HistRow[]; co
             >
               <div className={cn("text-[11px]", isToday ? "font-semibold text-primary" : "text-muted-foreground")}>{c.day}</div>
               {c.events.length > 0 && (
-                <div className="mt-auto flex flex-wrap gap-0.5">
-                  {c.events.slice(0, 6).map((e) => (
-                    <span key={e.id} className="size-1.5 rounded-full" style={{ background: typeColor(e.type) }} />
+                <div className="mt-auto flex flex-col gap-0.5 overflow-hidden">
+                  {c.events.slice(0, 3).map((e) => (
+                    <span
+                      key={e.id}
+                      className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px] font-medium leading-tight text-white truncate"
+                      style={{ background: typeColor(e.type) }}
+                      title={`${e.type} • ${e.asset_old_code}${e.status ? " • " + e.status : ""}`}
+                    >
+                      <span className="opacity-80 shrink-0">{e.type === "Claim" ? "C" : e.type === "PM" ? "P" : "M"}</span>
+                      <span className="truncate">{e.asset_old_code}</span>
+                    </span>
                   ))}
-                  {c.events.length > 6 && (
-                    <span className="text-[9px] text-muted-foreground leading-none">+{c.events.length - 6}</span>
+                  {c.events.length > 3 && (
+                    <span className="text-[10px] text-muted-foreground leading-none">+{c.events.length - 3} อื่นๆ</span>
                   )}
                 </div>
               )}

@@ -70,14 +70,6 @@ export async function runAssetListSync() {
   }
 }
 
-async function fetchPlanBLegacy(url: string): Promise<unknown> {
-  const apiKey = process.env.PLANB_API_KEY;
-  const res = await fetch(url, {
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}`, Accept: "application/json" } : { Accept: "application/json" },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  return res.json();
-}
 
 export async function runClaimSync() {
   const id = await logStart("claim");

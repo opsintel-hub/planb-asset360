@@ -720,7 +720,7 @@ function AssetHealthTab({
       )}
 
       {view === "calendar" && (
-        <CalendarOverlay history={history.filter((h) => sel[h.type as keyof typeof sel])} colorByAsset={colorByAsset} />
+        <CalendarOverlay history={history.filter((h) => sel[h.type as keyof typeof sel])} colorByAsset={colorByAsset} gran={gran} setGran={setGran} />
       )}
 
       {/* Simulators */}

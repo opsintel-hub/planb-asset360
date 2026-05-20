@@ -303,3 +303,129 @@ function EditableField({ label, defaultValue, onSave }: { label: string; default
     </div>
   );
 }
+
+function AssetDbForm({
+  defaults,
+  syncDays,
+  onSave,
+  onSaveDays,
+}: {
+  defaults: { host: string; database: string; username: string; table: string };
+  syncDays: number[];
+  onSave: (v: { host: string; database: string; username: string; table: string; password_updated_at?: string }) => void;
+  onSaveDays: (days: number[]) => void;
+}) {
+  const [host, setHost] = useState(defaults.host);
+  const [database, setDatabase] = useState(defaults.database);
+  const [username, setUsername] = useState(defaults.username);
+  const [table, setTable] = useState(defaults.table);
+  const [password, setPassword] = useState("");
+  const [days, setDays] = useState<number[]>(syncDays);
+
+  const toggleDay = (d: number) => {
+    setDays((prev) => {
+      if (prev.includes(d)) return prev.filter((x) => x !== d);
+      if (prev.length >= 4) {
+        toast.error("เลือกได้สูงสุด 4 วันต่อเดือน");
+        return prev;
+      }
+      return [...prev, d].sort((a, b) => a - b);
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Field label="Modern Corporate Server (host:port)" value={host} onChange={setHost} />
+        <Field label="Database" value={database} onChange={setDatabase} />
+        <Field label="User" value={username} onChange={setUsername} />
+        <Field label="Table" value={table} onChange={setTable} />
+        <div className="md:col-span-2 space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Password <span className="text-muted-foreground/70">(เก็บใน Secret Store — เว้นว่างถ้าไม่ต้องการเปลี่ยน)</span>
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••••••"
+            className="w-full h-10 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2 rounded-lg border bg-background/50 p-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium">Auto-Sync (เซิร์ฟเวอร์รันอัตโนมัติ)</div>
+            <div className="text-xs text-muted-foreground">เลือกวันที่ในเดือน (สูงสุด 4 วัน) — รันเวลา 04:00 น.</div>
+          </div>
+          <Badge tone={days.length > 0 ? "success" : "warning"}>{days.length}/4 วัน</Badge>
+        </div>
+        <div className="grid grid-cols-7 sm:grid-cols-10 md:grid-cols-16 gap-1.5">
+          {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+            const active = days.includes(d);
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => toggleDay(d)}
+                className={cn(
+                  "h-9 rounded-md text-xs font-medium border transition",
+                  active
+                    ? "bg-primary text-primary-foreground border-primary shadow"
+                    : "bg-card hover:bg-accent border-border",
+                )}
+              >
+                {d}
+              </button>
+            );
+          })}
+        </div>
+        {days.length > 0 && (
+          <div className="text-xs text-muted-foreground">
+            จะรันในวันที่ {days.join(", ")} ของทุกเดือน เวลา 04:00 น.
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 pt-2 border-t">
+        <button
+          onClick={() => {
+            const payload: { host: string; database: string; username: string; table: string; password_updated_at?: string } = {
+              host, database, username, table,
+            };
+            if (password) payload.password_updated_at = new Date().toISOString();
+            onSave(payload);
+            if (password) {
+              toast.info("รหัสผ่านจะถูกอัปเดตใน Secret Store โดยผู้ดูแลระบบในรอบถัดไป");
+              setPassword("");
+            }
+          }}
+          className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90"
+        >
+          บันทึกการเชื่อมต่อ
+        </button>
+        <button
+          onClick={() => onSaveDays(days)}
+          className="rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+        >
+          บันทึกตารางเวลา Auto-Sync
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full h-10 rounded-lg border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+    </div>
+  );
+}

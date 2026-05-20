@@ -588,7 +588,7 @@ function AssetHealthTab({
   // Simulator: if PM frequency = X days, expected claim reduction ratio
   // baseline assumption: shorter PM interval reduces claim rate proportionally
   const baselinePm = avgPmInterval || 30;
-  const reduction = baselinePm > 0 ? Math.max(0, Math.min(80, ((baselinePm - pmFreqDays) / baselinePm) * 60)) : 0;
+  const reduction = baselinePm > 0 ? Math.max(-80, Math.min(80, ((baselinePm - pmFreqDays) / baselinePm) * 60)) : 0;
 
   // Maintenance debt: if delayed N months, expected extra failures
   const expectedExtraFailures = avgMtbf > 0
@@ -723,51 +723,148 @@ function AssetHealthTab({
         <CalendarOverlay history={history.filter((h) => sel[h.type as keyof typeof sel])} colorByAsset={colorByAsset} gran={gran} setGran={setGran} />
       )}
 
-      {/* Simulators */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-xl border p-4 bg-card">
-          <div className="flex items-center gap-2 mb-2"><Wrench className="size-4 text-primary" /><h4 className="font-semibold text-sm">PM Frequency Simulator</h4></div>
-          <p className="text-xs text-muted-foreground mb-3">
-            เลื่อนแถบเพื่อจำลองความถี่ PM ใหม่ (ปัจจุบันเฉลี่ย {baselinePm.toFixed(0)} วัน)
-          </p>
-          <input type="range" min={7} max={120} step={1} value={pmFreqDays} onChange={(e) => setPmFreqDays(Number(e.target.value))} className="w-full" />
-          <div className="mt-1 text-xs text-muted-foreground">PM ทุก <strong className="text-foreground">{pmFreqDays}</strong> วัน</div>
-          <div className="mt-3 rounded-lg bg-success/10 text-success p-2 text-sm">
-            คาด Claim ลดลง <strong>{reduction.toFixed(0)}%</strong>
+      {/* Simulators — What-if Analysis */}
+      <div className="rounded-xl border bg-card">
+        <div className="border-b p-4">
+          <div className="flex items-center gap-2">
+            <Activity className="size-4 text-primary" />
+            <h3 className="font-semibold text-sm">เครื่องมือจำลองสถานการณ์ (What-if Analysis)</h3>
           </div>
-          <details className="mt-2 text-xs text-muted-foreground">
-            <summary className="cursor-pointer">วิธีคำนวณ</summary>
-            <p className="mt-1">(baseline_pm − sim_pm) / baseline_pm × 60% โดย baseline คือ PM interval เฉลี่ยจากประวัติจริง — สูงสุด 80%</p>
-          </details>
+          <p className="text-xs text-muted-foreground mt-1">
+            ลองปรับค่าด้านล่างเพื่อดูว่า <strong>ถ้าทำแบบนี้ในอนาคต ผลจะเป็นยังไง</strong> — ตัวเลขคำนวณจากประวัติจริงของป้ายที่เลือก
+            ค่าที่ได้คือการ <strong>คาดการณ์</strong> เพื่อช่วยตัดสินใจ ไม่ใช่ค่าจริงในระบบ
+          </p>
         </div>
 
-        <div className="rounded-xl border p-4 bg-card">
-          <div className="flex items-center gap-2 mb-2"><AlertCircle className="size-4 text-warning" /><h4 className="font-semibold text-sm">Maintenance Debt Simulator</h4></div>
-          <p className="text-xs text-muted-foreground mb-3">หากเลื่อน PM ออกไป...</p>
-          <input type="range" min={0} max={6} step={1} value={debtMonths} onChange={(e) => setDebtMonths(Number(e.target.value))} className="w-full" />
-          <div className="mt-1 text-xs text-muted-foreground">เลื่อน <strong className="text-foreground">{debtMonths}</strong> เดือน</div>
-          <div className="mt-3 rounded-lg bg-destructive/10 text-destructive p-2 text-sm">
-            Risk of Failure คาดเพิ่ม <strong>{expectedExtraFailures}</strong> ครั้ง
-          </div>
-          <details className="mt-2 text-xs text-muted-foreground">
-            <summary className="cursor-pointer">วิธีคำนวณ</summary>
-            <p className="mt-1">(เดือนที่เลื่อน × 30) / MTBF × จำนวนป้าย — อิงสถิติ Claim จริง</p>
-          </details>
-        </div>
+        <div className="grid gap-px bg-border lg:grid-cols-3">
+          {/* PM Frequency */}
+          {(() => {
+            const better = pmFreqDays < baselinePm;
+            const same = Math.round(pmFreqDays) === Math.round(baselinePm);
+            const status = same ? "neutral" : better ? "better" : "worse";
+            return (
+              <div className="bg-card p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Wrench className="size-4 text-primary" />
+                  <h4 className="font-semibold text-sm">ถ้าทำ PM ถี่ขึ้น/ห่างขึ้น</h4>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  ปัจจุบันทำ PM เฉลี่ยทุก <strong className="text-foreground">{baselinePm.toFixed(0)} วัน</strong> · ลองเปลี่ยนความถี่ใหม่
+                </p>
+                <input type="range" min={7} max={120} step={1} value={pmFreqDays} onChange={(e) => setPmFreqDays(Number(e.target.value))} className="w-full" />
+                <div className="mt-1 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">ถี่ขึ้น (7 วัน)</span>
+                  <span className="font-medium">PM ทุก {pmFreqDays} วัน</span>
+                  <span className="text-muted-foreground">ห่างขึ้น (120 วัน)</span>
+                </div>
+                <div className={cn(
+                  "mt-3 rounded-lg p-3 text-sm",
+                  status === "better" && "bg-success/10 text-success",
+                  status === "worse" && "bg-destructive/10 text-destructive",
+                  status === "neutral" && "bg-muted text-muted-foreground",
+                )}>
+                  <div className="text-xs font-medium opacity-80">
+                    {status === "better" ? "🟢 สถานการณ์ดีขึ้น" : status === "worse" ? "🔴 สถานการณ์แย่ลง" : "⚪ เท่าเดิม"}
+                  </div>
+                  <div className="mt-1">
+                    คาด Claim {better ? "ลดลง" : "เพิ่มขึ้น"} <strong className="text-base">{Math.abs(reduction).toFixed(0)}%</strong>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-2">
+                  💡 ใช้ตัดสินใจว่าควรตั้งแผน PM ใหม่ทุกกี่วัน — ผลโชว์ที่การ์ดด้านล่างของหน้านี้
+                </p>
+                <details className="mt-2 text-[11px] text-muted-foreground">
+                  <summary className="cursor-pointer">วิธีคำนวณ</summary>
+                  <p className="mt-1">(PM ปัจจุบัน − PM ใหม่) ÷ PM ปัจจุบัน × 60% (เพดาน 80%) — สมมติว่าถ้าทำบ่อยขึ้น โอกาสเสียจะลดตามสัดส่วน</p>
+                </details>
+              </div>
+            );
+          })()}
 
-        <div className="rounded-xl border p-4 bg-card">
-          <div className="flex items-center gap-2 mb-2"><Activity className="size-4 text-primary" /><h4 className="font-semibold text-sm">Service Level Simulator</h4></div>
-          <p className="text-xs text-muted-foreground mb-3">
-            Response Time เฉลี่ย {avgResponse.toFixed(1)} ชม. / MTBF {avgMtbf.toFixed(0)} วัน
-          </p>
-          <div className="mt-2 rounded-lg bg-primary/10 text-primary p-3 text-center">
-            <div className="text-2xl font-bold">{availability.toFixed(1)}%</div>
-            <div className="text-xs">System Availability</div>
-          </div>
-          <details className="mt-2 text-xs text-muted-foreground">
-            <summary className="cursor-pointer">วิธีคำนวณ</summary>
-            <p className="mt-1">100 − (avg_response_h / (MTBF_วัน × 24)) × 100</p>
-          </details>
+          {/* Maintenance Debt */}
+          {(() => {
+            const status = debtMonths === 0 ? "neutral" : "worse";
+            return (
+              <div className="bg-card p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertCircle className="size-4 text-warning" />
+                  <h4 className="font-semibold text-sm">ถ้าเลื่อน PM ออกไป (หนี้บำรุงรักษา)</h4>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  จำลองว่า <strong>เลื่อน PM ไม่ทำ</strong> เป็นเวลากี่เดือน — ดูว่าจะเสียเพิ่มกี่ครั้ง
+                </p>
+                <input type="range" min={0} max={6} step={1} value={debtMonths} onChange={(e) => setDebtMonths(Number(e.target.value))} className="w-full" />
+                <div className="mt-1 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">ทำตรงเวลา</span>
+                  <span className="font-medium">เลื่อน {debtMonths} เดือน</span>
+                  <span className="text-muted-foreground">เลื่อน 6 เดือน</span>
+                </div>
+                <div className={cn(
+                  "mt-3 rounded-lg p-3 text-sm",
+                  status === "worse" && "bg-destructive/10 text-destructive",
+                  status === "neutral" && "bg-success/10 text-success",
+                )}>
+                  <div className="text-xs font-medium opacity-80">
+                    {status === "neutral" ? "🟢 อยู่ในแผน" : "🔴 มีความเสี่ยง"}
+                  </div>
+                  <div className="mt-1">
+                    คาดป้ายจะเสียเพิ่ม <strong className="text-base">{expectedExtraFailures}</strong> ครั้ง (รวมทุกป้ายที่เลือก)
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-2">
+                  💡 ใช้ดูว่า "ถ้าเลื่อน PM ไปอีก N เดือน คุ้มไหม" — ยิ่งเลื่อนนานยิ่ง Claim เพิ่ม
+                </p>
+                <details className="mt-2 text-[11px] text-muted-foreground">
+                  <summary className="cursor-pointer">วิธีคำนวณ</summary>
+                  <p className="mt-1">(เดือนที่เลื่อน × 30 วัน) ÷ MTBF × จำนวนป้าย — MTBF คือระยะเวลาเฉลี่ยระหว่าง Claim จากประวัติจริง</p>
+                </details>
+              </div>
+            );
+          })()}
+
+          {/* Service Level */}
+          {(() => {
+            const status = availability >= 95 ? "better" : availability >= 80 ? "neutral" : "worse";
+            return (
+              <div className="bg-card p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Activity className="size-4 text-primary" />
+                  <h4 className="font-semibold text-sm">ระดับการให้บริการปัจจุบัน</h4>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  คำนวณจากความเร็วในการตอบสนอง Claim และ MTBF — <strong>ไม่ต้องปรับ</strong> แสดงสถานะปัจจุบัน
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                  <div className="rounded-lg bg-muted p-2">
+                    <div className="text-muted-foreground">เวลาตอบสนอง</div>
+                    <div className="font-semibold text-foreground">{avgResponse.toFixed(1)} ชม.</div>
+                  </div>
+                  <div className="rounded-lg bg-muted p-2">
+                    <div className="text-muted-foreground">MTBF</div>
+                    <div className="font-semibold text-foreground">{avgMtbf.toFixed(0)} วัน</div>
+                  </div>
+                </div>
+                <div className={cn(
+                  "rounded-lg p-3 text-center",
+                  status === "better" && "bg-success/10 text-success",
+                  status === "neutral" && "bg-warning/10 text-[oklch(0.45_0.15_75)]",
+                  status === "worse" && "bg-destructive/10 text-destructive",
+                )}>
+                  <div className="text-3xl font-bold">{availability.toFixed(1)}%</div>
+                  <div className="text-xs mt-0.5">
+                    System Availability — {status === "better" ? "🟢 ดีมาก (≥95%)" : status === "neutral" ? "🟡 พอใช้ (80–95%)" : "🔴 ต้องปรับปรุง (<80%)"}
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-2">
+                  💡 บอกว่าป้ายพร้อมใช้งานกี่ % ของเวลาทั้งหมด — ยิ่งสูงยิ่งดี
+                </p>
+                <details className="mt-2 text-[11px] text-muted-foreground">
+                  <summary className="cursor-pointer">วิธีคำนวณ</summary>
+                  <p className="mt-1">100 − (เวลาตอบสนองเฉลี่ย ÷ (MTBF × 24)) × 100 — ยิ่งซ่อมเร็วและเสียน้อย ค่าจะยิ่งสูง</p>
+                </details>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>

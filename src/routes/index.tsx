@@ -6,7 +6,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
   BarChart, Bar, Legend, PieChart, Pie, Cell,
 } from "recharts";
-import { StatCard, PageHeader, Badge } from "@/components/ui-bits";
+import { StatCard, Badge } from "@/components/ui-bits";
 
 export const Route = createFileRoute("/")({
   head: () => ({

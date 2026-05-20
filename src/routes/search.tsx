@@ -682,30 +682,52 @@ function AssetHealthTab({
               <div className="grid lg:grid-cols-[260px_1fr] gap-0">
                 {/* KPI ซ้าย */}
                 <div className="p-4 lg:border-r">
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div title="ระยะเวลาเฉลี่ยระหว่าง Claim 2 ครั้ง — ยิ่งสูง = ป้ายเสียห่างขึ้น = ดี">
-                      <div className="text-xl font-bold tabular-nums">{p.mtbf.toFixed(0)}</div>
-                      <div className="text-muted-foreground leading-tight">MTBF<br/>(วัน)</div>
-                    </div>
-                    <div title="ความถี่ที่ทำ PM โดยเฉลี่ย — ยิ่งต่ำ = บำรุงรักษาบ่อย">
-                      <div className="text-xl font-bold tabular-nums">{p.pmInterval.toFixed(0)}</div>
-                      <div className="text-muted-foreground leading-tight">PM ทุก<br/>(วัน)</div>
-                    </div>
-                    <div title="ความถี่การตรวจสอบ (Monitoring) โดยเฉลี่ย">
-                      <div className="text-xl font-bold tabular-nums">{p.monInterval.toFixed(0)}</div>
-                      <div className="text-muted-foreground leading-tight">ตรวจทุก<br/>(วัน)</div>
-                    </div>
-                  </div>
+                  {(() => {
+                    const items = [
+                      { key: "MTBF", value: p.mtbf, n: p.counts.Claim, unit: "วัน",
+                        sub: "ระหว่าง Claim",
+                        tip: `เฉลี่ยจาก ${Math.max(0, p.counts.Claim - 1)} ช่วงห่าง ระหว่าง Claim ${p.counts.Claim} ครั้ง` },
+                      { key: "PM ทุก", value: p.pmInterval, n: p.counts.PM, unit: "วัน",
+                        sub: "ระหว่าง PM",
+                        tip: `เฉลี่ยจาก ${Math.max(0, p.counts.PM - 1)} ช่วงห่าง ระหว่าง PM ${p.counts.PM} ครั้ง` },
+                      { key: "ตรวจทุก", value: p.monInterval, n: p.counts.Monitor, unit: "วัน",
+                        sub: "ระหว่าง Monitor",
+                        tip: `เฉลี่ยจาก ${Math.max(0, p.counts.Monitor - 1)} ช่วงห่าง ระหว่าง Monitor ${p.counts.Monitor} ครั้ง` },
+                    ];
+                    return (
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                        {items.map((it) => {
+                          const weak = it.n < 3;
+                          const none = it.n < 2;
+                          return (
+                            <div key={it.key} title={it.tip}>
+                              <div className="text-xl font-bold tabular-nums">
+                                {none ? "—" : it.value.toFixed(0)}
+                              </div>
+                              <div className="text-muted-foreground leading-tight">
+                                {it.key}<br/>({it.unit})
+                              </div>
+                              <div className={cn("mt-0.5 text-[10px] leading-tight", weak ? "text-amber-600" : "text-muted-foreground/70")}>
+                                n={it.n}{weak && !none ? " ⚠︎" : ""}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                   <div className="mt-3 flex gap-3 text-xs text-muted-foreground border-t pt-2 justify-between">
                     <span>PM {p.counts.PM}</span><span>Claim {p.counts.Claim}</span><span>Monitor {p.counts.Monitor}</span>
                   </div>
                   <details className="mt-2 text-[11px] text-muted-foreground">
-                    <summary className="cursor-pointer hover:text-foreground">ตัวเลขนี้หมายถึงอะไร?</summary>
+                    <summary className="cursor-pointer hover:text-foreground">ตัวเลขนี้คำนวณยังไง?</summary>
                     <ul className="mt-1.5 space-y-1 pl-3 list-disc">
-                      <li><b>MTBF</b> = ระยะห่างเฉลี่ยระหว่าง Claim (ค่าสูง = ป้ายเสถียร)</li>
-                      <li><b>PM ทุก</b> = ทำบำรุงรักษาทุกกี่วันโดยเฉลี่ย</li>
-                      <li><b>ตรวจทุก</b> = เข้าตรวจ Monitoring ทุกกี่วันโดยเฉลี่ย</li>
-                      <li>แถวล่าง = ยอดรวมตลอดช่วงข้อมูล</li>
+                      <li><b>วิธีคำนวณ</b>: เรียงเหตุการณ์ตามเวลา → หาช่วงห่างระหว่างคู่ติดกัน (วัน) → เฉลี่ย</li>
+                      <li><b>MTBF</b> = ช่วงห่างเฉลี่ยระหว่าง Claim (ค่าสูง = ป้ายเสถียร)</li>
+                      <li><b>PM ทุก</b> = ช่วงห่างเฉลี่ยระหว่าง PM ที่ <i>เกิดขึ้นจริง</i> (ไม่ใช่แผน)</li>
+                      <li><b>ตรวจทุก</b> = ช่วงห่างเฉลี่ยระหว่าง Monitoring</li>
+                      <li><b>n</b> = จำนวนเหตุการณ์ที่ใช้คำนวณ — <b className="text-amber-600">n&lt;3 = ตัวอย่างน้อย ค่าอาจคลาดเคลื่อน</b> (เช่น PM 2 ครั้งห่างกัน 15 วัน ≠ ทำ PM ทุก 15 วันจริง)</li>
+                      <li>แสดง "—" เมื่อ n&lt;2 (น้อยกว่า 2 ครั้ง ไม่มีช่วงห่างให้คำนวณ)</li>
                     </ul>
                   </details>
                 </div>

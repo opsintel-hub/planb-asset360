@@ -165,6 +165,77 @@ export const searchAssets = createServerFn({ method: "POST" })
     return { assets: assets ?? [], history };
   });
 
+// Autocomplete: lightweight list for combobox
+export const autocompleteAssets = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z.object({
+      q: z.string().max(200).optional().default(""),
+      limit: z.number().int().min(1).max(50).optional().default(20),
+    }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const q = data.q.trim();
+    let query = supabase
+      .from("assets")
+      .select("id, old_code, name, area, department, status")
+      .order("old_code", { ascending: true })
+      .limit(data.limit);
+    if (q) {
+      query = query.or(`old_code.ilike.%${q}%,name.ilike.%${q}%,area.ilike.%${q}%`);
+    }
+    const { data: rows, error } = await query;
+    if (error) return { rows: [], error: error.message };
+    return { rows: rows ?? [], error: null };
+  });
+
+// Fetch one asset + history; auto-sync from PlanB if local history is empty (or forced)
+export const getAssetWithHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z.object({
+      oldCode: z.string().min(1).max(100),
+      tab: z.enum(["PM", "Claim", "Monitor", "AssetHealth"]).optional().default("PM"),
+      forceSync: z.boolean().optional().default(false),
+    }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: asset } = await supabase
+      .from("assets")
+      .select("id, old_code, name, department, area, status, last_pm_at, last_claim_at, last_monitor_ok_at")
+      .eq("old_code", data.oldCode)
+      .maybeSingle();
+    if (!asset) return { asset: null, history: [], synced: false, syncError: null };
+
+    const { count } = await supabase
+      .from("asset_history")
+      .select("id", { count: "exact", head: true })
+      .eq("asset_id", asset.id);
+
+    let synced = false;
+    let syncError: string | null = null;
+    if (data.forceSync || (count ?? 0) === 0) {
+      try {
+        const { runAssetHistorySync } = await import("./sync.server");
+        await runAssetHistorySync(data.oldCode);
+        synced = true;
+      } catch (e) {
+        syncError = (e as Error).message;
+      }
+    }
+
+    const { data: history } = await supabase
+      .from("asset_history")
+      .select("id, ticket_code, type, title, status, opened_at, closed_at, sla_hours")
+      .eq("asset_id", asset.id)
+      .eq("type", data.tab)
+      .order("opened_at", { ascending: false })
+      .limit(200);
+    return { asset, history: history ?? [], synced, syncError };
+  });
+
 export const getAssetDetail = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => z.object({ oldCode: z.string().min(1).max(100) }).parse(i))

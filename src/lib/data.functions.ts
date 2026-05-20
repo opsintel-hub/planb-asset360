@@ -149,7 +149,8 @@ export const searchAssets = createServerFn({ method: "POST" })
     }
     const { data: assets } = await assetsQuery;
 
-    let history: unknown[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let history: any[] = [];
     if (assets && assets.length) {
       const ids = assets.map((a) => a.id);
       const { data: h } = await supabase

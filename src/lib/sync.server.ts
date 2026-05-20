@@ -53,21 +53,28 @@ export async function runClaimSync() {
     const list = Array.isArray(raw) ? raw : ((raw as { data?: unknown[] })?.data ?? []);
     let n = 0;
     for (const item of list as Record<string, unknown>[]) {
-      const ticketCode = String(item.ticketCode ?? item.TicketCode ?? item.ticket_code ?? item.id ?? "");
+      const ticketCode = String(
+        item.refNumber ?? item.RefNumber ?? item.ref_number ??
+        item.ticketCode ?? item.TicketCode ?? item.ticket_code ?? item.id ?? "",
+      );
       if (!ticketCode) continue;
       const openedAt = (item.openedAt ?? item.OpenedAt ?? item.createdAt ?? null) as string | null;
-      const ageHours = openedAt ? (Date.now() - new Date(openedAt).getTime()) / 3_600_000 : null;
+      const totalTimeHours = typeof item.totalTime === "number" ? item.totalTime : Number(item.totalTime ?? NaN);
+      const ageHours = openedAt
+        ? (Date.now() - new Date(openedAt).getTime()) / 3_600_000
+        : Number.isFinite(totalTimeHours) ? totalTimeHours : null;
       const sla = ageHours == null ? null : ageHours < 24 ? "ontrack" : ageHours < 72 ? "atrisk" : "breached";
       const oldCode = (item.oldCode ?? item.assetCode ?? item.AssetCode ?? null) as string | null;
+      const title = (item.informDetail ?? item.title ?? item.subject ?? item.description ?? item.location ?? null) as string | null;
       await supabaseAdmin.from("claims").upsert(
         {
           ticket_code: ticketCode,
           asset_old_code: oldCode,
-          title: (item.title ?? item.subject ?? item.description ?? null) as string | null,
+          title,
           opened_at: openedAt,
           age_hours: ageHours,
           sla_status: sla,
-          severity: (item.severity ?? null) as string | null,
+          severity: (item.severity ?? item.status ?? null) as string | null,
           payload: item as never,
           synced_at: new Date().toISOString(),
         },

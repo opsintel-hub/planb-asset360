@@ -70,9 +70,11 @@ function MainSettings() {
   const claimAutoSync = settings.claim_auto_sync ?? true;
 
   const assetDb = (settings.asset_db_connection ?? {}) as {
-    host?: string; database?: string; username?: string; table?: string;
+    host?: string; server?: string; port?: number | string; database?: string; username?: string; table?: string;
   };
-  const assetDbHost = assetDb.host ?? "magicticket.magicsigncloud.com";
+  const [legacyServer, legacyPort] = String(assetDb.host ?? "magicticket.magicsigncloud.com").split(":");
+  const assetDbServer = assetDb.server ?? legacyServer;
+  const assetDbPort = String(assetDb.port ?? legacyPort ?? 1433);
   const assetDbName = assetDb.database ?? "planb";
   const assetDbUser = assetDb.username ?? "planb_viewer";
   const assetDbTable = assetDb.table ?? "Asset";
@@ -115,7 +117,7 @@ function MainSettings() {
     <div className="space-y-6">
       <Section title="Modern Corporate Server (Asset Database)" desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB (รหัสผ่านเก็บอย่างปลอดภัยใน Secret Store)">
         <AssetDbForm
-          defaults={{ host: assetDbHost, database: assetDbName, username: assetDbUser, table: assetDbTable }}
+          defaults={{ server: assetDbServer, port: assetDbPort, database: assetDbName, username: assetDbUser, table: assetDbTable }}
           syncDays={assetSyncDays}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
           onSaveDays={(days) => saveMutation.mutate({ key: "asset_sync_days", value: days })}

@@ -37,6 +37,15 @@ function quoteTableName(raw: string): string {
   return parts.map((part) => `[${part}]`).join(".");
 }
 
+function toUserFacingError(message: string, host: string) {
+  if (/Failed to connect|timeout|ETIMEOUT/i.test(message)) {
+    return `เชื่อมต่อ Modern Corporate Server ไม่สำเร็จ: ${host} เปิดพอร์ต 1433 ให้ Lovable Cloud เข้าถึงไม่ได้หรือถูก firewall บล็อก`;
+  }
+  if (/Login failed/i.test(message)) return "เข้าสู่ระบบ Modern Corporate Server ไม่สำเร็จ: ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";
+  if (/Cannot open database|database/i.test(message)) return "เชื่อมต่อฐานข้อมูลไม่สำเร็จ: ตรวจสอบชื่อ Database และสิทธิ์ของผู้ใช้";
+  return message;
+}
+
 function parseHostPort(raw: string): { server: string; port: number } {
   const [server, portStr] = raw.split(":");
   return { server: server.trim(), port: portStr ? Number(portStr.trim()) : 1433 };
@@ -88,6 +97,8 @@ Deno.serve(async (req: Request) => {
 
   let pool: { close: () => Promise<void> } | null = null;
 
+  let targetHost = "magicticket.magicsigncloud.com:1433";
+
   try {
     if (!DB_PASSWORD) throw new Error("MODERN_CORP_DB_PASSWORD secret not set");
 
@@ -103,6 +114,7 @@ Deno.serve(async (req: Request) => {
     const table = quoteTableName(conn.table ?? "Asset");
 
     const { server, port } = parseHostPort(host);
+    targetHost = `${server}:${port}`;
 
     pool = await sql.connect({
       server,
@@ -152,9 +164,10 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ ok: true, rows: n });
   } catch (e) {
     const msg = (e as Error).message;
+    const userMessage = toUserFacingError(msg, targetHost);
     console.error("sync-assets failed", msg);
     if (pool) await pool.close().catch(() => null);
-    await finish("error", msg, 0);
-    return jsonResponse({ ok: false, rows: 0, error: msg, fallback: true });
+    await finish("error", userMessage, 0);
+    return jsonResponse({ ok: false, rows: 0, error: userMessage, technicalError: msg, fallback: true });
   }
 });

@@ -42,6 +42,14 @@ const PALETTE = [
   "oklch(0.6 0.22 25)",
   "oklch(0.55 0.2 305)",
 ];
+// สีเดียวกันทั้งระบบต่อ "ประเภทงาน" — PM / Claim / Monitor
+const TYPE_COLOR: Record<"PM" | "Claim" | "Monitor", string> = {
+  PM: "oklch(0.62 0.19 255)",      // น้ำเงิน
+  Claim: "oklch(0.6 0.22 25)",     // แดง
+  Monitor: "oklch(0.65 0.16 155)", // เขียว
+};
+// รูปแบบเส้นแยกตามป้าย (สูงสุด 5 slots)
+const ASSET_DASH = ["", "6 3", "2 3", "8 3 2 3", "4 2 1 2"];
 
 function useDebounced<T>(value: T, ms = 250): T {
   const [v, setV] = useState(value);
@@ -535,6 +543,8 @@ function AssetHealthTab({
   debtMonths: number; setDebtMonths: (n: number) => void;
 }) {
   const [view, setView] = useState<"graph" | "table" | "calendar">("graph");
+  const [gran, setGran] = useState<"month" | "year">("month");
+  const keyLen = gran === "month" ? 7 : 4;
 
   // Per-asset metrics
   const perAsset = assets.map((a) => {
@@ -555,12 +565,12 @@ function AssetHealthTab({
     };
   });
 
-  // Combined trend (per month, per type)
-  const months = new Set<string>();
-  history.forEach((h) => { if (h.opened_at) months.add(h.opened_at.slice(0, 7)); });
-  const monthLabels = Array.from(months).sort();
-  const chartData = monthLabels.map((m) => {
-    const row: Record<string, string | number> = { month: m };
+  // Combined trend (per bucket, per type) — granularity = month or year
+  const buckets = new Set<string>();
+  history.forEach((h) => { if (h.opened_at) buckets.add(h.opened_at.slice(0, keyLen)); });
+  const bucketLabels = Array.from(buckets).sort();
+  const chartData = bucketLabels.map((m) => {
+    const row: Record<string, string | number> = { bucket: m };
     for (const a of assets) {
       if (sel.PM) row[`${a.old_code} · PM`] = history.filter((h) => h.asset_id === a.id && h.type === "PM" && h.opened_at?.startsWith(m)).length;
       if (sel.Claim) row[`${a.old_code} · Claim`] = history.filter((h) => h.asset_id === a.id && h.type === "Claim" && h.opened_at?.startsWith(m)).length;
@@ -598,18 +608,34 @@ function AssetHealthTab({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           {(["PM", "Claim", "Monitor"] as const).map((t) => (
-            <label key={t} className={cn("inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer text-sm", sel[t] ? "bg-primary/10 border-primary text-primary" : "bg-background")}>
+            <label
+              key={t}
+              className={cn(
+                "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer text-sm",
+                sel[t] ? "text-white" : "bg-background",
+              )}
+              style={sel[t] ? { background: TYPE_COLOR[t], borderColor: TYPE_COLOR[t] } : undefined}
+            >
               <input type="checkbox" checked={sel[t]} onChange={(e) => onSel({ ...sel, [t]: e.target.checked })} className="size-3.5" />
               {t}
             </label>
           ))}
         </div>
-        <div className="inline-flex rounded-lg border overflow-hidden">
-          {(["graph", "table", "calendar"] as const).map((v) => (
-            <button key={v} onClick={() => setView(v)} className={cn("px-3 py-1.5 text-sm capitalize", view === v ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent")}>
-              {v === "graph" ? "Graph" : v === "table" ? "Table" : "Calendar"}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-lg border overflow-hidden">
+            {(["month", "year"] as const).map((g) => (
+              <button key={g} onClick={() => setGran(g)} className={cn("px-3 py-1.5 text-sm", gran === g ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent")}>
+                {g === "month" ? "รายเดือน" : "รายปี"}
+              </button>
+            ))}
+          </div>
+          <div className="inline-flex rounded-lg border overflow-hidden">
+            {(["graph", "table", "calendar"] as const).map((v) => (
+              <button key={v} onClick={() => setView(v)} className={cn("px-3 py-1.5 text-sm capitalize", view === v ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent")}>
+                {v === "graph" ? "Graph" : v === "table" ? "Table" : "Calendar"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -637,28 +663,38 @@ function AssetHealthTab({
       {/* View */}
       {view === "graph" && (
         <div className="rounded-xl border p-4">
-          <div className="text-sm font-medium mb-3">Trend Overlay — PM / Claim / Monitor</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-medium">Trend Overlay — PM / Claim / Monitor</div>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              {(["PM", "Claim", "Monitor"] as const).map((t) => (
+                <span key={t} className="inline-flex items-center gap-1.5">
+                  <span className="inline-block w-4 h-0.5" style={{ background: TYPE_COLOR[t] }} />
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0 0)" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                 <RTooltip />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                {assets.flatMap((a) => {
+                {assets.flatMap((a, idx) => {
                   const out: React.ReactNode[] = [];
-                  const base = colorByAsset.get(a.id) ?? "#888";
-                  if (sel.PM) out.push(<Line key={`${a.id}-pm`} type="monotone" dataKey={`${a.old_code} · PM`} stroke={base} strokeWidth={2} dot strokeDasharray="4 2" />);
-                  if (sel.Claim) out.push(<Line key={`${a.id}-cl`} type="monotone" dataKey={`${a.old_code} · Claim`} stroke={base} strokeWidth={2} dot />);
-                  if (sel.Monitor) out.push(<Line key={`${a.id}-mn`} type="monotone" dataKey={`${a.old_code} · Mon`} stroke={base} strokeWidth={1.5} dot strokeDasharray="1 2" />);
+                  const dash = ASSET_DASH[idx % ASSET_DASH.length];
+                  if (sel.PM) out.push(<Line key={`${a.id}-pm`} type="monotone" dataKey={`${a.old_code} · PM`} stroke={TYPE_COLOR.PM} strokeWidth={2} dot strokeDasharray={dash} />);
+                  if (sel.Claim) out.push(<Line key={`${a.id}-cl`} type="monotone" dataKey={`${a.old_code} · Claim`} stroke={TYPE_COLOR.Claim} strokeWidth={2} dot strokeDasharray={dash} />);
+                  if (sel.Monitor) out.push(<Line key={`${a.id}-mn`} type="monotone" dataKey={`${a.old_code} · Mon`} stroke={TYPE_COLOR.Monitor} strokeWidth={2} dot strokeDasharray={dash} />);
                   return out;
                 })}
               </LineChart>
             </ResponsiveContainer>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            เส้นทึบ = Claim, เส้นประยาว = PM, เส้นประสั้น = Monitoring — สีเดียวกันคือป้ายเดียวกัน
+            สี = ประเภทงาน (PM/Claim/Monitor) — รูปแบบเส้น (ทึบ/ประ) = แต่ละป้าย
           </p>
         </div>
       )}

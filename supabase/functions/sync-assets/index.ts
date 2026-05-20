@@ -146,16 +146,14 @@ Deno.serve(async (req: Request) => {
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("invalid MSSQL port");
     targetHost = `${server}:${port}`;
 
-    pool = await sql.connect({
-      server,
-      port,
-      database,
-      user,
-      password: DB_PASSWORD,
-      options: { encrypt: true, trustServerCertificate: true, enableArithAbort: true },
-      connectionTimeout: 10_000,
-      requestTimeout: 60_000,
-    });
+    const encrypt = conn.encrypt ?? false;
+    try {
+      pool = await connectMssql({ server, port, database, user, password: DB_PASSWORD, encrypt });
+    } catch (firstError) {
+      if (encrypt) throw firstError;
+      console.warn("sync-assets retrying MSSQL connection with encrypt=true", (firstError as Error).message);
+      pool = await connectMssql({ server, port, database, user, password: DB_PASSWORD, encrypt: true });
+    }
 
     const result = await pool.request().query(`SELECT * FROM ${table}`);
     const list = (result.recordset ?? []) as Record<string, unknown>[];

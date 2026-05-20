@@ -283,12 +283,8 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
     const finalAssets = assets2 ?? [];
 
     const ids = finalAssets.map((a) => a.id);
-    let history: Array<{
-      id: string; asset_id: string | null; asset_old_code: string | null;
-      ticket_code: string | null; type: string; title: string | null;
-      status: string | null; opened_at: string | null; closed_at: string | null;
-      sla_hours: number | null; payload: Record<string, unknown>;
-    }> = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let history: any[] = [];
 
     if (ids.length) {
       let q = supabase
@@ -301,7 +297,7 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
       if (data.from) q = q.gte("opened_at", data.from);
       if (data.to) q = q.lte("opened_at", data.to);
       const { data: h } = await q;
-      history = (h ?? []) as typeof history;
+      history = h ?? [];
     }
 
     // slicer filter (in-memory; reads asset's department/area/payload.mediaType)

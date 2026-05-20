@@ -360,7 +360,7 @@ function Slicer({ label, value, onChange, options }: { label: string; value: str
 }
 
 // ============ Regular Tab (PM/Claim/Monitor) ============
-type Asset = { id: string; old_code: string; name: string | null; department: string | null; area: string | null; status: string | null };
+type Asset = { id: string; old_code: string; name: string | null; department: string | null; area: string | null; status: string | null; latitude?: number | null; longitude?: number | null; installed_at?: string | null; last_pm_at?: string | null; last_claim_at?: string | null; last_monitor_ok_at?: string | null };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type HistRow = any;
 
@@ -672,12 +672,60 @@ function AssetHealthTab({
 
           return (
             <div key={p.asset.id} className="rounded-xl border bg-card overflow-hidden">
-              <div className="p-4 border-b flex items-center gap-2 flex-wrap">
-                <span className="size-3 rounded-full" style={{ background: colorByAsset.get(p.asset.id) }} />
-                <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted">{p.asset.old_code}</span>
-                <span className="text-sm font-medium truncate flex-1">{p.asset.name ?? "—"}</span>
-                <span className="text-xs text-muted-foreground">ปี {Number(matrixYear) + 543}</span>
+              <div className="px-4 py-3 border-b">
+                <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                  <span className="size-3 rounded-full shrink-0" style={{ background: colorByAsset.get(p.asset.id) }} />
+                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-muted">{p.asset.old_code}</span>
+                  <span className="text-sm font-medium truncate flex-1 min-w-0">{p.asset.name ?? "—"}</span>
+                  {p.asset.status && (
+                    <span className={cn(
+                      "text-[10px] px-2 py-0.5 rounded-full font-medium",
+                      /active|online|ok|ใช้งาน/i.test(p.asset.status) ? "bg-emerald-100 text-emerald-700" :
+                      /offline|down|เสีย|ปิด/i.test(p.asset.status) ? "bg-red-100 text-red-700" :
+                      "bg-amber-100 text-amber-700"
+                    )}>{p.asset.status}</span>
+                  )}
+                  <span className="text-xs text-muted-foreground shrink-0">ปี {Number(matrixYear) + 543}</span>
+                </div>
+                <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[11px] text-muted-foreground">
+                  {p.asset.area && (
+                    <span className="inline-flex items-center gap-1" title="พื้นที่ติดตั้ง">
+                      <MapPin className="size-3" /> {p.asset.area}
+                    </span>
+                  )}
+                  {p.asset.department && (
+                    <span className="inline-flex items-center gap-1" title="แผนกผู้ดูแล">
+                      <Building2 className="size-3" /> {p.asset.department}
+                    </span>
+                  )}
+                  {p.asset.latitude != null && p.asset.longitude != null && (
+                    <a
+                      href={`https://www.google.com/maps?q=${p.asset.latitude},${p.asset.longitude}`}
+                      target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-1 hover:text-primary underline-offset-2 hover:underline"
+                      title="เปิดใน Google Maps"
+                    >
+                      📍 {Number(p.asset.latitude).toFixed(4)}, {Number(p.asset.longitude).toFixed(4)}
+                    </a>
+                  )}
+                  {p.asset.installed_at && (
+                    <span title="วันที่ติดตั้ง">🗓 ติดตั้ง {new Date(p.asset.installed_at).toLocaleDateString("th-TH", { year: "2-digit", month: "short", day: "numeric" })}</span>
+                  )}
+                  {p.asset.last_pm_at && (
+                    <span title="PM ครั้งล่าสุด">
+                      <Wrench className="inline size-3 mr-0.5" />
+                      PM ล่าสุด {new Date(p.asset.last_pm_at).toLocaleDateString("th-TH", { year: "2-digit", month: "short", day: "numeric" })}
+                    </span>
+                  )}
+                  {p.asset.last_claim_at && (
+                    <span title="Claim ครั้งล่าสุด">
+                      <AlertCircle className="inline size-3 mr-0.5" />
+                      Claim ล่าสุด {new Date(p.asset.last_claim_at).toLocaleDateString("th-TH", { year: "2-digit", month: "short", day: "numeric" })}
+                    </span>
+                  )}
+                </div>
               </div>
+
 
               <div className="grid lg:grid-cols-[260px_1fr] gap-0">
                 {/* KPI ซ้าย */}

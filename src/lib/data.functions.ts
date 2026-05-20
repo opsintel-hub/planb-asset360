@@ -256,7 +256,7 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
     const { supabase } = context;
     const { data: assets } = await supabase
       .from("assets")
-      .select("id, old_code, name, department, area, status, payload, last_pm_at, last_claim_at, last_monitor_ok_at")
+      .select("id, old_code, name, department, area, status, payload, last_pm_at, last_claim_at, last_monitor_ok_at, latitude, longitude, installed_at")
       .in("old_code", data.oldCodes);
     const list = assets ?? [];
 
@@ -278,7 +278,7 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
     // re-fetch assets in case sync created any
     const { data: assets2 } = await supabase
       .from("assets")
-      .select("id, old_code, name, department, area, status, payload, last_pm_at, last_claim_at, last_monitor_ok_at")
+      .select("id, old_code, name, department, area, status, payload, last_pm_at, last_claim_at, last_monitor_ok_at, latitude, longitude, installed_at")
       .in("old_code", data.oldCodes);
     const finalAssets = assets2 ?? [];
 

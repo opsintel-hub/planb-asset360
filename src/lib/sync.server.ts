@@ -37,9 +37,9 @@ export async function runAssetListSync() {
   const { data, error } = await supabaseAdmin.functions.invoke("sync-assets", {
     body: {},
   });
-  if (error) throw new Error(`sync-assets edge function failed: ${error.message}`);
-  const result = data as { ok?: boolean; rows?: number; error?: string } | null;
-  if (!result?.ok) throw new Error(result?.error ?? "sync-assets returned no result");
+  if (error) return { ok: false, rows: 0, error: `sync-assets edge function failed: ${error.message}` };
+  const result = data as { ok?: boolean; rows?: number; error?: string; fallback?: boolean } | null;
+  if (!result?.ok) return { ok: false, rows: result?.rows ?? 0, error: result?.error ?? "sync-assets returned no result" };
   return { ok: true, rows: result.rows ?? 0 };
 }
 

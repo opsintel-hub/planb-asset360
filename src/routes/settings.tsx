@@ -99,6 +99,11 @@ function MainSettings() {
   const assetSyncMutation = useMutation({
     mutationFn: () => syncAssetsFn({}),
     onSuccess: (r) => {
+      if (!r.ok) {
+        toast.error(`ดึงข้อมูลล้มเหลว: ${r.error ?? "ไม่สามารถเชื่อมต่อ MSSQL ได้"}`);
+        qc.invalidateQueries({ queryKey: ["sync-logs"] });
+        return;
+      }
       toast.success(`ดึงข้อมูล Asset สำเร็จ: ${r.rows ?? 0} รายการ`);
       qc.invalidateQueries({ queryKey: ["sync-logs"] });
       qc.invalidateQueries({ queryKey: ["assets"] });

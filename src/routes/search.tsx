@@ -432,12 +432,20 @@ function RegularTab({
     avgResolve = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : 0;
   }
 
-  // Trend chart per asset per month
-  const monthLabels = Array.from(months).sort();
-  const chartData = monthLabels.map((m) => {
-    const row: Record<string, string | number> = { month: m };
+  // Trend chart per asset per month — แสดงครบ 12 เดือนของปีที่เลือก
+  const yearsAvailable = Array.from(new Set(
+    history.map((h) => h.opened_at?.slice(0, 4)).filter(Boolean) as string[]
+  )).sort();
+  const defaultYear = yearsAvailable[yearsAvailable.length - 1] ?? String(new Date().getFullYear());
+  const [chartYear, setChartYear] = useState(defaultYear);
+  useEffect(() => { setChartYear(defaultYear); }, [defaultYear]);
+  const thMonthsShort = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  const chartData = Array.from({ length: 12 }, (_, i) => {
+    const mm = String(i + 1).padStart(2, "0");
+    const key = `${chartYear}-${mm}`;
+    const row: Record<string, string | number> = { month: `${thMonthsShort[i]} ${String(Number(chartYear) + 543).slice(-2)}` };
     for (const a of assets) {
-      row[a.old_code] = history.filter((h) => h.asset_id === a.id && h.opened_at?.startsWith(m)).length;
+      row[a.old_code] = history.filter((h) => h.asset_id === a.id && h.opened_at?.startsWith(key)).length;
     }
     return row;
   });
@@ -462,10 +470,20 @@ function RegularTab({
         )}
       </div>
 
-      {/* Trend chart */}
-      {chartData.length > 0 && (
+      {/* Trend chart — ครบ 12 เดือน + เลือกปี */}
+      {history.length > 0 && (
         <div className="rounded-xl border p-4">
-          <div className="text-sm font-medium mb-3">แนวโน้มรายเดือน — {tab}</div>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="text-sm font-medium">แนวโน้มรายเดือน — {tab} <span className="text-xs text-muted-foreground">(ครบ 12 เดือน)</span></div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">ปี</span>
+              <select value={chartYear} onChange={(e) => setChartYear(e.target.value)} className="h-8 rounded border bg-background px-2 text-xs">
+                {(yearsAvailable.length ? yearsAvailable : [defaultYear]).map((y) => (
+                  <option key={y} value={y}>{Number(y) + 543}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
@@ -475,7 +493,7 @@ function RegularTab({
                 <RTooltip />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 {assets.map((a) => (
-                  <Line key={a.id} type="monotone" dataKey={a.old_code} stroke={colorByAsset.get(a.id)} strokeWidth={2} dot />
+                  <Line key={a.id} type="monotone" dataKey={a.old_code} stroke={colorByAsset.get(a.id)} strokeWidth={2} dot connectNulls />
                 ))}
               </LineChart>
             </ResponsiveContainer>
@@ -527,22 +545,49 @@ function RegularTab({
             <tbody className="divide-y">
               {pageRows.length === 0 ? (
                 <tr><td colSpan={tab === "Claim" ? 7 : 5} className="px-4 py-8 text-center text-muted-foreground text-sm">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>
-              ) : pageRows.map((h) => (
-                <tr key={h.id} className="hover:bg-accent/30">
-                  <td className="px-4 py-2.5">
-                    <span className="inline-flex items-center gap-2">
-                      <span className="size-2 rounded-full" style={{ background: colorByAsset.get(h.asset_id) ?? "transparent" }} />
-                      <span className="font-mono text-xs">{h.asset_old_code}</span>
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5 text-xs">{fmtDate(h.opened_at)}</td>
-                  <td className="px-4 py-2.5">{h.title ?? "—"}</td>
-                  <td className="px-4 py-2.5"><Badge tone={/finish|approved|closed|done/i.test(h.status ?? "") ? "success" : "warning"}>{h.status ?? "—"}</Badge></td>
-                  {tab === "Claim" && <td className="px-4 py-2.5 text-xs text-muted-foreground">{h.payload?.solutionCategory ?? "—"}</td>}
-                  {tab === "Claim" && <td className="px-4 py-2.5 text-right text-xs tabular-nums">{Math.round(Number(h.payload?.responseTime ?? 0))}/{Math.round(Number(h.payload?.resolveTime ?? 0))}</td>}
-                  <td className="px-4 py-2.5 text-xs text-muted-foreground">{fmtDateTime(h.closed_at)}</td>
-                </tr>
-              ))}
+              ) : pageRows.map((h) => {
+                const p = (h.payload ?? {}) as Record<string, unknown>;
+                const extras = Object.entries(p).filter(([k]) => !["status","createdDate"].includes(k));
+                return (
+                  <tr key={h.id} className="hover:bg-accent/30 align-top">
+                    <td className="px-4 py-2.5">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="size-2 rounded-full" style={{ background: colorByAsset.get(h.asset_id) ?? "transparent" }} />
+                        <span className="font-mono text-xs">{h.asset_old_code}</span>
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs">{fmtDate(h.opened_at)}</td>
+                    <td className="px-4 py-2.5">
+                      <div>{h.title ?? "—"}</div>
+                      {(p.problemDetail || p.problemCategory) ? (
+                        <div className="text-[11px] text-muted-foreground mt-0.5">{String(p.problemCategory ?? "")}{p.problemCategory && p.problemDetail ? " · " : ""}{String(p.problemDetail ?? "")}</div>
+                      ) : null}
+                      {extras.length > 0 && (
+                        <details className="mt-1 text-[11px]">
+                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">ดูข้อมูลทั้งหมด ({extras.length} ฟิลด์)</summary>
+                          <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 bg-muted/30 rounded p-2">
+                            {extras.map(([k, v]) => (
+                              <div key={k} className="contents">
+                                <dt className="text-muted-foreground">{k}</dt>
+                                <dd className="font-mono break-all">{v == null ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v)}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        </details>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <Badge tone={/finish|approved|closed|done/i.test(h.status ?? "") ? "success" : "warning"}>{h.status ?? "—"}</Badge>
+                      {p.assetStatus != null && (
+                        <div className="text-[10px] text-muted-foreground mt-1">ป้าย: {String(p.assetStatus)}</div>
+                      )}
+                    </td>
+                    {tab === "Claim" && <td className="px-4 py-2.5 text-xs text-muted-foreground">{(p.solutionCategory as string) ?? "—"}<div className="text-[10px]">{(p.solutionDetail as string) ?? ""}</div></td>}
+                    {tab === "Claim" && <td className="px-4 py-2.5 text-right text-xs tabular-nums">{Math.round(Number(p.responseTime ?? 0))}/{Math.round(Number(p.resolveTime ?? 0))}</td>}
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">{fmtDateTime(h.closed_at)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -573,6 +618,7 @@ function AssetHealthTab({
   const [view, setView] = useState<"graph" | "table" | "calendar">("graph");
   const [gran, setGran] = useState<"month" | "year">("month");
   const keyLen = gran === "month" ? 7 : 4;
+  const [openCell, setOpenCell] = useState<{ assetId: string; type: "PM" | "Claim" | "Monitor"; mo: number } | null>(null);
 
   // Per-asset metrics
   const perAsset = assets.map((a) => {
@@ -841,17 +887,26 @@ function AssetHealthTab({
                             </td>
                             {matrix[t].map((v, i) => {
                               const alpha = v === 0 ? 0 : 0.15 + (v / maxVal) * 0.75;
+                              const isOpen = openCell?.assetId === p.asset.id && openCell.type === t && openCell.mo === i;
                               return (
                                 <td
                                   key={i}
-                                  className="text-center tabular-nums rounded h-7 align-middle"
+                                  className={cn("text-center tabular-nums rounded h-7 align-middle p-0", isOpen && "ring-2 ring-primary")}
                                   style={{
                                     background: v === 0 ? "transparent" : `color-mix(in oklab, ${TYPE_COLOR[t]} ${Math.round(alpha * 100)}%, transparent)`,
                                     color: alpha > 0.55 ? "white" : undefined,
                                   }}
-                                  title={`${t} • ${thMonthsShort[i]} ${Number(matrixYear) + 543}: ${v} ครั้ง`}
+                                  title={`${t} • ${thMonthsShort[i]} ${Number(matrixYear) + 543}: ${v} ครั้ง${v ? " (คลิกเพื่อดูรายการ)" : ""}`}
                                 >
-                                  {v || ""}
+                                  {v > 0 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setOpenCell(isOpen ? null : { assetId: p.asset.id, type: t, mo: i })}
+                                      className="w-full h-7 cursor-pointer hover:brightness-110"
+                                    >
+                                      {v}
+                                    </button>
+                                  ) : ""}
                                 </td>
                               );
                             })}
@@ -861,6 +916,43 @@ function AssetHealthTab({
                       })}
                     </tbody>
                   </table>
+
+                  {/* รายการของช่องที่คลิก */}
+                  {openCell?.assetId === p.asset.id && (() => {
+                    const mm = String(openCell.mo + 1).padStart(2, "0");
+                    const prefix = `${matrixYear}-${mm}`;
+                    const items = ph
+                      .filter((h) => h.type === openCell.type && h.opened_at?.startsWith(prefix))
+                      .sort((a, b) => (a.opened_at < b.opened_at ? -1 : 1));
+                    return (
+                      <div className="mt-3 rounded-lg border bg-muted/20 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-xs font-medium">
+                            <span className="inline-block size-2 rounded-sm mr-1.5 align-middle" style={{ background: TYPE_COLOR[openCell.type] }} />
+                            {openCell.type} • {thMonthsShort[openCell.mo]} {Number(matrixYear) + 543} — {items.length} รายการ
+                          </div>
+                          <button onClick={() => setOpenCell(null)} className="text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
+                        </div>
+                        <ul className="space-y-1 text-[11px]">
+                          {items.map((h) => {
+                            const pl = (h.payload ?? {}) as Record<string, unknown>;
+                            return (
+                              <li key={h.id} className="flex items-start gap-2 bg-background rounded px-2 py-1.5">
+                                <span className="text-muted-foreground tabular-nums w-20 shrink-0">{fmtDate(h.opened_at)}</span>
+                                <span className="flex-1 min-w-0">
+                                  <span className="font-medium">{h.title ?? "—"}</span>
+                                  {(pl.problemDetail || pl.solutionDetail) ? (
+                                    <span className="text-muted-foreground"> · {String(pl.problemDetail ?? pl.solutionDetail ?? "")}</span>
+                                  ) : null}
+                                </span>
+                                <Badge tone={/finish|approved|closed|done/i.test(h.status ?? "") ? "success" : "warning"}>{h.status ?? "—"}</Badge>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

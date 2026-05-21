@@ -65,6 +65,13 @@ function fmtDateTime(d: string | null | undefined) {
   if (!d) return "—";
   return new Date(d).toLocaleString("th-TH");
 }
+function durationLabel(open?: string | null, close?: string | null) {
+  if (!open || !close) return "—";
+  const ms = new Date(close).getTime() - new Date(open).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "—";
+  const days = Math.floor(ms / 86_400_000);
+  return days === 0 ? "ภายใน 24 ชม." : `${days} วัน`;
+}
 
 // ---------- Slot Combobox ----------
 function SlotCombobox({
@@ -387,6 +394,188 @@ function Slicer({ label, value, onChange, options }: { label: string; value: str
   );
 }
 
+// ============ Raw Data Table (shared by PM/Claim/Monitor) ============
+const CORE_COLS: Array<{ key: string; label: string; sticky?: boolean }> = [
+  { key: "__asset", label: "ป้าย", sticky: true },
+  { key: "__opened", label: "วันที่เปิด" },
+  { key: "__closed", label: "ปิดเมื่อ" },
+  { key: "__duration", label: "ระยะเวลา" },
+  { key: "__title", label: "รายการ" },
+  { key: "__status", label: "สถานะ" },
+];
+const EXCLUDED_PAYLOAD_KEYS = new Set(["status", "createdDate"]);
+
+function RawDataTable({
+  tab, history, total, pageRows, page, setPage, pageSize, setPageSize, totalPages, colorByAsset,
+}: {
+  tab: TabId;
+  history: HistRow[]; total: number; pageRows: HistRow[];
+  page: number; setPage: (n: number) => void;
+  pageSize: number; setPageSize: (n: number) => void;
+  totalPages: number;
+  colorByAsset: Map<string, string>;
+}) {
+  const payloadKeys = useMemo(() => {
+    const s = new Set<string>();
+    for (const h of history) {
+      const p = (h.payload ?? {}) as Record<string, unknown>;
+      for (const k of Object.keys(p)) if (!EXCLUDED_PAYLOAD_KEYS.has(k)) s.add(k);
+    }
+    return Array.from(s).sort();
+  }, [history]);
+
+  const storageKey = `raw-hidden-cols:${tab}`;
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      setHidden(raw ? new Set(JSON.parse(raw)) : new Set());
+    } catch { setHidden(new Set()); }
+  }, [storageKey]);
+  const toggleHide = (k: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k); else next.add(k);
+      try { localStorage.setItem(storageKey, JSON.stringify(Array.from(next))); } catch { /* noop */ }
+      return next;
+    });
+  };
+  const resetHidden = () => {
+    setHidden(new Set());
+    try { localStorage.removeItem(storageKey); } catch { /* noop */ }
+  };
+
+  const visibleCore = CORE_COLS.filter((c) => !hidden.has(c.key));
+  const visiblePayload = payloadKeys.filter((k) => !hidden.has(`p:${k}`));
+  const totalCols = visibleCore.length + visiblePayload.length;
+  const [showColPanel, setShowColPanel] = useState(false);
+
+  const renderCell = (h: HistRow, key: string) => {
+    const p = (h.payload ?? {}) as Record<string, unknown>;
+    switch (key) {
+      case "__asset":
+        return (
+          <span className="inline-flex items-center gap-2">
+            <span className="size-2 rounded-full" style={{ background: colorByAsset.get(h.asset_id) ?? "transparent" }} />
+            <span className="font-mono text-xs">{h.asset_old_code}</span>
+          </span>
+        );
+      case "__opened": return <span className="text-xs whitespace-nowrap">{fmtDate(h.opened_at)}</span>;
+      case "__closed": return <span className="text-xs whitespace-nowrap text-muted-foreground">{fmtDate(h.closed_at)}</span>;
+      case "__duration": return <span className="text-xs whitespace-nowrap tabular-nums">{durationLabel(h.opened_at, h.closed_at)}</span>;
+      case "__title": return <span className="whitespace-nowrap">{h.title ?? "—"}</span>;
+      case "__status": return <Badge tone={/finish|approved|closed|done/i.test(h.status ?? "") ? "success" : "warning"}>{h.status ?? "—"}</Badge>;
+      default: {
+        const v = p[key];
+        if (v == null || v === "") return <span className="text-muted-foreground">—</span>;
+        const str = typeof v === "object" ? JSON.stringify(v) : String(v);
+        return <span className="text-xs break-words max-w-[260px] inline-block align-top">{str}</span>;
+      }
+    }
+  };
+
+  const hiddenCount = hidden.size;
+
+  return (
+    <div className="rounded-xl border overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-3 border-b bg-muted/30">
+        <div className="text-sm font-medium">ข้อมูลดิบ ({total} รายการ)</div>
+        <div className="flex items-center gap-2 text-sm">
+          <div className="relative">
+            <button
+              onClick={() => setShowColPanel((v) => !v)}
+              className="h-8 px-3 rounded border bg-background hover:bg-accent text-xs inline-flex items-center gap-1"
+              title="ซ่อน/แสดงคอลัมน์"
+            >
+              <Eye className="size-3.5" /> จัดการคอลัมน์
+              {hiddenCount > 0 && <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 py-0.5 text-[10px]">ซ่อน {hiddenCount}</span>}
+              <ChevronDown className="size-3" />
+            </button>
+            {showColPanel && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowColPanel(false)} />
+                <div className="absolute right-0 z-40 mt-1 w-72 rounded-lg border bg-popover shadow-lg p-3 max-h-[60vh] overflow-auto">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-semibold">คอลัมน์ที่แสดง</div>
+                    <button onClick={resetHidden} className="text-[11px] text-primary hover:underline">รีเซ็ต</button>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[10px] uppercase text-muted-foreground mt-1 mb-1">คอลัมน์หลัก</div>
+                    {CORE_COLS.map((c) => (
+                      <label key={c.key} className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-accent cursor-pointer">
+                        <input type="checkbox" checked={!hidden.has(c.key)} onChange={() => toggleHide(c.key)} />
+                        <span>{c.label}</span>
+                      </label>
+                    ))}
+                    {payloadKeys.length > 0 && (
+                      <>
+                        <div className="text-[10px] uppercase text-muted-foreground mt-3 mb-1">ฟิลด์จากข้อมูล ({payloadKeys.length})</div>
+                        {payloadKeys.map((k) => (
+                          <label key={k} className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-accent cursor-pointer">
+                            <input type="checkbox" checked={!hidden.has(`p:${k}`)} onChange={() => toggleHide(`p:${k}`)} />
+                            <span className="font-mono">{k}</span>
+                          </label>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+          <span className="text-muted-foreground">แสดง</span>
+          <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="h-8 rounded border bg-background px-2 text-sm">
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="text-sm border-separate border-spacing-0" style={{ minWidth: Math.max(900, totalCols * 140) }}>
+          <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+            <tr>
+              {visibleCore.map((c) => (
+                <th key={c.key} className={cn("text-left px-4 py-2.5 whitespace-nowrap border-b", c.sticky && "sticky left-0 bg-muted/60 z-10")}>
+                  {c.label}
+                </th>
+              ))}
+              {visiblePayload.map((k) => (
+                <th key={k} className="text-left px-4 py-2.5 whitespace-nowrap font-mono border-b">{k}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {pageRows.length === 0 ? (
+              <tr><td colSpan={Math.max(totalCols, 1)} className="px-4 py-8 text-center text-muted-foreground text-sm border-b">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>
+            ) : pageRows.map((h) => (
+              <tr key={h.id} className="hover:bg-accent/30 align-top">
+                {visibleCore.map((c) => (
+                  <td key={c.key} className={cn("px-4 py-2.5 border-b", c.sticky && "sticky left-0 bg-card z-[1]")}>
+                    {renderCell(h, c.key)}
+                  </td>
+                ))}
+                {visiblePayload.map((k) => (
+                  <td key={k} className="px-4 py-2.5 border-b">{renderCell(h, k)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between p-3 border-t bg-muted/20 text-sm">
+          <span className="text-muted-foreground text-xs">หน้า {page} / {totalPages}</span>
+          <div className="flex gap-2">
+            <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1.5 rounded border bg-background disabled:opacity-50 hover:bg-accent text-xs">‹ ก่อนหน้า</button>
+            <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1.5 rounded border bg-background disabled:opacity-50 hover:bg-accent text-xs">ถัดไป ›</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ Regular Tab (PM/Claim/Monitor) ============
 type Asset = { id: string; old_code: string; name: string | null; department: string | null; area: string | null; status: string | null; latitude?: number | null; longitude?: number | null; installed_at?: string | null; last_pm_at?: string | null; last_claim_at?: string | null; last_monitor_ok_at?: string | null };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -518,89 +707,18 @@ function RegularTab({
       )}
 
       {/* Raw table */}
-      <div className="rounded-xl border overflow-hidden">
-        <div className="flex items-center justify-between p-3 border-b bg-muted/30">
-          <div className="text-sm font-medium">ข้อมูลดิบ ({total} รายการ)</div>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">แสดง</span>
-            <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="h-8 rounded border bg-background px-2 text-sm">
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-            </select>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="text-left px-4 py-2.5">ป้าย</th>
-                <th className="text-left px-4 py-2.5">วันที่เปิด</th>
-                <th className="text-left px-4 py-2.5">รายการ</th>
-                <th className="text-left px-4 py-2.5">สถานะ</th>
-                {tab === "Claim" && <th className="text-left px-4 py-2.5">วิธีแก้</th>}
-                {tab === "Claim" && <th className="text-right px-4 py-2.5">Resp/Res (h)</th>}
-                <th className="text-left px-4 py-2.5">ปิดเมื่อ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {pageRows.length === 0 ? (
-                <tr><td colSpan={tab === "Claim" ? 7 : 5} className="px-4 py-8 text-center text-muted-foreground text-sm">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>
-              ) : pageRows.map((h) => {
-                const p = (h.payload ?? {}) as Record<string, unknown>;
-                const extras = Object.entries(p).filter(([k]) => !["status","createdDate"].includes(k));
-                return (
-                  <tr key={h.id} className="hover:bg-accent/30 align-top">
-                    <td className="px-4 py-2.5">
-                      <span className="inline-flex items-center gap-2">
-                        <span className="size-2 rounded-full" style={{ background: colorByAsset.get(h.asset_id) ?? "transparent" }} />
-                        <span className="font-mono text-xs">{h.asset_old_code}</span>
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-xs">{fmtDate(h.opened_at)}</td>
-                    <td className="px-4 py-2.5">
-                      <div>{h.title ?? "—"}</div>
-                      {(p.problemDetail || p.problemCategory) ? (
-                        <div className="text-[11px] text-muted-foreground mt-0.5">{String(p.problemCategory ?? "")}{p.problemCategory && p.problemDetail ? " · " : ""}{String(p.problemDetail ?? "")}</div>
-                      ) : null}
-                      {extras.length > 0 && (
-                        <details className="mt-1 text-[11px]">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">ดูข้อมูลทั้งหมด ({extras.length} ฟิลด์)</summary>
-                          <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 bg-muted/30 rounded p-2">
-                            {extras.map(([k, v]) => (
-                              <div key={k} className="contents">
-                                <dt className="text-muted-foreground">{k}</dt>
-                                <dd className="font-mono break-all">{v == null ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v)}</dd>
-                              </div>
-                            ))}
-                          </dl>
-                        </details>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <Badge tone={/finish|approved|closed|done/i.test(h.status ?? "") ? "success" : "warning"}>{h.status ?? "—"}</Badge>
-                      {p.assetStatus != null && (
-                        <div className="text-[10px] text-muted-foreground mt-1">ป้าย: {String(p.assetStatus)}</div>
-                      )}
-                    </td>
-                    {tab === "Claim" && <td className="px-4 py-2.5 text-xs text-muted-foreground">{(p.solutionCategory as string) ?? "—"}<div className="text-[10px]">{(p.solutionDetail as string) ?? ""}</div></td>}
-                    {tab === "Claim" && <td className="px-4 py-2.5 text-right text-xs tabular-nums">{Math.round(Number(p.responseTime ?? 0))}/{Math.round(Number(p.resolveTime ?? 0))}</td>}
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">{fmtDateTime(h.closed_at)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between p-3 border-t bg-muted/20 text-sm">
-            <span className="text-muted-foreground text-xs">หน้า {page} / {totalPages}</span>
-            <div className="flex gap-2">
-              <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1.5 rounded border bg-background disabled:opacity-50 hover:bg-accent text-xs">‹ ก่อนหน้า</button>
-              <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1.5 rounded border bg-background disabled:opacity-50 hover:bg-accent text-xs">ถัดไป ›</button>
-            </div>
-          </div>
-        )}
-      </div>
+      <RawDataTable
+        tab={tab}
+        history={history}
+        total={total}
+        pageRows={pageRows}
+        page={page}
+        setPage={setPage}
+        pageSize={pageSize}
+        setPageSize={setPageSize}
+        totalPages={totalPages}
+        colorByAsset={colorByAsset}
+      />
     </div>
   );
 }

@@ -498,6 +498,9 @@ function RawDataTable({
       default: {
         const v = p[key];
         if (v == null || v === "") return <span className="text-muted-foreground">—</span>;
+        if (TIME_MIN_KEYS.has(key)) {
+          return <span className="text-xs whitespace-nowrap tabular-nums" title={`${String(v)} นาที`}>{fmtMinutes(v)}</span>;
+        }
         const str = typeof v === "object" ? JSON.stringify(v) : String(v);
         return <span className="text-xs break-words max-w-[260px] inline-block align-top">{str}</span>;
       }

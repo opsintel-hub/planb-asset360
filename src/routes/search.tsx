@@ -72,6 +72,27 @@ function durationLabel(open?: string | null, close?: string | null) {
   const days = Math.floor(ms / 86_400_000);
   return days === 0 ? "ภายใน 24 ชม." : `${days} วัน`;
 }
+// แปลงนาที → นาที/ชั่วโมง/วัน อ่านง่าย
+function fmtMinutes(v: unknown): string {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return "—";
+  if (n === 0) return "0 นาที";
+  if (n < 60) return `${n.toFixed(0)} นาที`;
+  if (n < 1440) return `${(n / 60).toFixed(1)} ชม.`;
+  const days = n / 1440;
+  const d = Math.floor(days);
+  const remH = Math.round((days - d) * 24);
+  return remH > 0 ? `${d} วัน ${remH} ชม.` : `${d} วัน`;
+}
+const TIME_MIN_KEYS = new Set(["resolveTime", "responseTime", "totalTurnaroundTime"]);
+// ลำดับการแสดงคอลัมน์จาก payload (key ที่ไม่อยู่ใน list จะเรียงตามตัวอักษรท้ายสุด)
+const PAYLOAD_KEY_ORDER = [
+  "project", "mediaType", "region", "branch",
+  "problemCategory", "problemDetail", "problemEquipment",
+  "solutionCategory", "solutionDetail",
+  "responseTime", "resolveTime", "totalTurnaroundTime",
+  "assetStatus", "bkkUpc",
+];
 
 // ---------- Slot Combobox ----------
 function SlotCombobox({

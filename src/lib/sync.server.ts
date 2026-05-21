@@ -131,6 +131,7 @@ export async function runAssetHistorySync(oldCode: string) {
       const list = Array.isArray(raw?.[g.key]) ? (raw[g.key] as Record<string, unknown>[]) : [];
       list.forEach((item, idx) => {
         const createdDate = (item.createdDate ?? item.CreatedDate ?? null) as string | null;
+        const updatedDate = (item.updatedDate ?? item.UpdatedDate ?? null) as string | null;
         const status = (item.status ?? item.Status ?? null) as string | null;
         const solutionDetail = (item.solutionDetail ?? null) as string | null;
         const solutionCategory = (item.solutionCategory ?? null) as string | null;
@@ -149,8 +150,11 @@ export async function runAssetHistorySync(oldCode: string) {
           title,
           status,
           opened_at: createdDate,
+          // Store the ticket's latest update timestamp so UI shows "อัพเดทล่าสุด"
+          // and computes duration from open → last update.
           closed_at:
-            status && /finish|approved|closed|done/i.test(status) ? createdDate : null,
+            updatedDate ??
+            (status && /finish|approved|closed|done/i.test(status) ? createdDate : null),
           payload: item as never,
         });
       });

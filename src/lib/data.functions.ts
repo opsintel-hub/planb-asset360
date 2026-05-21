@@ -166,13 +166,16 @@ export const searchAssets = createServerFn({ method: "POST" })
     return { assets: assets ?? [], history };
   });
 
-// Autocomplete: lightweight list for combobox
+// Autocomplete: lightweight list for combobox (supports pre-filter by dept/region/mediaType)
 export const autocompleteAssets = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) =>
     z.object({
       q: z.string().max(200).optional().default(""),
       limit: z.number().int().min(1).max(50).optional().default(20),
+      department: z.string().optional(),
+      region: z.string().optional(),
+      mediaType: z.string().optional(),
     }).parse(i),
   )
   .handler(async ({ data, context }) => {
@@ -180,15 +183,50 @@ export const autocompleteAssets = createServerFn({ method: "POST" })
     const q = data.q.trim();
     let query = supabase
       .from("assets")
-      .select("id, old_code, name, area, department, status")
+      .select("id, old_code, name, area, department, status, payload")
       .order("old_code", { ascending: true })
-      .limit(data.limit);
+      .limit(data.mediaType ? 200 : data.limit); // over-fetch when filtering by jsonb
     if (q) {
       query = query.or(`old_code.ilike.%${q}%,name.ilike.%${q}%,area.ilike.%${q}%`);
     }
-    const { data: rows, error } = await query;
+    if (data.department) query = query.eq("department", data.department);
+    if (data.region) query = query.eq("area", data.region);
+    const { data: rowsRaw, error } = await query;
     if (error) return { rows: [], error: error.message };
-    return { rows: rows ?? [], error: null };
+    let rows = rowsRaw ?? [];
+    if (data.mediaType) {
+      rows = rows.filter((r) => {
+        const p = r.payload as Record<string, unknown> | null;
+        const mt = (p?.mediaType ?? p?.MediaType) as string | undefined;
+        return String(mt ?? "") === data.mediaType;
+      }).slice(0, data.limit);
+    }
+    return { rows, error: null };
+  });
+
+// Global filter options across ALL assets (for pre-filter UI)
+export const getFilterOptions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data } = await context.supabase
+      .from("assets")
+      .select("department, area, payload")
+      .limit(5000);
+    const depts = new Set<string>();
+    const regions = new Set<string>();
+    const mediaTypes = new Set<string>();
+    for (const r of data ?? []) {
+      if (r.department) depts.add(r.department);
+      if (r.area) regions.add(r.area);
+      const p = r.payload as Record<string, unknown> | null;
+      const mt = (p?.mediaType ?? p?.MediaType) as string | undefined;
+      if (mt) mediaTypes.add(String(mt));
+    }
+    return {
+      departments: Array.from(depts).sort(),
+      regions: Array.from(regions).sort(),
+      mediaTypes: Array.from(mediaTypes).sort(),
+    };
   });
 
 // Fetch one asset + history; auto-sync from PlanB if local history is empty (or forced)

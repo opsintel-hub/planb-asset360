@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
-import { autocompleteAssets, getAssetsComparison } from "@/lib/data.functions";
+import { autocompleteAssets, getAssetsComparison, getFilterOptions } from "@/lib/data.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
@@ -68,15 +68,16 @@ function fmtDateTime(d: string | null | undefined) {
 
 // ---------- Slot Combobox ----------
 function SlotCombobox({
-  value, onPick, onClear, color,
-}: { value: string | null; onPick: (code: string) => void; onClear: () => void; color: string }) {
+  value, onPick, onClear, color, department, region, mediaType,
+}: { value: string | null; onPick: (code: string) => void; onClear: () => void; color: string;
+     department?: string; region?: string; mediaType?: string }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const debounced = useDebounced(q, 250);
   const autoFn = useServerFn(autocompleteAssets);
   const { data: ac, isFetching } = useQuery({
-    queryKey: ["autocomplete", debounced],
-    queryFn: () => autoFn({ data: { q: debounced, limit: 15 } }),
+    queryKey: ["autocomplete", debounced, department, region, mediaType],
+    queryFn: () => autoFn({ data: { q: debounced, limit: 15, department: department || undefined, region: region || undefined, mediaType: mediaType || undefined } }),
     enabled: open,
     staleTime: 30_000,
   });
@@ -162,6 +163,12 @@ function SearchPage() {
   const toIso = to ? new Date(to + "T23:59:59").toISOString() : undefined;
 
   const cmpFn = useServerFn(getAssetsComparison);
+  const filterFn = useServerFn(getFilterOptions);
+  const { data: globalFilters } = useQuery({
+    queryKey: ["global-filter-options"],
+    queryFn: () => filterFn(),
+    staleTime: 5 * 60_000,
+  });
   const { data, isFetching, refetch } = useQuery({
     queryKey: ["comparison", codes.join(","), tab, fromIso, toIso, dept, region, mediaType],
     queryFn: () => cmpFn({
@@ -211,7 +218,8 @@ function SearchPage() {
 
   const assets = data?.assets ?? [];
   const history = data?.history ?? [];
-  const slicers = data?.slicers ?? { departments: [], regions: [], mediaTypes: [] };
+  // ใช้ option จาก global filters (ทุกป้ายในระบบ) แทนผลค้นหา เพื่อให้กรองก่อนค้นได้
+  const filterOpts = globalFilters ?? { departments: [], regions: [], mediaTypes: [] };
 
   // colors per asset id
   const colorByAsset = useMemo(() => {
@@ -238,6 +246,36 @@ function SearchPage() {
         }
       />
 
+      {/* Filters (กรองก่อนค้น) */}
+      <div className="rounded-xl border bg-card p-4 shadow-[var(--shadow-card)] space-y-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            🔍 กรองข้อมูลก่อนค้นหา — เลือก Department/พื้นที่/Media Type เพื่อให้ผลค้นหาในช่องด้านล่างแคบลง
+          </div>
+          {(dept || region || mediaType) && (
+            <button
+              onClick={() => { setDept(""); setRegion(""); setMediaType(""); }}
+              className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            >
+              <X className="size-3" /> ล้างตัวกรอง
+            </button>
+          )}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Slicer label="Department" value={dept} onChange={setDept} options={filterOpts.departments} />
+          <Slicer label="BKK / UPC" value={region} onChange={setRegion} options={filterOpts.regions} />
+          <Slicer label="Media Type" value={mediaType} onChange={setMediaType} options={filterOpts.mediaTypes} />
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">วันที่เริ่ม</label>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 w-full h-9 rounded-md border bg-background px-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">วันที่สิ้นสุด</label>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1 w-full h-9 rounded-md border bg-background px-2 text-sm" />
+          </div>
+        </div>
+      </div>
+
       {/* Slot selectors */}
       <div className="rounded-xl border bg-card p-5 shadow-[var(--shadow-card)] space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -247,6 +285,9 @@ function SearchPage() {
                 <SlotCombobox
                   value={slot}
                   color={PALETTE[i % PALETTE.length]}
+                  department={dept}
+                  region={region}
+                  mediaType={mediaType}
                   onPick={(code) => setSlotAt(i, code)}
                   onClear={() => setSlotAt(i, null)}
                 />
@@ -269,7 +310,7 @@ function SearchPage() {
         </div>
 
         {recent.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 text-xs pt-1 border-t pt-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs pt-3 border-t">
             <span className="text-muted-foreground">ล่าสุด:</span>
             {recent.filter((r) => !codes.includes(r)).slice(0, 6).map((c) => (
               <button
@@ -286,20 +327,7 @@ function SearchPage() {
         )}
       </div>
 
-      {/* Slicers */}
-      <div className="rounded-xl border bg-card p-4 shadow-[var(--shadow-card)] grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Slicer label="Department" value={dept} onChange={setDept} options={slicers.departments} />
-        <Slicer label="BKK / UPC" value={region} onChange={setRegion} options={slicers.regions} />
-        <Slicer label="Media Type" value={mediaType} onChange={setMediaType} options={slicers.mediaTypes} />
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">วันที่เริ่ม</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 w-full h-9 rounded-md border bg-background px-2 text-sm" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">วันที่สิ้นสุด</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1 w-full h-9 rounded-md border bg-background px-2 text-sm" />
-        </div>
-      </div>
+
 
       {/* Tabs */}
       <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden">
@@ -591,28 +619,35 @@ function AssetHealthTab({
   const avgPm = perAsset.map((p) => p.pmInterval).filter((n) => n > 0);
   const avgPmInterval = avgPm.length ? avgPm.reduce((s, n) => s + n, 0) / avgPm.length : 0;
 
-  // Simulator: if PM frequency = X days, expected claim reduction ratio
-  // baseline assumption: shorter PM interval reduces claim rate proportionally
-  const baselinePm = avgPmInterval || 30;
-  const reduction = baselinePm > 0 ? Math.max(-80, Math.min(80, ((baselinePm - pmFreqDays) / baselinePm) * 60)) : 0;
+  // นับจำนวนเหตุการณ์รวมทุกป้าย เพื่อตัดสินว่า simulator ใช้งานได้หรือไม่
+  const totalPm = perAsset.reduce((s, p) => s + p.counts.PM, 0);
+  const totalClaim = perAsset.reduce((s, p) => s + p.counts.Claim, 0);
+  const hasPmData = totalPm >= 2 && avgPmInterval > 0;
+  const hasClaimData = totalClaim >= 2 && avgMtbf > 0;
 
-  // Maintenance debt: if delayed N months, expected extra failures
-  // Use a default MTBF (90 days) when there's no claim history so the simulator is still meaningful
-  const effMtbf = avgMtbf > 0 ? avgMtbf : 90;
-  const expectedExtraFailures = Math.round((debtMonths * 30 / effMtbf) * Math.max(assets.length, 1));
+  // Simulator 1: ปรับความถี่ PM → คาด Claim ลด/เพิ่ม (ต้องมี PM ≥ 2 ครั้ง จึงคำนวณ baseline ได้)
+  const baselinePm = hasPmData ? avgPmInterval : 0;
+  const reduction = hasPmData ? Math.max(-80, Math.min(80, ((baselinePm - pmFreqDays) / baselinePm) * 60)) : 0;
 
-  // Service-level estimate (current)
+  // Simulator 2: หนี้บำรุงรักษา (ต้องมี Claim ≥ 2 จึงรู้ MTBF จริง)
+  const effMtbf = avgMtbf;
+  const expectedExtraFailures = hasClaimData ? Math.round((debtMonths * 30 / effMtbf) * Math.max(assets.length, 1)) : 0;
+
+  // Service-level (ต้องมี Claim พร้อม responseTime ใน payload)
   const avgResponse = (() => {
-    const rt = history.filter((h) => h.type === "Claim").map((h) => Number(h.payload?.responseTime)).filter((n) => Number.isFinite(n));
+    const rt = history.filter((h) => h.type === "Claim").map((h) => Number(h.payload?.responseTime)).filter((n) => Number.isFinite(n) && n > 0);
     return rt.length ? rt.reduce((a, b) => a + b, 0) / rt.length : 0;
   })();
-  const curResponse = avgResponse > 0 ? avgResponse : 24; // default 24h if unknown
-  const availability = Math.max(0, Math.min(100, 100 - (curResponse / (effMtbf * 24)) * 100));
+  const hasResponseData = avgResponse > 0 && hasClaimData;
+  const curResponse = hasResponseData ? avgResponse : 0;
+  const availability = hasResponseData ? Math.max(0, Math.min(100, 100 - (curResponse / (effMtbf * 24)) * 100)) : 0;
 
-  // Simulator 3: user-adjustable target response time → projected availability
-  const [targetResponse, setTargetResponse] = useState<number>(() => Math.max(1, Math.round(curResponse)));
-  const projAvailability = Math.max(0, Math.min(100, 100 - (targetResponse / (effMtbf * 24)) * 100));
+  // Simulator 3 — slider state ต้องสร้างเสมอ (ห้ามมี hook แบบ conditional)
+  const [targetResponse, setTargetResponse] = useState<number>(24);
+  const projAvailability = hasResponseData ? Math.max(0, Math.min(100, 100 - (targetResponse / (effMtbf * 24)) * 100)) : 0;
   const availDelta = projAvailability - availability;
+
+
 
   return (
     <div className="space-y-6">
@@ -925,35 +960,45 @@ function AssetHealthTab({
                   <Wrench className="size-4 text-primary" />
                   <h4 className="font-semibold text-sm">ถ้าทำ PM ถี่ขึ้น/ห่างขึ้น</h4>
                 </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  ปัจจุบันทำ PM เฉลี่ยทุก <strong className="text-foreground">{baselinePm.toFixed(0)} วัน</strong> · ลองเปลี่ยนความถี่ใหม่
-                </p>
-                <input type="range" min={7} max={120} step={1} value={pmFreqDays} onChange={(e) => setPmFreqDays(Number(e.target.value))} className="w-full" />
-                <div className="mt-1 flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">ถี่ขึ้น (7 วัน)</span>
-                  <span className="font-medium">PM ทุก {pmFreqDays} วัน</span>
-                  <span className="text-muted-foreground">ห่างขึ้น (120 วัน)</span>
-                </div>
-                <div className={cn(
-                  "mt-3 rounded-lg p-3 text-sm",
-                  status === "better" && "bg-success/10 text-success",
-                  status === "worse" && "bg-destructive/10 text-destructive",
-                  status === "neutral" && "bg-muted text-muted-foreground",
-                )}>
-                  <div className="text-xs font-medium opacity-80">
-                    {status === "better" ? "🟢 สถานการณ์ดีขึ้น" : status === "worse" ? "🔴 สถานการณ์แย่ลง" : "⚪ เท่าเดิม"}
+                {!hasPmData ? (
+                  <div className="mt-2 rounded-lg border border-dashed bg-muted/30 p-4 text-xs text-muted-foreground">
+                    <div className="font-medium text-foreground mb-1">⚠︎ ไม่สามารถจำลองได้</div>
+                    ป้ายที่เลือก<strong> ยังไม่เคยทำ PM </strong>
+                    (หรือมีน้อยกว่า 2 ครั้ง — ตอนนี้พบ {totalPm} ครั้ง)
+                    จึงคำนวณ "PM เฉลี่ยทุกกี่วัน" จากของจริงไม่ได้
+                    <div className="mt-2 text-foreground">เลือกป้ายที่มีประวัติ PM ≥ 2 ครั้ง หรือเปลี่ยนช่วงวันที่ให้ครอบคลุมประวัติเดิม</div>
                   </div>
-                  <div className="mt-1">
-                    คาด Claim {better ? "ลดลง" : "เพิ่มขึ้น"} <strong className="text-base">{Math.abs(reduction).toFixed(0)}%</strong>
-                  </div>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-2">
-                  💡 ใช้ตัดสินใจว่าควรตั้งแผน PM ใหม่ทุกกี่วัน — ผลโชว์ที่การ์ดด้านล่างของหน้านี้
-                </p>
-                <details className="mt-2 text-[11px] text-muted-foreground">
-                  <summary className="cursor-pointer">วิธีคำนวณ</summary>
-                  <p className="mt-1">(PM ปัจจุบัน − PM ใหม่) ÷ PM ปัจจุบัน × 60% (เพดาน 80%) — สมมติว่าถ้าทำบ่อยขึ้น โอกาสเสียจะลดตามสัดส่วน</p>
-                </details>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      ปัจจุบันทำ PM เฉลี่ยทุก <strong className="text-foreground">{baselinePm.toFixed(0)} วัน</strong>
+                      <span className="text-[10px] ml-1">(จาก {totalPm} ครั้ง)</span> · ลองเปลี่ยนความถี่ใหม่
+                    </p>
+                    <input type="range" min={7} max={120} step={1} value={pmFreqDays} onChange={(e) => setPmFreqDays(Number(e.target.value))} className="w-full" />
+                    <div className="mt-1 flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">ถี่ขึ้น (7 วัน)</span>
+                      <span className="font-medium">PM ทุก {pmFreqDays} วัน</span>
+                      <span className="text-muted-foreground">ห่างขึ้น (120 วัน)</span>
+                    </div>
+                    <div className={cn(
+                      "mt-3 rounded-lg p-3 text-sm",
+                      status === "better" && "bg-success/10 text-success",
+                      status === "worse" && "bg-destructive/10 text-destructive",
+                      status === "neutral" && "bg-muted text-muted-foreground",
+                    )}>
+                      <div className="text-xs font-medium opacity-80">
+                        {status === "better" ? "🟢 สถานการณ์ดีขึ้น" : status === "worse" ? "🔴 สถานการณ์แย่ลง" : "⚪ เท่าเดิม"}
+                      </div>
+                      <div className="mt-1">
+                        คาด Claim {better ? "ลดลง" : "เพิ่มขึ้น"} <strong className="text-base">{Math.abs(reduction).toFixed(0)}%</strong>
+                      </div>
+                    </div>
+                    <details className="mt-2 text-[11px] text-muted-foreground">
+                      <summary className="cursor-pointer">วิธีคำนวณ</summary>
+                      <p className="mt-1">(PM ปัจจุบัน − PM ใหม่) ÷ PM ปัจจุบัน × 60% (เพดาน 80%) — สมมติว่าถ้าทำบ่อยขึ้น โอกาสเสียจะลดตามสัดส่วน</p>
+                    </details>
+                  </>
+                )}
               </div>
             );
           })()}
@@ -967,34 +1012,43 @@ function AssetHealthTab({
                   <AlertCircle className="size-4 text-warning" />
                   <h4 className="font-semibold text-sm">ถ้าเลื่อน PM ออกไป (หนี้บำรุงรักษา)</h4>
                 </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  จำลองว่า <strong>เลื่อน PM ไม่ทำ</strong> เป็นเวลากี่เดือน — ดูว่าจะเสียเพิ่มกี่ครั้ง
-                </p>
-                <input type="range" min={0} max={6} step={1} value={debtMonths} onChange={(e) => setDebtMonths(Number(e.target.value))} className="w-full" />
-                <div className="mt-1 flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">ทำตรงเวลา</span>
-                  <span className="font-medium">เลื่อน {debtMonths} เดือน</span>
-                  <span className="text-muted-foreground">เลื่อน 6 เดือน</span>
-                </div>
-                <div className={cn(
-                  "mt-3 rounded-lg p-3 text-sm",
-                  status === "worse" && "bg-destructive/10 text-destructive",
-                  status === "neutral" && "bg-success/10 text-success",
-                )}>
-                  <div className="text-xs font-medium opacity-80">
-                    {status === "neutral" ? "🟢 อยู่ในแผน" : "🔴 มีความเสี่ยง"}
+                {!hasClaimData ? (
+                  <div className="mt-2 rounded-lg border border-dashed bg-muted/30 p-4 text-xs text-muted-foreground">
+                    <div className="font-medium text-foreground mb-1">⚠︎ ไม่สามารถจำลองได้</div>
+                    ป้ายที่เลือก<strong> ยังไม่มี Claim ≥ 2 ครั้ง </strong>
+                    (ตอนนี้พบ {totalClaim} ครั้ง) จึงไม่รู้ MTBF (ระยะเวลาเฉลี่ยระหว่างเสีย)
+                    <div className="mt-2 text-foreground">การจำลอง "เลื่อน PM แล้วจะเสียเพิ่มกี่ครั้ง" ต้องอ้างอิงจาก MTBF จริง</div>
                   </div>
-                  <div className="mt-1">
-                    คาดป้ายจะเสียเพิ่ม <strong className="text-base">{expectedExtraFailures}</strong> ครั้ง (รวมทุกป้ายที่เลือก)
-                  </div>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-2">
-                  💡 ใช้ดูว่า "ถ้าเลื่อน PM ไปอีก N เดือน คุ้มไหม" — ยิ่งเลื่อนนานยิ่ง Claim เพิ่ม
-                </p>
-                <details className="mt-2 text-[11px] text-muted-foreground">
-                  <summary className="cursor-pointer">วิธีคำนวณ</summary>
-                  <p className="mt-1">(เดือนที่เลื่อน × 30 วัน) ÷ MTBF × จำนวนป้าย — MTBF คือระยะเวลาเฉลี่ยระหว่าง Claim จากประวัติจริง</p>
-                </details>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      MTBF จริง <strong className="text-foreground">{effMtbf.toFixed(0)} วัน</strong>
+                      <span className="text-[10px] ml-1">(จาก {totalClaim} Claim)</span> · ลองเลื่อน PM ดู
+                    </p>
+                    <input type="range" min={0} max={6} step={1} value={debtMonths} onChange={(e) => setDebtMonths(Number(e.target.value))} className="w-full" />
+                    <div className="mt-1 flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">ทำตรงเวลา</span>
+                      <span className="font-medium">เลื่อน {debtMonths} เดือน</span>
+                      <span className="text-muted-foreground">เลื่อน 6 เดือน</span>
+                    </div>
+                    <div className={cn(
+                      "mt-3 rounded-lg p-3 text-sm",
+                      status === "worse" && "bg-destructive/10 text-destructive",
+                      status === "neutral" && "bg-success/10 text-success",
+                    )}>
+                      <div className="text-xs font-medium opacity-80">
+                        {status === "neutral" ? "🟢 อยู่ในแผน" : "🔴 มีความเสี่ยง"}
+                      </div>
+                      <div className="mt-1">
+                        คาดป้ายจะเสียเพิ่ม <strong className="text-base">{expectedExtraFailures}</strong> ครั้ง (รวมทุกป้ายที่เลือก)
+                      </div>
+                    </div>
+                    <details className="mt-2 text-[11px] text-muted-foreground">
+                      <summary className="cursor-pointer">วิธีคำนวณ</summary>
+                      <p className="mt-1">(เดือนที่เลื่อน × 30 วัน) ÷ MTBF × จำนวนป้าย — MTBF คือระยะเวลาเฉลี่ยระหว่าง Claim จากประวัติจริง</p>
+                    </details>
+                  </>
+                )}
               </div>
             );
           })()}
@@ -1009,40 +1063,48 @@ function AssetHealthTab({
                   <Activity className="size-4 text-primary" />
                   <h4 className="font-semibold text-sm">ถ้าตอบสนอง Claim เร็ว/ช้าลง</h4>
                 </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  ปัจจุบันตอบสนองเฉลี่ย <strong className="text-foreground">{curResponse.toFixed(1)} ชม.</strong> · ลองปรับเป้าหมายใหม่ดู Availability ที่จะได้
-                </p>
-                <input type="range" min={1} max={72} step={1} value={targetResponse} onChange={(e) => setTargetResponse(Number(e.target.value))} className="w-full" />
-                <div className="mt-1 flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">ตอบเร็ว 1 ชม.</span>
-                  <span className="font-medium">เป้าหมาย {targetResponse} ชม.</span>
-                  <span className="text-muted-foreground">ตอบช้า 72 ชม.</span>
-                </div>
-                <div className={cn(
-                  "mt-3 rounded-lg p-3 text-center",
-                  status === "better" && "bg-success/10 text-success",
-                  status === "neutral" && "bg-warning/10 text-[oklch(0.45_0.15_75)]",
-                  status === "worse" && "bg-destructive/10 text-destructive",
-                )}>
-                  <div className="text-3xl font-bold">{projAvailability.toFixed(1)}%</div>
-                  <div className="text-xs mt-0.5">
-                    Availability ที่คาด — {status === "better" ? "🟢 ดีมาก (≥95%)" : status === "neutral" ? "🟡 พอใช้ (80–95%)" : "🔴 ต้องปรับปรุง (<80%)"}
+                {!hasResponseData ? (
+                  <div className="mt-2 rounded-lg border border-dashed bg-muted/30 p-4 text-xs text-muted-foreground">
+                    <div className="font-medium text-foreground mb-1">⚠︎ ไม่สามารถจำลองได้</div>
+                    ต้องมีประวัติ <strong>Claim ≥ 2 ครั้ง</strong> พร้อมเวลา response จึงคำนวณ Availability จริงได้
+                    <div className="mt-2 text-foreground">ตอนนี้พบ Claim {totalClaim} ครั้ง · มีเวลา response ที่ใช้ได้ {avgResponse > 0 ? "" : "0"} ค่า</div>
                   </div>
-                  <div className="text-[11px] mt-1 opacity-80">
-                    เทียบกับปัจจุบัน {availability.toFixed(1)}%: {trend === "better" ? `🟢 ดีขึ้น +${availDelta.toFixed(1)}%` : trend === "worse" ? `🔴 แย่ลง ${availDelta.toFixed(1)}%` : "⚪ เท่าเดิม"}
-                  </div>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-2">
-                  💡 ใช้ตั้งเป้า SLA — ตอบเร็วเท่าไหร่ถึงจะถึงเป้า Availability ที่ต้องการ
-                </p>
-                <details className="mt-2 text-[11px] text-muted-foreground">
-                  <summary className="cursor-pointer">วิธีคำนวณ</summary>
-                  <p className="mt-1">100 − (เวลาตอบสนองเป้าหมาย ÷ (MTBF × 24)) × 100 — MTBF = {effMtbf.toFixed(0)} วัน {avgMtbf > 0 ? "(จากข้อมูลจริง)" : "(ค่าตั้งต้น เนื่องจากไม่มีประวัติ Claim)"}</p>
-                </details>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      ปัจจุบันตอบสนองเฉลี่ย <strong className="text-foreground">{curResponse.toFixed(1)} ชม.</strong> · ลองปรับเป้าหมายใหม่
+                    </p>
+                    <input type="range" min={1} max={72} step={1} value={targetResponse} onChange={(e) => setTargetResponse(Number(e.target.value))} className="w-full" />
+                    <div className="mt-1 flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">ตอบเร็ว 1 ชม.</span>
+                      <span className="font-medium">เป้าหมาย {targetResponse} ชม.</span>
+                      <span className="text-muted-foreground">ตอบช้า 72 ชม.</span>
+                    </div>
+                    <div className={cn(
+                      "mt-3 rounded-lg p-3 text-center",
+                      status === "better" && "bg-success/10 text-success",
+                      status === "neutral" && "bg-warning/10 text-[oklch(0.45_0.15_75)]",
+                      status === "worse" && "bg-destructive/10 text-destructive",
+                    )}>
+                      <div className="text-3xl font-bold">{projAvailability.toFixed(1)}%</div>
+                      <div className="text-xs mt-0.5">
+                        Availability ที่คาด — {status === "better" ? "🟢 ดีมาก (≥95%)" : status === "neutral" ? "🟡 พอใช้ (80–95%)" : "🔴 ต้องปรับปรุง (<80%)"}
+                      </div>
+                      <div className="text-[11px] mt-1 opacity-80">
+                        เทียบกับปัจจุบัน {availability.toFixed(1)}%: {trend === "better" ? `🟢 ดีขึ้น +${availDelta.toFixed(1)}%` : trend === "worse" ? `🔴 แย่ลง ${availDelta.toFixed(1)}%` : "⚪ เท่าเดิม"}
+                      </div>
+                    </div>
+                    <details className="mt-2 text-[11px] text-muted-foreground">
+                      <summary className="cursor-pointer">วิธีคำนวณ</summary>
+                      <p className="mt-1">100 − (เวลาตอบสนองเป้าหมาย ÷ (MTBF × 24)) × 100 — MTBF = {effMtbf.toFixed(0)} วัน (จากข้อมูลจริง)</p>
+                    </details>
+                  </>
+                )}
               </div>
             );
           })()}
         </div>
+
       </div>
     </div>
   );
@@ -1209,17 +1271,20 @@ function CalendarOverlay({
               <div className={cn("text-[10px] leading-none", isToday ? "font-semibold text-primary" : "text-muted-foreground")}>{c.day}</div>
               {c.events.length > 0 && (
                 <div className="mt-auto flex flex-col gap-0.5 overflow-hidden">
-                  {c.events.slice(0, 2).map((e) => (
-                    <span
-                      key={e.id}
-                      className="inline-flex items-center gap-1 rounded px-1 py-px text-[9px] font-medium leading-tight text-white truncate"
-                      style={{ background: typeColor(e.type) }}
-                      title={`${e.type} • ${e.asset_old_code}${e.status ? " • " + e.status : ""}`}
-                    >
-                      <span className="opacity-80 shrink-0">{e.type === "Claim" ? "C" : e.type === "PM" ? "P" : "M"}</span>
-                      <span className="truncate">{e.asset_old_code}</span>
-                    </span>
-                  ))}
+                  {c.events.slice(0, 2).map((e) => {
+                    const thDate = e.opened_at ? new Date(e.opened_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }) : "";
+                    return (
+                      <span
+                        key={e.id}
+                        className="inline-flex items-center gap-1 rounded px-1 py-px text-[9px] font-medium leading-tight text-white truncate"
+                        style={{ background: typeColor(e.type) }}
+                        title={`${thDate} • ${e.type} • ${e.asset_old_code}${e.status ? " • " + e.status : ""}`}
+                      >
+                        <span className="opacity-80 shrink-0">{e.type === "Claim" ? "C" : e.type === "PM" ? "P" : "M"}</span>
+                        <span className="truncate">{e.asset_old_code}</span>
+                      </span>
+                    );
+                  })}
                   {c.events.length > 2 && (
                     <span className="text-[9px] text-muted-foreground leading-none">+{c.events.length - 2}</span>
                   )}

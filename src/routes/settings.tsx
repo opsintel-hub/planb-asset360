@@ -140,8 +140,8 @@ function MainSettings() {
           onSave={(v) => saveMutation.mutate({ key: "asset_history_endpoint", value: v })}
         />
         <AssetHistoryScheduleControl
-          mode={((settings.asset_history_schedule as { mode?: string } | undefined)?.mode ?? "off") as "off" | "every_3h" | "daytime_3h"}
-          limit={Number((settings.asset_history_schedule as { limit?: number } | undefined)?.limit ?? 200)}
+          mode={((settings.asset_history_schedule as { mode?: string } | undefined)?.mode ?? "off") as "off" | "every_3h" | "daytime_3h" | "daily_0530"}
+          limit={Number((settings.asset_history_schedule as { limit?: number } | undefined)?.limit ?? 25)}
           onSaveMode={(mode, limit) =>
             saveMutation.mutate({ key: "asset_history_schedule", value: { mode, limit } })
           }
@@ -652,11 +652,11 @@ function AssetHistoryScheduleControl({
   limit,
   onSaveMode,
 }: {
-  mode: "off" | "every_3h" | "daytime_3h";
+  mode: "off" | "every_3h" | "daytime_3h" | "daily_0530";
   limit: number;
-  onSaveMode: (mode: "off" | "every_3h" | "daytime_3h", limit: number) => void;
+  onSaveMode: (mode: "off" | "every_3h" | "daytime_3h" | "daily_0530", limit: number) => void;
 }) {
-  const [selected, setSelected] = useState<"off" | "every_3h" | "daytime_3h">(mode);
+  const [selected, setSelected] = useState<"off" | "every_3h" | "daytime_3h" | "daily_0530">(mode);
   const [batchLimit, setBatchLimit] = useState<number>(limit);
   const syncFn = useServerFn(syncAssetHistoryBatchNow);
   const qc = useQueryClient();
@@ -673,16 +673,17 @@ function AssetHistoryScheduleControl({
     onError: (e: Error) => toast.error(`Sync ล้มเหลว: ${e.message}`),
   });
 
-  const options: Array<{ id: "off" | "every_3h" | "daytime_3h"; title: string; desc: string }> = [
+  const options: Array<{ id: "off" | "every_3h" | "daytime_3h" | "daily_0530"; title: string; desc: string }> = [
     { id: "every_3h", title: "ทุก 3 ชั่วโมง (24 ชม.)", desc: "รันเวลา 00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00" },
     { id: "daytime_3h", title: "เฉพาะกลางวัน ทุก 3 ชั่วโมง", desc: "รันเวลา 06:00, 09:00, 12:00, 15:00, 18:00" },
+    { id: "daily_0530", title: "ทุกวัน 05:30 น.", desc: "รันวันละครั้ง เวลา 05:30 น. (เหมาะกับการ Sync ก่อนเริ่มงานเช้า)" },
     { id: "off", title: "ปิด Auto-Sync (Manual เท่านั้น)", desc: "ระบบจะไม่ดึงข้อมูลอัตโนมัติ ต้องกดปุ่ม Manual Sync เอง" },
   ];
 
   return (
     <div className="space-y-3 rounded-lg border bg-background/50 p-3">
       <div className="text-sm font-medium">Schedule Auto-Sync ประวัติ Asset</div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
         {options.map((o) => {
           const active = selected === o.id;
           return (
@@ -713,7 +714,9 @@ function AssetHistoryScheduleControl({
             onChange={(e) => setBatchLimit(Math.max(1, Math.min(2000, Number(e.target.value) || 0)))}
             className="w-32 h-9 rounded-md border bg-background px-3 text-sm"
           />
-          <div className="text-[11px] text-muted-foreground">ระบบจะดึงป้ายที่ Sync นานสุดก่อนเสมอ</div>
+          <div className="text-[11px] text-muted-foreground">
+            แนะนำ 25–50 ป้าย/รอบ (ถ้าใหญ่เกินอาจ Timeout) — ระบบจะดึงป้ายที่ Sync นานสุดก่อนเสมอ
+          </div>
         </div>
         <div className="flex gap-2 ml-auto">
           <button

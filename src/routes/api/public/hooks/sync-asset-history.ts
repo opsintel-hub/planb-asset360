@@ -42,7 +42,7 @@ export const Route = createFileRoute("/api/public/hooks/sync-asset-history")({
         }
 
         const result = await runAssetHistorySyncBatch(limit);
-        return new Response(JSON.stringify({ ok: true, mode, hour, ...result }), {
+        return new Response(JSON.stringify({ mode, hour, ...result }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });

@@ -72,6 +72,27 @@ function durationLabel(open?: string | null, close?: string | null) {
   const days = Math.floor(ms / 86_400_000);
   return days === 0 ? "ภายใน 24 ชม." : `${days} วัน`;
 }
+// แปลงนาที → นาที/ชั่วโมง/วัน อ่านง่าย
+function fmtMinutes(v: unknown): string {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return "—";
+  if (n === 0) return "0 นาที";
+  if (n < 60) return `${n.toFixed(0)} นาที`;
+  if (n < 1440) return `${(n / 60).toFixed(1)} ชม.`;
+  const days = n / 1440;
+  const d = Math.floor(days);
+  const remH = Math.round((days - d) * 24);
+  return remH > 0 ? `${d} วัน ${remH} ชม.` : `${d} วัน`;
+}
+const TIME_MIN_KEYS = new Set(["resolveTime", "responseTime", "totalTurnaroundTime"]);
+// ลำดับการแสดงคอลัมน์จาก payload (key ที่ไม่อยู่ใน list จะเรียงตามตัวอักษรท้ายสุด)
+const PAYLOAD_KEY_ORDER = [
+  "project", "mediaType", "region", "branch",
+  "problemCategory", "problemDetail", "problemEquipment",
+  "solutionCategory", "solutionDetail",
+  "responseTime", "resolveTime", "totalTurnaroundTime",
+  "assetStatus", "bkkUpc",
+];
 
 // ---------- Slot Combobox ----------
 function SlotCombobox({
@@ -421,7 +442,16 @@ function RawDataTable({
       const p = (h.payload ?? {}) as Record<string, unknown>;
       for (const k of Object.keys(p)) if (!EXCLUDED_PAYLOAD_KEYS.has(k)) s.add(k);
     }
-    return Array.from(s).sort();
+    const arr = Array.from(s);
+    const orderIdx = (k: string) => {
+      const i = PAYLOAD_KEY_ORDER.indexOf(k);
+      return i === -1 ? PAYLOAD_KEY_ORDER.length : i;
+    };
+    return arr.sort((a, b) => {
+      const ia = orderIdx(a), ib = orderIdx(b);
+      if (ia !== ib) return ia - ib;
+      return a.localeCompare(b);
+    });
   }, [history]);
 
   const storageKey = `raw-hidden-cols:${tab}`;
@@ -468,6 +498,9 @@ function RawDataTable({
       default: {
         const v = p[key];
         if (v == null || v === "") return <span className="text-muted-foreground">—</span>;
+        if (TIME_MIN_KEYS.has(key)) {
+          return <span className="text-xs whitespace-nowrap tabular-nums" title={`${String(v)} นาที`}>{fmtMinutes(v)}</span>;
+        }
         const str = typeof v === "object" ? JSON.stringify(v) : String(v);
         return <span className="text-xs break-words max-w-[260px] inline-block align-top">{str}</span>;
       }
@@ -477,8 +510,8 @@ function RawDataTable({
   const hiddenCount = hidden.size;
 
   return (
-    <div className="rounded-xl border overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 p-3 border-b bg-muted/30">
+    <div className="rounded-xl border">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-3 border-b bg-muted/30 rounded-t-xl">
         <div className="text-sm font-medium">ข้อมูลดิบ ({total} รายการ)</div>
         <div className="flex items-center gap-2 text-sm">
           <div className="relative">

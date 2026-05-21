@@ -619,28 +619,35 @@ function AssetHealthTab({
   const avgPm = perAsset.map((p) => p.pmInterval).filter((n) => n > 0);
   const avgPmInterval = avgPm.length ? avgPm.reduce((s, n) => s + n, 0) / avgPm.length : 0;
 
-  // Simulator: if PM frequency = X days, expected claim reduction ratio
-  // baseline assumption: shorter PM interval reduces claim rate proportionally
-  const baselinePm = avgPmInterval || 30;
-  const reduction = baselinePm > 0 ? Math.max(-80, Math.min(80, ((baselinePm - pmFreqDays) / baselinePm) * 60)) : 0;
+  // นับจำนวนเหตุการณ์รวมทุกป้าย เพื่อตัดสินว่า simulator ใช้งานได้หรือไม่
+  const totalPm = perAsset.reduce((s, p) => s + p.counts.PM, 0);
+  const totalClaim = perAsset.reduce((s, p) => s + p.counts.Claim, 0);
+  const hasPmData = totalPm >= 2 && avgPmInterval > 0;
+  const hasClaimData = totalClaim >= 2 && avgMtbf > 0;
 
-  // Maintenance debt: if delayed N months, expected extra failures
-  // Use a default MTBF (90 days) when there's no claim history so the simulator is still meaningful
-  const effMtbf = avgMtbf > 0 ? avgMtbf : 90;
-  const expectedExtraFailures = Math.round((debtMonths * 30 / effMtbf) * Math.max(assets.length, 1));
+  // Simulator 1: ปรับความถี่ PM → คาด Claim ลด/เพิ่ม (ต้องมี PM ≥ 2 ครั้ง จึงคำนวณ baseline ได้)
+  const baselinePm = hasPmData ? avgPmInterval : 0;
+  const reduction = hasPmData ? Math.max(-80, Math.min(80, ((baselinePm - pmFreqDays) / baselinePm) * 60)) : 0;
 
-  // Service-level estimate (current)
+  // Simulator 2: หนี้บำรุงรักษา (ต้องมี Claim ≥ 2 จึงรู้ MTBF จริง)
+  const effMtbf = avgMtbf;
+  const expectedExtraFailures = hasClaimData ? Math.round((debtMonths * 30 / effMtbf) * Math.max(assets.length, 1)) : 0;
+
+  // Service-level (ต้องมี Claim พร้อม responseTime ใน payload)
   const avgResponse = (() => {
-    const rt = history.filter((h) => h.type === "Claim").map((h) => Number(h.payload?.responseTime)).filter((n) => Number.isFinite(n));
+    const rt = history.filter((h) => h.type === "Claim").map((h) => Number(h.payload?.responseTime)).filter((n) => Number.isFinite(n) && n > 0);
     return rt.length ? rt.reduce((a, b) => a + b, 0) / rt.length : 0;
   })();
-  const curResponse = avgResponse > 0 ? avgResponse : 24; // default 24h if unknown
-  const availability = Math.max(0, Math.min(100, 100 - (curResponse / (effMtbf * 24)) * 100));
+  const hasResponseData = avgResponse > 0 && hasClaimData;
+  const curResponse = hasResponseData ? avgResponse : 0;
+  const availability = hasResponseData ? Math.max(0, Math.min(100, 100 - (curResponse / (effMtbf * 24)) * 100)) : 0;
 
-  // Simulator 3: user-adjustable target response time → projected availability
-  const [targetResponse, setTargetResponse] = useState<number>(() => Math.max(1, Math.round(curResponse)));
-  const projAvailability = Math.max(0, Math.min(100, 100 - (targetResponse / (effMtbf * 24)) * 100));
+  // Simulator 3 — slider state ต้องสร้างเสมอ (ห้ามมี hook แบบ conditional)
+  const [targetResponse, setTargetResponse] = useState<number>(24);
+  const projAvailability = hasResponseData ? Math.max(0, Math.min(100, 100 - (targetResponse / (effMtbf * 24)) * 100)) : 0;
   const availDelta = projAvailability - availability;
+
+
 
   return (
     <div className="space-y-6">

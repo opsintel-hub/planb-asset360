@@ -140,8 +140,8 @@ function MainSettings() {
           onSave={(v) => saveMutation.mutate({ key: "asset_history_endpoint", value: v })}
         />
         <AssetHistoryScheduleControl
-          mode={((settings.asset_history_schedule as { mode?: string } | undefined)?.mode ?? "off") as "off" | "every_3h" | "daytime_3h"}
-          limit={Number((settings.asset_history_schedule as { limit?: number } | undefined)?.limit ?? 200)}
+          mode={((settings.asset_history_schedule as { mode?: string } | undefined)?.mode ?? "off") as "off" | "every_3h" | "daytime_3h" | "daily_0530"}
+          limit={Number((settings.asset_history_schedule as { limit?: number } | undefined)?.limit ?? 25)}
           onSaveMode={(mode, limit) =>
             saveMutation.mutate({ key: "asset_history_schedule", value: { mode, limit } })
           }

@@ -218,7 +218,8 @@ function SearchPage() {
 
   const assets = data?.assets ?? [];
   const history = data?.history ?? [];
-  const slicers = data?.slicers ?? { departments: [], regions: [], mediaTypes: [] };
+  // ใช้ option จาก global filters (ทุกป้ายในระบบ) แทนผลค้นหา เพื่อให้กรองก่อนค้นได้
+  const filterOpts = globalFilters ?? { departments: [], regions: [], mediaTypes: [] };
 
   // colors per asset id
   const colorByAsset = useMemo(() => {
@@ -245,6 +246,36 @@ function SearchPage() {
         }
       />
 
+      {/* Filters (กรองก่อนค้น) */}
+      <div className="rounded-xl border bg-card p-4 shadow-[var(--shadow-card)] space-y-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="text-xs font-medium text-muted-foreground">
+            🔍 กรองข้อมูลก่อนค้นหา — เลือก Department/พื้นที่/Media Type เพื่อให้ผลค้นหาในช่องด้านล่างแคบลง
+          </div>
+          {(dept || region || mediaType) && (
+            <button
+              onClick={() => { setDept(""); setRegion(""); setMediaType(""); }}
+              className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            >
+              <X className="size-3" /> ล้างตัวกรอง
+            </button>
+          )}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Slicer label="Department" value={dept} onChange={setDept} options={filterOpts.departments} />
+          <Slicer label="BKK / UPC" value={region} onChange={setRegion} options={filterOpts.regions} />
+          <Slicer label="Media Type" value={mediaType} onChange={setMediaType} options={filterOpts.mediaTypes} />
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">วันที่เริ่ม</label>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 w-full h-9 rounded-md border bg-background px-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">วันที่สิ้นสุด</label>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1 w-full h-9 rounded-md border bg-background px-2 text-sm" />
+          </div>
+        </div>
+      </div>
+
       {/* Slot selectors */}
       <div className="rounded-xl border bg-card p-5 shadow-[var(--shadow-card)] space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -254,6 +285,9 @@ function SearchPage() {
                 <SlotCombobox
                   value={slot}
                   color={PALETTE[i % PALETTE.length]}
+                  department={dept}
+                  region={region}
+                  mediaType={mediaType}
                   onPick={(code) => setSlotAt(i, code)}
                   onClear={() => setSlotAt(i, null)}
                 />
@@ -276,7 +310,7 @@ function SearchPage() {
         </div>
 
         {recent.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 text-xs pt-1 border-t pt-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs pt-3 border-t">
             <span className="text-muted-foreground">ล่าสุด:</span>
             {recent.filter((r) => !codes.includes(r)).slice(0, 6).map((c) => (
               <button
@@ -293,20 +327,7 @@ function SearchPage() {
         )}
       </div>
 
-      {/* Slicers */}
-      <div className="rounded-xl border bg-card p-4 shadow-[var(--shadow-card)] grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <Slicer label="Department" value={dept} onChange={setDept} options={slicers.departments} />
-        <Slicer label="BKK / UPC" value={region} onChange={setRegion} options={slicers.regions} />
-        <Slicer label="Media Type" value={mediaType} onChange={setMediaType} options={slicers.mediaTypes} />
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">วันที่เริ่ม</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 w-full h-9 rounded-md border bg-background px-2 text-sm" />
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted-foreground">วันที่สิ้นสุด</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1 w-full h-9 rounded-md border bg-background px-2 text-sm" />
-        </div>
-      </div>
+
 
       {/* Tabs */}
       <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden">

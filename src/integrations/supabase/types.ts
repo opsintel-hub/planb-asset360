@@ -126,6 +126,7 @@ export type Database = {
           id: string
           installed_at: string | null
           last_claim_at: string | null
+          last_history_synced_at: string | null
           last_monitor_ok_at: string | null
           last_pm_at: string | null
           latitude: number | null
@@ -143,6 +144,7 @@ export type Database = {
           id?: string
           installed_at?: string | null
           last_claim_at?: string | null
+          last_history_synced_at?: string | null
           last_monitor_ok_at?: string | null
           last_pm_at?: string | null
           latitude?: number | null
@@ -160,6 +162,7 @@ export type Database = {
           id?: string
           installed_at?: string | null
           last_claim_at?: string | null
+          last_history_synced_at?: string | null
           last_monitor_ok_at?: string | null
           last_pm_at?: string | null
           latitude?: number | null

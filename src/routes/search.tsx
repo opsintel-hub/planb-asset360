@@ -398,12 +398,12 @@ function Slicer({ label, value, onChange, options }: { label: string; value: str
 const CORE_COLS: Array<{ key: string; label: string; sticky?: boolean }> = [
   { key: "__asset", label: "ป้าย", sticky: true },
   { key: "__opened", label: "วันที่เปิด" },
-  { key: "__closed", label: "ปิดเมื่อ" },
+  { key: "__closed", label: "อัพเดทล่าสุด" },
   { key: "__duration", label: "ระยะเวลา" },
   { key: "__title", label: "รายการ" },
   { key: "__status", label: "สถานะ" },
 ];
-const EXCLUDED_PAYLOAD_KEYS = new Set(["status", "createdDate"]);
+const EXCLUDED_PAYLOAD_KEYS = new Set(["status", "createdDate", "updatedDate"]);
 
 function RawDataTable({
   tab, history, total, pageRows, page, setPage, pageSize, setPageSize, totalPages, colorByAsset,

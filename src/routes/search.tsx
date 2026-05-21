@@ -163,6 +163,12 @@ function SearchPage() {
   const toIso = to ? new Date(to + "T23:59:59").toISOString() : undefined;
 
   const cmpFn = useServerFn(getAssetsComparison);
+  const filterFn = useServerFn(getFilterOptions);
+  const { data: globalFilters } = useQuery({
+    queryKey: ["global-filter-options"],
+    queryFn: () => filterFn(),
+    staleTime: 5 * 60_000,
+  });
   const { data, isFetching, refetch } = useQuery({
     queryKey: ["comparison", codes.join(","), tab, fromIso, toIso, dept, region, mediaType],
     queryFn: () => cmpFn({

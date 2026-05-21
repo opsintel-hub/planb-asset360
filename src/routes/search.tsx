@@ -510,8 +510,8 @@ function RawDataTable({
   const hiddenCount = hidden.size;
 
   return (
-    <div className="rounded-xl border overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 p-3 border-b bg-muted/30">
+    <div className="rounded-xl border">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-3 border-b bg-muted/30 rounded-t-xl">
         <div className="text-sm font-medium">ข้อมูลดิบ ({total} รายการ)</div>
         <div className="flex items-center gap-2 text-sm">
           <div className="relative">

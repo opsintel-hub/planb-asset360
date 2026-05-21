@@ -618,6 +618,7 @@ function AssetHealthTab({
   const [view, setView] = useState<"graph" | "table" | "calendar">("graph");
   const [gran, setGran] = useState<"month" | "year">("month");
   const keyLen = gran === "month" ? 7 : 4;
+  const [openCell, setOpenCell] = useState<{ assetId: string; type: "PM" | "Claim" | "Monitor"; mo: number } | null>(null);
 
   // Per-asset metrics
   const perAsset = assets.map((a) => {

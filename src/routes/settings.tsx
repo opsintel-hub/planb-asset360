@@ -646,3 +646,96 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
     </div>
   );
 }
+
+function AssetHistoryScheduleControl({
+  mode,
+  limit,
+  onSaveMode,
+}: {
+  mode: "off" | "every_3h" | "daytime_3h";
+  limit: number;
+  onSaveMode: (mode: "off" | "every_3h" | "daytime_3h", limit: number) => void;
+}) {
+  const [selected, setSelected] = useState<"off" | "every_3h" | "daytime_3h">(mode);
+  const [batchLimit, setBatchLimit] = useState<number>(limit);
+  const syncFn = useServerFn(syncAssetHistoryBatchNow);
+  const qc = useQueryClient();
+  const runMutation = useMutation({
+    mutationFn: () => syncFn({ data: { limit: batchLimit } }),
+    onSuccess: (r) => {
+      if (!r.ok) {
+        toast.error(`Sync ล้มเหลว: ${r.error ?? "ไม่ทราบสาเหตุ"}`);
+      } else {
+        toast.success(`Sync ประวัติ Asset สำเร็จ: ${r.processed} ป้าย (${r.rows} แถว, ล้มเหลว ${r.failed})`);
+      }
+      qc.invalidateQueries({ queryKey: ["sync-logs"] });
+    },
+    onError: (e: Error) => toast.error(`Sync ล้มเหลว: ${e.message}`),
+  });
+
+  const options: Array<{ id: "off" | "every_3h" | "daytime_3h"; title: string; desc: string }> = [
+    { id: "every_3h", title: "ทุก 3 ชั่วโมง (24 ชม.)", desc: "รันเวลา 00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00" },
+    { id: "daytime_3h", title: "เฉพาะกลางวัน ทุก 3 ชั่วโมง", desc: "รันเวลา 06:00, 09:00, 12:00, 15:00, 18:00" },
+    { id: "off", title: "ปิด Auto-Sync (Manual เท่านั้น)", desc: "ระบบจะไม่ดึงข้อมูลอัตโนมัติ ต้องกดปุ่ม Manual Sync เอง" },
+  ];
+
+  return (
+    <div className="space-y-3 rounded-lg border bg-background/50 p-3">
+      <div className="text-sm font-medium">Schedule Auto-Sync ประวัติ Asset</div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        {options.map((o) => {
+          const active = selected === o.id;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => setSelected(o.id)}
+              className={cn(
+                "text-left rounded-lg border p-3 text-sm transition",
+                active ? "border-primary bg-primary/5 ring-2 ring-primary/30" : "hover:bg-accent",
+              )}
+            >
+              <div className="font-medium">{o.title}</div>
+              <div className="text-xs text-muted-foreground mt-1">{o.desc}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3 pt-1">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">จำนวนป้ายต่อรอบ (Batch Size)</label>
+          <input
+            type="number"
+            min={1}
+            max={2000}
+            value={batchLimit}
+            onChange={(e) => setBatchLimit(Math.max(1, Math.min(2000, Number(e.target.value) || 0)))}
+            className="w-32 h-9 rounded-md border bg-background px-3 text-sm"
+          />
+          <div className="text-[11px] text-muted-foreground">ระบบจะดึงป้ายที่ Sync นานสุดก่อนเสมอ</div>
+        </div>
+        <div className="flex gap-2 ml-auto">
+          <button
+            onClick={() => onSaveMode(selected, batchLimit)}
+            className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90"
+          >
+            บันทึก Schedule
+          </button>
+          <button
+            onClick={() => runMutation.mutate()}
+            disabled={runMutation.isPending}
+            className="inline-flex items-center gap-2 rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+          >
+            <RefreshCw className={cn("size-4", runMutation.isPending && "animate-spin")} />
+            {runMutation.isPending ? "กำลัง Sync..." : "Manual Sync ตอนนี้"}
+          </button>
+        </div>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        ทุกครั้งที่ Sync (อัตโนมัติหรือ Manual) จะถูกบันทึกใน Sync Logs ด้านล่าง
+      </p>
+    </div>
+  );
+}
+

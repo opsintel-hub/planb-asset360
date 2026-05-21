@@ -887,17 +887,26 @@ function AssetHealthTab({
                             </td>
                             {matrix[t].map((v, i) => {
                               const alpha = v === 0 ? 0 : 0.15 + (v / maxVal) * 0.75;
+                              const isOpen = openCell?.assetId === p.asset.id && openCell.type === t && openCell.mo === i;
                               return (
                                 <td
                                   key={i}
-                                  className="text-center tabular-nums rounded h-7 align-middle"
+                                  className={cn("text-center tabular-nums rounded h-7 align-middle p-0", isOpen && "ring-2 ring-primary")}
                                   style={{
                                     background: v === 0 ? "transparent" : `color-mix(in oklab, ${TYPE_COLOR[t]} ${Math.round(alpha * 100)}%, transparent)`,
                                     color: alpha > 0.55 ? "white" : undefined,
                                   }}
-                                  title={`${t} • ${thMonthsShort[i]} ${Number(matrixYear) + 543}: ${v} ครั้ง`}
+                                  title={`${t} • ${thMonthsShort[i]} ${Number(matrixYear) + 543}: ${v} ครั้ง${v ? " (คลิกเพื่อดูรายการ)" : ""}`}
                                 >
-                                  {v || ""}
+                                  {v > 0 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setOpenCell(isOpen ? null : { assetId: p.asset.id, type: t, mo: i })}
+                                      className="w-full h-7 cursor-pointer hover:brightness-110"
+                                    >
+                                      {v}
+                                    </button>
+                                  ) : ""}
                                 </td>
                               );
                             })}
@@ -907,6 +916,43 @@ function AssetHealthTab({
                       })}
                     </tbody>
                   </table>
+
+                  {/* รายการของช่องที่คลิก */}
+                  {openCell?.assetId === p.asset.id && (() => {
+                    const mm = String(openCell.mo + 1).padStart(2, "0");
+                    const prefix = `${matrixYear}-${mm}`;
+                    const items = ph
+                      .filter((h) => h.type === openCell.type && h.opened_at?.startsWith(prefix))
+                      .sort((a, b) => (a.opened_at < b.opened_at ? -1 : 1));
+                    return (
+                      <div className="mt-3 rounded-lg border bg-muted/20 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-xs font-medium">
+                            <span className="inline-block size-2 rounded-sm mr-1.5 align-middle" style={{ background: TYPE_COLOR[openCell.type] }} />
+                            {openCell.type} • {thMonthsShort[openCell.mo]} {Number(matrixYear) + 543} — {items.length} รายการ
+                          </div>
+                          <button onClick={() => setOpenCell(null)} className="text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
+                        </div>
+                        <ul className="space-y-1 text-[11px]">
+                          {items.map((h) => {
+                            const pl = (h.payload ?? {}) as Record<string, unknown>;
+                            return (
+                              <li key={h.id} className="flex items-start gap-2 bg-background rounded px-2 py-1.5">
+                                <span className="text-muted-foreground tabular-nums w-20 shrink-0">{fmtDate(h.opened_at)}</span>
+                                <span className="flex-1 min-w-0">
+                                  <span className="font-medium">{h.title ?? "—"}</span>
+                                  {(pl.problemDetail || pl.solutionDetail) ? (
+                                    <span className="text-muted-foreground"> · {String(pl.problemDetail ?? pl.solutionDetail ?? "")}</span>
+                                  ) : null}
+                                </span>
+                                <Badge tone={/finish|approved|closed|done/i.test(h.status ?? "") ? "success" : "warning"}>{h.status ?? "—"}</Badge>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

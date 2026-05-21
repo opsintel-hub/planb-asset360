@@ -559,9 +559,9 @@ function RegularTab({
                     <td className="px-4 py-2.5 text-xs">{fmtDate(h.opened_at)}</td>
                     <td className="px-4 py-2.5">
                       <div>{h.title ?? "—"}</div>
-                      {(p.problemDetail || p.problemCategory) && (
+                      {(p.problemDetail || p.problemCategory) ? (
                         <div className="text-[11px] text-muted-foreground mt-0.5">{String(p.problemCategory ?? "")}{p.problemCategory && p.problemDetail ? " · " : ""}{String(p.problemDetail ?? "")}</div>
-                      )}
+                      ) : null}
                       {extras.length > 0 && (
                         <details className="mt-1 text-[11px]">
                           <summary className="cursor-pointer text-muted-foreground hover:text-foreground">ดูข้อมูลทั้งหมด ({extras.length} ฟิลด์)</summary>

@@ -168,10 +168,112 @@ export async function runAssetHistorySync(oldCode: string) {
       if (error) throw error;
       n = rows.length;
     }
+    await supabaseAdmin
+      .from("assets")
+      .update({ last_history_synced_at: new Date().toISOString() })
+      .eq("old_code", oldCode);
     await logFinish(id, "success", `synced ${n} history rows for ${oldCode}`, n);
     return { ok: true, rows: n };
   } catch (e) {
     await logFinish(id, "error", (e as Error).message, 0);
     throw e;
+  }
+}
+
+// Batch sync — process oldest-synced assets first, single log row per batch.
+export async function runAssetHistorySyncBatch(limit = 100): Promise<{ ok: boolean; rows: number; processed: number; failed: number; error?: string }> {
+  const id = await logStart("asset-history-batch");
+  try {
+    const tmpl = (await readSetting("asset_history_endpoint")) as string | undefined;
+    if (!tmpl) throw new Error("ยังไม่ได้ตั้งค่า asset_history_endpoint");
+
+    const { data: assets, error: aErr } = await supabaseAdmin
+      .from("assets")
+      .select("id, old_code, last_history_synced_at")
+      .order("last_history_synced_at", { ascending: true, nullsFirst: true })
+      .limit(limit);
+    if (aErr) throw aErr;
+
+    let totalRows = 0;
+    let processed = 0;
+    let failed = 0;
+    for (const a of assets ?? []) {
+      const oldCode = a.old_code as string;
+      if (!oldCode) continue;
+      try {
+        const url = tmpl.replace("{id}", encodeURIComponent(oldCode));
+        const raw = (await fetchPlanB(url)) as Record<string, unknown>;
+        const groups: Array<{ key: string; type: "PM" | "Monitor" | "Claim" }> = [
+          { key: "pm", type: "PM" },
+          { key: "monitoring", type: "Monitor" },
+          { key: "claim", type: "Claim" },
+        ];
+        await supabaseAdmin.from("asset_history").delete().eq("asset_old_code", oldCode);
+        type HistoryRow = {
+          asset_id: string | null;
+          asset_old_code: string;
+          ticket_code: string;
+          type: string;
+          title: string | null;
+          status: string | null;
+          opened_at: string | null;
+          closed_at: string | null;
+          payload: never;
+        };
+        const rows: HistoryRow[] = [];
+        for (const g of groups) {
+          const list = Array.isArray(raw?.[g.key]) ? (raw[g.key] as Record<string, unknown>[]) : [];
+          list.forEach((item, idx) => {
+            const createdDate = (item.createdDate ?? item.CreatedDate ?? null) as string | null;
+            const updatedDate = (item.updatedDate ?? item.UpdatedDate ?? null) as string | null;
+            const status = (item.status ?? item.Status ?? null) as string | null;
+            const solutionDetail = (item.solutionDetail ?? null) as string | null;
+            const solutionCategory = (item.solutionCategory ?? null) as string | null;
+            const title =
+              g.type === "Claim"
+                ? solutionDetail || solutionCategory || "Claim"
+                : g.type === "PM"
+                  ? "Preventive Maintenance"
+                  : "Monitoring Check";
+            rows.push({
+              asset_id: (a.id as string) ?? null,
+              asset_old_code: oldCode,
+              ticket_code: `${g.type}-${oldCode}-${createdDate ?? "na"}-${idx}`,
+              type: g.type,
+              title,
+              status,
+              opened_at: createdDate,
+              closed_at: updatedDate ?? (status && /finish|approved|closed|done/i.test(status) ? createdDate : null),
+              payload: item as never,
+            });
+          });
+        }
+        if (rows.length) {
+          const { error } = await supabaseAdmin
+            .from("asset_history")
+            .upsert(rows, { onConflict: "ticket_code,type" });
+          if (error) throw error;
+          totalRows += rows.length;
+        }
+        await supabaseAdmin
+          .from("assets")
+          .update({ last_history_synced_at: new Date().toISOString() })
+          .eq("old_code", oldCode);
+        processed++;
+      } catch (e) {
+        failed++;
+        console.warn(`asset-history sync failed for ${oldCode}:`, (e as Error).message);
+      }
+    }
+    await logFinish(
+      id,
+      failed === 0 ? "success" : "warning",
+      `batch: ${processed} assets synced, ${failed} failed, ${totalRows} history rows`,
+      totalRows,
+    );
+    return { ok: true, rows: totalRows, processed, failed };
+  } catch (e) {
+    await logFinish(id, "error", (e as Error).message, 0);
+    return { ok: false, rows: 0, processed: 0, failed: 0, error: (e as Error).message };
   }
 }

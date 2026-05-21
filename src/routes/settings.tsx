@@ -7,7 +7,7 @@ import { PageHeader, Badge } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { getAppSettings, getSyncLogs, listAirtableSlots, getSchemaStatus } from "@/lib/data.functions";
-import { updateAppSetting, updateAirtableSlot, syncClaimsNow, syncAssetsNow } from "@/lib/admin.functions";
+import { updateAppSetting, updateAirtableSlot, syncClaimsNow, syncAssetsNow, syncAssetHistoryBatchNow } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/settings")({
@@ -133,12 +133,18 @@ function MainSettings() {
 
 
 
-      <Section title="API ค้นหาประวัติ Asset" desc="ใช้สำหรับดึงประวัติทรัพย์สินจากระบบ PlanB">
-
+      <Section title="API ค้นหาประวัติ Asset" desc="ใช้สำหรับดึงประวัติทรัพย์สินจากระบบ PlanB (PM / Claim / Monitoring)">
         <EditableField
           label="API Endpoint"
           defaultValue={assetHistoryEndpoint}
           onSave={(v) => saveMutation.mutate({ key: "asset_history_endpoint", value: v })}
+        />
+        <AssetHistoryScheduleControl
+          mode={((settings.asset_history_schedule as { mode?: string } | undefined)?.mode ?? "off") as "off" | "every_3h" | "daytime_3h"}
+          limit={Number((settings.asset_history_schedule as { limit?: number } | undefined)?.limit ?? 200)}
+          onSaveMode={(mode, limit) =>
+            saveMutation.mutate({ key: "asset_history_schedule", value: { mode, limit } })
+          }
         />
       </Section>
 

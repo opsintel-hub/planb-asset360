@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
-import { autocompleteAssets, getAssetsComparison } from "@/lib/data.functions";
+import { autocompleteAssets, getAssetsComparison, getFilterOptions } from "@/lib/data.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 

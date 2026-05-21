@@ -68,15 +68,16 @@ function fmtDateTime(d: string | null | undefined) {
 
 // ---------- Slot Combobox ----------
 function SlotCombobox({
-  value, onPick, onClear, color,
-}: { value: string | null; onPick: (code: string) => void; onClear: () => void; color: string }) {
+  value, onPick, onClear, color, department, region, mediaType,
+}: { value: string | null; onPick: (code: string) => void; onClear: () => void; color: string;
+     department?: string; region?: string; mediaType?: string }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const debounced = useDebounced(q, 250);
   const autoFn = useServerFn(autocompleteAssets);
   const { data: ac, isFetching } = useQuery({
-    queryKey: ["autocomplete", debounced],
-    queryFn: () => autoFn({ data: { q: debounced, limit: 15 } }),
+    queryKey: ["autocomplete", debounced, department, region, mediaType],
+    queryFn: () => autoFn({ data: { q: debounced, limit: 15, department: department || undefined, region: region || undefined, mediaType: mediaType || undefined } }),
     enabled: open,
     staleTime: 30_000,
   });

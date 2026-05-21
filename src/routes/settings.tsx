@@ -652,11 +652,11 @@ function AssetHistoryScheduleControl({
   limit,
   onSaveMode,
 }: {
-  mode: "off" | "every_3h" | "daytime_3h";
+  mode: "off" | "every_3h" | "daytime_3h" | "daily_0530";
   limit: number;
-  onSaveMode: (mode: "off" | "every_3h" | "daytime_3h", limit: number) => void;
+  onSaveMode: (mode: "off" | "every_3h" | "daytime_3h" | "daily_0530", limit: number) => void;
 }) {
-  const [selected, setSelected] = useState<"off" | "every_3h" | "daytime_3h">(mode);
+  const [selected, setSelected] = useState<"off" | "every_3h" | "daytime_3h" | "daily_0530">(mode);
   const [batchLimit, setBatchLimit] = useState<number>(limit);
   const syncFn = useServerFn(syncAssetHistoryBatchNow);
   const qc = useQueryClient();
@@ -673,9 +673,10 @@ function AssetHistoryScheduleControl({
     onError: (e: Error) => toast.error(`Sync ล้มเหลว: ${e.message}`),
   });
 
-  const options: Array<{ id: "off" | "every_3h" | "daytime_3h"; title: string; desc: string }> = [
+  const options: Array<{ id: "off" | "every_3h" | "daytime_3h" | "daily_0530"; title: string; desc: string }> = [
     { id: "every_3h", title: "ทุก 3 ชั่วโมง (24 ชม.)", desc: "รันเวลา 00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00" },
     { id: "daytime_3h", title: "เฉพาะกลางวัน ทุก 3 ชั่วโมง", desc: "รันเวลา 06:00, 09:00, 12:00, 15:00, 18:00" },
+    { id: "daily_0530", title: "ทุกวัน 05:30 น.", desc: "รันวันละครั้ง เวลา 05:30 น. (เหมาะกับการ Sync ก่อนเริ่มงานเช้า)" },
     { id: "off", title: "ปิด Auto-Sync (Manual เท่านั้น)", desc: "ระบบจะไม่ดึงข้อมูลอัตโนมัติ ต้องกดปุ่ม Manual Sync เอง" },
   ];
 

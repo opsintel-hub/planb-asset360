@@ -442,7 +442,16 @@ function RawDataTable({
       const p = (h.payload ?? {}) as Record<string, unknown>;
       for (const k of Object.keys(p)) if (!EXCLUDED_PAYLOAD_KEYS.has(k)) s.add(k);
     }
-    return Array.from(s).sort();
+    const arr = Array.from(s);
+    const orderIdx = (k: string) => {
+      const i = PAYLOAD_KEY_ORDER.indexOf(k);
+      return i === -1 ? PAYLOAD_KEY_ORDER.length : i;
+    };
+    return arr.sort((a, b) => {
+      const ia = orderIdx(a), ib = orderIdx(b);
+      if (ia !== ib) return ia - ib;
+      return a.localeCompare(b);
+    });
   }, [history]);
 
   const storageKey = `raw-hidden-cols:${tab}`;

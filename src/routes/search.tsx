@@ -960,35 +960,45 @@ function AssetHealthTab({
                   <Wrench className="size-4 text-primary" />
                   <h4 className="font-semibold text-sm">ถ้าทำ PM ถี่ขึ้น/ห่างขึ้น</h4>
                 </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  ปัจจุบันทำ PM เฉลี่ยทุก <strong className="text-foreground">{baselinePm.toFixed(0)} วัน</strong> · ลองเปลี่ยนความถี่ใหม่
-                </p>
-                <input type="range" min={7} max={120} step={1} value={pmFreqDays} onChange={(e) => setPmFreqDays(Number(e.target.value))} className="w-full" />
-                <div className="mt-1 flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">ถี่ขึ้น (7 วัน)</span>
-                  <span className="font-medium">PM ทุก {pmFreqDays} วัน</span>
-                  <span className="text-muted-foreground">ห่างขึ้น (120 วัน)</span>
-                </div>
-                <div className={cn(
-                  "mt-3 rounded-lg p-3 text-sm",
-                  status === "better" && "bg-success/10 text-success",
-                  status === "worse" && "bg-destructive/10 text-destructive",
-                  status === "neutral" && "bg-muted text-muted-foreground",
-                )}>
-                  <div className="text-xs font-medium opacity-80">
-                    {status === "better" ? "🟢 สถานการณ์ดีขึ้น" : status === "worse" ? "🔴 สถานการณ์แย่ลง" : "⚪ เท่าเดิม"}
+                {!hasPmData ? (
+                  <div className="mt-2 rounded-lg border border-dashed bg-muted/30 p-4 text-xs text-muted-foreground">
+                    <div className="font-medium text-foreground mb-1">⚠︎ ไม่สามารถจำลองได้</div>
+                    ป้ายที่เลือก<strong> ยังไม่เคยทำ PM </strong>
+                    (หรือมีน้อยกว่า 2 ครั้ง — ตอนนี้พบ {totalPm} ครั้ง)
+                    จึงคำนวณ "PM เฉลี่ยทุกกี่วัน" จากของจริงไม่ได้
+                    <div className="mt-2 text-foreground">เลือกป้ายที่มีประวัติ PM ≥ 2 ครั้ง หรือเปลี่ยนช่วงวันที่ให้ครอบคลุมประวัติเดิม</div>
                   </div>
-                  <div className="mt-1">
-                    คาด Claim {better ? "ลดลง" : "เพิ่มขึ้น"} <strong className="text-base">{Math.abs(reduction).toFixed(0)}%</strong>
-                  </div>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-2">
-                  💡 ใช้ตัดสินใจว่าควรตั้งแผน PM ใหม่ทุกกี่วัน — ผลโชว์ที่การ์ดด้านล่างของหน้านี้
-                </p>
-                <details className="mt-2 text-[11px] text-muted-foreground">
-                  <summary className="cursor-pointer">วิธีคำนวณ</summary>
-                  <p className="mt-1">(PM ปัจจุบัน − PM ใหม่) ÷ PM ปัจจุบัน × 60% (เพดาน 80%) — สมมติว่าถ้าทำบ่อยขึ้น โอกาสเสียจะลดตามสัดส่วน</p>
-                </details>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      ปัจจุบันทำ PM เฉลี่ยทุก <strong className="text-foreground">{baselinePm.toFixed(0)} วัน</strong>
+                      <span className="text-[10px] ml-1">(จาก {totalPm} ครั้ง)</span> · ลองเปลี่ยนความถี่ใหม่
+                    </p>
+                    <input type="range" min={7} max={120} step={1} value={pmFreqDays} onChange={(e) => setPmFreqDays(Number(e.target.value))} className="w-full" />
+                    <div className="mt-1 flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">ถี่ขึ้น (7 วัน)</span>
+                      <span className="font-medium">PM ทุก {pmFreqDays} วัน</span>
+                      <span className="text-muted-foreground">ห่างขึ้น (120 วัน)</span>
+                    </div>
+                    <div className={cn(
+                      "mt-3 rounded-lg p-3 text-sm",
+                      status === "better" && "bg-success/10 text-success",
+                      status === "worse" && "bg-destructive/10 text-destructive",
+                      status === "neutral" && "bg-muted text-muted-foreground",
+                    )}>
+                      <div className="text-xs font-medium opacity-80">
+                        {status === "better" ? "🟢 สถานการณ์ดีขึ้น" : status === "worse" ? "🔴 สถานการณ์แย่ลง" : "⚪ เท่าเดิม"}
+                      </div>
+                      <div className="mt-1">
+                        คาด Claim {better ? "ลดลง" : "เพิ่มขึ้น"} <strong className="text-base">{Math.abs(reduction).toFixed(0)}%</strong>
+                      </div>
+                    </div>
+                    <details className="mt-2 text-[11px] text-muted-foreground">
+                      <summary className="cursor-pointer">วิธีคำนวณ</summary>
+                      <p className="mt-1">(PM ปัจจุบัน − PM ใหม่) ÷ PM ปัจจุบัน × 60% (เพดาน 80%) — สมมติว่าถ้าทำบ่อยขึ้น โอกาสเสียจะลดตามสัดส่วน</p>
+                    </details>
+                  </>
+                )}
               </div>
             );
           })()}
@@ -1002,34 +1012,43 @@ function AssetHealthTab({
                   <AlertCircle className="size-4 text-warning" />
                   <h4 className="font-semibold text-sm">ถ้าเลื่อน PM ออกไป (หนี้บำรุงรักษา)</h4>
                 </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  จำลองว่า <strong>เลื่อน PM ไม่ทำ</strong> เป็นเวลากี่เดือน — ดูว่าจะเสียเพิ่มกี่ครั้ง
-                </p>
-                <input type="range" min={0} max={6} step={1} value={debtMonths} onChange={(e) => setDebtMonths(Number(e.target.value))} className="w-full" />
-                <div className="mt-1 flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">ทำตรงเวลา</span>
-                  <span className="font-medium">เลื่อน {debtMonths} เดือน</span>
-                  <span className="text-muted-foreground">เลื่อน 6 เดือน</span>
-                </div>
-                <div className={cn(
-                  "mt-3 rounded-lg p-3 text-sm",
-                  status === "worse" && "bg-destructive/10 text-destructive",
-                  status === "neutral" && "bg-success/10 text-success",
-                )}>
-                  <div className="text-xs font-medium opacity-80">
-                    {status === "neutral" ? "🟢 อยู่ในแผน" : "🔴 มีความเสี่ยง"}
+                {!hasClaimData ? (
+                  <div className="mt-2 rounded-lg border border-dashed bg-muted/30 p-4 text-xs text-muted-foreground">
+                    <div className="font-medium text-foreground mb-1">⚠︎ ไม่สามารถจำลองได้</div>
+                    ป้ายที่เลือก<strong> ยังไม่มี Claim ≥ 2 ครั้ง </strong>
+                    (ตอนนี้พบ {totalClaim} ครั้ง) จึงไม่รู้ MTBF (ระยะเวลาเฉลี่ยระหว่างเสีย)
+                    <div className="mt-2 text-foreground">การจำลอง "เลื่อน PM แล้วจะเสียเพิ่มกี่ครั้ง" ต้องอ้างอิงจาก MTBF จริง</div>
                   </div>
-                  <div className="mt-1">
-                    คาดป้ายจะเสียเพิ่ม <strong className="text-base">{expectedExtraFailures}</strong> ครั้ง (รวมทุกป้ายที่เลือก)
-                  </div>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-2">
-                  💡 ใช้ดูว่า "ถ้าเลื่อน PM ไปอีก N เดือน คุ้มไหม" — ยิ่งเลื่อนนานยิ่ง Claim เพิ่ม
-                </p>
-                <details className="mt-2 text-[11px] text-muted-foreground">
-                  <summary className="cursor-pointer">วิธีคำนวณ</summary>
-                  <p className="mt-1">(เดือนที่เลื่อน × 30 วัน) ÷ MTBF × จำนวนป้าย — MTBF คือระยะเวลาเฉลี่ยระหว่าง Claim จากประวัติจริง</p>
-                </details>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      MTBF จริง <strong className="text-foreground">{effMtbf.toFixed(0)} วัน</strong>
+                      <span className="text-[10px] ml-1">(จาก {totalClaim} Claim)</span> · ลองเลื่อน PM ดู
+                    </p>
+                    <input type="range" min={0} max={6} step={1} value={debtMonths} onChange={(e) => setDebtMonths(Number(e.target.value))} className="w-full" />
+                    <div className="mt-1 flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">ทำตรงเวลา</span>
+                      <span className="font-medium">เลื่อน {debtMonths} เดือน</span>
+                      <span className="text-muted-foreground">เลื่อน 6 เดือน</span>
+                    </div>
+                    <div className={cn(
+                      "mt-3 rounded-lg p-3 text-sm",
+                      status === "worse" && "bg-destructive/10 text-destructive",
+                      status === "neutral" && "bg-success/10 text-success",
+                    )}>
+                      <div className="text-xs font-medium opacity-80">
+                        {status === "neutral" ? "🟢 อยู่ในแผน" : "🔴 มีความเสี่ยง"}
+                      </div>
+                      <div className="mt-1">
+                        คาดป้ายจะเสียเพิ่ม <strong className="text-base">{expectedExtraFailures}</strong> ครั้ง (รวมทุกป้ายที่เลือก)
+                      </div>
+                    </div>
+                    <details className="mt-2 text-[11px] text-muted-foreground">
+                      <summary className="cursor-pointer">วิธีคำนวณ</summary>
+                      <p className="mt-1">(เดือนที่เลื่อน × 30 วัน) ÷ MTBF × จำนวนป้าย — MTBF คือระยะเวลาเฉลี่ยระหว่าง Claim จากประวัติจริง</p>
+                    </details>
+                  </>
+                )}
               </div>
             );
           })()}
@@ -1044,40 +1063,48 @@ function AssetHealthTab({
                   <Activity className="size-4 text-primary" />
                   <h4 className="font-semibold text-sm">ถ้าตอบสนอง Claim เร็ว/ช้าลง</h4>
                 </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  ปัจจุบันตอบสนองเฉลี่ย <strong className="text-foreground">{curResponse.toFixed(1)} ชม.</strong> · ลองปรับเป้าหมายใหม่ดู Availability ที่จะได้
-                </p>
-                <input type="range" min={1} max={72} step={1} value={targetResponse} onChange={(e) => setTargetResponse(Number(e.target.value))} className="w-full" />
-                <div className="mt-1 flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">ตอบเร็ว 1 ชม.</span>
-                  <span className="font-medium">เป้าหมาย {targetResponse} ชม.</span>
-                  <span className="text-muted-foreground">ตอบช้า 72 ชม.</span>
-                </div>
-                <div className={cn(
-                  "mt-3 rounded-lg p-3 text-center",
-                  status === "better" && "bg-success/10 text-success",
-                  status === "neutral" && "bg-warning/10 text-[oklch(0.45_0.15_75)]",
-                  status === "worse" && "bg-destructive/10 text-destructive",
-                )}>
-                  <div className="text-3xl font-bold">{projAvailability.toFixed(1)}%</div>
-                  <div className="text-xs mt-0.5">
-                    Availability ที่คาด — {status === "better" ? "🟢 ดีมาก (≥95%)" : status === "neutral" ? "🟡 พอใช้ (80–95%)" : "🔴 ต้องปรับปรุง (<80%)"}
+                {!hasResponseData ? (
+                  <div className="mt-2 rounded-lg border border-dashed bg-muted/30 p-4 text-xs text-muted-foreground">
+                    <div className="font-medium text-foreground mb-1">⚠︎ ไม่สามารถจำลองได้</div>
+                    ต้องมีประวัติ <strong>Claim ≥ 2 ครั้ง</strong> พร้อมเวลา response จึงคำนวณ Availability จริงได้
+                    <div className="mt-2 text-foreground">ตอนนี้พบ Claim {totalClaim} ครั้ง · มีเวลา response ที่ใช้ได้ {avgResponse > 0 ? "" : "0"} ค่า</div>
                   </div>
-                  <div className="text-[11px] mt-1 opacity-80">
-                    เทียบกับปัจจุบัน {availability.toFixed(1)}%: {trend === "better" ? `🟢 ดีขึ้น +${availDelta.toFixed(1)}%` : trend === "worse" ? `🔴 แย่ลง ${availDelta.toFixed(1)}%` : "⚪ เท่าเดิม"}
-                  </div>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-2">
-                  💡 ใช้ตั้งเป้า SLA — ตอบเร็วเท่าไหร่ถึงจะถึงเป้า Availability ที่ต้องการ
-                </p>
-                <details className="mt-2 text-[11px] text-muted-foreground">
-                  <summary className="cursor-pointer">วิธีคำนวณ</summary>
-                  <p className="mt-1">100 − (เวลาตอบสนองเป้าหมาย ÷ (MTBF × 24)) × 100 — MTBF = {effMtbf.toFixed(0)} วัน {avgMtbf > 0 ? "(จากข้อมูลจริง)" : "(ค่าตั้งต้น เนื่องจากไม่มีประวัติ Claim)"}</p>
-                </details>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      ปัจจุบันตอบสนองเฉลี่ย <strong className="text-foreground">{curResponse.toFixed(1)} ชม.</strong> · ลองปรับเป้าหมายใหม่
+                    </p>
+                    <input type="range" min={1} max={72} step={1} value={targetResponse} onChange={(e) => setTargetResponse(Number(e.target.value))} className="w-full" />
+                    <div className="mt-1 flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">ตอบเร็ว 1 ชม.</span>
+                      <span className="font-medium">เป้าหมาย {targetResponse} ชม.</span>
+                      <span className="text-muted-foreground">ตอบช้า 72 ชม.</span>
+                    </div>
+                    <div className={cn(
+                      "mt-3 rounded-lg p-3 text-center",
+                      status === "better" && "bg-success/10 text-success",
+                      status === "neutral" && "bg-warning/10 text-[oklch(0.45_0.15_75)]",
+                      status === "worse" && "bg-destructive/10 text-destructive",
+                    )}>
+                      <div className="text-3xl font-bold">{projAvailability.toFixed(1)}%</div>
+                      <div className="text-xs mt-0.5">
+                        Availability ที่คาด — {status === "better" ? "🟢 ดีมาก (≥95%)" : status === "neutral" ? "🟡 พอใช้ (80–95%)" : "🔴 ต้องปรับปรุง (<80%)"}
+                      </div>
+                      <div className="text-[11px] mt-1 opacity-80">
+                        เทียบกับปัจจุบัน {availability.toFixed(1)}%: {trend === "better" ? `🟢 ดีขึ้น +${availDelta.toFixed(1)}%` : trend === "worse" ? `🔴 แย่ลง ${availDelta.toFixed(1)}%` : "⚪ เท่าเดิม"}
+                      </div>
+                    </div>
+                    <details className="mt-2 text-[11px] text-muted-foreground">
+                      <summary className="cursor-pointer">วิธีคำนวณ</summary>
+                      <p className="mt-1">100 − (เวลาตอบสนองเป้าหมาย ÷ (MTBF × 24)) × 100 — MTBF = {effMtbf.toFixed(0)} วัน (จากข้อมูลจริง)</p>
+                    </details>
+                  </>
+                )}
               </div>
             );
           })()}
         </div>
+
       </div>
     </div>
   );

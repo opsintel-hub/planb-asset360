@@ -518,89 +518,18 @@ function RegularTab({
       )}
 
       {/* Raw table */}
-      <div className="rounded-xl border overflow-hidden">
-        <div className="flex items-center justify-between p-3 border-b bg-muted/30">
-          <div className="text-sm font-medium">ข้อมูลดิบ ({total} รายการ)</div>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">แสดง</span>
-            <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} className="h-8 rounded border bg-background px-2 text-sm">
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-            </select>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="text-left px-4 py-2.5">ป้าย</th>
-                <th className="text-left px-4 py-2.5">วันที่เปิด</th>
-                <th className="text-left px-4 py-2.5">รายการ</th>
-                <th className="text-left px-4 py-2.5">สถานะ</th>
-                {tab === "Claim" && <th className="text-left px-4 py-2.5">วิธีแก้</th>}
-                {tab === "Claim" && <th className="text-right px-4 py-2.5">Resp/Res (h)</th>}
-                <th className="text-left px-4 py-2.5">ปิดเมื่อ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {pageRows.length === 0 ? (
-                <tr><td colSpan={tab === "Claim" ? 7 : 5} className="px-4 py-8 text-center text-muted-foreground text-sm">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>
-              ) : pageRows.map((h) => {
-                const p = (h.payload ?? {}) as Record<string, unknown>;
-                const extras = Object.entries(p).filter(([k]) => !["status","createdDate"].includes(k));
-                return (
-                  <tr key={h.id} className="hover:bg-accent/30 align-top">
-                    <td className="px-4 py-2.5">
-                      <span className="inline-flex items-center gap-2">
-                        <span className="size-2 rounded-full" style={{ background: colorByAsset.get(h.asset_id) ?? "transparent" }} />
-                        <span className="font-mono text-xs">{h.asset_old_code}</span>
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-xs">{fmtDate(h.opened_at)}</td>
-                    <td className="px-4 py-2.5">
-                      <div>{h.title ?? "—"}</div>
-                      {(p.problemDetail || p.problemCategory) ? (
-                        <div className="text-[11px] text-muted-foreground mt-0.5">{String(p.problemCategory ?? "")}{p.problemCategory && p.problemDetail ? " · " : ""}{String(p.problemDetail ?? "")}</div>
-                      ) : null}
-                      {extras.length > 0 && (
-                        <details className="mt-1 text-[11px]">
-                          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">ดูข้อมูลทั้งหมด ({extras.length} ฟิลด์)</summary>
-                          <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 bg-muted/30 rounded p-2">
-                            {extras.map(([k, v]) => (
-                              <div key={k} className="contents">
-                                <dt className="text-muted-foreground">{k}</dt>
-                                <dd className="font-mono break-all">{v == null ? "—" : typeof v === "object" ? JSON.stringify(v) : String(v)}</dd>
-                              </div>
-                            ))}
-                          </dl>
-                        </details>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <Badge tone={/finish|approved|closed|done/i.test(h.status ?? "") ? "success" : "warning"}>{h.status ?? "—"}</Badge>
-                      {p.assetStatus != null && (
-                        <div className="text-[10px] text-muted-foreground mt-1">ป้าย: {String(p.assetStatus)}</div>
-                      )}
-                    </td>
-                    {tab === "Claim" && <td className="px-4 py-2.5 text-xs text-muted-foreground">{(p.solutionCategory as string) ?? "—"}<div className="text-[10px]">{(p.solutionDetail as string) ?? ""}</div></td>}
-                    {tab === "Claim" && <td className="px-4 py-2.5 text-right text-xs tabular-nums">{Math.round(Number(p.responseTime ?? 0))}/{Math.round(Number(p.resolveTime ?? 0))}</td>}
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">{fmtDateTime(h.closed_at)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between p-3 border-t bg-muted/20 text-sm">
-            <span className="text-muted-foreground text-xs">หน้า {page} / {totalPages}</span>
-            <div className="flex gap-2">
-              <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="px-3 py-1.5 rounded border bg-background disabled:opacity-50 hover:bg-accent text-xs">‹ ก่อนหน้า</button>
-              <button disabled={page >= totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1.5 rounded border bg-background disabled:opacity-50 hover:bg-accent text-xs">ถัดไป ›</button>
-            </div>
-          </div>
-        )}
-      </div>
+      <RawDataTable
+        tab={tab}
+        history={history}
+        total={total}
+        pageRows={pageRows}
+        page={page}
+        setPage={setPage}
+        pageSize={pageSize}
+        setPageSize={setPageSize}
+        totalPages={totalPages}
+        colorByAsset={colorByAsset}
+      />
     </div>
   );
 }

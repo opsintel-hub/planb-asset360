@@ -16,6 +16,7 @@ import { Route as MonitoringRouteImport } from './routes/monitoring'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ClaimsRouteImport } from './routes/claims'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicHooksSyncAssetHistoryRouteImport } from './routes/api/public/hooks/sync-asset-history'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -52,6 +53,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksSyncAssetHistoryRoute =
+  ApiPublicHooksSyncAssetHistoryRouteImport.update({
+    id: '/api/public/hooks/sync-asset-history',
+    path: '/api/public/hooks/sync-asset-history',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -61,6 +68,7 @@ export interface FileRoutesByFullPath {
   '/permissions': typeof PermissionsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,6 +78,7 @@ export interface FileRoutesByTo {
   '/permissions': typeof PermissionsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +89,7 @@ export interface FileRoutesById {
   '/permissions': typeof PermissionsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,6 +101,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/search'
     | '/settings'
+    | '/api/public/hooks/sync-asset-history'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,6 +111,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/search'
     | '/settings'
+    | '/api/public/hooks/sync-asset-history'
   id:
     | '__root__'
     | '/'
@@ -109,6 +121,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/search'
     | '/settings'
+    | '/api/public/hooks/sync-asset-history'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -119,6 +132,7 @@ export interface RootRouteChildren {
   PermissionsRoute: typeof PermissionsRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
+  ApiPublicHooksSyncAssetHistoryRoute: typeof ApiPublicHooksSyncAssetHistoryRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -172,6 +186,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/sync-asset-history': {
+      id: '/api/public/hooks/sync-asset-history'
+      path: '/api/public/hooks/sync-asset-history'
+      fullPath: '/api/public/hooks/sync-asset-history'
+      preLoaderRoute: typeof ApiPublicHooksSyncAssetHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -183,7 +204,18 @@ const rootRouteChildren: RootRouteChildren = {
   PermissionsRoute: PermissionsRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
+  ApiPublicHooksSyncAssetHistoryRoute: ApiPublicHooksSyncAssetHistoryRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

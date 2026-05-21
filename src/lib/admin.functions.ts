@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { runClaimSync, runAssetHistorySync, runAssetListSync } from "./sync.server";
+import { runClaimSync, runAssetHistorySync, runAssetListSync, runAssetHistorySyncBatch } from "./sync.server";
 
 async function assertAdmin(userId: string) {
   const { data } = await supabaseAdmin
@@ -158,4 +158,12 @@ export const syncAssetsNow = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     await assertAdmin(context.userId);
     return runAssetListSync();
+  });
+
+export const syncAssetHistoryBatchNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ limit: z.number().int().min(1).max(2000).optional() }).parse(i ?? {}))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    return runAssetHistorySyncBatch(data.limit ?? 200);
   });

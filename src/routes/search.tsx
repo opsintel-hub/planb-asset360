@@ -65,6 +65,13 @@ function fmtDateTime(d: string | null | undefined) {
   if (!d) return "—";
   return new Date(d).toLocaleString("th-TH");
 }
+function durationLabel(open?: string | null, close?: string | null) {
+  if (!open || !close) return "—";
+  const ms = new Date(close).getTime() - new Date(open).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "—";
+  const days = Math.floor(ms / 86_400_000);
+  return days === 0 ? "ภายใน 24 ชม." : `${days} วัน`;
+}
 
 // ---------- Slot Combobox ----------
 function SlotCombobox({

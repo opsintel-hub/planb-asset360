@@ -432,12 +432,20 @@ function RegularTab({
     avgResolve = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : 0;
   }
 
-  // Trend chart per asset per month
-  const monthLabels = Array.from(months).sort();
-  const chartData = monthLabels.map((m) => {
-    const row: Record<string, string | number> = { month: m };
+  // Trend chart per asset per month — แสดงครบ 12 เดือนของปีที่เลือก
+  const yearsAvailable = Array.from(new Set(
+    history.map((h) => h.opened_at?.slice(0, 4)).filter(Boolean) as string[]
+  )).sort();
+  const defaultYear = yearsAvailable[yearsAvailable.length - 1] ?? String(new Date().getFullYear());
+  const [chartYear, setChartYear] = useState(defaultYear);
+  useEffect(() => { setChartYear(defaultYear); }, [defaultYear]);
+  const thMonthsShort = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  const chartData = Array.from({ length: 12 }, (_, i) => {
+    const mm = String(i + 1).padStart(2, "0");
+    const key = `${chartYear}-${mm}`;
+    const row: Record<string, string | number> = { month: `${thMonthsShort[i]} ${String(Number(chartYear) + 543).slice(-2)}` };
     for (const a of assets) {
-      row[a.old_code] = history.filter((h) => h.asset_id === a.id && h.opened_at?.startsWith(m)).length;
+      row[a.old_code] = history.filter((h) => h.asset_id === a.id && h.opened_at?.startsWith(key)).length;
     }
     return row;
   });
@@ -462,10 +470,20 @@ function RegularTab({
         )}
       </div>
 
-      {/* Trend chart */}
-      {chartData.length > 0 && (
+      {/* Trend chart — ครบ 12 เดือน + เลือกปี */}
+      {history.length > 0 && (
         <div className="rounded-xl border p-4">
-          <div className="text-sm font-medium mb-3">แนวโน้มรายเดือน — {tab}</div>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="text-sm font-medium">แนวโน้มรายเดือน — {tab} <span className="text-xs text-muted-foreground">(ครบ 12 เดือน)</span></div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">ปี</span>
+              <select value={chartYear} onChange={(e) => setChartYear(e.target.value)} className="h-8 rounded border bg-background px-2 text-xs">
+                {(yearsAvailable.length ? yearsAvailable : [defaultYear]).map((y) => (
+                  <option key={y} value={y}>{Number(y) + 543}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
@@ -475,7 +493,7 @@ function RegularTab({
                 <RTooltip />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 {assets.map((a) => (
-                  <Line key={a.id} type="monotone" dataKey={a.old_code} stroke={colorByAsset.get(a.id)} strokeWidth={2} dot />
+                  <Line key={a.id} type="monotone" dataKey={a.old_code} stroke={colorByAsset.get(a.id)} strokeWidth={2} dot connectNulls />
                 ))}
               </LineChart>
             </ResponsiveContainer>

@@ -683,7 +683,7 @@ function AssetHistoryScheduleControl({
   return (
     <div className="space-y-3 rounded-lg border bg-background/50 p-3">
       <div className="text-sm font-medium">Schedule Auto-Sync ประวัติ Asset</div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
         {options.map((o) => {
           const active = selected === o.id;
           return (
@@ -714,7 +714,9 @@ function AssetHistoryScheduleControl({
             onChange={(e) => setBatchLimit(Math.max(1, Math.min(2000, Number(e.target.value) || 0)))}
             className="w-32 h-9 rounded-md border bg-background px-3 text-sm"
           />
-          <div className="text-[11px] text-muted-foreground">ระบบจะดึงป้ายที่ Sync นานสุดก่อนเสมอ</div>
+          <div className="text-[11px] text-muted-foreground">
+            แนะนำ 25–50 ป้าย/รอบ (ถ้าใหญ่เกินอาจ Timeout) — ระบบจะดึงป้ายที่ Sync นานสุดก่อนเสมอ
+          </div>
         </div>
         <div className="flex gap-2 ml-auto">
           <button

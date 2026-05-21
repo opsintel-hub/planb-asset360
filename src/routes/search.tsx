@@ -1271,17 +1271,20 @@ function CalendarOverlay({
               <div className={cn("text-[10px] leading-none", isToday ? "font-semibold text-primary" : "text-muted-foreground")}>{c.day}</div>
               {c.events.length > 0 && (
                 <div className="mt-auto flex flex-col gap-0.5 overflow-hidden">
-                  {c.events.slice(0, 2).map((e) => (
-                    <span
-                      key={e.id}
-                      className="inline-flex items-center gap-1 rounded px-1 py-px text-[9px] font-medium leading-tight text-white truncate"
-                      style={{ background: typeColor(e.type) }}
-                      title={`${e.type} • ${e.asset_old_code}${e.status ? " • " + e.status : ""}`}
-                    >
-                      <span className="opacity-80 shrink-0">{e.type === "Claim" ? "C" : e.type === "PM" ? "P" : "M"}</span>
-                      <span className="truncate">{e.asset_old_code}</span>
-                    </span>
-                  ))}
+                  {c.events.slice(0, 2).map((e) => {
+                    const thDate = e.opened_at ? new Date(e.opened_at).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }) : "";
+                    return (
+                      <span
+                        key={e.id}
+                        className="inline-flex items-center gap-1 rounded px-1 py-px text-[9px] font-medium leading-tight text-white truncate"
+                        style={{ background: typeColor(e.type) }}
+                        title={`${thDate} • ${e.type} • ${e.asset_old_code}${e.status ? " • " + e.status : ""}`}
+                      >
+                        <span className="opacity-80 shrink-0">{e.type === "Claim" ? "C" : e.type === "PM" ? "P" : "M"}</span>
+                        <span className="truncate">{e.asset_old_code}</span>
+                      </span>
+                    );
+                  })}
                   {c.events.length > 2 && (
                     <span className="text-[9px] text-muted-foreground leading-none">+{c.events.length - 2}</span>
                   )}

@@ -1,9 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Shield, ShieldCheck } from "lucide-react";
+import { useState } from "react";
+import { Shield, ShieldCheck, Key } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui-bits";
-import { listUsersWithRoles, setUserRole, claimFirstAdmin, getMyRoles } from "@/lib/admin.functions";
+import {
+  listUsersWithRoles,
+  setUserRole,
+  claimFirstAdmin,
+  getMyRoles,
+  getRoleMenuPermissions,
+  setRoleMenuPermissions,
+  adminResetUserPassword,
+} from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
@@ -17,14 +26,24 @@ export const Route = createFileRoute("/permissions")({
   component: PermissionsPage,
 });
 
-const ROLES = ["admin", "manager", "technician", "viewer"] as const;
-type Role = typeof ROLES[number];
+const ROLES = ["admin", "manager", "technician", "sale"] as const;
+type Role = (typeof ROLES)[number];
+
+const MENU_LABELS: Record<string, string> = {
+  "/search": "ค้นหาประวัติป้าย",
+  "/claims": "Claim Aging",
+  "/settings": "ตั้งค่าระบบ",
+  "/permissions": "จัดการสิทธิ์ (admin เท่านั้น)",
+};
 
 function PermissionsPage() {
   const myRolesFn = useServerFn(getMyRoles);
   const listFn = useServerFn(listUsersWithRoles);
   const claimFn = useServerFn(claimFirstAdmin);
   const setFn = useServerFn(setUserRole);
+  const permsFn = useServerFn(getRoleMenuPermissions);
+  const setPermsFn = useServerFn(setRoleMenuPermissions);
+  const resetPwFn = useServerFn(adminResetUserPassword);
   const qc = useQueryClient();
 
   const myRolesQ = useQuery({ queryKey: ["my-roles"], queryFn: () => myRolesFn({}) });
@@ -36,23 +55,61 @@ function PermissionsPage() {
     enabled: isAdmin,
   });
 
+  const permsQ = useQuery({
+    queryKey: ["role-menu-perms"],
+    queryFn: () => permsFn({}),
+    enabled: isAdmin,
+  });
+
   const claimMutation = useMutation({
     mutationFn: () => claimFn({}),
-    onSuccess: () => { toast.success("คุณคือผู้ดูแลระบบคนแรกแล้ว"); qc.invalidateQueries(); },
+    onSuccess: () => {
+      toast.success("คุณคือผู้ดูแลระบบคนแรกแล้ว");
+      qc.invalidateQueries();
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const setMutation = useMutation({
     mutationFn: (v: { user_id: string; role: Role; grant: boolean }) => setFn({ data: v }),
-    onSuccess: () => { toast.success("บันทึกสิทธิ์แล้ว"); qc.invalidateQueries({ queryKey: ["users-roles"] }); },
+    onSuccess: () => {
+      toast.success("บันทึกสิทธิ์แล้ว");
+      qc.invalidateQueries({ queryKey: ["users-roles"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const setPermsMutation = useMutation({
+    mutationFn: (perms: Record<string, string[]>) => setPermsFn({ data: { permissions: perms } }),
+    onSuccess: () => {
+      toast.success("บันทึกสิทธิ์เมนูเรียบร้อย");
+      qc.invalidateQueries({ queryKey: ["role-menu-perms"] });
+      qc.invalidateQueries({ queryKey: ["my-menu-access"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const resetPwMutation = useMutation({
+    mutationFn: (v: { user_id: string; new_password: string }) => resetPwFn({ data: v }),
+    onSuccess: () => toast.success("รีเซ็ตรหัสผ่านเรียบร้อย"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const menus = permsQ.data?.menus.filter((m) => m !== "/permissions") ?? [];
+  const perms = permsQ.data?.permissions ?? {};
+
+  const togglePerm = (role: string, menu: string) => {
+    const cur = new Set(perms[role] ?? []);
+    if (cur.has(menu)) cur.delete(menu);
+    else cur.add(menu);
+    setPermsMutation.mutate({ ...perms, [role]: Array.from(cur) });
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="จัดการสิทธิ์ผู้ใช้งาน"
-        subtitle="กำหนดบทบาท Admin / Manager / Technician / Viewer ให้ผู้ใช้งาน"
+        subtitle="กำหนดบทบาท Admin / Manager / Technician / Sale และสิทธิ์การเข้าเมนู"
         actions={
           !isAdmin && !myRolesQ.isLoading ? (
             <button
@@ -71,73 +128,214 @@ function PermissionsPage() {
           คุณยังไม่มีสิทธิ์ผู้ดูแลระบบ — หากเป็นผู้ใช้งานคนแรกของระบบ คลิก "ขอเป็น Admin คนแรก" ด้านบน
         </div>
       ) : (
-        <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden">
-          {listQ.isLoading ? (
-            <div className="p-4 space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="text-left px-4 py-3">ผู้ใช้</th>
-                  <th className="text-left px-4 py-3">บทบาทปัจจุบัน</th>
-                  <th className="text-left px-4 py-3">กำหนดสิทธิ์</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {(listQ.data?.users ?? []).map((u) => (
-                  <tr key={u.user_id} className="hover:bg-accent/30">
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="size-9 rounded-full bg-primary/10 text-primary grid place-items-center font-semibold">
-                          {(u.display_name ?? u.email ?? "?")[0]?.toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-medium">{u.display_name ?? "—"}</div>
-                          <div className="text-xs text-muted-foreground">{u.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex flex-wrap gap-1.5">
-                        {u.roles.length === 0 ? (
-                          <span className="text-xs text-muted-foreground">ยังไม่มีบทบาท</span>
-                        ) : (
-                          u.roles.map((r) => (
-                            <Badge key={r} tone={r === "admin" ? "info" : "default"}>
-                              <Shield className="inline size-3 mr-1" /> {r}
-                            </Badge>
-                          ))
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex flex-wrap gap-1.5">
-                        {ROLES.map((r) => {
-                          const has = u.roles.includes(r);
-                          return (
-                            <button
-                              key={r}
-                              onClick={() => setMutation.mutate({ user_id: u.user_id, role: r, grant: !has })}
-                              disabled={setMutation.isPending}
-                              className={
-                                has
-                                  ? "rounded-md bg-primary text-primary-foreground px-2.5 py-1 text-xs font-medium hover:opacity-90 disabled:opacity-50"
-                                  : "rounded-md border bg-background px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
-                              }
-                            >
-                              {has ? `− ${r}` : `+ ${r}`}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </td>
-                  </tr>
+        <>
+          {/* Menu permissions per role */}
+          <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden">
+            <div className="px-5 py-4 border-b">
+              <h3 className="font-semibold">สิทธิ์เข้าเมนูของแต่ละบทบาท</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Admin เห็นทุกเมนูเสมอ · เลือก/ยกเลิกเมนูให้ role อื่นได้ตามต้องการ
+              </p>
+            </div>
+            {permsQ.isLoading ? (
+              <div className="p-4 space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10" />
                 ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-4 py-3">บทบาท</th>
+                    {menus.map((m) => (
+                      <th key={m} className="text-left px-4 py-3">{MENU_LABELS[m] ?? m}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  <tr className="bg-primary/5">
+                    <td className="px-4 py-3 font-medium">
+                      <Badge tone="info"><Shield className="inline size-3 mr-1" /> admin</Badge>
+                    </td>
+                    {menus.map((m) => (
+                      <td key={m} className="px-4 py-3 text-xs text-muted-foreground">✓ ทุกเมนู</td>
+                    ))}
+                  </tr>
+                  {(["manager", "technician", "sale"] as const).map((role) => (
+                    <tr key={role}>
+                      <td className="px-4 py-3 font-medium capitalize">{role}</td>
+                      {menus.map((m) => {
+                        const has = (perms[role] ?? []).includes(m);
+                        return (
+                          <td key={m} className="px-4 py-3">
+                            <label className="inline-flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={has}
+                                disabled={setPermsMutation.isPending}
+                                onChange={() => togglePerm(role, m)}
+                                className="size-4"
+                              />
+                              <span className="text-xs">{has ? "เห็น" : "ซ่อน"}</span>
+                            </label>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Users list */}
+          <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden">
+            {listQ.isLoading ? (
+              <div className="p-4 space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12" />
+                ))}
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-4 py-3">ผู้ใช้</th>
+                    <th className="text-left px-4 py-3">บทบาทปัจจุบัน</th>
+                    <th className="text-left px-4 py-3">กำหนดสิทธิ์</th>
+                    <th className="text-left px-4 py-3">รหัสผ่าน</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {(listQ.data?.users ?? []).map((u) => (
+                    <UserRow
+                      key={u.user_id}
+                      user={u}
+                      onToggleRole={(role, grant) =>
+                        setMutation.mutate({ user_id: u.user_id, role, grant })
+                      }
+                      onResetPassword={(pw) =>
+                        resetPwMutation.mutate({ user_id: u.user_id, new_password: pw })
+                      }
+                      isPending={setMutation.isPending || resetPwMutation.isPending}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
       )}
     </div>
+  );
+}
+
+function UserRow({
+  user,
+  onToggleRole,
+  onResetPassword,
+  isPending,
+}: {
+  user: { user_id: string; email: string | null; display_name: string | null; roles: string[] };
+  onToggleRole: (role: Role, grant: boolean) => void;
+  onResetPassword: (pw: string) => void;
+  isPending: boolean;
+}) {
+  const [showReset, setShowReset] = useState(false);
+  const [pw, setPw] = useState("");
+
+  return (
+    <tr className="hover:bg-accent/30 align-top">
+      <td className="px-4 py-3.5">
+        <div className="flex items-center gap-3">
+          <div className="size-9 rounded-full bg-primary/10 text-primary grid place-items-center font-semibold">
+            {(user.display_name ?? user.email ?? "?")[0]?.toUpperCase()}
+          </div>
+          <div>
+            <div className="font-medium">{user.display_name ?? "—"}</div>
+            <div className="text-xs text-muted-foreground">{user.email}</div>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-3.5">
+        <div className="flex flex-wrap gap-1.5">
+          {user.roles.length === 0 ? (
+            <span className="text-xs text-muted-foreground">ยังไม่มีบทบาท</span>
+          ) : (
+            user.roles.map((r) => (
+              <Badge key={r} tone={r === "admin" ? "info" : "default"}>
+                <Shield className="inline size-3 mr-1" /> {r}
+              </Badge>
+            ))
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-3.5">
+        <div className="flex flex-wrap gap-1.5">
+          {ROLES.map((r) => {
+            const has = user.roles.includes(r);
+            return (
+              <button
+                key={r}
+                onClick={() => onToggleRole(r, !has)}
+                disabled={isPending}
+                className={
+                  has
+                    ? "rounded-md bg-primary text-primary-foreground px-2.5 py-1 text-xs font-medium hover:opacity-90 disabled:opacity-50"
+                    : "rounded-md border bg-background px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                }
+              >
+                {has ? `− ${r}` : `+ ${r}`}
+              </button>
+            );
+          })}
+        </div>
+      </td>
+      <td className="px-4 py-3.5">
+        {!showReset ? (
+          <button
+            onClick={() => setShowReset(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2.5 py-1 text-xs font-medium hover:bg-accent"
+          >
+            <Key className="size-3" /> รีเซ็ตรหัสผ่าน
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={pw}
+              onChange={(e) => setPw(e.target.value)}
+              placeholder="รหัสใหม่ (≥8 ตัว)"
+              className="h-7 w-36 rounded border bg-background px-2 text-xs"
+            />
+            <button
+              onClick={() => {
+                if (pw.length < 8) {
+                  toast.error("รหัสต้องมีอย่างน้อย 8 ตัว");
+                  return;
+                }
+                onResetPassword(pw);
+                setShowReset(false);
+                setPw("");
+              }}
+              disabled={isPending}
+              className="rounded-md bg-primary text-primary-foreground px-2.5 py-1 text-xs hover:opacity-90 disabled:opacity-50"
+            >
+              บันทึก
+            </button>
+            <button
+              onClick={() => {
+                setShowReset(false);
+                setPw("");
+              }}
+              className="rounded-md border bg-background px-2 py-1 text-xs hover:bg-accent"
+            >
+              ยกเลิก
+            </button>
+          </div>
+        )}
+      </td>
+    </tr>
   );
 }

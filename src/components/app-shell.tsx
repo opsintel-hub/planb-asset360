@@ -1,31 +1,40 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import {
-  LayoutDashboard,
   Search,
   Settings,
   Users,
   Wrench,
-  Activity,
   Bell,
   ChevronDown,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
+import { getMyMenuAccess } from "@/lib/admin.functions";
 
-const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+const NAV_ALL = [
   { to: "/search", label: "ค้นหาประวัติป้าย", icon: Search },
   { to: "/claims", label: "Claim Aging", icon: Wrench },
-  { to: "/monitoring", label: "Monitoring", icon: Activity },
   { to: "/settings", label: "ตั้งค่าระบบ", icon: Settings },
   { to: "/permissions", label: "จัดการสิทธิ์", icon: Users },
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
+  const fn = useServerFn(getMyMenuAccess);
+  const { data } = useQuery({
+    queryKey: ["my-menu-access"],
+    queryFn: () => fn({}),
+    staleTime: 60_000,
+  });
+  const allowed = data?.allowed ?? null; // null = loading (show all so admin sees menus immediately)
+  const isAdmin = data?.isAdmin ?? false;
+  const nav = NAV_ALL.filter(
+    (n) => isAdmin || allowed === null || allowed.includes(n.to),
+  );
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Sidebar */}
       <aside
         className="w-64 shrink-0 text-sidebar-foreground flex flex-col"
         style={{ background: "var(--gradient-sidebar)" }}
@@ -50,8 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 px-3 py-4 space-y-1">
           {nav.map((item) => {
             const Icon = item.icon;
-            const active =
-              item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+            const active = pathname.startsWith(item.to);
             return (
               <Link
                 key={item.to}
@@ -85,16 +93,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="h-16 border-b bg-card/80 backdrop-blur sticky top-0 z-10 px-6 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>PlanB</span>
             <span>/</span>
             <span className="text-foreground font-medium">
-              {nav.find((n) =>
-                n.to === "/" ? pathname === "/" : pathname.startsWith(n.to),
-              )?.label ?? "Page"}
+              {nav.find((n) => pathname.startsWith(n.to))?.label ?? "Page"}
             </span>
           </div>
           <div className="flex items-center gap-3">

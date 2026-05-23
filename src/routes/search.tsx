@@ -73,6 +73,14 @@ function durationLabel(open?: string | null, close?: string | null) {
   return days === 0 ? "ภายใน 24 ชม." : `${days} วัน`;
 }
 
+// วันที่ที่ใช้จัดกลุ่มในกราฟ/Calendar/Matrix:
+// - Claim: ใช้ "วันที่เปิด" (opened_at)
+// - PM / Monitor: ใช้ "อัพเดทล่าสุด" (closed_at) ถ้ามี ไม่งั้น fallback opened_at
+function eventDate(h: { type?: string; opened_at?: string | null; closed_at?: string | null }): string | null {
+  if (h.type === "Claim") return h.opened_at ?? null;
+  return h.closed_at ?? h.opened_at ?? null;
+}
+
 // ---------- Slot Combobox ----------
 function SlotCombobox({
   value, onPick, onClear, color, department, region, mediaType,
@@ -623,7 +631,7 @@ function RegularTab({
 
   // Trend chart per asset per month — แสดงครบ 12 เดือนของปีที่เลือก
   const yearsAvailable = Array.from(new Set(
-    history.map((h) => h.opened_at?.slice(0, 4)).filter(Boolean) as string[]
+    history.map((h) => eventDate(h)?.slice(0, 4)).filter(Boolean) as string[]
   )).sort();
   const defaultYear = yearsAvailable[yearsAvailable.length - 1] ?? String(new Date().getFullYear());
   const [chartYear, setChartYear] = useState(defaultYear);
@@ -634,7 +642,7 @@ function RegularTab({
     const key = `${chartYear}-${mm}`;
     const row: Record<string, string | number> = { month: `${thMonthsShort[i]} ${String(Number(chartYear) + 543).slice(-2)}` };
     for (const a of assets) {
-      row[a.old_code] = history.filter((h) => h.asset_id === a.id && h.opened_at?.startsWith(key)).length;
+      row[a.old_code] = history.filter((h) => h.asset_id === a.id && eventDate(h)?.startsWith(key)).length;
     }
     return row;
   });
@@ -738,12 +746,16 @@ function AssetHealthTab({
   const keyLen = gran === "month" ? 7 : 4;
   const [openCell, setOpenCell] = useState<{ assetId: string; type: "PM" | "Claim" | "Monitor"; mo: number } | null>(null);
 
-  // Per-asset metrics
+  // Per-asset metrics — Claim ใช้ opened_at, PM/Monitor ใช้ closed_at (อัพเดทล่าสุด)
   const perAsset = assets.map((a) => {
     const ph = history.filter((h) => h.asset_id === a.id);
-    const claims = ph.filter((h) => h.type === "Claim").map((h) => h.opened_at ? new Date(h.opened_at).getTime() : 0).filter(Boolean).sort((x, y) => x - y);
-    const pms = ph.filter((h) => h.type === "PM").map((h) => h.opened_at ? new Date(h.opened_at).getTime() : 0).filter(Boolean).sort((x, y) => x - y);
-    const mons = ph.filter((h) => h.type === "Monitor").map((h) => h.opened_at ? new Date(h.opened_at).getTime() : 0).filter(Boolean).sort((x, y) => x - y);
+    const toTs = (xs: HistRow[]) => xs.map((h) => {
+      const d = eventDate(h);
+      return d ? new Date(d).getTime() : 0;
+    }).filter(Boolean).sort((x, y) => x - y);
+    const claims = toTs(ph.filter((h) => h.type === "Claim"));
+    const pms = toTs(ph.filter((h) => h.type === "PM"));
+    const mons = toTs(ph.filter((h) => h.type === "Monitor"));
     const avg = (xs: number[]) => {
       const diffs: number[] = []; for (let i = 1; i < xs.length; i++) diffs.push((xs[i] - xs[i - 1]) / 86_400_000);
       return diffs.length ? diffs.reduce((s, n) => s + n, 0) / diffs.length : 0;
@@ -765,10 +777,10 @@ function AssetHealthTab({
     return `${thMonthsShort[Number(mo) - 1]} ${String(Number(y) + 543).slice(-2)}`;
   };
   const buckets = new Set<string>();
-  history.forEach((h) => { if (h.opened_at) buckets.add(h.opened_at.slice(0, keyLen)); });
+  history.forEach((h) => { const d = eventDate(h); if (d) buckets.add(d.slice(0, keyLen)); });
   const bucketLabels = Array.from(buckets).sort();
   const chartData = bucketLabels.map((m) => {
-    const inBucket = history.filter((h) => h.opened_at?.startsWith(m));
+    const inBucket = history.filter((h) => eventDate(h)?.startsWith(m));
     return {
       bucket: fmtBucket(m),
       PM: sel.PM ? inBucket.filter((h) => h.type === "PM").length : 0,
@@ -855,14 +867,15 @@ function AssetHealthTab({
         {perAsset.map((p) => {
           const ph = history.filter((h) => h.asset_id === p.asset.id);
           // pick most recent year with data, fallback current year
-          const years = Array.from(new Set(ph.map((h) => h.opened_at?.slice(0, 4)).filter(Boolean))) as string[];
+          const years = Array.from(new Set(ph.map((h) => eventDate(h)?.slice(0, 4)).filter(Boolean))) as string[];
           const matrixYear = years.sort().pop() ?? String(new Date().getFullYear());
           const matrix: Record<"PM" | "Claim" | "Monitor", number[]> = {
             PM: Array(12).fill(0), Claim: Array(12).fill(0), Monitor: Array(12).fill(0),
           };
           ph.forEach((h) => {
-            if (!h.opened_at?.startsWith(matrixYear)) return;
-            const mo = Number(h.opened_at.slice(5, 7)) - 1;
+            const d = eventDate(h);
+            if (!d?.startsWith(matrixYear)) return;
+            const mo = Number(d.slice(5, 7)) - 1;
             if (mo >= 0 && mo < 12 && (h.type === "PM" || h.type === "Claim" || h.type === "Monitor")) {
               matrix[h.type as "PM" | "Claim" | "Monitor"][mo]++;
             }
@@ -1040,8 +1053,8 @@ function AssetHealthTab({
                     const mm = String(openCell.mo + 1).padStart(2, "0");
                     const prefix = `${matrixYear}-${mm}`;
                     const items = ph
-                      .filter((h) => h.type === openCell.type && h.opened_at?.startsWith(prefix))
-                      .sort((a, b) => (a.opened_at < b.opened_at ? -1 : 1));
+                      .filter((h) => h.type === openCell.type && eventDate(h)?.startsWith(prefix))
+                      .sort((a, b) => ((eventDate(a) ?? "") < (eventDate(b) ?? "") ? -1 : 1));
                     return (
                       <div className="mt-3 rounded-lg border bg-muted/20 p-3">
                         <div className="flex items-center justify-between mb-2">
@@ -1344,11 +1357,11 @@ function CalendarOverlay({
   // ===== Year view =====
   if (gran === "year") {
     const yearKey = String(year);
-    const yearEvents = history.filter((h) => h.opened_at?.startsWith(yearKey));
+    const yearEvents = history.filter((h) => eventDate(h)?.startsWith(yearKey));
     const buddhistYear = year + 543;
     const months = Array.from({ length: 12 }, (_, m) => {
       const mk = `${year}-${String(m + 1).padStart(2, "0")}`;
-      const evs = yearEvents.filter((h) => h.opened_at?.startsWith(mk));
+      const evs = yearEvents.filter((h) => eventDate(h)?.startsWith(mk));
       const pm = evs.filter((e) => e.type === "PM").length;
       const claim = evs.filter((e) => e.type === "Claim").length;
       const monitor = evs.filter((e) => e.type === "Monitor").length;
@@ -1432,14 +1445,14 @@ function CalendarOverlay({
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const monthLabel = cursor.toLocaleDateString("th-TH", { year: "numeric", month: "long" });
   const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
-  const monthEvents = history.filter((h) => h.opened_at?.startsWith(monthKey));
+  const monthEvents = history.filter((h) => eventDate(h)?.startsWith(monthKey));
   const todayKey = new Date().toISOString().slice(0, 10);
 
   const cells: { date: string | null; day: number | null; events: HistRow[] }[] = [];
   for (let i = 0; i < firstDow; i++) cells.push({ date: null, day: null, events: [] });
   for (let d = 1; d <= daysInMonth; d++) {
     const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    cells.push({ date: key, day: d, events: monthEvents.filter((h) => h.opened_at?.slice(0, 10) === key) });
+    cells.push({ date: key, day: d, events: monthEvents.filter((h) => eventDate(h)?.slice(0, 10) === key) });
   }
   while (cells.length % 7 !== 0) cells.push({ date: null, day: null, events: [] });
 

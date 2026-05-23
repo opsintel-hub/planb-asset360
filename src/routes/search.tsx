@@ -631,7 +631,7 @@ function RegularTab({
 
   // Trend chart per asset per month — แสดงครบ 12 เดือนของปีที่เลือก
   const yearsAvailable = Array.from(new Set(
-    history.map((h) => h.opened_at?.slice(0, 4)).filter(Boolean) as string[]
+    history.map((h) => eventDate(h)?.slice(0, 4)).filter(Boolean) as string[]
   )).sort();
   const defaultYear = yearsAvailable[yearsAvailable.length - 1] ?? String(new Date().getFullYear());
   const [chartYear, setChartYear] = useState(defaultYear);
@@ -642,7 +642,7 @@ function RegularTab({
     const key = `${chartYear}-${mm}`;
     const row: Record<string, string | number> = { month: `${thMonthsShort[i]} ${String(Number(chartYear) + 543).slice(-2)}` };
     for (const a of assets) {
-      row[a.old_code] = history.filter((h) => h.asset_id === a.id && h.opened_at?.startsWith(key)).length;
+      row[a.old_code] = history.filter((h) => h.asset_id === a.id && eventDate(h)?.startsWith(key)).length;
     }
     return row;
   });

@@ -746,12 +746,16 @@ function AssetHealthTab({
   const keyLen = gran === "month" ? 7 : 4;
   const [openCell, setOpenCell] = useState<{ assetId: string; type: "PM" | "Claim" | "Monitor"; mo: number } | null>(null);
 
-  // Per-asset metrics
+  // Per-asset metrics — Claim ใช้ opened_at, PM/Monitor ใช้ closed_at (อัพเดทล่าสุด)
   const perAsset = assets.map((a) => {
     const ph = history.filter((h) => h.asset_id === a.id);
-    const claims = ph.filter((h) => h.type === "Claim").map((h) => h.opened_at ? new Date(h.opened_at).getTime() : 0).filter(Boolean).sort((x, y) => x - y);
-    const pms = ph.filter((h) => h.type === "PM").map((h) => h.opened_at ? new Date(h.opened_at).getTime() : 0).filter(Boolean).sort((x, y) => x - y);
-    const mons = ph.filter((h) => h.type === "Monitor").map((h) => h.opened_at ? new Date(h.opened_at).getTime() : 0).filter(Boolean).sort((x, y) => x - y);
+    const toTs = (xs: HistRow[]) => xs.map((h) => {
+      const d = eventDate(h);
+      return d ? new Date(d).getTime() : 0;
+    }).filter(Boolean).sort((x, y) => x - y);
+    const claims = toTs(ph.filter((h) => h.type === "Claim"));
+    const pms = toTs(ph.filter((h) => h.type === "PM"));
+    const mons = toTs(ph.filter((h) => h.type === "Monitor"));
     const avg = (xs: number[]) => {
       const diffs: number[] = []; for (let i = 1; i < xs.length; i++) diffs.push((xs[i] - xs[i - 1]) / 86_400_000);
       return diffs.length ? diffs.reduce((s, n) => s + n, 0) / diffs.length : 0;
@@ -773,10 +777,10 @@ function AssetHealthTab({
     return `${thMonthsShort[Number(mo) - 1]} ${String(Number(y) + 543).slice(-2)}`;
   };
   const buckets = new Set<string>();
-  history.forEach((h) => { if (h.opened_at) buckets.add(h.opened_at.slice(0, keyLen)); });
+  history.forEach((h) => { const d = eventDate(h); if (d) buckets.add(d.slice(0, keyLen)); });
   const bucketLabels = Array.from(buckets).sort();
   const chartData = bucketLabels.map((m) => {
-    const inBucket = history.filter((h) => h.opened_at?.startsWith(m));
+    const inBucket = history.filter((h) => eventDate(h)?.startsWith(m));
     return {
       bucket: fmtBucket(m),
       PM: sel.PM ? inBucket.filter((h) => h.type === "PM").length : 0,

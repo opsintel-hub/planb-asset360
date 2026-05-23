@@ -867,14 +867,15 @@ function AssetHealthTab({
         {perAsset.map((p) => {
           const ph = history.filter((h) => h.asset_id === p.asset.id);
           // pick most recent year with data, fallback current year
-          const years = Array.from(new Set(ph.map((h) => h.opened_at?.slice(0, 4)).filter(Boolean))) as string[];
+          const years = Array.from(new Set(ph.map((h) => eventDate(h)?.slice(0, 4)).filter(Boolean))) as string[];
           const matrixYear = years.sort().pop() ?? String(new Date().getFullYear());
           const matrix: Record<"PM" | "Claim" | "Monitor", number[]> = {
             PM: Array(12).fill(0), Claim: Array(12).fill(0), Monitor: Array(12).fill(0),
           };
           ph.forEach((h) => {
-            if (!h.opened_at?.startsWith(matrixYear)) return;
-            const mo = Number(h.opened_at.slice(5, 7)) - 1;
+            const d = eventDate(h);
+            if (!d?.startsWith(matrixYear)) return;
+            const mo = Number(d.slice(5, 7)) - 1;
             if (mo >= 0 && mo < 12 && (h.type === "PM" || h.type === "Claim" || h.type === "Monitor")) {
               matrix[h.type as "PM" | "Claim" | "Monitor"][mo]++;
             }

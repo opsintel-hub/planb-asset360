@@ -1357,11 +1357,11 @@ function CalendarOverlay({
   // ===== Year view =====
   if (gran === "year") {
     const yearKey = String(year);
-    const yearEvents = history.filter((h) => h.opened_at?.startsWith(yearKey));
+    const yearEvents = history.filter((h) => eventDate(h)?.startsWith(yearKey));
     const buddhistYear = year + 543;
     const months = Array.from({ length: 12 }, (_, m) => {
       const mk = `${year}-${String(m + 1).padStart(2, "0")}`;
-      const evs = yearEvents.filter((h) => h.opened_at?.startsWith(mk));
+      const evs = yearEvents.filter((h) => eventDate(h)?.startsWith(mk));
       const pm = evs.filter((e) => e.type === "PM").length;
       const claim = evs.filter((e) => e.type === "Claim").length;
       const monitor = evs.filter((e) => e.type === "Monitor").length;

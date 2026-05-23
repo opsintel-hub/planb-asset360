@@ -73,6 +73,14 @@ function durationLabel(open?: string | null, close?: string | null) {
   return days === 0 ? "ภายใน 24 ชม." : `${days} วัน`;
 }
 
+// วันที่ที่ใช้จัดกลุ่มในกราฟ/Calendar/Matrix:
+// - Claim: ใช้ "วันที่เปิด" (opened_at)
+// - PM / Monitor: ใช้ "อัพเดทล่าสุด" (closed_at) ถ้ามี ไม่งั้น fallback opened_at
+function eventDate(h: { type?: string; opened_at?: string | null; closed_at?: string | null }): string | null {
+  if (h.type === "Claim") return h.opened_at ?? null;
+  return h.closed_at ?? h.opened_at ?? null;
+}
+
 // ---------- Slot Combobox ----------
 function SlotCombobox({
   value, onPick, onClear, color, department, region, mediaType,

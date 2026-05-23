@@ -135,6 +135,87 @@ export const getMyRoles = createServerFn({ method: "GET" })
     return { roles: (data ?? []).map((r) => r.role as string) };
   });
 
+// ---------- Menu access ----------
+const ALL_MENUS = ["/search", "/claims", "/settings", "/permissions"];
+
+export const getMyMenuAccess = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: rolesData } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    const roles = (rolesData ?? []).map((r) => r.role as string);
+    const isAdmin = roles.includes("admin");
+    if (isAdmin) return { isAdmin: true, roles, allowed: ALL_MENUS };
+
+    const { data: setting } = await supabaseAdmin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "role_menu_permissions")
+      .maybeSingle();
+    const perms = (setting?.value ?? {}) as Record<string, string[]>;
+    const allowed = new Set<string>();
+    for (const r of roles) for (const m of perms[r] ?? []) allowed.add(m);
+    // จัดการสิทธิ์ เห็นเฉพาะ admin เท่านั้น
+    allowed.delete("/permissions");
+    return { isAdmin: false, roles, allowed: Array.from(allowed) };
+  });
+
+export const getRoleMenuPermissions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "role_menu_permissions")
+      .maybeSingle();
+    return {
+      permissions: (data?.value ?? {}) as Record<string, string[]>,
+      menus: ALL_MENUS,
+    };
+  });
+
+export const setRoleMenuPermissions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        permissions: z.record(z.string(), z.array(z.string())),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { error } = await supabaseAdmin.from("app_settings").upsert({
+      key: "role_menu_permissions",
+      value: data.permissions,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const adminResetUserPassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        user_id: z.string().uuid(),
+        new_password: z.string().min(8).max(100),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(data.user_id, {
+      password: data.new_password,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 // ---------- Sync ----------
 export const syncClaimsNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

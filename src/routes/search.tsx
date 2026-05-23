@@ -1053,8 +1053,8 @@ function AssetHealthTab({
                     const mm = String(openCell.mo + 1).padStart(2, "0");
                     const prefix = `${matrixYear}-${mm}`;
                     const items = ph
-                      .filter((h) => h.type === openCell.type && h.opened_at?.startsWith(prefix))
-                      .sort((a, b) => (a.opened_at < b.opened_at ? -1 : 1));
+                      .filter((h) => h.type === openCell.type && eventDate(h)?.startsWith(prefix))
+                      .sort((a, b) => ((eventDate(a) ?? "") < (eventDate(b) ?? "") ? -1 : 1));
                     return (
                       <div className="mt-3 rounded-lg border bg-muted/20 p-3">
                         <div className="flex items-center justify-between mb-2">

@@ -1445,14 +1445,14 @@ function CalendarOverlay({
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const monthLabel = cursor.toLocaleDateString("th-TH", { year: "numeric", month: "long" });
   const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
-  const monthEvents = history.filter((h) => h.opened_at?.startsWith(monthKey));
+  const monthEvents = history.filter((h) => eventDate(h)?.startsWith(monthKey));
   const todayKey = new Date().toISOString().slice(0, 10);
 
   const cells: { date: string | null; day: number | null; events: HistRow[] }[] = [];
   for (let i = 0; i < firstDow; i++) cells.push({ date: null, day: null, events: [] });
   for (let d = 1; d <= daysInMonth; d++) {
     const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    cells.push({ date: key, day: d, events: monthEvents.filter((h) => h.opened_at?.slice(0, 10) === key) });
+    cells.push({ date: key, day: d, events: monthEvents.filter((h) => eventDate(h)?.slice(0, 10) === key) });
   }
   while (cells.length % 7 !== 0) cells.push({ date: null, day: null, events: [] });
 

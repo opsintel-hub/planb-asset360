@@ -528,9 +528,8 @@ export const getAssetProfile = createServerFn({ method: "POST" })
       months.push({ key, label: `${th[d.getMonth()]} ${String(d.getFullYear() + 543).slice(-2)}` });
     }
 
-    type ClaimRow = { asset_old_code: string | null; severity: string | null; sla_status: string | null; title: string | null; opened_at: string | null; payload: unknown };
-    const claimByCode = new Map<string, ClaimRow>();
-    for (const c of (claims ?? []) as ClaimRow[]) {
+    const claimByCode = new Map<string, { asset_old_code: string | null; severity: string | null; sla_status: string | null; title: string | null; opened_at: string | null; payload: unknown }>();
+    for (const c of (claims ?? [])) {
       if (c.asset_old_code) claimByCode.set(c.asset_old_code, c);
     }
 

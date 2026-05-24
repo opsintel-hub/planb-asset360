@@ -1580,7 +1580,7 @@ function ProfileTab({ profiles }: { profiles: ProfileItem[] }) {
 }
 
 function ProfileCard({ p }: { p: ProfileItem }) {
-  const payload = p.asset.payload ?? {};
+  const payload = (p.asset.payload && typeof p.asset.payload === "object" ? p.asset.payload : {}) as Record<string, unknown>;
   const fields: Array<{ k: string; v: string }> = [];
   const seen = new Set<string>(["OldCode"]);
   for (const k of PROFILE_FIELD_ORDER) {

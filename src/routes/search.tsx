@@ -1550,7 +1550,7 @@ type ProfileItem = {
     id: string; old_code: string; name: string | null;
     department: string | null; area: string | null; status: string | null;
     latitude: number | null; longitude: number | null;
-    payload: Record<string, unknown> | null;
+    payload: unknown;
   };
   status: string;
   statusTone: "ok" | "warning" | "danger";

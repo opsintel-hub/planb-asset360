@@ -504,7 +504,8 @@ export const getAssetProfile = createServerFn({ method: "POST" })
       supabase
         .from("claims")
         .select("asset_old_code, severity, sla_status, title, opened_at, payload")
-        .in("asset_old_code", data.oldCodes),
+        .in("asset_old_code", data.oldCodes)
+        .order("opened_at", { ascending: false }),
     ]);
     const list = assets ?? [];
     const ids = list.map((a) => a.id);

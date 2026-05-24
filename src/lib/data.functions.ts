@@ -531,7 +531,7 @@ export const getAssetProfile = createServerFn({ method: "POST" })
 
     const claimByCode = new Map<string, { asset_old_code: string | null; severity: string | null; sla_status: string | null; title: string | null; opened_at: string | null; payload: unknown }>();
     for (const c of (claims ?? [])) {
-      if (c.asset_old_code) claimByCode.set(c.asset_old_code, c);
+      if (c.asset_old_code && !claimByCode.has(c.asset_old_code)) claimByCode.set(c.asset_old_code, c);
     }
 
     const profiles = list.map((a) => {

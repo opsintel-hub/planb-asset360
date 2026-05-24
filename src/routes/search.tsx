@@ -1543,3 +1543,175 @@ function CalendarOverlay({
     </div>
   );
 }
+
+// ============ Profile Tab ============
+type ProfileItem = {
+  asset: {
+    id: string; old_code: string; name: string | null;
+    department: string | null; area: string | null; status: string | null;
+    latitude: number | null; longitude: number | null;
+    payload: Record<string, unknown> | null;
+  };
+  status: string;
+  statusTone: "ok" | "warning" | "danger";
+  claim: { title: string | null; severity: string | null; sla_status: string | null; opened_at: string | null } | null;
+  lat: number | null;
+  lng: number | null;
+  monthly: Array<{ month: string; PM: number; Claim: number }>;
+};
+
+const PROFILE_FIELD_ORDER = [
+  "OldCode", "EquipmentID", "Description", "Location", "District", "Territory",
+  "Region", "BKKUPC", "Department", "MediaType", "MediaClass", "MediaSegment",
+  "RoutePM", "RouteMonitoring", "RouteReportPhoto", "RouteInstallAndDemolish",
+  "TargetMonitoring", "Extra_1", "Extra_2", "Extra_3",
+  "CreatedDateTime", "UpdatedDateTime",
+];
+
+function ProfileTab({ profiles }: { profiles: ProfileItem[] }) {
+  if (!profiles.length) {
+    return <div className="py-10 text-center text-sm text-muted-foreground">ไม่พบข้อมูลป้าย</div>;
+  }
+  return (
+    <div className="space-y-8">
+      {profiles.map((p) => <ProfileCard key={p.asset.id} p={p} />)}
+    </div>
+  );
+}
+
+function ProfileCard({ p }: { p: ProfileItem }) {
+  const payload = p.asset.payload ?? {};
+  const fields: Array<{ k: string; v: string }> = [];
+  const seen = new Set<string>(["OldCode"]);
+  for (const k of PROFILE_FIELD_ORDER) {
+    if (k === "OldCode") continue;
+    const v = (payload as Record<string, unknown>)[k];
+    if (v == null || v === "") continue;
+    fields.push({ k, v: String(v) });
+    seen.add(k);
+  }
+  for (const k of Object.keys(payload)) {
+    if (seen.has(k)) continue;
+    const v = (payload as Record<string, unknown>)[k];
+    if (v == null || v === "" || typeof v === "object") continue;
+    fields.push({ k, v: String(v) });
+  }
+
+  const toneCls =
+    p.statusTone === "ok" ? "bg-emerald-100 text-emerald-700 border-emerald-300"
+    : p.statusTone === "danger" ? "bg-red-100 text-red-700 border-red-300"
+    : "bg-amber-100 text-amber-800 border-amber-300";
+
+  const totalPM = p.monthly.reduce((s, m) => s + m.PM, 0);
+  const totalClaim = p.monthly.reduce((s, m) => s + m.Claim, 0);
+
+  const mapSrc = p.lat != null && p.lng != null
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${p.lng - 0.005},${p.lat - 0.005},${p.lng + 0.005},${p.lat + 0.005}&layer=mapnik&marker=${p.lat},${p.lng}`
+    : null;
+
+  return (
+    <div className="rounded-xl border bg-card overflow-hidden">
+      {/* Header — Old Code most prominent + status */}
+      <div className="px-5 py-4 border-b bg-gradient-to-r from-primary/5 to-transparent flex items-center gap-4 flex-wrap">
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Old Code</div>
+          <div className="font-mono text-3xl font-bold tracking-tight text-primary">{p.asset.old_code}</div>
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <div className="text-sm font-medium truncate">{p.asset.name ?? "—"}</div>
+          <div className="text-xs text-muted-foreground truncate">
+            {[p.asset.department, p.asset.area].filter(Boolean).join(" · ") || "—"}
+          </div>
+        </div>
+        <span className={cn("inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full border", toneCls)}>
+          <span className="size-2 rounded-full bg-current opacity-70" />
+          {p.status}
+        </span>
+      </div>
+
+      {/* Field grid */}
+      <div className="p-5 grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 border-b">
+        {fields.map((f) => (
+          <div key={f.k} className="min-w-0">
+            <div className="text-[11px] uppercase text-muted-foreground tracking-wide">{f.k}</div>
+            <div className="text-sm break-words">{f.v}</div>
+          </div>
+        ))}
+        {fields.length === 0 && (
+          <div className="text-sm text-muted-foreground col-span-full">ไม่มีข้อมูลเพิ่มเติม</div>
+        )}
+      </div>
+
+      {/* Monthly counts */}
+      <div className="p-5 grid gap-4 lg:grid-cols-2 border-b">
+        <div className="rounded-lg border p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium">PM ย้อนหลัง 12 เดือน</div>
+            <div className="text-xs text-muted-foreground">รวม {totalPM} ครั้ง</div>
+          </div>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={p.monthly}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0 0)" />
+                <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                <RTooltip />
+                <Bar dataKey="PM" fill={TYPE_COLOR.PM} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div className="rounded-lg border p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium">Claim ย้อนหลัง 12 เดือน</div>
+            <div className="text-xs text-muted-foreground">รวม {totalClaim} ครั้ง</div>
+          </div>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={p.monthly}>
+                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0 0)" />
+                <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                <RTooltip />
+                <Bar dataKey="Claim" fill={TYPE_COLOR.Claim} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Map */}
+      <div className="p-5">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-sm font-medium inline-flex items-center gap-2">
+            <MapPin className="size-4" /> ตำแหน่งป้าย
+          </div>
+          {p.lat != null && p.lng != null && (
+            <a
+              href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
+              target="_blank" rel="noreferrer"
+              className="text-xs text-primary hover:underline"
+            >
+              เปิดใน Google Maps ↗
+            </a>
+          )}
+        </div>
+        {mapSrc ? (
+          <div className="rounded-lg overflow-hidden border h-80">
+            <iframe
+              key={`${p.lat},${p.lng}`}
+              title={`map-${p.asset.old_code}`}
+              src={mapSrc}
+              className="w-full h-full"
+              loading="lazy"
+            />
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-muted/30 h-40 grid place-items-center text-sm text-muted-foreground">
+            ไม่มีข้อมูลพิกัด (latitude/longitude)
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

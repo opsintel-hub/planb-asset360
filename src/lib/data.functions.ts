@@ -487,3 +487,92 @@ export const getSchemaStatus = createServerFn({ method: "GET" })
       hasData: currentKeys.length > 0,
     };
   });
+
+// ---------- Asset Profile (for Profile tab in Search) ----------
+export const getAssetProfile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z.object({ oldCodes: z.array(z.string().min(1).max(100)).min(1).max(5) }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const [{ data: assets }, { data: claims }] = await Promise.all([
+      supabase
+        .from("assets")
+        .select("id, old_code, name, department, area, status, latitude, longitude, payload")
+        .in("old_code", data.oldCodes),
+      supabase
+        .from("claims")
+        .select("asset_old_code, severity, sla_status, title, opened_at, payload")
+        .in("asset_old_code", data.oldCodes),
+    ]);
+    const list = assets ?? [];
+    const ids = list.map((a) => a.id);
+    const now = new Date();
+    const since = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const histRes = ids.length
+      ? await supabase
+          .from("asset_history")
+          .select("asset_id, type, opened_at, closed_at")
+          .in("asset_id", ids)
+          .in("type", ["PM", "Claim"])
+          .gte("opened_at", since.toISOString())
+      : { data: [] as Array<{ asset_id: string | null; type: string; opened_at: string | null; closed_at: string | null }> };
+    const hist = histRes.data ?? [];
+
+    const th = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+    const months: { key: string; label: string }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      months.push({ key, label: `${th[d.getMonth()]} ${String(d.getFullYear() + 543).slice(-2)}` });
+    }
+
+    type ClaimRow = { asset_old_code: string | null; severity: string | null; sla_status: string | null; title: string | null; opened_at: string | null; payload: unknown };
+    const claimByCode = new Map<string, ClaimRow>();
+    for (const c of (claims ?? []) as ClaimRow[]) {
+      if (c.asset_old_code) claimByCode.set(c.asset_old_code, c);
+    }
+
+    const profiles = list.map((a) => {
+      const claim = claimByCode.get(a.old_code) ?? null;
+      let status: string;
+      let statusTone: "ok" | "warning" | "danger";
+      if (!claim) {
+        status = "เปิดใช้งานปกติ";
+        statusTone = "ok";
+      } else {
+        const sev = (claim.severity ?? "").toString().trim();
+        status = sev || "อยู่ระหว่างการปรับปรุง";
+        statusTone = /finish|approved|closed|done|ok/i.test(sev) ? "ok" : "warning";
+      }
+      let lat: number | null = a.latitude != null ? Number(a.latitude) : null;
+      let lng: number | null = a.longitude != null ? Number(a.longitude) : null;
+      if ((lat == null || lng == null) && claim) {
+        const p = claim.payload as Record<string, unknown> | null;
+        const ll = (p?.latitudeLongitude ?? p?.LatitudeLongitude) as string | undefined;
+        if (typeof ll === "string" && ll.includes(",")) {
+          const [a1, a2] = ll.split(",").map((x) => Number(x.trim()));
+          if (Number.isFinite(a1) && Number.isFinite(a2)) { lat = a1; lng = a2; }
+        }
+      }
+      const counts = { PM: Array(12).fill(0) as number[], Claim: Array(12).fill(0) as number[] };
+      for (const h of hist) {
+        if (h.asset_id !== a.id) continue;
+        const d = h.type === "Claim" ? h.opened_at : (h.closed_at ?? h.opened_at);
+        if (!d) continue;
+        const key = String(d).slice(0, 7);
+        const idx = months.findIndex((m) => m.key === key);
+        if (idx >= 0 && (h.type === "PM" || h.type === "Claim")) counts[h.type as "PM" | "Claim"][idx]++;
+      }
+      return {
+        asset: a,
+        status,
+        statusTone,
+        claim: claim ? { title: claim.title, severity: claim.severity, sla_status: claim.sla_status, opened_at: claim.opened_at } : null,
+        lat, lng,
+        monthly: months.map((m, i) => ({ month: m.label, PM: counts.PM[i], Claim: counts.Claim[i] })),
+      };
+    });
+    return { profiles };
+  });

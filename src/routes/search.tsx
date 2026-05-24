@@ -4,14 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Search, RefreshCw, MapPin, Building2, X, Plus, ChevronDown,
-  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon,
+  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
-import { autocompleteAssets, getAssetsComparison, getFilterOptions } from "@/lib/data.functions";
+import { autocompleteAssets, getAssetsComparison, getFilterOptions, getAssetProfile } from "@/lib/data.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
@@ -26,6 +26,7 @@ export const Route = createFileRoute("/search")({
 });
 
 const TABS = [
+  { id: "Profile", label: "Profile", icon: IdCard },
   { id: "PM", label: "PM", icon: Wrench },
   { id: "Claim", label: "Claim", icon: AlertCircle },
   { id: "Monitor", label: "Monitoring", icon: Eye },

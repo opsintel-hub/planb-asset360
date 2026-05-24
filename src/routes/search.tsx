@@ -374,6 +374,12 @@ function SearchPage() {
             <div className="py-16 text-center text-sm text-muted-foreground">
               เริ่มต้นด้วยการเลือกป้ายโฆษณาจากช่องค้นหาด้านบน
             </div>
+          ) : tab === "Profile" ? (
+            profileFetching && !profileData ? (
+              <div className="space-y-3"><Skeleton className="h-64" /><Skeleton className="h-64" /></div>
+            ) : (
+              <ProfileTab profiles={profileData?.profiles ?? []} />
+            )
           ) : isFetching && !data ? (
             <div className="space-y-3"><Skeleton className="h-24" /><Skeleton className="h-64" /></div>
           ) : tab === "AssetHealth" ? (
@@ -385,7 +391,7 @@ function SearchPage() {
             />
           ) : (
             <RegularTab
-              tab={tab} assets={assets} history={history} colorByAsset={colorByAsset}
+              tab={tab as "PM" | "Claim" | "Monitor"} assets={assets} history={history} colorByAsset={colorByAsset}
               page={page} setPage={setPage} pageSize={pageSize} setPageSize={setPageSize}
             />
           )}

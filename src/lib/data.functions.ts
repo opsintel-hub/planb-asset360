@@ -504,7 +504,8 @@ export const getAssetProfile = createServerFn({ method: "POST" })
       supabase
         .from("claims")
         .select("asset_old_code, severity, sla_status, title, opened_at, payload")
-        .in("asset_old_code", data.oldCodes),
+        .in("asset_old_code", data.oldCodes)
+        .order("opened_at", { ascending: false }),
     ]);
     const list = assets ?? [];
     const ids = list.map((a) => a.id);
@@ -530,7 +531,7 @@ export const getAssetProfile = createServerFn({ method: "POST" })
 
     const claimByCode = new Map<string, { asset_old_code: string | null; severity: string | null; sla_status: string | null; title: string | null; opened_at: string | null; payload: unknown }>();
     for (const c of (claims ?? [])) {
-      if (c.asset_old_code) claimByCode.set(c.asset_old_code, c);
+      if (c.asset_old_code && !claimByCode.has(c.asset_old_code)) claimByCode.set(c.asset_old_code, c);
     }
 
     const profiles = list.map((a) => {

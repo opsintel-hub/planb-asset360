@@ -66,7 +66,6 @@ export async function runClaimSync() {
       const sla = ageHours == null ? null : ageHours < 24 ? "ontrack" : ageHours < 72 ? "atrisk" : "breached";
       const oldCode = (item.oldCode ?? item.assetCode ?? item.AssetCode ?? null) as string | null;
       const title = (item.informDetail ?? item.title ?? item.subject ?? item.description ?? item.location ?? null) as string | null;
-      if (!oldCode) continue; // upsert key is now asset_old_code
       await supabaseAdmin.from("claims").upsert(
         {
           ticket_code: ticketCode,
@@ -79,7 +78,7 @@ export async function runClaimSync() {
           payload: item as never,
           synced_at: new Date().toISOString(),
         },
-        { onConflict: "asset_old_code" },
+        { onConflict: "ticket_code" },
       );
       n++;
     }

@@ -155,7 +155,7 @@ function SlotCombobox({
 // ---------- Page ----------
 function SearchPage() {
   const [slots, setSlots] = useState<(string | null)[]>([null]);
-  const [tab, setTab] = useState<TabId>("PM");
+  const [tab, setTab] = useState<TabId>("Profile");
   const [from, setFrom] = useState("2026-01-01");
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [dept, setDept] = useState("");
@@ -180,6 +180,7 @@ function SearchPage() {
 
   const cmpFn = useServerFn(getAssetsComparison);
   const filterFn = useServerFn(getFilterOptions);
+  const profileFn = useServerFn(getAssetProfile);
   const { data: globalFilters } = useQuery({
     queryKey: ["global-filter-options"],
     queryFn: () => filterFn(),
@@ -190,7 +191,7 @@ function SearchPage() {
     queryFn: () => cmpFn({
       data: {
         oldCodes: codes,
-        tab,
+        tab: tab as "PM" | "Claim" | "Monitor" | "AssetHealth",
         from: fromIso,
         to: toIso,
         department: dept || undefined,
@@ -198,7 +199,12 @@ function SearchPage() {
         mediaType: mediaType || undefined,
       },
     }),
-    enabled: codes.length > 0,
+    enabled: codes.length > 0 && tab !== "Profile",
+  });
+  const { data: profileData, isFetching: profileFetching } = useQuery({
+    queryKey: ["asset-profile", codes.join(",")],
+    queryFn: () => profileFn({ data: { oldCodes: codes } }),
+    enabled: codes.length > 0 && tab === "Profile",
   });
 
   // persist recent

@@ -188,12 +188,14 @@ function SearchPage() {
     queryFn: () => filterFn(),
     staleTime: 5 * 60_000,
   });
+  const cmpTabForBackend: "PM" | "Claim" | "Monitor" | "AssetHealth" =
+    tab === "Profile" ? "PM" : tab === "Breakdown" ? "Claim" : tab;
   const { data, isFetching, refetch } = useQuery({
-    queryKey: ["comparison", codes.join(","), tab, fromIso, toIso, dept, region, mediaType],
+    queryKey: ["comparison", codes.join(","), cmpTabForBackend, fromIso, toIso, dept, region, mediaType],
     queryFn: () => cmpFn({
       data: {
         oldCodes: codes,
-        tab: tab as "PM" | "Claim" | "Monitor" | "AssetHealth",
+        tab: cmpTabForBackend,
         from: fromIso,
         to: toIso,
         department: dept || undefined,

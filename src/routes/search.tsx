@@ -392,6 +392,8 @@ function SearchPage() {
               pmFreqDays={pmFreqDays} setPmFreqDays={setPmFreqDays}
               debtMonths={debtMonths} setDebtMonths={setDebtMonths}
             />
+          ) : tab === "Breakdown" ? (
+            <BreakdownTab assets={assets} history={history} />
           ) : (
             <RegularTab
               tab={tab as "PM" | "Claim" | "Monitor"} assets={assets} history={history} colorByAsset={colorByAsset}

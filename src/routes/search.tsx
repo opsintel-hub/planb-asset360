@@ -237,8 +237,7 @@ function SearchPage() {
   async function handleResync() {
     if (!codes.length || inFlightRef.current) return;
     inFlightRef.current = true;
-    const cmpTab: "PM" | "Claim" | "Monitor" | "AssetHealth" = tab === "Profile" ? "PM" : tab;
-    const p = cmpFn({ data: { oldCodes: codes, tab: cmpTab, from: fromIso, to: toIso, forceSync: true } }).then(() => refetch());
+    const p = cmpFn({ data: { oldCodes: codes, tab: cmpTabForBackend, from: fromIso, to: toIso, forceSync: true } }).then(() => refetch());
     p.finally(() => { inFlightRef.current = false; });
     toast.promise(p, { loading: "กำลังดึงประวัติจาก PlanB...", success: "ซิงค์ประวัติสำเร็จ", error: (e) => `ซิงค์ไม่สำเร็จ: ${e?.message ?? e}` });
   }

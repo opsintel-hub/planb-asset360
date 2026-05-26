@@ -4,8 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Search, RefreshCw, MapPin, Building2, X, Plus, ChevronDown,
-  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard,
+  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard, AlertTriangle,
 } from "lucide-react";
+import { BreakdownTab } from "@/components/breakdown-tab";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -29,6 +30,7 @@ const TABS = [
   { id: "Profile", label: "Profile", icon: IdCard },
   { id: "PM", label: "PM", icon: Wrench },
   { id: "Claim", label: "Claim", icon: AlertCircle },
+  { id: "Breakdown", label: "Breakdown", icon: AlertTriangle },
   { id: "Monitor", label: "Monitoring", icon: Eye },
   { id: "AssetHealth", label: "Asset Health", icon: Activity },
 ] as const;
@@ -186,12 +188,14 @@ function SearchPage() {
     queryFn: () => filterFn(),
     staleTime: 5 * 60_000,
   });
+  const cmpTabForBackend: "PM" | "Claim" | "Monitor" | "AssetHealth" =
+    tab === "Profile" ? "PM" : tab === "Breakdown" ? "Claim" : tab;
   const { data, isFetching, refetch } = useQuery({
-    queryKey: ["comparison", codes.join(","), tab, fromIso, toIso, dept, region, mediaType],
+    queryKey: ["comparison", codes.join(","), cmpTabForBackend, fromIso, toIso, dept, region, mediaType],
     queryFn: () => cmpFn({
       data: {
         oldCodes: codes,
-        tab: tab as "PM" | "Claim" | "Monitor" | "AssetHealth",
+        tab: cmpTabForBackend,
         from: fromIso,
         to: toIso,
         department: dept || undefined,
@@ -233,8 +237,7 @@ function SearchPage() {
   async function handleResync() {
     if (!codes.length || inFlightRef.current) return;
     inFlightRef.current = true;
-    const cmpTab: "PM" | "Claim" | "Monitor" | "AssetHealth" = tab === "Profile" ? "PM" : tab;
-    const p = cmpFn({ data: { oldCodes: codes, tab: cmpTab, from: fromIso, to: toIso, forceSync: true } }).then(() => refetch());
+    const p = cmpFn({ data: { oldCodes: codes, tab: cmpTabForBackend, from: fromIso, to: toIso, forceSync: true } }).then(() => refetch());
     p.finally(() => { inFlightRef.current = false; });
     toast.promise(p, { loading: "กำลังดึงประวัติจาก PlanB...", success: "ซิงค์ประวัติสำเร็จ", error: (e) => `ซิงค์ไม่สำเร็จ: ${e?.message ?? e}` });
   }
@@ -389,6 +392,8 @@ function SearchPage() {
               pmFreqDays={pmFreqDays} setPmFreqDays={setPmFreqDays}
               debtMonths={debtMonths} setDebtMonths={setDebtMonths}
             />
+          ) : tab === "Breakdown" ? (
+            <BreakdownTab assets={assets} history={history} />
           ) : (
             <RegularTab
               tab={tab as "PM" | "Claim" | "Monitor"} assets={assets} history={history} colorByAsset={colorByAsset}

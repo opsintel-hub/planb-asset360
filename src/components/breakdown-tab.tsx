@@ -162,20 +162,54 @@ export function BreakdownTab({
     raw: h,
   })), [filtered]);
 
-  // ---- Next predicted PM date ----
-  const nextPredicted = useMemo(() => {
+  // ---- Next predicted PM date (clamped: never in the past) ----
+  const nextPredictedRaw = useMemo(() => {
     if (!filtered.length || !mtbf.days) return null;
     const last = Math.max(...filtered.map((h) => new Date(h.opened_at).getTime()));
-    const next = new Date(last + mtbf.days * 86_400_000);
-    return next;
+    return new Date(last + mtbf.days * 86_400_000);
   }, [filtered, mtbf.days]);
 
-  function handleGeneratePM() {
-    const target = assets[0]?.old_code ?? filtered[0]?.asset_old_code ?? "—";
-    const dateStr = nextPredicted ? nextPredicted.toLocaleDateString("th-TH") : "—";
-    toast.success("สร้าง PM Work Order แล้ว", {
-      description: `Asset: ${target} | นัดตรวจ: ${dateStr} | อ้างอิงปัญหาหลัก: ${topCategories[0]?.name ?? "—"}`,
+  const predictedInPast = !!nextPredictedRaw && nextPredictedRaw.getTime() < Date.now();
+
+  const nextPredicted = useMemo(() => {
+    if (!nextPredictedRaw) return null;
+    const tomorrow = new Date();
+    tomorrow.setHours(0, 0, 0, 0);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return new Date(Math.max(nextPredictedRaw.getTime(), tomorrow.getTime()));
+  }, [nextPredictedRaw]);
+
+  // ---- PM Work Order draft dialog ----
+  const [pmOpen, setPmOpen] = useState(false);
+  const [pmDate, setPmDate] = useState("");
+  const [pmAsset, setPmAsset] = useState("");
+  const [pmNote, setPmNote] = useState("");
+
+  function openPMDialog() {
+    const target = assets[0]?.old_code ?? filtered[0]?.asset_old_code ?? "";
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const defaultDate = nextPredicted && nextPredicted.getTime() >= tomorrow.getTime()
+      ? nextPredicted
+      : tomorrow;
+    setPmAsset(target);
+    setPmDate(defaultDate.toISOString().slice(0, 10));
+    setPmNote(`อ้างอิงปัญหาหลัก: ${topCategories[0]?.name ?? "—"} | MTBF: ${mtbf.days.toFixed(1)} วัน`);
+    setPmOpen(true);
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const pmDateInvalid = !pmDate || pmDate <= todayStr;
+
+  function confirmGeneratePM() {
+    if (pmDateInvalid) {
+      toast.error("วันนัดตรวจต้องเป็นวันที่อนาคต (หลังวันนี้)");
+      return;
+    }
+    toast.success("บันทึกใบสั่งงาน PM (ฉบับร่าง) แล้ว", {
+      description: `Asset: ${pmAsset || "—"} | นัดตรวจ: ${new Date(pmDate).toLocaleDateString("th-TH")}`,
     });
+    setPmOpen(false);
   }
 
   function handleExport() {

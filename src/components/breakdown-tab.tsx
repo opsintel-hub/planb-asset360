@@ -38,6 +38,28 @@ function classifyPart(h: HistRow): PartId | "other" {
   return "other";
 }
 
+/** ฟอร์แมตวินาที → "X วัน Y ชม. Z นาที" (human-readable) */
+function formatDuration(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "—";
+  const s = Math.round(totalSeconds);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const parts: string[] = [];
+  if (d) parts.push(`${d} วัน`);
+  if (h) parts.push(`${h} ชม.`);
+  if (m && d === 0) parts.push(`${m} นาที`);
+  if (!parts.length) return `${s} วินาที`;
+  return parts.join(" ");
+}
+
+/** เลือกหน่วยแกน Y แบบ dynamic ตามค่า max */
+function pickTimeUnit(maxSeconds: number): { unit: "นาที" | "ชม." | "วัน"; divisor: number } {
+  if (maxSeconds >= 86400 * 2) return { unit: "วัน", divisor: 86400 };
+  if (maxSeconds >= 3600) return { unit: "ชม.", divisor: 3600 };
+  return { unit: "นาที", divisor: 60 };
+}
+
 function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
   if (!rows.length) return;
   const headers = Object.keys(rows[0]);

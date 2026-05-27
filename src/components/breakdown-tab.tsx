@@ -394,9 +394,13 @@ export function BreakdownTab({
       </div>
 
       {/* Timeline scatter */}
+      {(() => {
+        const maxY = scatterData.reduce((m, d) => Math.max(m, d.y), 0);
+        const yUnit = pickTimeUnit(maxY);
+        return (
       <div className="rounded-xl border p-5">
         <div className="text-sm font-semibold mb-1">Timeline of Claim Tickets</div>
-        <div className="text-xs text-muted-foreground mb-3">แต่ละจุด = 1 ticket — แกน Y คือ Turnaround Time (ชั่วโมง). คลิกเพื่อดูรายละเอียด</div>
+        <div className="text-xs text-muted-foreground mb-3">แต่ละจุด = 1 ticket — แกน Y คือ Turnaround Time ({yUnit.unit}). คลิกเพื่อดูรายละเอียด</div>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
@@ -406,7 +410,11 @@ export function BreakdownTab({
                 tickFormatter={(v) => new Date(v).toLocaleDateString("th-TH", { month: "short", day: "2-digit" })}
                 tick={{ fontSize: 11 }}
               />
-              <YAxis dataKey="y" type="number" name="Turnaround (h)" tick={{ fontSize: 11 }} />
+              <YAxis
+                dataKey="y" type="number" name={`Turnaround (${yUnit.unit})`} tick={{ fontSize: 11 }}
+                tickFormatter={(v) => (v / yUnit.divisor).toFixed(v / yUnit.divisor >= 10 ? 0 : 1)}
+                label={{ value: yUnit.unit, angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "oklch(0.5 0 0)" } }}
+              />
               <ZAxis range={[60, 60]} />
               <RTooltip
                 cursor={{ strokeDasharray: "3 3" }}
@@ -419,7 +427,7 @@ export function BreakdownTab({
                       <div className="text-muted-foreground">{new Date(p.x).toLocaleString("th-TH")}</div>
                       <div className="mt-1"><span className="text-muted-foreground">ปัญหา:</span> {p.category}</div>
                       <div><span className="text-muted-foreground">วิธีแก้:</span> {p.solution}</div>
-                      <div><span className="text-muted-foreground">Turnaround:</span> {p.y} ชม.</div>
+                      <div><span className="text-muted-foreground">Turnaround:</span> {formatDuration(p.y)}</div>
                     </div>
                   );
                 }}
@@ -430,7 +438,7 @@ export function BreakdownTab({
                 onClick={(d) => {
                   const p = d as unknown as typeof scatterData[number];
                   toast.info(`Ticket ${p.ticket ?? ""}`, {
-                    description: `${p.asset} — ${p.category}\n${p.solution}`,
+                    description: `${p.asset} — ${p.category}\n${p.solution}\nTurnaround: ${formatDuration(p.y)}`,
                   });
                 }}
               />
@@ -438,6 +446,8 @@ export function BreakdownTab({
           </ResponsiveContainer>
         </div>
       </div>
+        );
+      })()}
 
       {/* Actions */}
       <div className="flex flex-wrap items-center gap-3 justify-end">

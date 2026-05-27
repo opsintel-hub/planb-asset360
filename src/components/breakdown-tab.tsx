@@ -5,11 +5,14 @@ import {
 } from "recharts";
 import {
   AlertTriangle, Activity, Clock, Wrench, FileDown, ClipboardList,
-  Zap, Monitor, Building, Cpu, RotateCcw,
+  Zap, Monitor, Building, Cpu, RotateCcw, Info,
 } from "lucide-react";
 import { StatCard, Badge } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -159,20 +162,54 @@ export function BreakdownTab({
     raw: h,
   })), [filtered]);
 
-  // ---- Next predicted PM date ----
-  const nextPredicted = useMemo(() => {
+  // ---- Next predicted PM date (clamped: never in the past) ----
+  const nextPredictedRaw = useMemo(() => {
     if (!filtered.length || !mtbf.days) return null;
     const last = Math.max(...filtered.map((h) => new Date(h.opened_at).getTime()));
-    const next = new Date(last + mtbf.days * 86_400_000);
-    return next;
+    return new Date(last + mtbf.days * 86_400_000);
   }, [filtered, mtbf.days]);
 
-  function handleGeneratePM() {
-    const target = assets[0]?.old_code ?? filtered[0]?.asset_old_code ?? "—";
-    const dateStr = nextPredicted ? nextPredicted.toLocaleDateString("th-TH") : "—";
-    toast.success("สร้าง PM Work Order แล้ว", {
-      description: `Asset: ${target} | นัดตรวจ: ${dateStr} | อ้างอิงปัญหาหลัก: ${topCategories[0]?.name ?? "—"}`,
+  const predictedInPast = !!nextPredictedRaw && nextPredictedRaw.getTime() < Date.now();
+
+  const nextPredicted = useMemo(() => {
+    if (!nextPredictedRaw) return null;
+    const tomorrow = new Date();
+    tomorrow.setHours(0, 0, 0, 0);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return new Date(Math.max(nextPredictedRaw.getTime(), tomorrow.getTime()));
+  }, [nextPredictedRaw]);
+
+  // ---- PM Work Order draft dialog ----
+  const [pmOpen, setPmOpen] = useState(false);
+  const [pmDate, setPmDate] = useState("");
+  const [pmAsset, setPmAsset] = useState("");
+  const [pmNote, setPmNote] = useState("");
+
+  function openPMDialog() {
+    const target = assets[0]?.old_code ?? filtered[0]?.asset_old_code ?? "";
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const defaultDate = nextPredicted && nextPredicted.getTime() >= tomorrow.getTime()
+      ? nextPredicted
+      : tomorrow;
+    setPmAsset(target);
+    setPmDate(defaultDate.toISOString().slice(0, 10));
+    setPmNote(`อ้างอิงปัญหาหลัก: ${topCategories[0]?.name ?? "—"} | MTBF: ${mtbf.days.toFixed(1)} วัน`);
+    setPmOpen(true);
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const pmDateInvalid = !pmDate || pmDate <= todayStr;
+
+  function confirmGeneratePM() {
+    if (pmDateInvalid) {
+      toast.error("วันนัดตรวจต้องเป็นวันที่อนาคต (หลังวันนี้)");
+      return;
+    }
+    toast.success("บันทึกใบสั่งงาน PM (ฉบับร่าง) แล้ว", {
+      description: `Asset: ${pmAsset || "—"} | นัดตรวจ: ${new Date(pmDate).toLocaleDateString("th-TH")}`,
     });
+    setPmOpen(false);
   }
 
   function handleExport() {
@@ -227,7 +264,7 @@ export function BreakdownTab({
         <StatCard label="Claim ที่กรองอยู่" value={filtered.length} icon={<AlertTriangle className="size-5" />} tone={filtered.length > 10 ? "warning" : "default"} />
         <StatCard label="MTBF (เฉลี่ย)" value={mtbf.days ? `${mtbf.days.toFixed(1)} วัน` : "—"} delta={`${mtbf.samples} ช่วงเวลา`} tone={critical ? "danger" : mtbf.days < 30 ? "warning" : "success"} icon={<Activity className="size-5" />} />
         <StatCard label="Downtime รวม" value={`${downtimeH.toFixed(0)} ชม.`} delta={`${(downtimeH / 24).toFixed(1)} วัน`} icon={<Clock className="size-5" />} tone="warning" />
-        <StatCard label="นัดตรวจครั้งถัดไป" value={nextPredicted ? nextPredicted.toLocaleDateString("th-TH", { day: "2-digit", month: "short" }) : "—"} delta="คาดการณ์จาก MTBF" icon={<Wrench className="size-5" />} tone="default" />
+        <StatCard label="นัดตรวจครั้งถัดไป" value={nextPredicted ? nextPredicted.toLocaleDateString("th-TH", { day: "2-digit", month: "short" }) : "—"} delta={predictedInPast ? "เลื่อนมาเป็นพรุ่งนี้ (ของเดิมเลยกำหนด)" : "คาดการณ์จาก MTBF"} icon={<Wrench className="size-5" />} tone={predictedInPast ? "warning" : "default"} />
       </div>
 
       {/* Interactive asset diagram */}
@@ -385,10 +422,55 @@ export function BreakdownTab({
         <Button variant="outline" onClick={handleExport}>
           <FileDown className="size-4 mr-1" /> Export Insight Report
         </Button>
-        <Button onClick={handleGeneratePM}>
+        <Button onClick={openPMDialog}>
           <ClipboardList className="size-4 mr-1" /> Generate PM Work Order
         </Button>
       </div>
+
+      {/* PM Work Order Dialog */}
+      <Dialog open={pmOpen} onOpenChange={setPmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>สร้างใบสั่งงาน PM (ฉบับร่าง)</DialogTitle>
+            <DialogDescription>
+              ตรวจสอบและแก้ไขรายละเอียดก่อนยืนยัน — วันนัดต้องเป็นวันที่อนาคต
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Asset Old Code</label>
+              <Input value={pmAsset} onChange={(e) => setPmAsset(e.target.value)} className="mt-1 font-mono" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">วันนัดตรวจ</label>
+              <Input
+                type="date"
+                value={pmDate}
+                min={(() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })()}
+                onChange={(e) => setPmDate(e.target.value)}
+                className="mt-1"
+              />
+              {pmDateInvalid && (
+                <div className="mt-1 text-xs text-destructive">วันนัดต้องหลังวันนี้ ({new Date().toLocaleDateString("th-TH")})</div>
+              )}
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">หมายเหตุ</label>
+              <Input value={pmNote} onChange={(e) => setPmNote(e.target.value)} className="mt-1" />
+            </div>
+            <div className="rounded-md border border-border bg-muted/40 p-2 text-xs text-muted-foreground flex gap-2">
+              <Info className="size-3.5 mt-0.5 shrink-0" />
+              <span>ปัจจุบันใบสั่งงานจะถูกบันทึกเป็น "ฉบับร่าง" และยังไม่ผูกกับเมนูแผนงาน PM (ยังไม่มีตารางจัดเก็บถาวรในระบบ) — หากต้องการให้บันทึกถาวรและเชื่อมไปยังเมนู PM โปรดแจ้งเพื่อสร้างตาราง pm_work_orders ให้</span>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPmOpen(false)}>ยกเลิก</Button>
+            <Button onClick={confirmGeneratePM} disabled={pmDateInvalid}>ยืนยันสร้าง</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

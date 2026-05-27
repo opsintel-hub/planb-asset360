@@ -38,6 +38,28 @@ function classifyPart(h: HistRow): PartId | "other" {
   return "other";
 }
 
+/** ฟอร์แมตวินาที → "X วัน Y ชม. Z นาที" (human-readable) */
+function formatDuration(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "—";
+  const s = Math.round(totalSeconds);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const parts: string[] = [];
+  if (d) parts.push(`${d} วัน`);
+  if (h) parts.push(`${h} ชม.`);
+  if (m && d === 0) parts.push(`${m} นาที`);
+  if (!parts.length) return `${s} วินาที`;
+  return parts.join(" ");
+}
+
+/** เลือกหน่วยแกน Y แบบ dynamic ตามค่า max */
+function pickTimeUnit(maxSeconds: number): { unit: "นาที" | "ชม." | "วัน"; divisor: number } {
+  if (maxSeconds >= 86400 * 2) return { unit: "วัน", divisor: 86400 };
+  if (maxSeconds >= 3600) return { unit: "ชม.", divisor: 3600 };
+  return { unit: "นาที", divisor: 60 };
+}
+
 function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
   if (!rows.length) return;
   const headers = Object.keys(rows[0]);
@@ -91,8 +113,8 @@ export function BreakdownTab({
     return { days: avg, samples: intervals.length };
   }, [filtered]);
 
-  // ---- Downtime (sum totalTurnaroundTime in hours) ----
-  const downtimeH = useMemo(() => filtered.reduce((s, h) => {
+  // ---- Downtime (sum totalTurnaroundTime in seconds — DB stores seconds) ----
+  const downtimeSec = useMemo(() => filtered.reduce((s, h) => {
     const n = Number(h.payload?.totalTurnaroundTime);
     return s + (Number.isFinite(n) ? n : 0);
   }, 0), [filtered]);
@@ -221,9 +243,12 @@ export function BreakdownTab({
       problemCategory: h.payload?.problemCategory ?? "",
       problemEquipment: h.payload?.problemEquipment ?? "",
       solutionDetail: h.payload?.solutionDetail ?? "",
-      responseTime_h: h.payload?.responseTime ?? "",
-      resolveTime_h: h.payload?.resolveTime ?? "",
-      totalTurnaroundTime_h: h.payload?.totalTurnaroundTime ?? "",
+      responseTime_sec: h.payload?.responseTime ?? "",
+      responseTime_human: formatDuration(Number(h.payload?.responseTime)),
+      resolveTime_sec: h.payload?.resolveTime ?? "",
+      resolveTime_human: formatDuration(Number(h.payload?.resolveTime)),
+      totalTurnaroundTime_sec: h.payload?.totalTurnaroundTime ?? "",
+      totalTurnaroundTime_human: formatDuration(Number(h.payload?.totalTurnaroundTime)),
       status: h.status ?? "",
     }));
     downloadCsv(`breakdown-insight-${new Date().toISOString().slice(0, 10)}.csv`, rows);
@@ -263,7 +288,7 @@ export function BreakdownTab({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Claim ที่กรองอยู่" value={filtered.length} icon={<AlertTriangle className="size-5" />} tone={filtered.length > 10 ? "warning" : "default"} />
         <StatCard label="MTBF (เฉลี่ย)" value={mtbf.days ? `${mtbf.days.toFixed(1)} วัน` : "—"} delta={`${mtbf.samples} ช่วงเวลา`} tone={critical ? "danger" : mtbf.days < 30 ? "warning" : "success"} icon={<Activity className="size-5" />} />
-        <StatCard label="Downtime รวม" value={`${downtimeH.toFixed(0)} ชม.`} delta={`${(downtimeH / 24).toFixed(1)} วัน`} icon={<Clock className="size-5" />} tone="warning" />
+        <StatCard label="Downtime รวม" value={formatDuration(downtimeSec)} delta={`${filtered.length} tickets`} icon={<Clock className="size-5" />} tone="warning" />
         <StatCard label="นัดตรวจครั้งถัดไป" value={nextPredicted ? nextPredicted.toLocaleDateString("th-TH", { day: "2-digit", month: "short" }) : "—"} delta={predictedInPast ? "เลื่อนมาเป็นพรุ่งนี้ (ของเดิมเลยกำหนด)" : "คาดการณ์จาก MTBF"} icon={<Wrench className="size-5" />} tone={predictedInPast ? "warning" : "default"} />
       </div>
 
@@ -372,9 +397,13 @@ export function BreakdownTab({
       </div>
 
       {/* Timeline scatter */}
+      {(() => {
+        const maxY = scatterData.reduce((m, d) => Math.max(m, d.y), 0);
+        const yUnit = pickTimeUnit(maxY);
+        return (
       <div className="rounded-xl border p-5">
         <div className="text-sm font-semibold mb-1">Timeline of Claim Tickets</div>
-        <div className="text-xs text-muted-foreground mb-3">แต่ละจุด = 1 ticket — แกน Y คือ Turnaround Time (ชั่วโมง). คลิกเพื่อดูรายละเอียด</div>
+        <div className="text-xs text-muted-foreground mb-3">แต่ละจุด = 1 ticket — แกน Y คือ Turnaround Time ({yUnit.unit}). คลิกเพื่อดูรายละเอียด</div>
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
@@ -384,7 +413,11 @@ export function BreakdownTab({
                 tickFormatter={(v) => new Date(v).toLocaleDateString("th-TH", { month: "short", day: "2-digit" })}
                 tick={{ fontSize: 11 }}
               />
-              <YAxis dataKey="y" type="number" name="Turnaround (h)" tick={{ fontSize: 11 }} />
+              <YAxis
+                dataKey="y" type="number" name={`Turnaround (${yUnit.unit})`} tick={{ fontSize: 11 }}
+                tickFormatter={(v) => (v / yUnit.divisor).toFixed(v / yUnit.divisor >= 10 ? 0 : 1)}
+                label={{ value: yUnit.unit, angle: -90, position: "insideLeft", style: { fontSize: 11, fill: "oklch(0.5 0 0)" } }}
+              />
               <ZAxis range={[60, 60]} />
               <RTooltip
                 cursor={{ strokeDasharray: "3 3" }}
@@ -397,7 +430,7 @@ export function BreakdownTab({
                       <div className="text-muted-foreground">{new Date(p.x).toLocaleString("th-TH")}</div>
                       <div className="mt-1"><span className="text-muted-foreground">ปัญหา:</span> {p.category}</div>
                       <div><span className="text-muted-foreground">วิธีแก้:</span> {p.solution}</div>
-                      <div><span className="text-muted-foreground">Turnaround:</span> {p.y} ชม.</div>
+                      <div><span className="text-muted-foreground">Turnaround:</span> {formatDuration(p.y)}</div>
                     </div>
                   );
                 }}
@@ -408,7 +441,7 @@ export function BreakdownTab({
                 onClick={(d) => {
                   const p = d as unknown as typeof scatterData[number];
                   toast.info(`Ticket ${p.ticket ?? ""}`, {
-                    description: `${p.asset} — ${p.category}\n${p.solution}`,
+                    description: `${p.asset} — ${p.category}\n${p.solution}\nTurnaround: ${formatDuration(p.y)}`,
                   });
                 }}
               />
@@ -416,6 +449,8 @@ export function BreakdownTab({
           </ResponsiveContainer>
         </div>
       </div>
+        );
+      })()}
 
       {/* Actions */}
       <div className="flex flex-wrap items-center gap-3 justify-end">

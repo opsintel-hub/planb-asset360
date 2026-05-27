@@ -243,9 +243,12 @@ export function BreakdownTab({
       problemCategory: h.payload?.problemCategory ?? "",
       problemEquipment: h.payload?.problemEquipment ?? "",
       solutionDetail: h.payload?.solutionDetail ?? "",
-      responseTime_h: h.payload?.responseTime ?? "",
-      resolveTime_h: h.payload?.resolveTime ?? "",
-      totalTurnaroundTime_h: h.payload?.totalTurnaroundTime ?? "",
+      responseTime_sec: h.payload?.responseTime ?? "",
+      responseTime_human: formatDuration(Number(h.payload?.responseTime)),
+      resolveTime_sec: h.payload?.resolveTime ?? "",
+      resolveTime_human: formatDuration(Number(h.payload?.resolveTime)),
+      totalTurnaroundTime_sec: h.payload?.totalTurnaroundTime ?? "",
+      totalTurnaroundTime_human: formatDuration(Number(h.payload?.totalTurnaroundTime)),
       status: h.status ?? "",
     }));
     downloadCsv(`breakdown-insight-${new Date().toISOString().slice(0, 10)}.csv`, rows);

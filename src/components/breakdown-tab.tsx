@@ -422,10 +422,55 @@ export function BreakdownTab({
         <Button variant="outline" onClick={handleExport}>
           <FileDown className="size-4 mr-1" /> Export Insight Report
         </Button>
-        <Button onClick={handleGeneratePM}>
+        <Button onClick={openPMDialog}>
           <ClipboardList className="size-4 mr-1" /> Generate PM Work Order
         </Button>
       </div>
+
+      {/* PM Work Order Dialog */}
+      <Dialog open={pmOpen} onOpenChange={setPmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>สร้างใบสั่งงาน PM (ฉบับร่าง)</DialogTitle>
+            <DialogDescription>
+              ตรวจสอบและแก้ไขรายละเอียดก่อนยืนยัน — วันนัดต้องเป็นวันที่อนาคต
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Asset Old Code</label>
+              <Input value={pmAsset} onChange={(e) => setPmAsset(e.target.value)} className="mt-1 font-mono" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">วันนัดตรวจ</label>
+              <Input
+                type="date"
+                value={pmDate}
+                min={(() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })()}
+                onChange={(e) => setPmDate(e.target.value)}
+                className="mt-1"
+              />
+              {pmDateInvalid && (
+                <div className="mt-1 text-xs text-destructive">วันนัดต้องหลังวันนี้ ({new Date().toLocaleDateString("th-TH")})</div>
+              )}
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">หมายเหตุ</label>
+              <Input value={pmNote} onChange={(e) => setPmNote(e.target.value)} className="mt-1" />
+            </div>
+            <div className="rounded-md border border-border bg-muted/40 p-2 text-xs text-muted-foreground flex gap-2">
+              <Info className="size-3.5 mt-0.5 shrink-0" />
+              <span>ปัจจุบันใบสั่งงานจะถูกบันทึกเป็น "ฉบับร่าง" และยังไม่ผูกกับเมนูแผนงาน PM (ยังไม่มีตารางจัดเก็บถาวรในระบบ) — หากต้องการให้บันทึกถาวรและเชื่อมไปยังเมนู PM โปรดแจ้งเพื่อสร้างตาราง pm_work_orders ให้</span>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPmOpen(false)}>ยกเลิก</Button>
+            <Button onClick={confirmGeneratePM} disabled={pmDateInvalid}>ยืนยันสร้าง</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

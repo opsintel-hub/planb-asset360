@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid,
   Tooltip as RTooltip, ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
 import {
   AlertTriangle, Activity, Clock, Wrench, FileDown, ClipboardList,
-  Zap, Monitor, Building, Cpu, RotateCcw, Info,
+  Zap, Monitor, Building, Cpu, RotateCcw, Info, Tag,
 } from "lucide-react";
 import { StatCard, Badge } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
@@ -15,25 +17,34 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { listDiagramMappings } from "@/lib/data.functions";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type HistRow = any;
 type Asset = { id: string; old_code: string; name: string | null };
 
-type PartId = "display" | "power" | "structure" | "system";
-
-const PART_META: Record<PartId, { label: string; icon: typeof Zap; keywords: RegExp }> = {
-  display: { label: "Display / Screen", icon: Monitor, keywords: /(display|screen|จอ|led|pixel|panel|ภาพ)/i },
-  power: { label: "Power / Electrical", icon: Zap, keywords: /(power|ไฟฟ้า|การไฟฟ้า|electric|breaker|ไฟดับ|ไฟตก|voltage)/i },
-  structure: { label: "Structure", icon: Building, keywords: /(โครงสร้าง|structure|เสา|frame|ป้ายล้ม|โครง|bolt)/i },
-  system: { label: "System / Media Player", icon: Cpu, keywords: /(media\s*player|system|reset|software|ระบบ|firmware|reboot|network|signal)/i },
+type MappingRow = {
+  id: string; category: string; label: string; icon: string | null;
+  keywords: string[]; sort_order: number; enabled: boolean;
 };
 
-function classifyPart(h: HistRow): PartId | "other" {
+const ICON_MAP: Record<string, typeof Zap> = {
+  Monitor, Zap, Building, Cpu, Wrench, Activity, AlertTriangle, Clock, Tag,
+};
+
+const FALLBACK_MAPPINGS: MappingRow[] = [
+  { id: "f1", category: "display",   label: "Display / Screen",      icon: "Monitor",  keywords: ["display","screen","จอ","led","pixel","panel","ภาพ"], sort_order: 1, enabled: true },
+  { id: "f2", category: "power",     label: "Power / Electrical",    icon: "Zap",      keywords: ["power","ไฟฟ้า","การไฟฟ้า","electric","breaker","ไฟดับ","ไฟตก","voltage"], sort_order: 2, enabled: true },
+  { id: "f3", category: "structure", label: "Structure",             icon: "Building", keywords: ["โครงสร้าง","structure","เสา","frame","ป้ายล้ม","โครง","bolt"], sort_order: 3, enabled: true },
+  { id: "f4", category: "system",    label: "System / Media Player", icon: "Cpu",      keywords: ["media player","system","reset","software","ระบบ","firmware","reboot","network","signal"], sort_order: 4, enabled: true },
+];
+
+function classifyPart(h: HistRow, mappings: MappingRow[]): string {
   const text = [h.title, h.payload?.problemCategory, h.payload?.problemEquipment, h.payload?.problemDetail, h.payload?.solutionDetail]
-    .filter(Boolean).join(" ");
-  for (const [id, meta] of Object.entries(PART_META)) {
-    if (meta.keywords.test(text)) return id as PartId;
+    .filter(Boolean).join(" ").toLowerCase();
+  for (const m of mappings) {
+    if (!m.enabled) continue;
+    if (m.keywords.some((k) => k && text.includes(k.toLowerCase()))) return m.category;
   }
   return "other";
 }

@@ -22,17 +22,18 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const [active, setActive] = useState<"main" | "airtable">("main");
+  const [active, setActive] = useState<"main" | "airtable" | "mappings">("main");
   const sections = [
     { id: "main", label: "การเชื่อมต่อหลัก", icon: Server },
     { id: "airtable", label: "Airtable Connections", icon: Database },
+    { id: "mappings", label: "Diagram Mappings", icon: Tag },
   ] as const;
 
   return (
     <div className="space-y-6">
       <PageHeader title="ตั้งค่าระบบ" subtitle="กำหนดค่าการเชื่อมต่อข้อมูลและการ Sync อัตโนมัติ" />
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {sections.map((s) => {
           const Icon = s.icon;
           return (
@@ -46,7 +47,7 @@ function SettingsPage() {
         })}
       </div>
 
-      {active === "main" ? <MainSettings /> : <AirtableSection />}
+      {active === "main" ? <MainSettings /> : active === "airtable" ? <AirtableSection /> : <DiagramMappingsSection />}
     </div>
   );
 }

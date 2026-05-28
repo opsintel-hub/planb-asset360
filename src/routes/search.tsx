@@ -698,7 +698,7 @@ function RegularTab({
         <StatCard label="ค้าง / กำลังดำเนินการ" value={pending} tone="warning" delta={`เฉลี่ย ${avgPerMonth.toFixed(1)}/เดือน/ป้าย`} />
         <StatCard label="ความถี่เฉลี่ย" value={`${avgInterval.toFixed(1)} วัน`} delta="ระยะห่างเฉลี่ยระหว่างงาน" />
         {tab === "Claim" && (
-          <StatCard label="Response / Resolve" value={`${Math.round(avgResponse)}h / ${Math.round(avgResolve)}h`} tone="default" />
+          <StatCard label="Response / Resolve" value={`${formatMinutes(avgResponse)} / ${formatMinutes(avgResolve)}`} tone="default" />)
         )}
       </div>
 

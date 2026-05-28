@@ -113,10 +113,10 @@ export function BreakdownTab({
     return { days: avg, samples: intervals.length };
   }, [filtered]);
 
-  // ---- Downtime (sum totalTurnaroundTime in seconds — DB stores seconds) ----
-  const downtimeSec = useMemo(() => filtered.reduce((s, h) => {
+  // ---- Downtime (sum totalTurnaroundTime in MINUTES — DB stores minutes) ----
+  const downtimeMin = useMemo(() => filtered.reduce((s, h) => {
     const n = Number(h.payload?.totalTurnaroundTime);
-    return s + (Number.isFinite(n) ? n : 0);
+    return s + (Number.isFinite(n) && n > 0 ? n : 0);
   }, 0), [filtered]);
 
   // ---- Top problem categories ----

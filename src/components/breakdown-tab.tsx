@@ -288,7 +288,7 @@ export function BreakdownTab({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Claim ที่กรองอยู่" value={filtered.length} icon={<AlertTriangle className="size-5" />} tone={filtered.length > 10 ? "warning" : "default"} />
         <StatCard label="MTBF (เฉลี่ย)" value={mtbf.days ? `${mtbf.days.toFixed(1)} วัน` : "—"} delta={`${mtbf.samples} ช่วงเวลา`} tone={critical ? "danger" : mtbf.days < 30 ? "warning" : "success"} icon={<Activity className="size-5" />} />
-        <StatCard label="Downtime รวม" value={formatDuration(downtimeSec)} delta={`${filtered.length} tickets`} icon={<Clock className="size-5" />} tone="warning" />
+        <StatCard label="Downtime รวม" value={formatDuration(downtimeMin)} delta={`${filtered.length} tickets`} icon={<Clock className="size-5" />} tone="warning" />
         <StatCard label="นัดตรวจครั้งถัดไป" value={nextPredicted ? nextPredicted.toLocaleDateString("th-TH", { day: "2-digit", month: "short" }) : "—"} delta={predictedInPast ? "เลื่อนมาเป็นพรุ่งนี้ (ของเดิมเลยกำหนด)" : "คาดการณ์จาก MTBF"} icon={<Wrench className="size-5" />} tone={predictedInPast ? "warning" : "default"} />
       </div>
 

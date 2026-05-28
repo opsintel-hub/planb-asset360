@@ -334,15 +334,14 @@ export function BreakdownTab({
           )}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {(Object.keys(PART_META) as PartId[]).map((id) => {
-            const meta = PART_META[id];
-            const Icon = meta.icon;
-            const isActive = activePart === id;
-            const count = partCounts[id];
+          {mappings.filter((m) => m.enabled).map((m) => {
+            const Icon = ICON_MAP[m.icon ?? ""] ?? Tag;
+            const isActive = activePart === m.category;
+            const count = partCounts[m.category] ?? 0;
             return (
               <button
-                key={id}
-                onClick={() => setActivePart(isActive ? null : id)}
+                key={m.category}
+                onClick={() => setActivePart(isActive ? null : m.category)}
                 className={cn(
                   "group rounded-lg border-2 p-4 text-left transition-all",
                   isActive
@@ -362,9 +361,9 @@ export function BreakdownTab({
                     count > 5 ? "bg-destructive/15 text-destructive" : count > 0 ? "bg-warning/15 text-[oklch(0.45_0.15_75)]" : "bg-muted text-muted-foreground",
                   )}>{count}</span>
                 </div>
-                <div className="mt-3 text-sm font-medium">{meta.label}</div>
+                <div className="mt-3 text-sm font-medium">{m.label}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  {isActive ? "กำลังกรองอยู่" : "คลิกเพื่อเจาะลึก"}
+                  {isActive ? "กำลังกรองอยู่" : `${m.keywords.length} keywords`}
                 </div>
               </button>
             );

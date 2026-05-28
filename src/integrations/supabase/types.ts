@@ -225,6 +225,45 @@ export type Database = {
           },
         ]
       }
+      diagram_mappings: {
+        Row: {
+          category: string
+          created_at: string
+          enabled: boolean
+          icon: string | null
+          id: string
+          keywords: string[]
+          label: string
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          enabled?: boolean
+          icon?: string | null
+          id?: string
+          keywords?: string[]
+          label: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          enabled?: boolean
+          icon?: string | null
+          id?: string
+          keywords?: string[]
+          label?: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       monitoring_status: {
         Row: {
           asset_id: string

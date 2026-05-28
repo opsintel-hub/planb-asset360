@@ -2,13 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Database, RefreshCw, CheckCircle2, Server, AlertTriangle } from "lucide-react";
+import { Database, RefreshCw, CheckCircle2, Server, AlertTriangle, Tag } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { getAppSettings, getSyncLogs, listAirtableSlots, getSchemaStatus } from "@/lib/data.functions";
 import { updateAppSetting, updateAirtableSlot, syncClaimsNow, syncAssetsNow, syncAssetHistoryBatchNow } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DiagramMappingsSection } from "@/components/diagram-mappings-section";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({

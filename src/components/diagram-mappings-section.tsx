@@ -164,7 +164,14 @@ export function DiagramMappingsSection() {
       const parsed = parseCsv(String(reader.result ?? ""));
       if (!parsed.length) { toast.error("ไม่พบข้อมูลใน CSV"); return; }
       if (!confirm(`Import จะลบข้อมูลเดิมทั้งหมดและแทนที่ด้วย ${parsed.length} รายการ — ยืนยันหรือไม่?`)) return;
-      replaceMut.mutate({ rows: parsed as Parameters<typeof replaceFn>[0]["data"]["rows"] });
+      replaceMut.mutate(parsed.map((p) => ({
+        category: String(p.category ?? ""),
+        label: String(p.label ?? p.category ?? ""),
+        icon: p.icon ?? null,
+        keywords: p.keywords ?? [],
+        sort_order: p.sort_order ?? 0,
+        enabled: p.enabled ?? true,
+      })));
     };
     reader.readAsText(file, "utf-8");
   }

@@ -278,12 +278,17 @@ export function BreakdownTab({
     toast.success("Export Insight Report สำเร็จ", { description: `${rows.length} รายการ` });
   }
 
-  // Component counts for diagram badges
+  // Component counts for diagram badges (dynamic, keyed by category)
   const partCounts = useMemo(() => {
-    const m: Record<PartId | "other", number> = { display: 0, power: 0, structure: 0, system: 0, other: 0 };
-    for (const h of claims) m[classifyPart(h)] += 1;
+    const m: Record<string, number> = {};
+    for (const mp of mappings) m[mp.category] = 0;
+    m.other = 0;
+    for (const h of claims) {
+      const k = classifyPart(h, mappings);
+      m[k] = (m[k] ?? 0) + 1;
+    }
     return m;
-  }, [claims]);
+  }, [claims, mappings]);
 
   if (claims.length === 0) {
     return (

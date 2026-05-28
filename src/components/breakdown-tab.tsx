@@ -96,16 +96,28 @@ export function BreakdownTab({
   );
 
   const [search, setSearch] = useState("");
-  const [activePart, setActivePart] = useState<PartId | null>(null);
+  const [activePart, setActivePart] = useState<string | null>(null);
+
+  // Load mappings from DB (admin-managed); fallback to defaults
+  const fetchMappings = useServerFn(listDiagramMappings);
+  const { data: mapData } = useQuery({
+    queryKey: ["diagram-mappings"],
+    queryFn: () => fetchMappings({}),
+    staleTime: 60_000,
+  });
+  const mappings: MappingRow[] = useMemo(() => {
+    const fromDb = (mapData?.mappings ?? []) as MappingRow[];
+    return fromDb.length ? fromDb : FALLBACK_MAPPINGS;
+  }, [mapData]);
 
   // Filter by asset search + part
   const filtered = useMemo(() => {
     return claims.filter((h) => {
       if (search && !String(h.asset_old_code ?? "").toLowerCase().includes(search.toLowerCase())) return false;
-      if (activePart && classifyPart(h) !== activePart) return false;
+      if (activePart && classifyPart(h, mappings) !== activePart) return false;
       return true;
     });
-  }, [claims, search, activePart]);
+  }, [claims, search, activePart, mappings]);
 
   // ---- MTBF (overall on filtered set, per asset average) ----
   const mtbf = useMemo(() => {

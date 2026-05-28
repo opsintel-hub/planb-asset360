@@ -68,12 +68,28 @@ function fmtDateTime(d: string | null | undefined) {
   if (!d) return "—";
   return new Date(d).toLocaleString("th-TH");
 }
-function durationLabel(open?: string | null, close?: string | null) {
+/** แปลง "นาที" → "X วัน Y ชม. Z นาที" (DB เก็บค่าเวลาเป็นนาที) */
+export function formatMinutes(totalMinutes: number): string {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return "—";
+  const t = Math.round(totalMinutes);
+  const d = Math.floor(t / 1440);
+  const h = Math.floor((t % 1440) / 60);
+  const m = t % 60;
+  const parts: string[] = [];
+  if (d) parts.push(`${d} วัน`);
+  if (h) parts.push(`${h} ชม.`);
+  if (m && d === 0) parts.push(`${m} นาที`);
+  return parts.length ? parts.join(" ") : `${t} นาที`;
+}
+
+function durationLabel(open?: string | null, close?: string | null, payload?: Record<string, unknown> | null) {
+  // ใช้ totalTurnaroundTime (นาที) จาก payload เป็นหลัก เพื่อให้ตรงกับ Summary
+  const tt = Number((payload as { totalTurnaroundTime?: unknown } | null | undefined)?.totalTurnaroundTime);
+  if (Number.isFinite(tt) && tt > 0) return formatMinutes(tt);
   if (!open || !close) return "—";
   const ms = new Date(close).getTime() - new Date(open).getTime();
   if (!Number.isFinite(ms) || ms < 0) return "—";
-  const days = Math.floor(ms / 86_400_000);
-  return days === 0 ? "ภายใน 24 ชม." : `${days} วัน`;
+  return formatMinutes(ms / 60_000);
 }
 
 // วันที่ที่ใช้จัดกลุ่มในกราฟ/Calendar/Matrix:

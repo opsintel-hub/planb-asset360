@@ -38,26 +38,26 @@ function classifyPart(h: HistRow): PartId | "other" {
   return "other";
 }
 
-/** ฟอร์แมตวินาที → "X วัน Y ชม. Z นาที" (human-readable) */
-function formatDuration(totalSeconds: number): string {
-  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "—";
-  const s = Math.round(totalSeconds);
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
+/** ฟอร์แมตนาที → "X วัน Y ชม. Z นาที" (ข้อมูลดิบใน DB เก็บเป็น "นาที") */
+function formatDuration(totalMinutes: number): string {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return "—";
+  const total = Math.round(totalMinutes);
+  const d = Math.floor(total / 1440);
+  const h = Math.floor((total % 1440) / 60);
+  const m = total % 60;
   const parts: string[] = [];
   if (d) parts.push(`${d} วัน`);
   if (h) parts.push(`${h} ชม.`);
   if (m && d === 0) parts.push(`${m} นาที`);
-  if (!parts.length) return `${s} วินาที`;
+  if (!parts.length) return `${total} นาที`;
   return parts.join(" ");
 }
 
-/** เลือกหน่วยแกน Y แบบ dynamic ตามค่า max */
-function pickTimeUnit(maxSeconds: number): { unit: "นาที" | "ชม." | "วัน"; divisor: number } {
-  if (maxSeconds >= 86400 * 2) return { unit: "วัน", divisor: 86400 };
-  if (maxSeconds >= 3600) return { unit: "ชม.", divisor: 3600 };
-  return { unit: "นาที", divisor: 60 };
+/** เลือกหน่วยแกน Y แบบ dynamic ตามค่า max (input: นาที) */
+function pickTimeUnit(maxMinutes: number): { unit: "นาที" | "ชม." | "วัน"; divisor: number } {
+  if (maxMinutes >= 1440 * 2) return { unit: "วัน", divisor: 1440 };
+  if (maxMinutes >= 60) return { unit: "ชม.", divisor: 60 };
+  return { unit: "นาที", divisor: 1 };
 }
 
 function downloadCsv(filename: string, rows: Record<string, unknown>[]) {

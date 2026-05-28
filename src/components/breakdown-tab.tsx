@@ -38,26 +38,26 @@ function classifyPart(h: HistRow): PartId | "other" {
   return "other";
 }
 
-/** ฟอร์แมตวินาที → "X วัน Y ชม. Z นาที" (human-readable) */
-function formatDuration(totalSeconds: number): string {
-  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "—";
-  const s = Math.round(totalSeconds);
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
+/** ฟอร์แมตนาที → "X วัน Y ชม. Z นาที" (ข้อมูลดิบใน DB เก็บเป็น "นาที") */
+function formatDuration(totalMinutes: number): string {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return "—";
+  const total = Math.round(totalMinutes);
+  const d = Math.floor(total / 1440);
+  const h = Math.floor((total % 1440) / 60);
+  const m = total % 60;
   const parts: string[] = [];
   if (d) parts.push(`${d} วัน`);
   if (h) parts.push(`${h} ชม.`);
   if (m && d === 0) parts.push(`${m} นาที`);
-  if (!parts.length) return `${s} วินาที`;
+  if (!parts.length) return `${total} นาที`;
   return parts.join(" ");
 }
 
-/** เลือกหน่วยแกน Y แบบ dynamic ตามค่า max */
-function pickTimeUnit(maxSeconds: number): { unit: "นาที" | "ชม." | "วัน"; divisor: number } {
-  if (maxSeconds >= 86400 * 2) return { unit: "วัน", divisor: 86400 };
-  if (maxSeconds >= 3600) return { unit: "ชม.", divisor: 3600 };
-  return { unit: "นาที", divisor: 60 };
+/** เลือกหน่วยแกน Y แบบ dynamic ตามค่า max (input: นาที) */
+function pickTimeUnit(maxMinutes: number): { unit: "นาที" | "ชม." | "วัน"; divisor: number } {
+  if (maxMinutes >= 1440 * 2) return { unit: "วัน", divisor: 1440 };
+  if (maxMinutes >= 60) return { unit: "ชม.", divisor: 60 };
+  return { unit: "นาที", divisor: 1 };
 }
 
 function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
@@ -113,10 +113,10 @@ export function BreakdownTab({
     return { days: avg, samples: intervals.length };
   }, [filtered]);
 
-  // ---- Downtime (sum totalTurnaroundTime in seconds — DB stores seconds) ----
-  const downtimeSec = useMemo(() => filtered.reduce((s, h) => {
+  // ---- Downtime (sum totalTurnaroundTime in MINUTES — DB stores minutes) ----
+  const downtimeMin = useMemo(() => filtered.reduce((s, h) => {
     const n = Number(h.payload?.totalTurnaroundTime);
-    return s + (Number.isFinite(n) ? n : 0);
+    return s + (Number.isFinite(n) && n > 0 ? n : 0);
   }, 0), [filtered]);
 
   // ---- Top problem categories ----
@@ -243,11 +243,11 @@ export function BreakdownTab({
       problemCategory: h.payload?.problemCategory ?? "",
       problemEquipment: h.payload?.problemEquipment ?? "",
       solutionDetail: h.payload?.solutionDetail ?? "",
-      responseTime_sec: h.payload?.responseTime ?? "",
+      responseTime_min: h.payload?.responseTime ?? "",
       responseTime_human: formatDuration(Number(h.payload?.responseTime)),
-      resolveTime_sec: h.payload?.resolveTime ?? "",
+      resolveTime_min: h.payload?.resolveTime ?? "",
       resolveTime_human: formatDuration(Number(h.payload?.resolveTime)),
-      totalTurnaroundTime_sec: h.payload?.totalTurnaroundTime ?? "",
+      totalTurnaroundTime_min: h.payload?.totalTurnaroundTime ?? "",
       totalTurnaroundTime_human: formatDuration(Number(h.payload?.totalTurnaroundTime)),
       status: h.status ?? "",
     }));
@@ -288,7 +288,7 @@ export function BreakdownTab({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Claim ที่กรองอยู่" value={filtered.length} icon={<AlertTriangle className="size-5" />} tone={filtered.length > 10 ? "warning" : "default"} />
         <StatCard label="MTBF (เฉลี่ย)" value={mtbf.days ? `${mtbf.days.toFixed(1)} วัน` : "—"} delta={`${mtbf.samples} ช่วงเวลา`} tone={critical ? "danger" : mtbf.days < 30 ? "warning" : "success"} icon={<Activity className="size-5" />} />
-        <StatCard label="Downtime รวม" value={formatDuration(downtimeSec)} delta={`${filtered.length} tickets`} icon={<Clock className="size-5" />} tone="warning" />
+        <StatCard label="Downtime รวม" value={formatDuration(downtimeMin)} delta={`${filtered.length} tickets`} icon={<Clock className="size-5" />} tone="warning" />
         <StatCard label="นัดตรวจครั้งถัดไป" value={nextPredicted ? nextPredicted.toLocaleDateString("th-TH", { day: "2-digit", month: "short" }) : "—"} delta={predictedInPast ? "เลื่อนมาเป็นพรุ่งนี้ (ของเดิมเลยกำหนด)" : "คาดการณ์จาก MTBF"} icon={<Wrench className="size-5" />} tone={predictedInPast ? "warning" : "default"} />
       </div>
 

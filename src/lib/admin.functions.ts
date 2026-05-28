@@ -248,3 +248,60 @@ export const syncAssetHistoryBatchNow = createServerFn({ method: "POST" })
     await assertAdmin(context.userId);
     return runAssetHistorySyncBatch(data.limit ?? 200);
   });
+
+// ---------- Diagram Mappings writes ----------
+const mappingInput = z.object({
+  id: z.string().uuid().optional(),
+  category: z.string().min(1).max(60).regex(/^[a-z0-9_-]+$/, "ใช้ตัวพิมพ์เล็ก ตัวเลข _ - เท่านั้น"),
+  label: z.string().min(1).max(120),
+  icon: z.string().max(60).nullable().optional(),
+  keywords: z.array(z.string().min(1).max(120)).max(80),
+  sort_order: z.number().int().min(0).max(9999).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export const upsertDiagramMapping = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => mappingInput.parse(i))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const payload = { ...data, updated_by: context.userId, updated_at: new Date().toISOString() };
+    const { error } = await supabaseAdmin
+      .from("diagram_mappings")
+      .upsert(payload, { onConflict: "category" });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteDiagramMapping = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { error } = await supabaseAdmin.from("diagram_mappings").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const replaceDiagramMappings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z.object({ rows: z.array(mappingInput).min(1).max(200) }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    // ลบของเดิมทั้งหมดแล้ว insert ใหม่ (Import CSV แบบแทนที่)
+    const del = await supabaseAdmin.from("diagram_mappings").delete().neq("category", "__never__");
+    if (del.error) throw new Error(del.error.message);
+    const stamp = new Date().toISOString();
+    const rows = data.rows.map((r, idx) => ({
+      ...r,
+      sort_order: r.sort_order ?? idx + 1,
+      enabled: r.enabled ?? true,
+      updated_by: context.userId,
+      updated_at: stamp,
+    }));
+    const ins = await supabaseAdmin.from("diagram_mappings").insert(rows);
+    if (ins.error) throw new Error(ins.error.message);
+    return { ok: true, count: rows.length };
+  });

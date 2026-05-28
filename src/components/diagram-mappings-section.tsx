@@ -91,8 +91,13 @@ export function DiagramMappingsSection() {
   });
   const rows = (data?.mappings ?? []) as MappingRow[];
 
+  type MappingInput = {
+    id?: string; category: string; label: string; icon?: string | null;
+    keywords: string[]; sort_order?: number; enabled?: boolean;
+  };
+
   const upsertMut = useMutation({
-    mutationFn: (input: Parameters<typeof upsertFn>[0]["data"]) => upsertFn({ data: input }),
+    mutationFn: (input: MappingInput) => upsertFn({ data: input }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["diagram-mappings"] }); toast.success("บันทึกแล้ว"); },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -102,7 +107,7 @@ export function DiagramMappingsSection() {
     onError: (e: Error) => toast.error(e.message),
   });
   const replaceMut = useMutation({
-    mutationFn: (input: Parameters<typeof replaceFn>[0]["data"]) => replaceFn({ data: input }),
+    mutationFn: (rows: MappingInput[]) => replaceFn({ data: { rows } }),
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["diagram-mappings"] }); toast.success(`Import สำเร็จ ${r.count} รายการ`); },
     onError: (e: Error) => toast.error(e.message),
   });

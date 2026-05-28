@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid,
   Tooltip as RTooltip, ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
 import {
   AlertTriangle, Activity, Clock, Wrench, FileDown, ClipboardList,
-  Zap, Monitor, Building, Cpu, RotateCcw, Info,
+  Zap, Monitor, Building, Cpu, RotateCcw, Info, Tag,
 } from "lucide-react";
 import { StatCard, Badge } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
@@ -15,25 +17,34 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { listDiagramMappings } from "@/lib/data.functions";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type HistRow = any;
 type Asset = { id: string; old_code: string; name: string | null };
 
-type PartId = "display" | "power" | "structure" | "system";
-
-const PART_META: Record<PartId, { label: string; icon: typeof Zap; keywords: RegExp }> = {
-  display: { label: "Display / Screen", icon: Monitor, keywords: /(display|screen|จอ|led|pixel|panel|ภาพ)/i },
-  power: { label: "Power / Electrical", icon: Zap, keywords: /(power|ไฟฟ้า|การไฟฟ้า|electric|breaker|ไฟดับ|ไฟตก|voltage)/i },
-  structure: { label: "Structure", icon: Building, keywords: /(โครงสร้าง|structure|เสา|frame|ป้ายล้ม|โครง|bolt)/i },
-  system: { label: "System / Media Player", icon: Cpu, keywords: /(media\s*player|system|reset|software|ระบบ|firmware|reboot|network|signal)/i },
+type MappingRow = {
+  id: string; category: string; label: string; icon: string | null;
+  keywords: string[]; sort_order: number; enabled: boolean;
 };
 
-function classifyPart(h: HistRow): PartId | "other" {
+const ICON_MAP: Record<string, typeof Zap> = {
+  Monitor, Zap, Building, Cpu, Wrench, Activity, AlertTriangle, Clock, Tag,
+};
+
+const FALLBACK_MAPPINGS: MappingRow[] = [
+  { id: "f1", category: "display",   label: "Display / Screen",      icon: "Monitor",  keywords: ["display","screen","จอ","led","pixel","panel","ภาพ"], sort_order: 1, enabled: true },
+  { id: "f2", category: "power",     label: "Power / Electrical",    icon: "Zap",      keywords: ["power","ไฟฟ้า","การไฟฟ้า","electric","breaker","ไฟดับ","ไฟตก","voltage"], sort_order: 2, enabled: true },
+  { id: "f3", category: "structure", label: "Structure",             icon: "Building", keywords: ["โครงสร้าง","structure","เสา","frame","ป้ายล้ม","โครง","bolt"], sort_order: 3, enabled: true },
+  { id: "f4", category: "system",    label: "System / Media Player", icon: "Cpu",      keywords: ["media player","system","reset","software","ระบบ","firmware","reboot","network","signal"], sort_order: 4, enabled: true },
+];
+
+function classifyPart(h: HistRow, mappings: MappingRow[]): string {
   const text = [h.title, h.payload?.problemCategory, h.payload?.problemEquipment, h.payload?.problemDetail, h.payload?.solutionDetail]
-    .filter(Boolean).join(" ");
-  for (const [id, meta] of Object.entries(PART_META)) {
-    if (meta.keywords.test(text)) return id as PartId;
+    .filter(Boolean).join(" ").toLowerCase();
+  for (const m of mappings) {
+    if (!m.enabled) continue;
+    if (m.keywords.some((k) => k && text.includes(k.toLowerCase()))) return m.category;
   }
   return "other";
 }
@@ -85,16 +96,28 @@ export function BreakdownTab({
   );
 
   const [search, setSearch] = useState("");
-  const [activePart, setActivePart] = useState<PartId | null>(null);
+  const [activePart, setActivePart] = useState<string | null>(null);
+
+  // Load mappings from DB (admin-managed); fallback to defaults
+  const fetchMappings = useServerFn(listDiagramMappings);
+  const { data: mapData } = useQuery({
+    queryKey: ["diagram-mappings"],
+    queryFn: () => fetchMappings({}),
+    staleTime: 60_000,
+  });
+  const mappings: MappingRow[] = useMemo(() => {
+    const fromDb = (mapData?.mappings ?? []) as MappingRow[];
+    return fromDb.length ? fromDb : FALLBACK_MAPPINGS;
+  }, [mapData]);
 
   // Filter by asset search + part
   const filtered = useMemo(() => {
     return claims.filter((h) => {
       if (search && !String(h.asset_old_code ?? "").toLowerCase().includes(search.toLowerCase())) return false;
-      if (activePart && classifyPart(h) !== activePart) return false;
+      if (activePart && classifyPart(h, mappings) !== activePart) return false;
       return true;
     });
-  }, [claims, search, activePart]);
+  }, [claims, search, activePart, mappings]);
 
   // ---- MTBF (overall on filtered set, per asset average) ----
   const mtbf = useMemo(() => {
@@ -255,12 +278,17 @@ export function BreakdownTab({
     toast.success("Export Insight Report สำเร็จ", { description: `${rows.length} รายการ` });
   }
 
-  // Component counts for diagram badges
+  // Component counts for diagram badges (dynamic, keyed by category)
   const partCounts = useMemo(() => {
-    const m: Record<PartId | "other", number> = { display: 0, power: 0, structure: 0, system: 0, other: 0 };
-    for (const h of claims) m[classifyPart(h)] += 1;
+    const m: Record<string, number> = {};
+    for (const mp of mappings) m[mp.category] = 0;
+    m.other = 0;
+    for (const h of claims) {
+      const k = classifyPart(h, mappings);
+      m[k] = (m[k] ?? 0) + 1;
+    }
     return m;
-  }, [claims]);
+  }, [claims, mappings]);
 
   if (claims.length === 0) {
     return (
@@ -306,15 +334,14 @@ export function BreakdownTab({
           )}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {(Object.keys(PART_META) as PartId[]).map((id) => {
-            const meta = PART_META[id];
-            const Icon = meta.icon;
-            const isActive = activePart === id;
-            const count = partCounts[id];
+          {mappings.filter((m) => m.enabled).map((m) => {
+            const Icon = ICON_MAP[m.icon ?? ""] ?? Tag;
+            const isActive = activePart === m.category;
+            const count = partCounts[m.category] ?? 0;
             return (
               <button
-                key={id}
-                onClick={() => setActivePart(isActive ? null : id)}
+                key={m.category}
+                onClick={() => setActivePart(isActive ? null : m.category)}
                 className={cn(
                   "group rounded-lg border-2 p-4 text-left transition-all",
                   isActive
@@ -334,9 +361,9 @@ export function BreakdownTab({
                     count > 5 ? "bg-destructive/15 text-destructive" : count > 0 ? "bg-warning/15 text-[oklch(0.45_0.15_75)]" : "bg-muted text-muted-foreground",
                   )}>{count}</span>
                 </div>
-                <div className="mt-3 text-sm font-medium">{meta.label}</div>
+                <div className="mt-3 text-sm font-medium">{m.label}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  {isActive ? "กำลังกรองอยู่" : "คลิกเพื่อเจาะลึก"}
+                  {isActive ? "กำลังกรองอยู่" : `${m.keywords.length} keywords`}
                 </div>
               </button>
             );

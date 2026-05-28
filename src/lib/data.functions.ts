@@ -576,3 +576,15 @@ export const getAssetProfile = createServerFn({ method: "POST" })
     });
     return { profiles };
   });
+
+// ---------- Diagram Mappings (Breakdown classifier) ----------
+export const listDiagramMappings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data } = await context.supabase
+      .from("diagram_mappings")
+      .select("id, category, label, icon, keywords, sort_order, enabled, updated_at")
+      .order("sort_order", { ascending: true })
+      .order("category", { ascending: true });
+    return { mappings: data ?? [] };
+  });

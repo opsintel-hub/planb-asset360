@@ -513,6 +513,18 @@ function RawDataTable({
         );
       case "__opened": return <span className="text-xs whitespace-nowrap">{fmtDate(h.opened_at)}</span>;
       case "__closed": return <span className="text-xs whitespace-nowrap text-muted-foreground">{fmtDate(h.closed_at)}</span>;
+      case "__responseTime": {
+        const v = Number((p as { responseTime?: unknown; ResponseTime?: unknown }).responseTime ?? (p as { ResponseTime?: unknown }).ResponseTime);
+        return <span className="text-xs whitespace-nowrap tabular-nums">{Number.isFinite(v) && v > 0 ? formatMinutes(v) : "—"}</span>;
+      }
+      case "__resolveTime": {
+        const v = Number((p as { resolveTime?: unknown; ResolveTime?: unknown }).resolveTime ?? (p as { ResolveTime?: unknown }).ResolveTime);
+        return <span className="text-xs whitespace-nowrap tabular-nums">{Number.isFinite(v) && v > 0 ? formatMinutes(v) : "—"}</span>;
+      }
+      case "__totalTurnaround": {
+        const v = Number((p as { totalTurnaroundTime?: unknown; TotalTurnaroundTime?: unknown }).totalTurnaroundTime ?? (p as { TotalTurnaroundTime?: unknown }).TotalTurnaroundTime);
+        return <span className="text-xs whitespace-nowrap tabular-nums">{Number.isFinite(v) && v > 0 ? formatMinutes(v) : "—"}</span>;
+      }
       case "__duration": return <span className="text-xs whitespace-nowrap tabular-nums">{durationLabel(h.opened_at, h.closed_at, h.payload as Record<string, unknown> | null)}</span>;
       case "__title": return <span className="whitespace-nowrap">{h.title ?? "—"}</span>;
       case "__status": return <Badge tone={/finish|approved|closed|done/i.test(h.status ?? "") ? "success" : "warning"}>{h.status ?? "—"}</Badge>;

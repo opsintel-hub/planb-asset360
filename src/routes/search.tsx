@@ -1606,8 +1606,13 @@ const PROFILE_FIELD_ORDER = [
   "Region", "BKKUPC", "Department", "MediaType", "MediaClass", "MediaSegment",
   "RoutePM", "RouteMonitoring", "RouteReportPhoto", "RouteInstallAndDemolish",
   "TargetMonitoring", "Extra_1", "Extra_2", "Extra_3",
-  "CreatedDateTime", "UpdatedDateTime",
 ];
+// ฟิลด์เหล่านี้ไม่แสดงในหน้า Profile ตามคำสั่งผู้ใช้ (ค่า meta ภายในระบบ)
+const PROFILE_HIDDEN_FIELDS = new Set([
+  "CreatedDateTime", "UpdatedDateTime", "Id", "IsDeleted",
+  "createdDateTime", "updatedDateTime", "id", "isDeleted",
+  "ID", "ISDELETED", "CREATEDDATETIME", "UPDATEDDATETIME",
+]);
 
 function ProfileTab({ profiles }: { profiles: ProfileItem[] }) {
   if (!profiles.length) {

@@ -1743,7 +1743,7 @@ function ProfileCard({ p }: { p: ProfileItem }) {
           )}
         </div>
         {mapSrc ? (
-          <div className="rounded-lg overflow-hidden border h-80">
+          <div className="rounded-lg overflow-hidden border h-[26rem]">
             <iframe
               key={`${p.lat},${p.lng}`}
               title={`map-${p.asset.old_code}`}

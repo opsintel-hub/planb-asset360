@@ -441,12 +441,20 @@ function Slicer({ label, value, onChange, options }: { label: string; value: str
 const CORE_COLS: Array<{ key: string; label: string; sticky?: boolean }> = [
   { key: "__asset", label: "ป้าย", sticky: true },
   { key: "__opened", label: "วันที่เปิด" },
+  { key: "__responseTime", label: "ระยะเวลาตอบรับ" },
+  { key: "__resolveTime", label: "ระยะเวลาช่างซ่อม" },
+  { key: "__totalTurnaround", label: "ระยะเวลาแก้ไขปัญหา" },
   { key: "__closed", label: "อัพเดทล่าสุด" },
-  { key: "__duration", label: "ระยะเวลา" },
+  { key: "__duration", label: "ระยะเวลาแก้ปัญหาและตรวจสอบ" },
   { key: "__title", label: "รายการ" },
   { key: "__status", label: "สถานะ" },
 ];
-const EXCLUDED_PAYLOAD_KEYS = new Set(["status", "createdDate", "updatedDate"]);
+// ซ่อนฟิลด์ที่แสดงเป็นคอลัมน์หลักแล้ว ออกจาก "ฟิลด์จากข้อมูล" เพื่อไม่ให้ซ้ำ
+const EXCLUDED_PAYLOAD_KEYS = new Set([
+  "status", "createdDate", "updatedDate",
+  "responseTime", "resolveTime", "totalTurnaroundTime",
+  "ResponseTime", "ResolveTime", "TotalTurnaroundTime",
+]);
 
 function RawDataTable({
   tab, history, total, pageRows, page, setPage, pageSize, setPageSize, totalPages, colorByAsset,
@@ -505,6 +513,18 @@ function RawDataTable({
         );
       case "__opened": return <span className="text-xs whitespace-nowrap">{fmtDate(h.opened_at)}</span>;
       case "__closed": return <span className="text-xs whitespace-nowrap text-muted-foreground">{fmtDate(h.closed_at)}</span>;
+      case "__responseTime": {
+        const v = Number((p as { responseTime?: unknown; ResponseTime?: unknown }).responseTime ?? (p as { ResponseTime?: unknown }).ResponseTime);
+        return <span className="text-xs whitespace-nowrap tabular-nums">{Number.isFinite(v) && v > 0 ? formatMinutes(v) : "—"}</span>;
+      }
+      case "__resolveTime": {
+        const v = Number((p as { resolveTime?: unknown; ResolveTime?: unknown }).resolveTime ?? (p as { ResolveTime?: unknown }).ResolveTime);
+        return <span className="text-xs whitespace-nowrap tabular-nums">{Number.isFinite(v) && v > 0 ? formatMinutes(v) : "—"}</span>;
+      }
+      case "__totalTurnaround": {
+        const v = Number((p as { totalTurnaroundTime?: unknown; TotalTurnaroundTime?: unknown }).totalTurnaroundTime ?? (p as { TotalTurnaroundTime?: unknown }).TotalTurnaroundTime);
+        return <span className="text-xs whitespace-nowrap tabular-nums">{Number.isFinite(v) && v > 0 ? formatMinutes(v) : "—"}</span>;
+      }
       case "__duration": return <span className="text-xs whitespace-nowrap tabular-nums">{durationLabel(h.opened_at, h.closed_at, h.payload as Record<string, unknown> | null)}</span>;
       case "__title": return <span className="whitespace-nowrap">{h.title ?? "—"}</span>;
       case "__status": return <Badge tone={/finish|approved|closed|done/i.test(h.status ?? "") ? "success" : "warning"}>{h.status ?? "—"}</Badge>;
@@ -1586,8 +1606,13 @@ const PROFILE_FIELD_ORDER = [
   "Region", "BKKUPC", "Department", "MediaType", "MediaClass", "MediaSegment",
   "RoutePM", "RouteMonitoring", "RouteReportPhoto", "RouteInstallAndDemolish",
   "TargetMonitoring", "Extra_1", "Extra_2", "Extra_3",
-  "CreatedDateTime", "UpdatedDateTime",
 ];
+// ฟิลด์เหล่านี้ไม่แสดงในหน้า Profile ตามคำสั่งผู้ใช้ (ค่า meta ภายในระบบ)
+const PROFILE_HIDDEN_FIELDS = new Set([
+  "CreatedDateTime", "UpdatedDateTime", "Id", "IsDeleted",
+  "createdDateTime", "updatedDateTime", "id", "isDeleted",
+  "ID", "ISDELETED", "CREATEDDATETIME", "UPDATEDDATETIME",
+]);
 
 function ProfileTab({ profiles }: { profiles: ProfileItem[] }) {
   if (!profiles.length) {
@@ -1605,14 +1630,14 @@ function ProfileCard({ p }: { p: ProfileItem }) {
   const fields: Array<{ k: string; v: string }> = [];
   const seen = new Set<string>(["OldCode"]);
   for (const k of PROFILE_FIELD_ORDER) {
-    if (k === "OldCode") continue;
+    if (k === "OldCode" || PROFILE_HIDDEN_FIELDS.has(k)) continue;
     const v = (payload as Record<string, unknown>)[k];
     if (v == null || v === "") continue;
     fields.push({ k, v: String(v) });
     seen.add(k);
   }
   for (const k of Object.keys(payload)) {
-    if (seen.has(k)) continue;
+    if (seen.has(k) || PROFILE_HIDDEN_FIELDS.has(k)) continue;
     const v = (payload as Record<string, unknown>)[k];
     if (v == null || v === "" || typeof v === "object") continue;
     fields.push({ k, v: String(v) });
@@ -1718,7 +1743,7 @@ function ProfileCard({ p }: { p: ProfileItem }) {
           )}
         </div>
         {mapSrc ? (
-          <div className="rounded-lg overflow-hidden border h-80">
+          <div className="rounded-lg overflow-hidden border h-[26rem]">
             <iframe
               key={`${p.lat},${p.lng}`}
               title={`map-${p.asset.old_code}`}

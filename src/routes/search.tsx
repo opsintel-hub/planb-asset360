@@ -441,12 +441,20 @@ function Slicer({ label, value, onChange, options }: { label: string; value: str
 const CORE_COLS: Array<{ key: string; label: string; sticky?: boolean }> = [
   { key: "__asset", label: "ป้าย", sticky: true },
   { key: "__opened", label: "วันที่เปิด" },
+  { key: "__responseTime", label: "ระยะเวลาตอบรับ" },
+  { key: "__resolveTime", label: "ระยะเวลาช่างซ่อม" },
+  { key: "__totalTurnaround", label: "ระยะเวลาแก้ไขปัญหา" },
   { key: "__closed", label: "อัพเดทล่าสุด" },
-  { key: "__duration", label: "ระยะเวลา" },
+  { key: "__duration", label: "ระยะเวลาแก้ปัญหาและตรวจสอบ" },
   { key: "__title", label: "รายการ" },
   { key: "__status", label: "สถานะ" },
 ];
-const EXCLUDED_PAYLOAD_KEYS = new Set(["status", "createdDate", "updatedDate"]);
+// ซ่อนฟิลด์ที่แสดงเป็นคอลัมน์หลักแล้ว ออกจาก "ฟิลด์จากข้อมูล" เพื่อไม่ให้ซ้ำ
+const EXCLUDED_PAYLOAD_KEYS = new Set([
+  "status", "createdDate", "updatedDate",
+  "responseTime", "resolveTime", "totalTurnaroundTime",
+  "ResponseTime", "ResolveTime", "TotalTurnaroundTime",
+]);
 
 function RawDataTable({
   tab, history, total, pageRows, page, setPage, pageSize, setPageSize, totalPages, colorByAsset,

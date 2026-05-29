@@ -546,16 +546,9 @@ export const getAssetProfile = createServerFn({ method: "POST" })
         status = sev || "อยู่ระหว่างการปรับปรุง";
         statusTone = /finish|approved|closed|done|ok/i.test(sev) ? "ok" : "warning";
       }
-      let lat: number | null = a.latitude != null ? Number(a.latitude) : null;
-      let lng: number | null = a.longitude != null ? Number(a.longitude) : null;
-      if ((lat == null || lng == null) && claim) {
-        const p = claim.payload as Record<string, unknown> | null;
-        const ll = (p?.latitudeLongitude ?? p?.LatitudeLongitude) as string | undefined;
-        if (typeof ll === "string" && ll.includes(",")) {
-          const [a1, a2] = ll.split(",").map((x) => Number(x.trim()));
-          if (Number.isFinite(a1) && Number.isFinite(a2)) { lat = a1; lng = a2; }
-        }
-      }
+      // ใช้พิกัดจาก table assets เท่านั้น (ไม่ fallback จาก claims) ตามคำสั่งผู้ใช้
+      const lat: number | null = a.latitude != null ? Number(a.latitude) : null;
+      const lng: number | null = a.longitude != null ? Number(a.longitude) : null;
       const counts = { PM: Array(12).fill(0) as number[], Claim: Array(12).fill(0) as number[] };
       for (const h of hist) {
         if (h.asset_id !== a.id) continue;

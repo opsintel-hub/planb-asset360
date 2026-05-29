@@ -546,9 +546,25 @@ export const getAssetProfile = createServerFn({ method: "POST" })
         status = sev || "อยู่ระหว่างการปรับปรุง";
         statusTone = /finish|approved|closed|done|ok/i.test(sev) ? "ok" : "warning";
       }
-      // ใช้พิกัดจาก table assets เท่านั้น (ไม่ fallback จาก claims) ตามคำสั่งผู้ใช้
-      const lat: number | null = a.latitude != null ? Number(a.latitude) : null;
-      const lng: number | null = a.longitude != null ? Number(a.longitude) : null;
+      // พิกัดจาก assets table; ถ้าไม่มี ให้ fallback ไปอ่านจาก payload ของ asset เอง
+      // (รองรับคีย์ latitudeLongitude / LatitudeLongitude รูปแบบ "lat, lng" และคีย์แยก lat/lng)
+      let lat: number | null = a.latitude != null ? Number(a.latitude) : null;
+      let lng: number | null = a.longitude != null ? Number(a.longitude) : null;
+      if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
+        const p = (a.payload ?? {}) as Record<string, unknown>;
+        const ll = (p.latitudeLongitude ?? p.LatitudeLongitude ?? p.latLng ?? p.LatLng) as string | undefined;
+        if (typeof ll === "string" && ll.includes(",")) {
+          const [la, ln] = ll.split(",").map((s) => Number(s.trim()));
+          if (Number.isFinite(la) && Number.isFinite(ln)) { lat = la; lng = ln; }
+        }
+        if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
+          const la = Number((p.latitude ?? p.Latitude ?? p.lat ?? p.Lat) as number | string | undefined);
+          const ln = Number((p.longitude ?? p.Longitude ?? p.lng ?? p.Lng ?? p.lon ?? p.Lon) as number | string | undefined);
+          if (Number.isFinite(la) && Number.isFinite(ln)) { lat = la; lng = ln; }
+        }
+        if (lat != null && Number.isNaN(lat)) lat = null;
+        if (lng != null && Number.isNaN(lng)) lng = null;
+      }
       const counts = { PM: Array(12).fill(0) as number[], Claim: Array(12).fill(0) as number[] };
       for (const h of hist) {
         if (h.asset_id !== a.id) continue;

@@ -1630,14 +1630,14 @@ function ProfileCard({ p }: { p: ProfileItem }) {
   const fields: Array<{ k: string; v: string }> = [];
   const seen = new Set<string>(["OldCode"]);
   for (const k of PROFILE_FIELD_ORDER) {
-    if (k === "OldCode") continue;
+    if (k === "OldCode" || PROFILE_HIDDEN_FIELDS.has(k)) continue;
     const v = (payload as Record<string, unknown>)[k];
     if (v == null || v === "") continue;
     fields.push({ k, v: String(v) });
     seen.add(k);
   }
   for (const k of Object.keys(payload)) {
-    if (seen.has(k)) continue;
+    if (seen.has(k) || PROFILE_HIDDEN_FIELDS.has(k)) continue;
     const v = (payload as Record<string, unknown>)[k];
     if (v == null || v === "" || typeof v === "object") continue;
     fields.push({ k, v: String(v) });

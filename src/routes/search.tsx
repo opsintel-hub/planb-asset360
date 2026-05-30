@@ -538,7 +538,7 @@ function RawDataTable({
         const v = Number((p as { totalTurnaroundTime?: unknown; TotalTurnaroundTime?: unknown }).totalTurnaroundTime ?? (p as { TotalTurnaroundTime?: unknown }).TotalTurnaroundTime);
         return <span className="text-xs whitespace-nowrap tabular-nums">{Number.isFinite(v) && v > 0 ? formatMinutes(v) : "—"}</span>;
       }
-      case "__duration": return <span className="text-xs whitespace-nowrap tabular-nums">{durationLabel(h.opened_at, h.closed_at, h.payload as Record<string, unknown> | null)}</span>;
+      case "__duration": return <span className="text-xs whitespace-nowrap tabular-nums">{durationLabel(h.status, h.opened_at, h.closed_at, h.payload as Record<string, unknown> | null)}</span>;
       case "__title": return <span className="whitespace-nowrap">{h.title ?? "—"}</span>;
       case "__status": return <Badge tone={/finish|approved|closed|done/i.test(h.status ?? "") ? "success" : "warning"}>{h.status ?? "—"}</Badge>;
       default: {

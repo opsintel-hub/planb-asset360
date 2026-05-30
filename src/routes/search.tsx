@@ -582,7 +582,7 @@ function RawDataTable({
                   </div>
                   <div className="space-y-1">
                     <div className="text-[10px] uppercase text-muted-foreground mt-1 mb-1">คอลัมน์หลัก</div>
-                    {CORE_COLS.map((c) => (
+                    {coreCols.map((c) => (
                       <label key={c.key} className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-accent cursor-pointer">
                         <input type="checkbox" checked={!hidden.has(c.key)} onChange={() => toggleHide(c.key)} />
                         <span>{c.label}</span>

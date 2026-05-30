@@ -82,14 +82,27 @@ export function formatMinutes(totalMinutes: number): string {
   return parts.length ? parts.join(" ") : `${t} นาที`;
 }
 
-function durationLabel(open?: string | null, close?: string | null, payload?: Record<string, unknown> | null) {
-  // ใช้ totalTurnaroundTime (นาที) จาก payload เป็นหลัก เพื่อให้ตรงกับ Summary
-  const tt = Number((payload as { totalTurnaroundTime?: unknown } | null | undefined)?.totalTurnaroundTime);
-  if (Number.isFinite(tt) && tt > 0) return formatMinutes(tt);
-  if (!open || !close) return "—";
-  const ms = new Date(close).getTime() - new Date(open).getTime();
+function durationLabel(
+  status?: string | null,
+  open?: string | null,
+  close?: string | null,
+  payload?: Record<string, unknown> | null,
+) {
+  const s = (status ?? "").trim().toLowerCase();
+  if (s === "approved") return "กำลังรอหัวหน้าตรวจ";
+  if (s === "pending") return "รอจ่ายงานช่าง";
+  if (s !== "finished") return "กำลังซ่อม";
+
+  // Finished: ใช้ updatedDate - createdDate จาก payload ถ้ามี ไม่งั้น fallback closed/opened
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const created = (p.createdDate ?? p.CreatedDate ?? open) as string | null | undefined;
+  const updated = (p.updatedDate ?? p.UpdatedDate ?? close) as string | null | undefined;
+  if (!created || !updated) return "—";
+  const ms = new Date(updated).getTime() - new Date(created).getTime();
   if (!Number.isFinite(ms) || ms < 0) return "—";
-  return formatMinutes(ms / 60_000);
+  const days = ms / 86_400_000;
+  if (days < 1) return "ภายใน 24 ชั่วโมง";
+  return `${Math.floor(days)} วัน`;
 }
 
 // วันที่ที่ใช้จัดกลุ่มในกราฟ/Calendar/Matrix:

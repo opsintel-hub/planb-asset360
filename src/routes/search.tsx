@@ -513,7 +513,8 @@ function RawDataTable({
     try { localStorage.removeItem(storageKey); } catch { /* noop */ }
   };
 
-  const visibleCore = CORE_COLS.filter((c) => !hidden.has(c.key));
+  const coreCols = getCoreCols(tab);
+  const visibleCore = coreCols.filter((c) => !hidden.has(c.key));
   const visiblePayload = payloadKeys.filter((k) => !hidden.has(`p:${k}`));
   const totalCols = visibleCore.length + visiblePayload.length;
   const [showColPanel, setShowColPanel] = useState(false);

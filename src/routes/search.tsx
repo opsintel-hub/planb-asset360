@@ -82,14 +82,27 @@ export function formatMinutes(totalMinutes: number): string {
   return parts.length ? parts.join(" ") : `${t} นาที`;
 }
 
-function durationLabel(open?: string | null, close?: string | null, payload?: Record<string, unknown> | null) {
-  // ใช้ totalTurnaroundTime (นาที) จาก payload เป็นหลัก เพื่อให้ตรงกับ Summary
-  const tt = Number((payload as { totalTurnaroundTime?: unknown } | null | undefined)?.totalTurnaroundTime);
-  if (Number.isFinite(tt) && tt > 0) return formatMinutes(tt);
-  if (!open || !close) return "—";
-  const ms = new Date(close).getTime() - new Date(open).getTime();
+function durationLabel(
+  status?: string | null,
+  open?: string | null,
+  close?: string | null,
+  payload?: Record<string, unknown> | null,
+) {
+  const s = (status ?? "").trim().toLowerCase();
+  if (s === "approved") return "กำลังรอหัวหน้าตรวจ";
+  if (s === "pending") return "รอจ่ายงานช่าง";
+  if (s !== "finished") return "กำลังซ่อม";
+
+  // Finished: ใช้ updatedDate - createdDate จาก payload ถ้ามี ไม่งั้น fallback closed/opened
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const created = (p.createdDate ?? p.CreatedDate ?? open) as string | null | undefined;
+  const updated = (p.updatedDate ?? p.UpdatedDate ?? close) as string | null | undefined;
+  if (!created || !updated) return "—";
+  const ms = new Date(updated).getTime() - new Date(created).getTime();
   if (!Number.isFinite(ms) || ms < 0) return "—";
-  return formatMinutes(ms / 60_000);
+  const days = ms / 86_400_000;
+  if (days < 1) return "ภายใน 24 ชั่วโมง";
+  return `${Math.floor(days)} วัน`;
 }
 
 // วันที่ที่ใช้จัดกลุ่มในกราฟ/Calendar/Matrix:
@@ -438,7 +451,7 @@ function Slicer({ label, value, onChange, options }: { label: string; value: str
 }
 
 // ============ Raw Data Table (shared by PM/Claim/Monitor) ============
-const CORE_COLS: Array<{ key: string; label: string; sticky?: boolean }> = [
+const CORE_COLS_BASE: Array<{ key: string; label: string; sticky?: boolean }> = [
   { key: "__asset", label: "ป้าย", sticky: true },
   { key: "__opened", label: "วันที่เปิด" },
   { key: "__responseTime", label: "ระยะเวลาตอบรับ" },
@@ -449,6 +462,10 @@ const CORE_COLS: Array<{ key: string; label: string; sticky?: boolean }> = [
   { key: "__title", label: "รายการ" },
   { key: "__status", label: "สถานะ" },
 ];
+const CLAIM_ONLY_COLS = new Set(["__responseTime", "__resolveTime", "__totalTurnaround"]);
+function getCoreCols(tab: TabId) {
+  return tab === "Claim" ? CORE_COLS_BASE : CORE_COLS_BASE.filter((c) => !CLAIM_ONLY_COLS.has(c.key));
+}
 // ซ่อนฟิลด์ที่แสดงเป็นคอลัมน์หลักแล้ว ออกจาก "ฟิลด์จากข้อมูล" เพื่อไม่ให้ซ้ำ
 const EXCLUDED_PAYLOAD_KEYS = new Set([
   "status", "createdDate", "updatedDate",
@@ -496,7 +513,8 @@ function RawDataTable({
     try { localStorage.removeItem(storageKey); } catch { /* noop */ }
   };
 
-  const visibleCore = CORE_COLS.filter((c) => !hidden.has(c.key));
+  const coreCols = getCoreCols(tab);
+  const visibleCore = coreCols.filter((c) => !hidden.has(c.key));
   const visiblePayload = payloadKeys.filter((k) => !hidden.has(`p:${k}`));
   const totalCols = visibleCore.length + visiblePayload.length;
   const [showColPanel, setShowColPanel] = useState(false);
@@ -525,7 +543,7 @@ function RawDataTable({
         const v = Number((p as { totalTurnaroundTime?: unknown; TotalTurnaroundTime?: unknown }).totalTurnaroundTime ?? (p as { TotalTurnaroundTime?: unknown }).TotalTurnaroundTime);
         return <span className="text-xs whitespace-nowrap tabular-nums">{Number.isFinite(v) && v > 0 ? formatMinutes(v) : "—"}</span>;
       }
-      case "__duration": return <span className="text-xs whitespace-nowrap tabular-nums">{durationLabel(h.opened_at, h.closed_at, h.payload as Record<string, unknown> | null)}</span>;
+      case "__duration": return <span className="text-xs whitespace-nowrap tabular-nums">{durationLabel(h.status, h.opened_at, h.closed_at, h.payload as Record<string, unknown> | null)}</span>;
       case "__title": return <span className="whitespace-nowrap">{h.title ?? "—"}</span>;
       case "__status": return <Badge tone={/finish|approved|closed|done/i.test(h.status ?? "") ? "success" : "warning"}>{h.status ?? "—"}</Badge>;
       default: {
@@ -564,7 +582,7 @@ function RawDataTable({
                   </div>
                   <div className="space-y-1">
                     <div className="text-[10px] uppercase text-muted-foreground mt-1 mb-1">คอลัมน์หลัก</div>
-                    {CORE_COLS.map((c) => (
+                    {coreCols.map((c) => (
                       <label key={c.key} className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-accent cursor-pointer">
                         <input type="checkbox" checked={!hidden.has(c.key)} onChange={() => toggleHide(c.key)} />
                         <span>{c.label}</span>

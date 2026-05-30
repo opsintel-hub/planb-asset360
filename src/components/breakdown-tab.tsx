@@ -322,7 +322,7 @@ export function BreakdownTab({
 
       {/* Interactive asset diagram */}
       <div className="rounded-xl border p-5">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
           <div>
             <div className="text-sm font-semibold">Interactive Asset Diagram</div>
             <div className="text-xs text-muted-foreground">คลิกที่ส่วนประกอบเพื่อกรองปัญหาเฉพาะจุด</div>
@@ -332,6 +332,18 @@ export function BreakdownTab({
               <RotateCcw className="size-3.5 mr-1" /> ล้างตัวกรอง
             </Button>
           )}
+        </div>
+        {/* Data source explainer */}
+        <div className="mb-4 flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+          <Info className="size-3.5 mt-0.5 shrink-0" />
+          <div>
+            <div className="font-medium text-foreground">แหล่งข้อมูลการจัดหมวดหมู่</div>
+            <div className="mt-0.5">
+              ระบบดึงข้อมูลจากตาราง <code className="font-mono">asset_history</code> เฉพาะรายการประเภท <b>Claim</b> แล้วนำข้อความจาก
+              field <code className="font-mono">title</code>, <code className="font-mono">payload.problemCategory</code>, <code className="font-mono">payload.problemEquipment</code>, <code className="font-mono">payload.problemDetail</code> และ <code className="font-mono">payload.solutionDetail</code> มา
+              match กับ <b>Keywords</b> ที่กำหนดในหน้า ตั้งค่า → Diagram Mappings (ไม่ case-sensitive, รองรับไทย/อังกฤษ)
+            </div>
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {mappings.filter((m) => m.enabled).map((m) => {
@@ -368,8 +380,43 @@ export function BreakdownTab({
               </button>
             );
           })}
+          {/* Others / Uncategorized — แสดงเสมอเพื่อให้เห็นว่ามีรายการที่ยังไม่ถูก mapping */}
+          {(() => {
+            const count = partCounts.other ?? 0;
+            const isActive = activePart === "other";
+            return (
+              <button
+                onClick={() => setActivePart(isActive ? null : "other")}
+                className={cn(
+                  "group rounded-lg border-2 border-dashed p-4 text-left transition-all",
+                  isActive
+                    ? "border-primary bg-primary/5 shadow-[var(--shadow-elegant)]"
+                    : "border-border hover:border-primary/50 bg-card",
+                )}
+                title="คลิกเพื่อดูรายการที่ยังไม่ถูกจัดหมวดหมู่ แล้วนำคำใหม่ไปเพิ่มในหน้า ตั้งค่า → Diagram Mappings"
+              >
+                <div className="flex items-start justify-between">
+                  <div className={cn(
+                    "size-10 rounded-lg grid place-items-center",
+                    isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary",
+                  )}>
+                    <Tag className="size-5" />
+                  </div>
+                  <span className={cn(
+                    "text-xs font-bold px-2 py-0.5 rounded-full",
+                    count > 0 ? "bg-warning/15 text-[oklch(0.45_0.15_75)]" : "bg-muted text-muted-foreground",
+                  )}>{count}</span>
+                </div>
+                <div className="mt-3 text-sm font-medium">Others / ไม่ระบุหมวดหมู่</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {isActive ? "กำลังกรองอยู่" : count > 0 ? "คลิกเพื่อดู & เพิ่ม keywords" : "ทุกรายการถูก map แล้ว"}
+                </div>
+              </button>
+            );
+          })()}
         </div>
       </div>
+
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Recurring problems */}

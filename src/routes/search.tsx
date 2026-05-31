@@ -89,11 +89,11 @@ function durationLabel(
   payload?: Record<string, unknown> | null,
 ) {
   const s = (status ?? "").trim().toLowerCase();
-  if (s === "approved") return "กำลังรอหัวหน้าตรวจ";
+  if (s === "finished") return "กำลังรอหัวหน้าตรวจ";
   if (s === "pending") return "รอจ่ายงานช่าง";
-  if (s !== "finished") return "กำลังซ่อม";
+  if (s !== "approved") return "กำลังซ่อม";
 
-  // Finished: ใช้ updatedDate - createdDate จาก payload ถ้ามี ไม่งั้น fallback closed/opened
+  // Approved: ใช้ updatedDate - createdDate จาก payload ถ้ามี ไม่งั้น fallback closed/opened
   const p = (payload ?? {}) as Record<string, unknown>;
   const created = (p.createdDate ?? p.CreatedDate ?? open) as string | null | undefined;
   const updated = (p.updatedDate ?? p.UpdatedDate ?? close) as string | null | undefined;

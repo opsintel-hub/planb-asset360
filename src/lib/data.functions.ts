@@ -396,11 +396,37 @@ export const listClaims = createServerFn({ method: "POST" })
     let q = context.supabase
       .from("claims")
       .select("*")
+      .order("ticket_code", { ascending: true })
       .order("age_hours", { ascending: false })
-      .limit(200);
+      .limit(500);
     if (data.sla !== "all") q = q.eq("sla_status", data.sla);
     const { data: rows } = await q;
-    return { claims: rows ?? [] };
+    const claims = rows ?? [];
+
+    // Join department from assets via asset_old_code
+    const codes = Array.from(
+      new Set(claims.map((c) => c.asset_old_code).filter(Boolean) as string[]),
+    );
+    const deptMap = new Map<string, string | null>();
+    if (codes.length) {
+      const { data: assets } = await context.supabase
+        .from("assets")
+        .select("old_code, department")
+        .in("old_code", codes);
+      for (const a of assets ?? []) deptMap.set(a.old_code, a.department ?? null);
+    }
+    const enriched = claims.map((c) => ({
+      ...c,
+      department: c.asset_old_code ? deptMap.get(c.asset_old_code) ?? null : null,
+      status:
+        ((c.payload as Record<string, unknown> | null)?.status as string | undefined) ??
+        ((c.payload as Record<string, unknown> | null)?.Status as string | undefined) ??
+        null,
+    }));
+    const departments = Array.from(
+      new Set(enriched.map((c) => c.department).filter(Boolean) as string[]),
+    ).sort();
+    return { claims: enriched, departments };
   });
 
 // ---------- Monitoring ----------

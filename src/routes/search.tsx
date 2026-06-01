@@ -27,10 +27,9 @@ export const Route = createFileRoute("/search")({
 
 const TABS = [
   { id: "Profile", label: "Profile", icon: IdCard },
-  { id: "PM", label: "PM", icon: Wrench },
-  { id: "Claim", label: "Claim", icon: AlertCircle },
-  { id: "Breakdown", label: "Breakdown", icon: AlertTriangle },
   { id: "Monitor", label: "Monitoring", icon: Eye },
+  { id: "Claim", label: "Claim", icon: AlertCircle },
+  { id: "PM", label: "PM", icon: Wrench },
   { id: "PMSchedule", label: "PM Schedule", icon: CalendarClock },
   { id: "AssetHealth", label: "Asset Health", icon: Activity },
 ] as const;

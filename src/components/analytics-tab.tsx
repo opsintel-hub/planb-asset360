@@ -182,12 +182,99 @@ export function AnalyticsTab({
 
   const fmt = (n: number, d = 1) => Number.isFinite(n) ? n.toFixed(d) : "—";
 
+  // ---------- AI Analysis ----------
+  const callAi = useServerFn(aiAnalyzeAssets);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiText, setAiText] = useState<string>("");
+
+  async function runAiAnalysis() {
+    setAiLoading(true);
+    setAiText("");
+    try {
+      const now = new Date();
+      const ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const curMonth = ym(now);
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevMonth = ym(prev);
+      const cur = monthly.find((m) => m.month === curMonth) ?? { PM: 0, Monitor: 0, Claim: 0 };
+      const last = monthly.find((m) => m.month === prevMonth) ?? { PM: 0, Monitor: 0, Claim: 0 };
+
+      const repeats: string[] = [];
+      for (const a of assets) {
+        const claims = history.filter((h) => h.asset_id === a.id && h.type === "Claim");
+        const m = new Map<string, number>();
+        claims.forEach((h) => {
+          const c = categorizeClaim(h);
+          m.set(c, (m.get(c) ?? 0) + 1);
+        });
+        for (const [cause, n] of m) {
+          if (n >= 3) repeats.push(`${a.old_code}: ${cause} ${n} ครั้ง`);
+        }
+      }
+
+      const payload = {
+        จำนวนป้าย: assets.length,
+        รวม: { PM: totalPM, Monitor: totalMonitor, Claim: totalClaims },
+        เดือนนี้: { month: curMonth, ...cur },
+        เดือนก่อน: { month: prevMonth, ...last },
+        MTBF_เฉลี่ย_วัน: Number.isFinite(overallMtbf) ? Number(overallMtbf.toFixed(1)) : null,
+        PM_Lag_เฉลี่ย_วัน: Number.isFinite(overallLag) ? Number(overallLag.toFixed(1)) : null,
+        Predictive_Accuracy_pct: Number.isFinite(overallPredictive) ? Number(overallPredictive.toFixed(0)) : null,
+        หน้าต่าง_Monitor_ก่อน_Claim_วัน: lagWindow,
+        สาเหตุ_Claim: causes.slice(0, 8),
+        Monitor_vs_Claim_per_cause: monitorVsClaim,
+        ป้าย_MTBF_ต่ำกว่า_10วัน: perAsset
+          .filter((p) => Number.isFinite(p.mtbf) && p.mtbf < 10)
+          .map((p) => ({ code: p.asset.old_code, mtbf: Number(p.mtbf.toFixed(1)), claims: p.claimCount })),
+        Top5_Claim: topClaims,
+        อาการเสียซ้ำซาก: repeats.slice(0, 10),
+      };
+
+      const res = await callAi({ data: { context: JSON.stringify(payload, null, 2) } });
+      setAiText(res.text);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "AI วิเคราะห์ไม่สำเร็จ";
+      toast.error(msg);
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   if (assets.length === 0) {
     return <div className="py-12 text-center text-sm text-muted-foreground">เลือกป้ายก่อนเพื่อดู Analytics</div>;
   }
 
   return (
     <div className="space-y-8">
+      {/* AI Executive Summary */}
+      <div className="rounded-xl border bg-gradient-to-br from-primary/5 to-accent/10 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="size-4 text-primary" />
+              <h3 className="text-sm font-semibold">AI Executive Summary</h3>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              ให้ AI วิเคราะห์ภาพรวม PM × Claim × Monitor, เปรียบเทียบกับเดือนก่อน, ระบุตัวปัญหา (MTBF&lt;10 วัน, อาการซ้ำซาก) และบอกว่า "ต้องทำอะไรต่อ"
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={runAiAnalysis}
+            disabled={aiLoading}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+          >
+            {aiLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            {aiLoading ? "กำลังวิเคราะห์..." : "วิเคราะห์ด้วย AI"}
+          </button>
+        </div>
+        {aiText && (
+          <div className="mt-4 rounded-lg border bg-card p-4 text-sm whitespace-pre-wrap leading-relaxed">
+            {aiText}
+          </div>
+        )}
+      </div>
+
       {/* Summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="PM ทั้งหมด" value={totalPM} tone="default" icon={<Activity className="size-5" />} />

@@ -241,6 +241,13 @@ function SearchPage() {
     enabled: codes.length > 0 && tab === "Profile",
   });
 
+  const pmScheduleFn = useServerFn(getAssetsPmSchedule);
+  const { data: pmSchedData, isFetching: pmSchedFetching } = useQuery({
+    queryKey: ["pm-schedule", codes.join(",")],
+    queryFn: () => pmScheduleFn({ data: { oldCodes: codes } }),
+    enabled: codes.length > 0 && tab === "PMSchedule",
+  });
+
   // persist recent
   useEffect(() => {
     if (!codes.length) return;

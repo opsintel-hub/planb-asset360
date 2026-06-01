@@ -140,6 +140,8 @@ Deno.serve(async (req: Request) => {
     const database = conn.database ?? "planb";
     const user = conn.username ?? "planb_viewer";
     const table = quoteTableName(conn.table ?? "Asset");
+    const pmTableRaw = (conn.pmScheduleTable ?? "Asset_PM_Schedule").trim();
+    const pmTable = pmTableRaw ? quoteTableName(pmTableRaw) : null;
 
     const parsed = parseHostPort(host);
     const server = parsed.server;

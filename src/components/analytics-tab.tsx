@@ -4,7 +4,10 @@ import {
   Legend, ResponsiveContainer, BarChart, PieChart, Pie, Cell,
 } from "recharts";
 import { StatCard, Badge } from "@/components/ui-bits";
-import { AlertTriangle, ShieldCheck, Activity, Clock } from "lucide-react";
+import { AlertTriangle, ShieldCheck, Activity, Clock, Sparkles, Loader2, Info } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { aiAnalyzeAssets } from "@/lib/ai-analyze.functions";
+import { toast } from "sonner";
 
 const TYPE_COLOR = {
   PM: "oklch(0.62 0.19 255)",
@@ -179,12 +182,99 @@ export function AnalyticsTab({
 
   const fmt = (n: number, d = 1) => Number.isFinite(n) ? n.toFixed(d) : "—";
 
+  // ---------- AI Analysis ----------
+  const callAi = useServerFn(aiAnalyzeAssets);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiText, setAiText] = useState<string>("");
+
+  async function runAiAnalysis() {
+    setAiLoading(true);
+    setAiText("");
+    try {
+      const now = new Date();
+      const ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const curMonth = ym(now);
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevMonth = ym(prev);
+      const cur = monthly.find((m) => m.month === curMonth) ?? { PM: 0, Monitor: 0, Claim: 0 };
+      const last = monthly.find((m) => m.month === prevMonth) ?? { PM: 0, Monitor: 0, Claim: 0 };
+
+      const repeats: string[] = [];
+      for (const a of assets) {
+        const claims = history.filter((h) => h.asset_id === a.id && h.type === "Claim");
+        const m = new Map<string, number>();
+        claims.forEach((h) => {
+          const c = categorizeClaim(h);
+          m.set(c, (m.get(c) ?? 0) + 1);
+        });
+        for (const [cause, n] of m) {
+          if (n >= 3) repeats.push(`${a.old_code}: ${cause} ${n} ครั้ง`);
+        }
+      }
+
+      const payload = {
+        จำนวนป้าย: assets.length,
+        รวม: { PM: totalPM, Monitor: totalMonitor, Claim: totalClaims },
+        เดือนนี้: { month: curMonth, ...cur },
+        เดือนก่อน: { month: prevMonth, ...last },
+        MTBF_เฉลี่ย_วัน: Number.isFinite(overallMtbf) ? Number(overallMtbf.toFixed(1)) : null,
+        PM_Lag_เฉลี่ย_วัน: Number.isFinite(overallLag) ? Number(overallLag.toFixed(1)) : null,
+        Predictive_Accuracy_pct: Number.isFinite(overallPredictive) ? Number(overallPredictive.toFixed(0)) : null,
+        หน้าต่าง_Monitor_ก่อน_Claim_วัน: lagWindow,
+        สาเหตุ_Claim: causes.slice(0, 8),
+        Monitor_vs_Claim_per_cause: monitorVsClaim,
+        ป้าย_MTBF_ต่ำกว่า_10วัน: perAsset
+          .filter((p) => Number.isFinite(p.mtbf) && p.mtbf < 10)
+          .map((p) => ({ code: p.asset.old_code, mtbf: Number(p.mtbf.toFixed(1)), claims: p.claimCount })),
+        Top5_Claim: topClaims,
+        อาการเสียซ้ำซาก: repeats.slice(0, 10),
+      };
+
+      const res = await callAi({ data: { context: JSON.stringify(payload, null, 2) } });
+      setAiText(res.text);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "AI วิเคราะห์ไม่สำเร็จ";
+      toast.error(msg);
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   if (assets.length === 0) {
     return <div className="py-12 text-center text-sm text-muted-foreground">เลือกป้ายก่อนเพื่อดู Analytics</div>;
   }
 
   return (
     <div className="space-y-8">
+      {/* AI Executive Summary */}
+      <div className="rounded-xl border bg-gradient-to-br from-primary/5 to-accent/10 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="size-4 text-primary" />
+              <h3 className="text-sm font-semibold">AI Executive Summary</h3>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              ให้ AI วิเคราะห์ภาพรวม PM × Claim × Monitor, เปรียบเทียบกับเดือนก่อน, ระบุตัวปัญหา (MTBF&lt;10 วัน, อาการซ้ำซาก) และบอกว่า "ต้องทำอะไรต่อ"
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={runAiAnalysis}
+            disabled={aiLoading}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+          >
+            {aiLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            {aiLoading ? "กำลังวิเคราะห์..." : "วิเคราะห์ด้วย AI"}
+          </button>
+        </div>
+        {aiText && (
+          <div className="mt-4 rounded-lg border bg-card p-4 text-sm whitespace-pre-wrap leading-relaxed">
+            {aiText}
+          </div>
+        )}
+      </div>
+
       {/* Summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard label="PM ทั้งหมด" value={totalPM} tone="default" icon={<Activity className="size-5" />} />
@@ -308,7 +398,7 @@ export function AnalyticsTab({
 
       {/* Section 3: Root Cause Analysis */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-start justify-between flex-wrap gap-2">
           <div>
             <h3 className="text-base font-semibold">3. Root Cause &amp; Predictive Accuracy</h3>
             <p className="text-xs text-muted-foreground">สาเหตุการ Claim และเปรียบเทียบกับสิ่งที่ Monitor ตรวจเจอ</p>
@@ -320,6 +410,35 @@ export function AnalyticsTab({
             </select>
           </label>
         </div>
+
+        {/* คำอธิบายละเอียด */}
+        <div className="rounded-lg border bg-muted/20 p-3 text-xs space-y-2">
+          <div className="flex items-center gap-1.5 font-medium text-foreground">
+            <Info className="size-3.5" /> "หน้าต่าง Monitor ก่อน Claim" คืออะไร?
+          </div>
+          <p className="text-muted-foreground">
+            คือ <strong>ระยะเวลาย้อนหลังก่อนเกิด Claim</strong> ที่เรานับว่า "Monitor ครั้งนั้นเป็นการเตือนล่วงหน้าที่ใช้งานได้จริง"
+            ตัวอย่าง: ถ้าเลือก <strong>{lagWindow} วัน</strong> แล้วเกิด Claim วันที่ 20 — Monitor ที่บันทึกระหว่างวันที่ {20 - lagWindow} ถึงวันที่ 20 จะถูกนับว่า "ตรวจเจอก่อน"
+            ถ้า Monitor ห่างเกิน {lagWindow} วันถือว่าไกลเกินไป ไม่เกี่ยวข้องกับ Claim ครั้งนั้น
+          </p>
+          <p className="text-muted-foreground">
+            ปรับค่าหน้าต่าง <strong>เล็ก (3 วัน)</strong> = เข้มงวด, ต้องตรวจเจอใกล้เวลาเสียจริง — ค่ามักต่ำลง<br/>
+            ปรับ <strong>ใหญ่ (30 วัน)</strong> = ผ่อนคลาย, นับ Monitor ที่ห่างเป็นเดือนก็ได้ — ค่ามักสูงขึ้น
+          </p>
+          <div className="flex items-center gap-1.5 font-medium text-foreground pt-1">
+            <Info className="size-3.5" /> "Predictive Accuracy" คืออะไร?
+          </div>
+          <p className="text-muted-foreground">
+            % ของ Claim ที่ <strong>มี Monitor นำมาก่อน</strong> ภายในหน้าต่างที่ตั้งไว้ —
+            สูตร: <code className="text-foreground">(จำนวน Claim ที่ตรวจเจอก่อน ÷ Claim ทั้งหมด) × 100</code>
+          </p>
+          <ul className="list-disc pl-5 space-y-0.5 text-muted-foreground">
+            <li><strong className="text-success">90–100%</strong> = ระบบ Monitor "เห็นล่วงหน้า" เกือบทุกครั้งก่อนป้ายจะเสีย (เชิงรุก)</li>
+            <li><strong className="text-warning">50–89%</strong> = เห็นบ้างไม่เห็นบ้าง ควรเพิ่มเกณฑ์ตรวจ</li>
+            <li><strong className="text-destructive">0–49%</strong> = ป้ายเสียโดยไม่มีสัญญาณเตือนจาก Monitor — Monitor แบบ "ตั้งรับ" (ดูหลังเสียแล้ว) มากกว่าเชิงรุก</li>
+          </ul>
+        </div>
+
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-xl border p-4">
             <div className="text-sm font-medium mb-3">สัดส่วนสาเหตุการ Claim</div>
@@ -369,13 +488,24 @@ export function AnalyticsTab({
           </div>
         </div>
 
-        <div className="rounded-xl border p-4 bg-accent/20">
+        <div className="rounded-xl border p-4 bg-accent/20 space-y-1.5">
           <div className="text-sm">
             <span className="font-medium">Predictive Accuracy รวม: </span>
-            <span className="tabular-nums">{fmt(overallPredictive, 0)}%</span>
-            <span className="text-muted-foreground"> — มี Claim {totalClaims} ครั้ง, ตรวจเจอสัญญาณจาก Monitor ภายใน {lagWindow} วันก่อนหน้า {totalDetected} ครั้ง</span>
+            <span className="tabular-nums text-base font-semibold">{fmt(overallPredictive, 0)}%</span>
           </div>
+          <div className="text-xs text-muted-foreground">
+            จาก Claim ทั้งหมด <strong className="text-foreground">{totalClaims}</strong> ครั้ง,
+            มี Monitor บันทึกภายใน <strong className="text-foreground">{lagWindow} วันก่อนเกิด Claim</strong> ทั้งสิ้น <strong className="text-foreground">{totalDetected}</strong> ครั้ง
+            → {totalDetected}/{totalClaims} × 100 = {fmt(overallPredictive, 0)}%
+          </div>
+          {Number.isFinite(overallPredictive) && overallPredictive === 100 && (
+            <div className="text-xs text-warning">
+              ⚠︎ ค่า 100% อาจเกิดจาก Monitor ถูกบันทึกบ่อยมาก (เช่น auto-monitor ทุกวัน) ทำให้ทุก Claim ย่อมมี Monitor นำมาก่อนเสมอ
+              — ลองลดหน้าต่างเป็น 3 วันเพื่อดูว่าระบบ "เห็นล่วงหน้าใกล้เวลาจริง" แค่ไหน
+            </div>
+          )}
         </div>
+
       </section>
     </div>
   );

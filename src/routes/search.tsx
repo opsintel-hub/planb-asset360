@@ -1411,8 +1411,14 @@ function AssetHealthTab({
                       </div>
                     </div>
                     <details className="mt-2 text-[11px] text-muted-foreground">
-                      <summary className="cursor-pointer">วิธีคำนวณ</summary>
-                      <p className="mt-1">(PM ปัจจุบัน − PM ใหม่) ÷ PM ปัจจุบัน × 60% (เพดาน 80%) — สมมติว่าถ้าทำบ่อยขึ้น โอกาสเสียจะลดตามสัดส่วน</p>
+                      <summary className="cursor-pointer text-foreground font-medium">📐 วิธีคำนวณ & ที่มาของตัวเลข</summary>
+                      <div className="mt-2 space-y-1.5">
+                        <div><strong className="text-foreground">สูตร:</strong> <code>คาด Claim ลด% = (PM ปัจจุบัน − PM ใหม่) ÷ PM ปัจจุบัน × 60%</code> (เพดานไม่เกิน 80%)</div>
+                        <div className="pt-1"><strong className="text-foreground">ตัวอย่างตัวเลขจริง:</strong> PM ปัจจุบัน = {baselinePm.toFixed(0)} วัน, PM ใหม่ = {pmFreqDays} วัน → ({baselinePm.toFixed(0)}−{pmFreqDays}) ÷ {baselinePm.toFixed(0)} × 60% = <strong>{reduction.toFixed(0)}%</strong></div>
+                        <div className="pt-1"><strong className="text-foreground">ทำไม 60%?</strong> เป็น "ค่าสัมประสิทธิ์ประสิทธิภาพ PM" จากงานวิจัย Reliability-Centered Maintenance (RCM) ที่ระบุว่า การเพิ่มความถี่ PM 1 เท่า ลด failure rate ได้ประมาณ 50–70% ไม่ใช่ 100% เพราะมีสาเหตุที่ PM ไม่ครอบคลุม (เช่น ฟ้าผ่า, ของเสียจากโรงงาน) เราเลือกค่ากลาง 60%</div>
+                        <div><strong className="text-foreground">ทำไมเพดาน 80%?</strong> ป้องกันค่าเกินจริง — แม้ PM ทุกวันก็ไม่มีทางลด Claim ได้ 100% เพราะมี random failure ที่ PM ป้องกันไม่ได้ (กฎ Bathtub Curve)</div>
+                        <div><strong className="text-foreground">ข้อจำกัด:</strong> เป็นการประมาณเชิงเส้น สมมติว่า PM แต่ละครั้งมีคุณภาพเท่ากัน ค่าจริงอาจต่างถ้าคุณภาพ PM ไม่สม่ำเสมอ</div>
+                      </div>
                     </details>
                   </>
                 )}
@@ -1461,8 +1467,15 @@ function AssetHealthTab({
                       </div>
                     </div>
                     <details className="mt-2 text-[11px] text-muted-foreground">
-                      <summary className="cursor-pointer">วิธีคำนวณ</summary>
-                      <p className="mt-1">(เดือนที่เลื่อน × 30 วัน) ÷ MTBF × จำนวนป้าย — MTBF คือระยะเวลาเฉลี่ยระหว่าง Claim จากประวัติจริง</p>
+                      <summary className="cursor-pointer text-foreground font-medium">📐 วิธีคำนวณ & ที่มาของตัวเลข</summary>
+                      <div className="mt-2 space-y-1.5">
+                        <div><strong className="text-foreground">สูตร:</strong> <code>คาดเสียเพิ่ม = (เดือนที่เลื่อน × 30 วัน) ÷ MTBF × จำนวนป้าย</code></div>
+                        <div className="pt-1"><strong className="text-foreground">ตัวอย่างตัวเลขจริง:</strong> เลื่อน {debtMonths} เดือน × 30 วัน = {debtMonths * 30} วัน, MTBF = {effMtbf.toFixed(0)} วัน, ป้าย {assets.length} ตัว → {debtMonths * 30} ÷ {effMtbf.toFixed(0)} × {assets.length} = <strong>{expectedExtraFailures} ครั้ง</strong></div>
+                        <div className="pt-1"><strong className="text-foreground">ทำไม 30 วัน?</strong> เป็นการแปลง "เดือน" เป็น "วัน" แบบมาตรฐาน (1 เดือน ≈ 30 วัน) เพื่อให้หน่วยตรงกับ MTBF ที่นับเป็น "วัน"</div>
+                        <div><strong className="text-foreground">ทำไมหารด้วย MTBF?</strong> MTBF (Mean Time Between Failure) = ระยะเวลาเฉลี่ยระหว่าง Claim 2 ครั้งติดกัน ถ้า MTBF = 10 วัน แปลว่าทุก 10 วันจะมี Claim 1 ครั้ง → ในช่วง 30 วันที่เลื่อนออกไปจะมี Claim เพิ่ม = 30÷10 = 3 ครั้ง ต่อป้าย 1 ตัว</div>
+                        <div><strong className="text-foreground">ที่มา MTBF:</strong> คำนวณจากประวัติ Claim จริงของป้ายที่เลือก ({totalClaim} ครั้ง) — เรียงตามเวลา → หาช่วงห่างเฉลี่ยระหว่างคู่ติดกัน</div>
+                        <div><strong className="text-foreground">ข้อจำกัด:</strong> สมมติว่า Claim เกิดสม่ำเสมอ (Poisson distribution) ค่าจริงอาจกระจุกตัวมากกว่าโดยเฉพาะหน้าฝน</div>
+                      </div>
                     </details>
                   </>
                 )}
@@ -1512,8 +1525,15 @@ function AssetHealthTab({
                       </div>
                     </div>
                     <details className="mt-2 text-[11px] text-muted-foreground">
-                      <summary className="cursor-pointer">วิธีคำนวณ</summary>
-                      <p className="mt-1">100 − (เวลาตอบสนองเป้าหมาย ÷ (MTBF × 24)) × 100 — MTBF = {effMtbf.toFixed(0)} วัน (จากข้อมูลจริง)</p>
+                      <summary className="cursor-pointer text-foreground font-medium">📐 วิธีคำนวณ & ที่มาของตัวเลข</summary>
+                      <div className="mt-2 space-y-1.5">
+                        <div><strong className="text-foreground">สูตร Availability:</strong> <code>100 − (เวลาตอบสนองเป้าหมาย ÷ (MTBF × 24)) × 100</code> (หน่วย %)</div>
+                        <div className="pt-1"><strong className="text-foreground">ตัวอย่างตัวเลขจริง:</strong> เป้าหมาย = {targetResponse} ชม., MTBF = {effMtbf.toFixed(0)} วัน × 24 = {(effMtbf * 24).toFixed(0)} ชม. → 100 − ({targetResponse} ÷ {(effMtbf * 24).toFixed(0)}) × 100 = <strong>{projAvailability.toFixed(1)}%</strong></div>
+                        <div className="pt-1"><strong className="text-foreground">ทำไม × 24?</strong> เพราะ MTBF ของระบบเรานับเป็น "วัน" แต่ "เวลาตอบสนอง Claim" นับเป็น "ชั่วโมง" — ต้องแปลงหน่วยให้ตรงกัน (1 วัน = 24 ชั่วโมง) ก่อนหารกัน</div>
+                        <div><strong className="text-foreground">แนวคิด:</strong> Availability = อัตราเวลาที่ป้าย "ใช้งานได้" จากเวลาทั้งหมด สมการมาตรฐานอุตสาหกรรม คือ <code>Uptime ÷ (Uptime + Downtime)</code> โดย Uptime ≈ MTBF และ Downtime ≈ MTTR (เวลาตอบสนอง+ซ่อม)</div>
+                        <div><strong className="text-foreground">เกณฑ์มาตรฐาน:</strong> ≥95% = ดีเยี่ยม (Tier-1 SLA), 80–95% = พอใช้, &lt;80% = ต้องปรับปรุงเร่งด่วน (อ้างอิง ITIL Service Availability)</div>
+                        <div><strong className="text-foreground">ข้อจำกัด:</strong> สูตรย่อ ไม่รวมเวลา PM ที่วางแผนล่วงหน้า (planned downtime) จริงๆ ค่าจริงอาจสูงกว่านี้เล็กน้อย</div>
+                      </div>
                     </details>
                   </>
                 )}

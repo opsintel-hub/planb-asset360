@@ -488,13 +488,24 @@ export function AnalyticsTab({
           </div>
         </div>
 
-        <div className="rounded-xl border p-4 bg-accent/20">
+        <div className="rounded-xl border p-4 bg-accent/20 space-y-1.5">
           <div className="text-sm">
             <span className="font-medium">Predictive Accuracy รวม: </span>
-            <span className="tabular-nums">{fmt(overallPredictive, 0)}%</span>
-            <span className="text-muted-foreground"> — มี Claim {totalClaims} ครั้ง, ตรวจเจอสัญญาณจาก Monitor ภายใน {lagWindow} วันก่อนหน้า {totalDetected} ครั้ง</span>
+            <span className="tabular-nums text-base font-semibold">{fmt(overallPredictive, 0)}%</span>
           </div>
+          <div className="text-xs text-muted-foreground">
+            จาก Claim ทั้งหมด <strong className="text-foreground">{totalClaims}</strong> ครั้ง,
+            มี Monitor บันทึกภายใน <strong className="text-foreground">{lagWindow} วันก่อนเกิด Claim</strong> ทั้งสิ้น <strong className="text-foreground">{totalDetected}</strong> ครั้ง
+            → {totalDetected}/{totalClaims} × 100 = {fmt(overallPredictive, 0)}%
+          </div>
+          {Number.isFinite(overallPredictive) && overallPredictive === 100 && (
+            <div className="text-xs text-warning">
+              ⚠︎ ค่า 100% อาจเกิดจาก Monitor ถูกบันทึกบ่อยมาก (เช่น auto-monitor ทุกวัน) ทำให้ทุก Claim ย่อมมี Monitor นำมาก่อนเสมอ
+              — ลองลดหน้าต่างเป็น 3 วันเพื่อดูว่าระบบ "เห็นล่วงหน้าใกล้เวลาจริง" แค่ไหน
+            </div>
+          )}
         </div>
+
       </section>
     </div>
   );

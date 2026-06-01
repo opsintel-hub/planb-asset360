@@ -255,7 +255,10 @@ function SearchPage() {
     staleTime: 5 * 60_000,
   });
   const cmpTabForBackend: "PM" | "Claim" | "Monitor" | "AssetHealth" =
-    tab === "Profile" || tab === "PMSchedule" ? "PM" : tab === "Breakdown" ? "Claim" : tab;
+    tab === "Profile" || tab === "PMSchedule" ? "PM"
+    : tab === "Breakdown" ? "Claim"
+    : tab === "Analytics" ? "AssetHealth"
+    : tab;
   const { data, isFetching, refetch } = useQuery({
     queryKey: ["comparison", codes.join(","), cmpTabForBackend, fromIso, toIso, dept, region, mediaType],
     queryFn: () => cmpFn({

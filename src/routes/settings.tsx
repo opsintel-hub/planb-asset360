@@ -351,10 +351,10 @@ function AssetDbForm({
   onTest,
   testing,
 }: {
-  defaults: { server: string; port: string; database: string; username: string; table: string };
+  defaults: { server: string; port: string; database: string; username: string; table: string; pmScheduleTable: string };
   syncDays: number[];
   syncTimes: string[];
-  onSave: (v: { server: string; port: number; database: string; username: string; table: string }) => void;
+  onSave: (v: { server: string; port: number; database: string; username: string; table: string; pmScheduleTable: string }) => void;
   onSaveDays: (days: number[]) => void;
   onSaveTimes: (times: string[]) => void;
   onTest: () => void;

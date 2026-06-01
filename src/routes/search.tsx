@@ -4,9 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Search, RefreshCw, MapPin, Building2, X, Plus, ChevronDown,
-  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard, AlertTriangle, CalendarClock,
+  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard, CalendarClock,
 } from "lucide-react";
-import { BreakdownTab } from "@/components/breakdown-tab";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -28,14 +27,47 @@ export const Route = createFileRoute("/search")({
 
 const TABS = [
   { id: "Profile", label: "Profile", icon: IdCard },
-  { id: "PM", label: "PM", icon: Wrench },
-  { id: "Claim", label: "Claim", icon: AlertCircle },
-  { id: "Breakdown", label: "Breakdown", icon: AlertTriangle },
   { id: "Monitor", label: "Monitoring", icon: Eye },
+  { id: "Claim", label: "Claim", icon: AlertCircle },
+  { id: "PM", label: "PM", icon: Wrench },
   { id: "PMSchedule", label: "PM Schedule", icon: CalendarClock },
   { id: "AssetHealth", label: "Asset Health", icon: Activity },
 ] as const;
 type TabId = typeof TABS[number]["id"];
+
+// ============ PM Schedule shared types/helpers ============
+type PmScheduleRow = {
+  id: string;
+  project: string | null;
+  asset_old_code: string | null;
+  ref_number: string | null;
+  schedule_date: string | null;
+  status: string | null;
+  inform_position: string | null;
+  asset_status: string | null;
+};
+
+type PmSchedStatus =
+  | { kind: "done"; doneDate: string }
+  | { kind: "overdue"; days: number; scheduledFor: string }
+  | { kind: "upcoming"; days: number; scheduledFor: string }
+  | { kind: "unknown" };
+
+function computePmSchedStatus(row: PmScheduleRow): PmSchedStatus {
+  const isDone =
+    /done|complete|finish|approved|closed|pass/i.test(row.status ?? "") ||
+    (!!row.asset_status && row.asset_status.trim() !== "");
+  if (!row.schedule_date) return { kind: "unknown" };
+  const sched = new Date(row.schedule_date).getTime();
+  if (!Number.isFinite(sched)) return { kind: "unknown" };
+  if (isDone) return { kind: "done", doneDate: row.schedule_date };
+  const today = Date.now();
+  const days = Math.floor((today - sched) / 86_400_000);
+  if (days > 0) return { kind: "overdue", days, scheduledFor: row.schedule_date };
+  return { kind: "upcoming", days: -days, scheduledFor: row.schedule_date };
+}
+
+
 
 const RECENT_KEY = "asset-search-recent";
 const MAX_SLOTS = 5;
@@ -219,7 +251,7 @@ function SearchPage() {
     staleTime: 5 * 60_000,
   });
   const cmpTabForBackend: "PM" | "Claim" | "Monitor" | "AssetHealth" =
-    tab === "Profile" || tab === "PMSchedule" ? "PM" : tab === "Breakdown" ? "Claim" : tab;
+    tab === "Profile" || tab === "PMSchedule" ? "PM" : tab;
   const { data, isFetching, refetch } = useQuery({
     queryKey: ["comparison", codes.join(","), cmpTabForBackend, fromIso, toIso, dept, region, mediaType],
     queryFn: () => cmpFn({
@@ -245,7 +277,7 @@ function SearchPage() {
   const { data: pmSchedData, isFetching: pmSchedFetching } = useQuery({
     queryKey: ["pm-schedule", codes.join(",")],
     queryFn: () => pmScheduleFn({ data: { oldCodes: codes } }),
-    enabled: codes.length > 0 && tab === "PMSchedule",
+    enabled: codes.length > 0 && (tab === "PMSchedule" || tab === "AssetHealth"),
   });
 
   // persist recent
@@ -434,9 +466,8 @@ function SearchPage() {
               sel={healthSel} onSel={setHealthSel}
               pmFreqDays={pmFreqDays} setPmFreqDays={setPmFreqDays}
               debtMonths={debtMonths} setDebtMonths={setDebtMonths}
+              pmSchedRows={pmSchedData?.rows ?? []}
             />
-          ) : tab === "Breakdown" ? (
-            <BreakdownTab assets={assets} history={history} />
           ) : (
             <RegularTab
               tab={tab as "PM" | "Claim" | "Monitor"} assets={assets} history={history} colorByAsset={colorByAsset}
@@ -822,11 +853,13 @@ function RegularTab({
 function AssetHealthTab({
   assets, history, colorByAsset, sel, onSel,
   pmFreqDays, setPmFreqDays, debtMonths, setDebtMonths,
+  pmSchedRows,
 }: {
   assets: Asset[]; history: HistRow[]; colorByAsset: Map<string, string>;
   sel: { PM: boolean; Claim: boolean; Monitor: boolean }; onSel: (s: typeof sel) => void;
   pmFreqDays: number; setPmFreqDays: (n: number) => void;
   debtMonths: number; setDebtMonths: (n: number) => void;
+  pmSchedRows: PmScheduleRow[];
 }) {
   const [view, setView] = useState<"graph" | "table" | "calendar">("graph");
   const [gran, setGran] = useState<"month" | "year">("month");
@@ -948,6 +981,69 @@ function AssetHealthTab({
           </div>
         </div>
       </div>
+
+      {/* PM Schedule summary (สถานะการ PM ตามแผนจาก Modern Corporate Server) */}
+      {(() => {
+        const sched = pmSchedRows.filter((r) => assets.some((a) => a.old_code === r.asset_old_code));
+        if (!sched.length) {
+          return (
+            <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
+              ยังไม่มี PM Schedule สำหรับป้ายที่เลือก (ไม่มีในตาราง Asset_PM_Schedule)
+            </div>
+          );
+        }
+        const items = sched.map((r) => ({ row: r, s: computePmSchedStatus(r) }));
+        const done = items.filter((x) => x.s.kind === "done").length;
+        const overdue = items.filter((x) => x.s.kind === "overdue");
+        const upcoming = items.filter((x) => x.s.kind === "upcoming").length;
+        const maxOverdue = overdue.reduce((m, x) => (x.s.kind === "overdue" && x.s.days > m ? x.s.days : m), 0);
+        const lastDoneByAsset = new Map<string, string>();
+        items.forEach(({ row, s }) => {
+          if (s.kind !== "done" || !row.asset_old_code) return;
+          const prev = lastDoneByAsset.get(row.asset_old_code);
+          if (!prev || new Date(s.doneDate).getTime() > new Date(prev).getTime()) {
+            lastDoneByAsset.set(row.asset_old_code, s.doneDate);
+          }
+        });
+        return (
+          <div className="rounded-lg border bg-card p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarClock className="size-4 text-primary" />
+              <h4 className="font-semibold text-sm">PM Schedule (จากตารางที่วางแผนไว้)</h4>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-md bg-muted/40 p-2.5">
+                <div className="text-[11px] text-muted-foreground">ทั้งหมด</div>
+                <div className="text-xl font-semibold">{sched.length}</div>
+              </div>
+              <div className="rounded-md bg-success/10 p-2.5">
+                <div className="text-[11px] text-success">ทำแล้ว</div>
+                <div className="text-xl font-semibold text-success">{done}</div>
+              </div>
+              <div className="rounded-md bg-destructive/10 p-2.5">
+                <div className="text-[11px] text-destructive">เกินกำหนด</div>
+                <div className="text-xl font-semibold text-destructive">{overdue.length}</div>
+                {maxOverdue > 0 && <div className="text-[10px] text-destructive/80">สูงสุด {maxOverdue} วัน</div>}
+              </div>
+              <div className="rounded-md bg-muted/40 p-2.5">
+                <div className="text-[11px] text-muted-foreground">รอถึงกำหนด</div>
+                <div className="text-xl font-semibold">{upcoming}</div>
+              </div>
+            </div>
+            {lastDoneByAsset.size > 0 && (
+              <div className="mt-3 text-[11px] text-muted-foreground">
+                PM ล่าสุดที่ทำแล้ว: {Array.from(lastDoneByAsset.entries()).map(([c, d]) => `${c} (${fmtDate(d)})`).join(" · ")}
+              </div>
+            )}
+            {overdue.length > 0 && (
+              <div className="mt-2 text-[11px] text-destructive">
+                ป้ายที่ค้าง: {overdue.slice(0, 5).map((x) => x.s.kind === "overdue" ? `${x.row.asset_old_code} (${x.s.days}d)` : "").filter(Boolean).join(", ")}{overdue.length > 5 ? ` …+${overdue.length - 5}` : ""}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
 
       {/* Per-asset metrics + 12-month matrix */}
       <div className="space-y-4">
@@ -1794,54 +1890,108 @@ function ProfileCard({ p }: { p: ProfileItem }) {
   );
 }
 
-// ============ PM Schedule Tab ============
-type PmScheduleRow = {
-  id: string;
-  project: string | null;
-  asset_old_code: string | null;
-  ref_number: string | null;
-  schedule_date: string | null;
-  status: string | null;
-  inform_position: string | null;
-  asset_status: string | null;
-};
-
 function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
   if (!rows.length) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
-        ยังไม่มีข้อมูล PM Schedule สำหรับป้ายที่เลือก — กด "ทดสอบดึงข้อมูล Asset" ในหน้าตั้งค่าเพื่อ Sync จาก Modern Corporate Server
+        ยังไม่มีข้อมูล PM Schedule สำหรับป้ายที่เลือก — ป้ายนี้อาจยังไม่มี PM Schedule ใน Modern Corporate Server หรือยังไม่ได้ Sync (กด "ทดสอบดึงข้อมูล Asset" ในหน้าตั้งค่า)
       </div>
     );
   }
+
+  // Summary across all rows
+  const statuses = rows.map(computePmSchedStatus);
+  const doneCount = statuses.filter((s) => s.kind === "done").length;
+  const overdueCount = statuses.filter((s) => s.kind === "overdue").length;
+  const upcomingCount = statuses.filter((s) => s.kind === "upcoming").length;
+  const maxOverdue = statuses.reduce((m, s) => (s.kind === "overdue" && s.days > m ? s.days : m), 0);
+
+  // Latest done per asset
+  const latestDoneByAsset = new Map<string, string>();
+  rows.forEach((r, i) => {
+    const s = statuses[i];
+    if (s.kind !== "done" || !r.asset_old_code) return;
+    const prev = latestDoneByAsset.get(r.asset_old_code);
+    if (!prev || new Date(s.doneDate).getTime() > new Date(prev).getTime()) {
+      latestDoneByAsset.set(r.asset_old_code, s.doneDate);
+    }
+  });
+
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-xs uppercase">
-          <tr>
-            <th className="px-3 py-2 text-left">Project</th>
-            <th className="px-3 py-2 text-left">ป้าย (OldCode)</th>
-            <th className="px-3 py-2 text-left">Ref Number</th>
-            <th className="px-3 py-2 text-left">Schedule Date</th>
-            <th className="px-3 py-2 text-left">Status</th>
-            <th className="px-3 py-2 text-left">Inform Position</th>
-            <th className="px-3 py-2 text-left">Asset Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className="border-t hover:bg-accent/30">
-              <td className="px-3 py-2">{r.project ?? "—"}</td>
-              <td className="px-3 py-2 font-mono text-xs">{r.asset_old_code ?? "—"}</td>
-              <td className="px-3 py-2 font-mono text-xs">{r.ref_number ?? "—"}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.schedule_date)}</td>
-              <td className="px-3 py-2"><Badge tone={/done|complete|finish/i.test(r.status ?? "") ? "success" : "warning"}>{r.status ?? "—"}</Badge></td>
-              <td className="px-3 py-2">{r.inform_position ?? "—"}</td>
-              <td className="px-3 py-2">{r.asset_status ?? "—"}</td>
+    <div className="space-y-4">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-xs text-muted-foreground">ทั้งหมด</div>
+          <div className="text-2xl font-semibold">{rows.length}</div>
+        </div>
+        <div className="rounded-lg border bg-success/5 p-3">
+          <div className="text-xs text-success">ทำแล้ว</div>
+          <div className="text-2xl font-semibold text-success">{doneCount}</div>
+        </div>
+        <div className="rounded-lg border bg-destructive/5 p-3">
+          <div className="text-xs text-destructive">เกินกำหนด</div>
+          <div className="text-2xl font-semibold text-destructive">{overdueCount}</div>
+          {maxOverdue > 0 && (
+            <div className="text-[11px] text-destructive/80 mt-0.5">สูงสุด {maxOverdue} วัน</div>
+          )}
+        </div>
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <div className="text-xs text-muted-foreground">รอถึงกำหนด</div>
+          <div className="text-2xl font-semibold">{upcomingCount}</div>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-xs uppercase">
+            <tr>
+              <th className="px-3 py-2 text-left">Project</th>
+              <th className="px-3 py-2 text-left">ป้าย (OldCode)</th>
+              <th className="px-3 py-2 text-left">Ref Number</th>
+              <th className="px-3 py-2 text-left">Schedule Date</th>
+              <th className="px-3 py-2 text-left">สถานะการทำ</th>
+              <th className="px-3 py-2 text-left">Status</th>
+              <th className="px-3 py-2 text-left">Inform Position</th>
+              <th className="px-3 py-2 text-left">Asset Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const s = statuses[i];
+              return (
+                <tr key={r.id} className="border-t hover:bg-accent/30">
+                  <td className="px-3 py-2">{r.project ?? "—"}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{r.asset_old_code ?? "—"}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{r.ref_number ?? "—"}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.schedule_date)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {s.kind === "done" && (
+                      <Badge tone="success">ทำแล้ว · {fmtDate(s.doneDate)}</Badge>
+                    )}
+                    {s.kind === "overdue" && (
+                      <Badge tone="danger">เกินกำหนด {s.days} วัน</Badge>
+                    )}
+                    {s.kind === "upcoming" && (
+                      <Badge tone="warning">อีก {s.days} วัน</Badge>
+                    )}
+                    {s.kind === "unknown" && <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="px-3 py-2"><Badge tone={/done|complete|finish|approved|pass/i.test(r.status ?? "") ? "success" : "warning"}>{r.status ?? "—"}</Badge></td>
+                  <td className="px-3 py-2">{r.inform_position ?? "—"}</td>
+                  <td className="px-3 py-2">{r.asset_status ?? "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {latestDoneByAsset.size > 0 && (
+        <div className="text-[11px] text-muted-foreground">
+          PM Schedule ล่าสุดที่ทำแล้ว: {Array.from(latestDoneByAsset.entries()).map(([c, d]) => `${c} (${fmtDate(d)})`).join(" · ")}
+        </div>
+      )}
     </div>
   );
 }

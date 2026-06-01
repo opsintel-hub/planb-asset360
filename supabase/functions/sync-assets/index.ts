@@ -21,6 +21,7 @@ interface AssetDbConn {
   database?: string;
   username?: string;
   table?: string;
+  pmScheduleTable?: string;
   encrypt?: boolean;
 }
 

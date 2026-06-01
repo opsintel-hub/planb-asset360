@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Search, RefreshCw, MapPin, Building2, X, Plus, ChevronDown,
-  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard, CalendarClock, AlertTriangle,
+  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard, CalendarClock, AlertTriangle, BarChart3,
 } from "lucide-react";
 import { BreakdownTab } from "@/components/breakdown-tab";
+import { AnalyticsTab } from "@/components/analytics-tab";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from "recharts";

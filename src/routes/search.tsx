@@ -1793,3 +1793,55 @@ function ProfileCard({ p }: { p: ProfileItem }) {
     </div>
   );
 }
+
+// ============ PM Schedule Tab ============
+type PmScheduleRow = {
+  id: string;
+  project: string | null;
+  asset_old_code: string | null;
+  ref_number: string | null;
+  schedule_date: string | null;
+  status: string | null;
+  inform_position: string | null;
+  asset_status: string | null;
+};
+
+function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
+  if (!rows.length) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        ยังไม่มีข้อมูล PM Schedule สำหรับป้ายที่เลือก — กด "ทดสอบดึงข้อมูล Asset" ในหน้าตั้งค่าเพื่อ Sync จาก Modern Corporate Server
+      </div>
+    );
+  }
+  return (
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/50 text-xs uppercase">
+          <tr>
+            <th className="px-3 py-2 text-left">Project</th>
+            <th className="px-3 py-2 text-left">ป้าย (OldCode)</th>
+            <th className="px-3 py-2 text-left">Ref Number</th>
+            <th className="px-3 py-2 text-left">Schedule Date</th>
+            <th className="px-3 py-2 text-left">Status</th>
+            <th className="px-3 py-2 text-left">Inform Position</th>
+            <th className="px-3 py-2 text-left">Asset Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className="border-t hover:bg-accent/30">
+              <td className="px-3 py-2">{r.project ?? "—"}</td>
+              <td className="px-3 py-2 font-mono text-xs">{r.asset_old_code ?? "—"}</td>
+              <td className="px-3 py-2 font-mono text-xs">{r.ref_number ?? "—"}</td>
+              <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.schedule_date)}</td>
+              <td className="px-3 py-2"><Badge tone={/done|complete|finish/i.test(r.status ?? "") ? "success" : "warning"}>{r.status ?? "—"}</Badge></td>
+              <td className="px-3 py-2">{r.inform_position ?? "—"}</td>
+              <td className="px-3 py-2">{r.asset_status ?? "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

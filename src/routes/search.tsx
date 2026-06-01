@@ -35,6 +35,40 @@ const TABS = [
 ] as const;
 type TabId = typeof TABS[number]["id"];
 
+// ============ PM Schedule shared types/helpers ============
+type PmScheduleRow = {
+  id: string;
+  project: string | null;
+  asset_old_code: string | null;
+  ref_number: string | null;
+  schedule_date: string | null;
+  status: string | null;
+  inform_position: string | null;
+  asset_status: string | null;
+};
+
+type PmSchedStatus =
+  | { kind: "done"; doneDate: string }
+  | { kind: "overdue"; days: number; scheduledFor: string }
+  | { kind: "upcoming"; days: number; scheduledFor: string }
+  | { kind: "unknown" };
+
+function computePmSchedStatus(row: PmScheduleRow): PmSchedStatus {
+  const isDone =
+    /done|complete|finish|approved|closed|pass/i.test(row.status ?? "") ||
+    (!!row.asset_status && row.asset_status.trim() !== "");
+  if (!row.schedule_date) return { kind: "unknown" };
+  const sched = new Date(row.schedule_date).getTime();
+  if (!Number.isFinite(sched)) return { kind: "unknown" };
+  if (isDone) return { kind: "done", doneDate: row.schedule_date };
+  const today = Date.now();
+  const days = Math.floor((today - sched) / 86_400_000);
+  if (days > 0) return { kind: "overdue", days, scheduledFor: row.schedule_date };
+  return { kind: "upcoming", days: -days, scheduledFor: row.schedule_date };
+}
+
+
+
 const RECENT_KEY = "asset-search-recent";
 const MAX_SLOTS = 5;
 const PALETTE = [

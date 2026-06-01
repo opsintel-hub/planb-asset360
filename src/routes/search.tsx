@@ -475,6 +475,8 @@ function SearchPage() {
               debtMonths={debtMonths} setDebtMonths={setDebtMonths}
               pmSchedRows={pmSchedData?.rows ?? []}
             />
+          ) : tab === "Analytics" ? (
+            <AnalyticsTab assets={assets} history={history} />
           ) : tab === "Breakdown" ? (
             <BreakdownTab assets={assets} history={history} />
           ) : (

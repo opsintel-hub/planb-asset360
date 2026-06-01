@@ -1467,8 +1467,15 @@ function AssetHealthTab({
                       </div>
                     </div>
                     <details className="mt-2 text-[11px] text-muted-foreground">
-                      <summary className="cursor-pointer">วิธีคำนวณ</summary>
-                      <p className="mt-1">(เดือนที่เลื่อน × 30 วัน) ÷ MTBF × จำนวนป้าย — MTBF คือระยะเวลาเฉลี่ยระหว่าง Claim จากประวัติจริง</p>
+                      <summary className="cursor-pointer text-foreground font-medium">📐 วิธีคำนวณ & ที่มาของตัวเลข</summary>
+                      <div className="mt-2 space-y-1.5">
+                        <div><strong className="text-foreground">สูตร:</strong> <code>คาดเสียเพิ่ม = (เดือนที่เลื่อน × 30 วัน) ÷ MTBF × จำนวนป้าย</code></div>
+                        <div className="pt-1"><strong className="text-foreground">ตัวอย่างตัวเลขจริง:</strong> เลื่อน {debtMonths} เดือน × 30 วัน = {debtMonths * 30} วัน, MTBF = {effMtbf.toFixed(0)} วัน, ป้าย {assets.length} ตัว → {debtMonths * 30} ÷ {effMtbf.toFixed(0)} × {assets.length} = <strong>{expectedExtraFailures} ครั้ง</strong></div>
+                        <div className="pt-1"><strong className="text-foreground">ทำไม 30 วัน?</strong> เป็นการแปลง "เดือน" เป็น "วัน" แบบมาตรฐาน (1 เดือน ≈ 30 วัน) เพื่อให้หน่วยตรงกับ MTBF ที่นับเป็น "วัน"</div>
+                        <div><strong className="text-foreground">ทำไมหารด้วย MTBF?</strong> MTBF (Mean Time Between Failure) = ระยะเวลาเฉลี่ยระหว่าง Claim 2 ครั้งติดกัน ถ้า MTBF = 10 วัน แปลว่าทุก 10 วันจะมี Claim 1 ครั้ง → ในช่วง 30 วันที่เลื่อนออกไปจะมี Claim เพิ่ม = 30÷10 = 3 ครั้ง ต่อป้าย 1 ตัว</div>
+                        <div><strong className="text-foreground">ที่มา MTBF:</strong> คำนวณจากประวัติ Claim จริงของป้ายที่เลือก ({totalClaim} ครั้ง) — เรียงตามเวลา → หาช่วงห่างเฉลี่ยระหว่างคู่ติดกัน</div>
+                        <div><strong className="text-foreground">ข้อจำกัด:</strong> สมมติว่า Claim เกิดสม่ำเสมอ (Poisson distribution) ค่าจริงอาจกระจุกตัวมากกว่าโดยเฉพาะหน้าฝน</div>
+                      </div>
                     </details>
                   </>
                 )}

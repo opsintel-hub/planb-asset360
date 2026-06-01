@@ -410,7 +410,8 @@ function AssetDbForm({
             เก็บไว้ใน Secret Store (MODERN_CORP_DB_PASSWORD) — แจ้งแอดมินเพื่ออัปเดต
           </p>
         </div>
-        <Field label="Table" value={table} onChange={setTable} />
+        <Field label="Table (Asset)" value={table} onChange={setTable} />
+        <Field label="Table (PM Schedule)" value={pmScheduleTable} onChange={setPmScheduleTable} />
       </div>
 
       <div className="space-y-2 rounded-lg border bg-background/50 p-3">

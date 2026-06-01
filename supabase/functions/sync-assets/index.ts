@@ -200,29 +200,37 @@ Deno.serve(async (req: Request) => {
         // Wipe & insert (small table, no stable PK guaranteed from source)
         await admin.from("asset_pm_schedules").delete().neq("id", "00000000-0000-0000-0000-000000000000");
 
-        const pmRows = pmList.map((item) => ({
-          project: pickStr(item, ["Project", "project"]),
-          asset_old_code: pickStr(item, [
-            "OldCode", "oldCode", "old_code",
-            "OlaCode", "olaCode", // tolerate typo from source
-            "AssetCode", "assetCode", "Code", "code",
-          ]),
-          ref_number: pickStr(item, ["RefNumber", "refNumber", "ref_number"]),
-          schedule_date: pickStr(item, ["ScheduleDate", "scheduleDate", "schedule_date"]),
-          status: pickStr(item, ["Status", "status"]),
-          inform_position: pickStr(item, [
-            "InformPosition", "informPosition",
-            "InformPsition", "informPsition", // tolerate typo from source
-            "Inform_Position",
-          ]),
-          asset_status: pickStr(item, [
-            "AssetStatus", "assetStatus",
-            "AssetSataus", "assetSataus", // tolerate typo from source
-            "Asset_Status",
-          ]),
-          payload: item,
-          synced_at: new Date().toISOString(),
-        }));
+        // Dedupe by natural key (ref_number, asset_old_code, schedule_date)
+        // — source can have duplicates which violate uniq_asset_pm_schedules_natkey
+        const pmMap = new Map<string, Record<string, unknown>>();
+        for (const item of pmList) {
+          const row = {
+            project: pickStr(item, ["Project", "project"]),
+            asset_old_code: pickStr(item, [
+              "OldCode", "oldCode", "old_code",
+              "OlaCode", "olaCode", // tolerate typo from source
+              "AssetCode", "assetCode", "Code", "code",
+            ]),
+            ref_number: pickStr(item, ["RefNumber", "refNumber", "ref_number"]),
+            schedule_date: pickStr(item, ["ScheduleDate", "scheduleDate", "schedule_date"]),
+            status: pickStr(item, ["Status", "status"]),
+            inform_position: pickStr(item, [
+              "InformPosition", "informPosition",
+              "InformPsition", "informPsition", // tolerate typo from source
+              "Inform_Position",
+            ]),
+            asset_status: pickStr(item, [
+              "AssetStatus", "assetStatus",
+              "AssetSataus", "assetSataus", // tolerate typo from source
+              "Asset_Status",
+            ]),
+            payload: item,
+            synced_at: new Date().toISOString(),
+          };
+          const key = `${row.ref_number ?? ""}|${row.asset_old_code ?? ""}|${row.schedule_date ?? ""}`;
+          pmMap.set(key, row); // last wins
+        }
+        const pmRows = Array.from(pmMap.values());
 
         const pmBatch = 200;
         for (let i = 0; i < pmRows.length; i += pmBatch) {

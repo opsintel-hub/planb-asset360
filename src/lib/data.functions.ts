@@ -386,6 +386,24 @@ export const getAssetDetail = createServerFn({ method: "POST" })
     return { asset, history: history ?? [] };
   });
 
+// ---------- Asset PM Schedules (from Modern Corp `Asset_PM_Schedule` table) ----------
+export const getAssetsPmSchedule = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z.object({
+      oldCodes: z.array(z.string().min(1).max(100)).min(1).max(20),
+    }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: rows } = await context.supabase
+      .from("asset_pm_schedules")
+      .select("id, project, asset_old_code, ref_number, schedule_date, status, inform_position, asset_status, payload, synced_at")
+      .in("asset_old_code", data.oldCodes)
+      .order("schedule_date", { ascending: false })
+      .limit(2000);
+    return { rows: rows ?? [] };
+  });
+
 // ---------- Claims ----------
 export const listClaims = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

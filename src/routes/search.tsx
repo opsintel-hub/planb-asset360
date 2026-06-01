@@ -233,7 +233,7 @@ function SearchPage() {
         mediaType: mediaType || undefined,
       },
     }),
-    enabled: codes.length > 0 && tab !== "Profile",
+    enabled: codes.length > 0 && tab !== "Profile" && tab !== "PMSchedule",
   });
   const { data: profileData, isFetching: profileFetching } = useQuery({
     queryKey: ["asset-profile", codes.join(",")],

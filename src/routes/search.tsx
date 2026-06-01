@@ -420,6 +420,12 @@ function SearchPage() {
             ) : (
               <ProfileTab profiles={profileData?.profiles ?? []} />
             )
+          ) : tab === "PMSchedule" ? (
+            pmSchedFetching && !pmSchedData ? (
+              <div className="space-y-3"><Skeleton className="h-64" /></div>
+            ) : (
+              <PmScheduleTab rows={pmSchedData?.rows ?? []} />
+            )
           ) : isFetching && !data ? (
             <div className="space-y-3"><Skeleton className="h-24" /><Skeleton className="h-64" /></div>
           ) : tab === "AssetHealth" ? (

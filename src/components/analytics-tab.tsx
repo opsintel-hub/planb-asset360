@@ -4,7 +4,10 @@ import {
   Legend, ResponsiveContainer, BarChart, PieChart, Pie, Cell,
 } from "recharts";
 import { StatCard, Badge } from "@/components/ui-bits";
-import { AlertTriangle, ShieldCheck, Activity, Clock } from "lucide-react";
+import { AlertTriangle, ShieldCheck, Activity, Clock, Sparkles, Loader2, Info } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { aiAnalyzeAssets } from "@/lib/ai-analyze.functions";
+import { toast } from "sonner";
 
 const TYPE_COLOR = {
   PM: "oklch(0.62 0.19 255)",

@@ -1525,8 +1525,15 @@ function AssetHealthTab({
                       </div>
                     </div>
                     <details className="mt-2 text-[11px] text-muted-foreground">
-                      <summary className="cursor-pointer">วิธีคำนวณ</summary>
-                      <p className="mt-1">100 − (เวลาตอบสนองเป้าหมาย ÷ (MTBF × 24)) × 100 — MTBF = {effMtbf.toFixed(0)} วัน (จากข้อมูลจริง)</p>
+                      <summary className="cursor-pointer text-foreground font-medium">📐 วิธีคำนวณ & ที่มาของตัวเลข</summary>
+                      <div className="mt-2 space-y-1.5">
+                        <div><strong className="text-foreground">สูตร Availability:</strong> <code>100 − (เวลาตอบสนองเป้าหมาย ÷ (MTBF × 24)) × 100</code> (หน่วย %)</div>
+                        <div className="pt-1"><strong className="text-foreground">ตัวอย่างตัวเลขจริง:</strong> เป้าหมาย = {targetResponse} ชม., MTBF = {effMtbf.toFixed(0)} วัน × 24 = {(effMtbf * 24).toFixed(0)} ชม. → 100 − ({targetResponse} ÷ {(effMtbf * 24).toFixed(0)}) × 100 = <strong>{projAvailability.toFixed(1)}%</strong></div>
+                        <div className="pt-1"><strong className="text-foreground">ทำไม × 24?</strong> เพราะ MTBF ของระบบเรานับเป็น "วัน" แต่ "เวลาตอบสนอง Claim" นับเป็น "ชั่วโมง" — ต้องแปลงหน่วยให้ตรงกัน (1 วัน = 24 ชั่วโมง) ก่อนหารกัน</div>
+                        <div><strong className="text-foreground">แนวคิด:</strong> Availability = อัตราเวลาที่ป้าย "ใช้งานได้" จากเวลาทั้งหมด สมการมาตรฐานอุตสาหกรรม คือ <code>Uptime ÷ (Uptime + Downtime)</code> โดย Uptime ≈ MTBF และ Downtime ≈ MTTR (เวลาตอบสนอง+ซ่อม)</div>
+                        <div><strong className="text-foreground">เกณฑ์มาตรฐาน:</strong> ≥95% = ดีเยี่ยม (Tier-1 SLA), 80–95% = พอใช้, &lt;80% = ต้องปรับปรุงเร่งด่วน (อ้างอิง ITIL Service Availability)</div>
+                        <div><strong className="text-foreground">ข้อจำกัด:</strong> สูตรย่อ ไม่รวมเวลา PM ที่วางแผนล่วงหน้า (planned downtime) จริงๆ ค่าจริงอาจสูงกว่านี้เล็กน้อย</div>
+                      </div>
                     </details>
                   </>
                 )}

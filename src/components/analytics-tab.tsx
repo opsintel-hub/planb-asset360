@@ -398,7 +398,7 @@ export function AnalyticsTab({
 
       {/* Section 3: Root Cause Analysis */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-start justify-between flex-wrap gap-2">
           <div>
             <h3 className="text-base font-semibold">3. Root Cause &amp; Predictive Accuracy</h3>
             <p className="text-xs text-muted-foreground">สาเหตุการ Claim และเปรียบเทียบกับสิ่งที่ Monitor ตรวจเจอ</p>
@@ -410,6 +410,35 @@ export function AnalyticsTab({
             </select>
           </label>
         </div>
+
+        {/* คำอธิบายละเอียด */}
+        <div className="rounded-lg border bg-muted/20 p-3 text-xs space-y-2">
+          <div className="flex items-center gap-1.5 font-medium text-foreground">
+            <Info className="size-3.5" /> "หน้าต่าง Monitor ก่อน Claim" คืออะไร?
+          </div>
+          <p className="text-muted-foreground">
+            คือ <strong>ระยะเวลาย้อนหลังก่อนเกิด Claim</strong> ที่เรานับว่า "Monitor ครั้งนั้นเป็นการเตือนล่วงหน้าที่ใช้งานได้จริง"
+            ตัวอย่าง: ถ้าเลือก <strong>{lagWindow} วัน</strong> แล้วเกิด Claim วันที่ 20 — Monitor ที่บันทึกระหว่างวันที่ {20 - lagWindow} ถึงวันที่ 20 จะถูกนับว่า "ตรวจเจอก่อน"
+            ถ้า Monitor ห่างเกิน {lagWindow} วันถือว่าไกลเกินไป ไม่เกี่ยวข้องกับ Claim ครั้งนั้น
+          </p>
+          <p className="text-muted-foreground">
+            ปรับค่าหน้าต่าง <strong>เล็ก (3 วัน)</strong> = เข้มงวด, ต้องตรวจเจอใกล้เวลาเสียจริง — ค่ามักต่ำลง<br/>
+            ปรับ <strong>ใหญ่ (30 วัน)</strong> = ผ่อนคลาย, นับ Monitor ที่ห่างเป็นเดือนก็ได้ — ค่ามักสูงขึ้น
+          </p>
+          <div className="flex items-center gap-1.5 font-medium text-foreground pt-1">
+            <Info className="size-3.5" /> "Predictive Accuracy" คืออะไร?
+          </div>
+          <p className="text-muted-foreground">
+            % ของ Claim ที่ <strong>มี Monitor นำมาก่อน</strong> ภายในหน้าต่างที่ตั้งไว้ —
+            สูตร: <code className="text-foreground">(จำนวน Claim ที่ตรวจเจอก่อน ÷ Claim ทั้งหมด) × 100</code>
+          </p>
+          <ul className="list-disc pl-5 space-y-0.5 text-muted-foreground">
+            <li><strong className="text-success">90–100%</strong> = ระบบ Monitor "เห็นล่วงหน้า" เกือบทุกครั้งก่อนป้ายจะเสีย (เชิงรุก)</li>
+            <li><strong className="text-warning">50–89%</strong> = เห็นบ้างไม่เห็นบ้าง ควรเพิ่มเกณฑ์ตรวจ</li>
+            <li><strong className="text-destructive">0–49%</strong> = ป้ายเสียโดยไม่มีสัญญาณเตือนจาก Monitor — Monitor แบบ "ตั้งรับ" (ดูหลังเสียแล้ว) มากกว่าเชิงรุก</li>
+          </ul>
+        </div>
+
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-xl border p-4">
             <div className="text-sm font-medium mb-3">สัดส่วนสาเหตุการ Claim</div>

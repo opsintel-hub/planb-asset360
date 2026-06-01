@@ -432,9 +432,8 @@ function SearchPage() {
               sel={healthSel} onSel={setHealthSel}
               pmFreqDays={pmFreqDays} setPmFreqDays={setPmFreqDays}
               debtMonths={debtMonths} setDebtMonths={setDebtMonths}
+              pmSchedRows={pmSchedData?.rows ?? []}
             />
-          ) : tab === "Breakdown" ? (
-            <BreakdownTab assets={assets} history={history} />
           ) : (
             <RegularTab
               tab={tab as "PM" | "Claim" | "Monitor"} assets={assets} history={history} colorByAsset={colorByAsset}

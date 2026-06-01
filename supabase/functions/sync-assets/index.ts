@@ -190,11 +190,66 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ---- Asset_PM_Schedule sync (same connection, additional table) ----
+    let pmCount = 0;
+    if (pmTable) {
+      try {
+        const pmResult = await pool.request().query(`SELECT * FROM ${pmTable}`);
+        const pmList = (pmResult.recordset ?? []) as Record<string, unknown>[];
+
+        // Wipe & insert (small table, no stable PK guaranteed from source)
+        await admin.from("asset_pm_schedules").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
+        const pmRows = pmList.map((item) => ({
+          project: pickStr(item, ["Project", "project"]),
+          asset_old_code: pickStr(item, [
+            "OldCode", "oldCode", "old_code",
+            "OlaCode", "olaCode", // tolerate typo from source
+            "AssetCode", "assetCode", "Code", "code",
+          ]),
+          ref_number: pickStr(item, ["RefNumber", "refNumber", "ref_number"]),
+          schedule_date: pickStr(item, ["ScheduleDate", "scheduleDate", "schedule_date"]),
+          status: pickStr(item, ["Status", "status"]),
+          inform_position: pickStr(item, [
+            "InformPosition", "informPosition",
+            "InformPsition", "informPsition", // tolerate typo from source
+            "Inform_Position",
+          ]),
+          asset_status: pickStr(item, [
+            "AssetStatus", "assetStatus",
+            "AssetSataus", "assetSataus", // tolerate typo from source
+            "Asset_Status",
+          ]),
+          payload: item,
+          synced_at: new Date().toISOString(),
+        }));
+
+        const pmBatch = 200;
+        for (let i = 0; i < pmRows.length; i += pmBatch) {
+          const slice = pmRows.slice(i, i + pmBatch);
+          if (!slice.length) continue;
+          const { error } = await admin.from("asset_pm_schedules").insert(slice);
+          if (error) throw new Error(error.message);
+          pmCount += slice.length;
+        }
+      } catch (pmErr) {
+        console.error("sync-assets: Asset_PM_Schedule failed", (pmErr as Error).message);
+        // Don't fail the whole sync — log a warning instead
+        await admin.from("sync_logs").insert({
+          source: "asset_pm_schedule",
+          status: "error",
+          message: `PM Schedule sync failed: ${(pmErr as Error).message}`,
+          rows_affected: 0,
+          finished_at: new Date().toISOString(),
+        });
+      }
+    }
+
     await pool.close();
     pool = null;
-    await finish("success", `synced ${n} assets via MSSQL`, n);
+    await finish("success", `synced ${n} assets + ${pmCount} PM schedules via MSSQL`, n + pmCount);
 
-    return jsonResponse({ ok: true, rows: n });
+    return jsonResponse({ ok: true, rows: n, pmRows: pmCount });
   } catch (e) {
     const msg = (e as Error).message;
     const userMessage = toUserFacingError(msg, targetHost);

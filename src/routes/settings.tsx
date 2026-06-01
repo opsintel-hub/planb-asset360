@@ -365,6 +365,7 @@ function AssetDbForm({
   const [database, setDatabase] = useState(defaults.database);
   const [username, setUsername] = useState(defaults.username);
   const [table, setTable] = useState(defaults.table);
+  const [pmScheduleTable, setPmScheduleTable] = useState(defaults.pmScheduleTable);
   const [days, setDays] = useState<number[]>(syncDays);
   const [times, setTimes] = useState<string[]>(syncTimes);
 

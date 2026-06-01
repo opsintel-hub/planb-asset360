@@ -982,6 +982,69 @@ function AssetHealthTab({
         </div>
       </div>
 
+      {/* PM Schedule summary (สถานะการ PM ตามแผนจาก Modern Corporate Server) */}
+      {(() => {
+        const sched = pmSchedRows.filter((r) => assets.some((a) => a.old_code === r.asset_old_code));
+        if (!sched.length) {
+          return (
+            <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
+              ยังไม่มี PM Schedule สำหรับป้ายที่เลือก (ไม่มีในตาราง Asset_PM_Schedule)
+            </div>
+          );
+        }
+        const items = sched.map((r) => ({ row: r, s: computePmSchedStatus(r) }));
+        const done = items.filter((x) => x.s.kind === "done").length;
+        const overdue = items.filter((x) => x.s.kind === "overdue");
+        const upcoming = items.filter((x) => x.s.kind === "upcoming").length;
+        const maxOverdue = overdue.reduce((m, x) => (x.s.kind === "overdue" && x.s.days > m ? x.s.days : m), 0);
+        const lastDoneByAsset = new Map<string, string>();
+        items.forEach(({ row, s }) => {
+          if (s.kind !== "done" || !row.asset_old_code) return;
+          const prev = lastDoneByAsset.get(row.asset_old_code);
+          if (!prev || new Date(s.doneDate).getTime() > new Date(prev).getTime()) {
+            lastDoneByAsset.set(row.asset_old_code, s.doneDate);
+          }
+        });
+        return (
+          <div className="rounded-lg border bg-card p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <CalendarClock className="size-4 text-primary" />
+              <h4 className="font-semibold text-sm">PM Schedule (จากตารางที่วางแผนไว้)</h4>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-md bg-muted/40 p-2.5">
+                <div className="text-[11px] text-muted-foreground">ทั้งหมด</div>
+                <div className="text-xl font-semibold">{sched.length}</div>
+              </div>
+              <div className="rounded-md bg-success/10 p-2.5">
+                <div className="text-[11px] text-success">ทำแล้ว</div>
+                <div className="text-xl font-semibold text-success">{done}</div>
+              </div>
+              <div className="rounded-md bg-destructive/10 p-2.5">
+                <div className="text-[11px] text-destructive">เกินกำหนด</div>
+                <div className="text-xl font-semibold text-destructive">{overdue.length}</div>
+                {maxOverdue > 0 && <div className="text-[10px] text-destructive/80">สูงสุด {maxOverdue} วัน</div>}
+              </div>
+              <div className="rounded-md bg-muted/40 p-2.5">
+                <div className="text-[11px] text-muted-foreground">รอถึงกำหนด</div>
+                <div className="text-xl font-semibold">{upcoming}</div>
+              </div>
+            </div>
+            {lastDoneByAsset.size > 0 && (
+              <div className="mt-3 text-[11px] text-muted-foreground">
+                PM ล่าสุดที่ทำแล้ว: {Array.from(lastDoneByAsset.entries()).map(([c, d]) => `${c} (${fmtDate(d)})`).join(" · ")}
+              </div>
+            )}
+            {overdue.length > 0 && (
+              <div className="mt-2 text-[11px] text-destructive">
+                ป้ายที่ค้าง: {overdue.slice(0, 5).map((x) => x.s.kind === "overdue" ? `${x.row.asset_old_code} (${x.s.days}d)` : "").filter(Boolean).join(", ")}{overdue.length > 5 ? ` …+${overdue.length - 5}` : ""}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+
       {/* Per-asset metrics + 12-month matrix */}
       <div className="space-y-4">
         {perAsset.map((p) => {

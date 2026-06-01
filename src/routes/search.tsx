@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
-import { autocompleteAssets, getAssetsComparison, getFilterOptions, getAssetProfile } from "@/lib/data.functions";
+import { autocompleteAssets, getAssetsComparison, getFilterOptions, getAssetProfile, getAssetsPmSchedule } from "@/lib/data.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 

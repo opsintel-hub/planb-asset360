@@ -121,7 +121,7 @@ function MainSettings() {
     <div className="space-y-6">
       <Section title="Modern Corporate Server (Asset Database)" desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB โดยรหัสผ่านเก็บแยกใน Secret Store">
         <AssetDbForm
-          defaults={{ server: assetDbServer, port: assetDbPort, database: assetDbName, username: assetDbUser, table: assetDbTable }}
+          defaults={{ server: assetDbServer, port: assetDbPort, database: assetDbName, username: assetDbUser, table: assetDbTable, pmScheduleTable: assetDbPmTable }}
           syncDays={assetSyncDays}
           syncTimes={assetSyncTimes}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}

@@ -4,8 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Search, RefreshCw, MapPin, Building2, X, Plus, ChevronDown,
-  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard, CalendarClock,
+  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard, CalendarClock, AlertTriangle,
 } from "lucide-react";
+import { BreakdownTab } from "@/components/breakdown-tab";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -32,6 +33,7 @@ const TABS = [
   { id: "PM", label: "PM", icon: Wrench },
   { id: "PMSchedule", label: "PM Schedule", icon: CalendarClock },
   { id: "AssetHealth", label: "Asset Health", icon: Activity },
+  { id: "Breakdown", label: "Breakdown", icon: AlertTriangle },
 ] as const;
 type TabId = typeof TABS[number]["id"];
 
@@ -251,7 +253,7 @@ function SearchPage() {
     staleTime: 5 * 60_000,
   });
   const cmpTabForBackend: "PM" | "Claim" | "Monitor" | "AssetHealth" =
-    tab === "Profile" || tab === "PMSchedule" ? "PM" : tab;
+    tab === "Profile" || tab === "PMSchedule" ? "PM" : tab === "Breakdown" ? "Claim" : tab;
   const { data, isFetching, refetch } = useQuery({
     queryKey: ["comparison", codes.join(","), cmpTabForBackend, fromIso, toIso, dept, region, mediaType],
     queryFn: () => cmpFn({
@@ -468,6 +470,8 @@ function SearchPage() {
               debtMonths={debtMonths} setDebtMonths={setDebtMonths}
               pmSchedRows={pmSchedData?.rows ?? []}
             />
+          ) : tab === "Breakdown" ? (
+            <BreakdownTab assets={assets} history={history} />
           ) : (
             <RegularTab
               tab={tab as "PM" | "Claim" | "Monitor"} assets={assets} history={history} colorByAsset={colorByAsset}

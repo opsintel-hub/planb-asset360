@@ -1827,54 +1827,108 @@ function ProfileCard({ p }: { p: ProfileItem }) {
   );
 }
 
-// ============ PM Schedule Tab ============
-type PmScheduleRow = {
-  id: string;
-  project: string | null;
-  asset_old_code: string | null;
-  ref_number: string | null;
-  schedule_date: string | null;
-  status: string | null;
-  inform_position: string | null;
-  asset_status: string | null;
-};
-
 function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
   if (!rows.length) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
-        ยังไม่มีข้อมูล PM Schedule สำหรับป้ายที่เลือก — กด "ทดสอบดึงข้อมูล Asset" ในหน้าตั้งค่าเพื่อ Sync จาก Modern Corporate Server
+        ยังไม่มีข้อมูล PM Schedule สำหรับป้ายที่เลือก — ป้ายนี้อาจยังไม่มี PM Schedule ใน Modern Corporate Server หรือยังไม่ได้ Sync (กด "ทดสอบดึงข้อมูล Asset" ในหน้าตั้งค่า)
       </div>
     );
   }
+
+  // Summary across all rows
+  const statuses = rows.map(computePmSchedStatus);
+  const doneCount = statuses.filter((s) => s.kind === "done").length;
+  const overdueCount = statuses.filter((s) => s.kind === "overdue").length;
+  const upcomingCount = statuses.filter((s) => s.kind === "upcoming").length;
+  const maxOverdue = statuses.reduce((m, s) => (s.kind === "overdue" && s.days > m ? s.days : m), 0);
+
+  // Latest done per asset
+  const latestDoneByAsset = new Map<string, string>();
+  rows.forEach((r, i) => {
+    const s = statuses[i];
+    if (s.kind !== "done" || !r.asset_old_code) return;
+    const prev = latestDoneByAsset.get(r.asset_old_code);
+    if (!prev || new Date(s.doneDate).getTime() > new Date(prev).getTime()) {
+      latestDoneByAsset.set(r.asset_old_code, s.doneDate);
+    }
+  });
+
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-xs uppercase">
-          <tr>
-            <th className="px-3 py-2 text-left">Project</th>
-            <th className="px-3 py-2 text-left">ป้าย (OldCode)</th>
-            <th className="px-3 py-2 text-left">Ref Number</th>
-            <th className="px-3 py-2 text-left">Schedule Date</th>
-            <th className="px-3 py-2 text-left">Status</th>
-            <th className="px-3 py-2 text-left">Inform Position</th>
-            <th className="px-3 py-2 text-left">Asset Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className="border-t hover:bg-accent/30">
-              <td className="px-3 py-2">{r.project ?? "—"}</td>
-              <td className="px-3 py-2 font-mono text-xs">{r.asset_old_code ?? "—"}</td>
-              <td className="px-3 py-2 font-mono text-xs">{r.ref_number ?? "—"}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.schedule_date)}</td>
-              <td className="px-3 py-2"><Badge tone={/done|complete|finish/i.test(r.status ?? "") ? "success" : "warning"}>{r.status ?? "—"}</Badge></td>
-              <td className="px-3 py-2">{r.inform_position ?? "—"}</td>
-              <td className="px-3 py-2">{r.asset_status ?? "—"}</td>
+    <div className="space-y-4">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-xs text-muted-foreground">ทั้งหมด</div>
+          <div className="text-2xl font-semibold">{rows.length}</div>
+        </div>
+        <div className="rounded-lg border bg-success/5 p-3">
+          <div className="text-xs text-success">ทำแล้ว</div>
+          <div className="text-2xl font-semibold text-success">{doneCount}</div>
+        </div>
+        <div className="rounded-lg border bg-destructive/5 p-3">
+          <div className="text-xs text-destructive">เกินกำหนด</div>
+          <div className="text-2xl font-semibold text-destructive">{overdueCount}</div>
+          {maxOverdue > 0 && (
+            <div className="text-[11px] text-destructive/80 mt-0.5">สูงสุด {maxOverdue} วัน</div>
+          )}
+        </div>
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <div className="text-xs text-muted-foreground">รอถึงกำหนด</div>
+          <div className="text-2xl font-semibold">{upcomingCount}</div>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-xs uppercase">
+            <tr>
+              <th className="px-3 py-2 text-left">Project</th>
+              <th className="px-3 py-2 text-left">ป้าย (OldCode)</th>
+              <th className="px-3 py-2 text-left">Ref Number</th>
+              <th className="px-3 py-2 text-left">Schedule Date</th>
+              <th className="px-3 py-2 text-left">สถานะการทำ</th>
+              <th className="px-3 py-2 text-left">Status</th>
+              <th className="px-3 py-2 text-left">Inform Position</th>
+              <th className="px-3 py-2 text-left">Asset Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const s = statuses[i];
+              return (
+                <tr key={r.id} className="border-t hover:bg-accent/30">
+                  <td className="px-3 py-2">{r.project ?? "—"}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{r.asset_old_code ?? "—"}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{r.ref_number ?? "—"}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.schedule_date)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {s.kind === "done" && (
+                      <Badge tone="success">ทำแล้ว · {fmtDate(s.doneDate)}</Badge>
+                    )}
+                    {s.kind === "overdue" && (
+                      <Badge tone="danger">เกินกำหนด {s.days} วัน</Badge>
+                    )}
+                    {s.kind === "upcoming" && (
+                      <Badge tone="warning">อีก {s.days} วัน</Badge>
+                    )}
+                    {s.kind === "unknown" && <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="px-3 py-2"><Badge tone={/done|complete|finish|approved|pass/i.test(r.status ?? "") ? "success" : "warning"}>{r.status ?? "—"}</Badge></td>
+                  <td className="px-3 py-2">{r.inform_position ?? "—"}</td>
+                  <td className="px-3 py-2">{r.asset_status ?? "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {latestDoneByAsset.size > 0 && (
+        <div className="text-[11px] text-muted-foreground">
+          PM Schedule ล่าสุดที่ทำแล้ว: {Array.from(latestDoneByAsset.entries()).map(([c, d]) => `${c} (${fmtDate(d)})`).join(" · ")}
+        </div>
+      )}
     </div>
   );
 }

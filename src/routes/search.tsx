@@ -32,6 +32,7 @@ const TABS = [
   { id: "Claim", label: "Claim", icon: AlertCircle },
   { id: "Breakdown", label: "Breakdown", icon: AlertTriangle },
   { id: "Monitor", label: "Monitoring", icon: Eye },
+  { id: "PMSchedule", label: "PM Schedule", icon: CalendarClock },
   { id: "AssetHealth", label: "Asset Health", icon: Activity },
 ] as const;
 type TabId = typeof TABS[number]["id"];

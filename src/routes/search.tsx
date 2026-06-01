@@ -243,7 +243,7 @@ function SearchPage() {
   const { data: pmSchedData, isFetching: pmSchedFetching } = useQuery({
     queryKey: ["pm-schedule", codes.join(",")],
     queryFn: () => pmScheduleFn({ data: { oldCodes: codes } }),
-    enabled: codes.length > 0 && tab === "PMSchedule",
+    enabled: codes.length > 0 && (tab === "PMSchedule" || tab === "AssetHealth"),
   });
 
   // persist recent

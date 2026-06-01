@@ -513,8 +513,9 @@ function AssetDbForm({
               toast.error("Port ต้องเป็นตัวเลขระหว่าง 1-65535");
               return;
             }
-            const payload: { server: string; port: number; database: string; username: string; table: string } = {
-              server: server.trim(), port: parsedPort, database: database.trim(), username: username.trim(), table: table.trim(),
+            const payload = {
+              server: server.trim(), port: parsedPort, database: database.trim(), username: username.trim(),
+              table: table.trim(), pmScheduleTable: pmScheduleTable.trim(),
             };
             onSave(payload);
           }}

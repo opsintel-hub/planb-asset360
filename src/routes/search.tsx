@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Search, RefreshCw, MapPin, Building2, X, Plus, ChevronDown,
-  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard, AlertTriangle,
+  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard, AlertTriangle, CalendarClock,
 } from "lucide-react";
 import { BreakdownTab } from "@/components/breakdown-tab";
 import {

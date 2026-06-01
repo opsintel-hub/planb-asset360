@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Search, RefreshCw, MapPin, Building2, X, Plus, ChevronDown,
-  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard, AlertTriangle,
+  Activity, AlertCircle, Wrench, Eye, Calendar as CalIcon, IdCard, AlertTriangle, CalendarClock,
 } from "lucide-react";
 import { BreakdownTab } from "@/components/breakdown-tab";
 import {
@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
-import { autocompleteAssets, getAssetsComparison, getFilterOptions, getAssetProfile } from "@/lib/data.functions";
+import { autocompleteAssets, getAssetsComparison, getFilterOptions, getAssetProfile, getAssetsPmSchedule } from "@/lib/data.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
@@ -32,6 +32,7 @@ const TABS = [
   { id: "Claim", label: "Claim", icon: AlertCircle },
   { id: "Breakdown", label: "Breakdown", icon: AlertTriangle },
   { id: "Monitor", label: "Monitoring", icon: Eye },
+  { id: "PMSchedule", label: "PM Schedule", icon: CalendarClock },
   { id: "AssetHealth", label: "Asset Health", icon: Activity },
 ] as const;
 type TabId = typeof TABS[number]["id"];
@@ -218,7 +219,7 @@ function SearchPage() {
     staleTime: 5 * 60_000,
   });
   const cmpTabForBackend: "PM" | "Claim" | "Monitor" | "AssetHealth" =
-    tab === "Profile" ? "PM" : tab === "Breakdown" ? "Claim" : tab;
+    tab === "Profile" || tab === "PMSchedule" ? "PM" : tab === "Breakdown" ? "Claim" : tab;
   const { data, isFetching, refetch } = useQuery({
     queryKey: ["comparison", codes.join(","), cmpTabForBackend, fromIso, toIso, dept, region, mediaType],
     queryFn: () => cmpFn({
@@ -232,12 +233,19 @@ function SearchPage() {
         mediaType: mediaType || undefined,
       },
     }),
-    enabled: codes.length > 0 && tab !== "Profile",
+    enabled: codes.length > 0 && tab !== "Profile" && tab !== "PMSchedule",
   });
   const { data: profileData, isFetching: profileFetching } = useQuery({
     queryKey: ["asset-profile", codes.join(",")],
     queryFn: () => profileFn({ data: { oldCodes: codes } }),
     enabled: codes.length > 0 && tab === "Profile",
+  });
+
+  const pmScheduleFn = useServerFn(getAssetsPmSchedule);
+  const { data: pmSchedData, isFetching: pmSchedFetching } = useQuery({
+    queryKey: ["pm-schedule", codes.join(",")],
+    queryFn: () => pmScheduleFn({ data: { oldCodes: codes } }),
+    enabled: codes.length > 0 && tab === "PMSchedule",
   });
 
   // persist recent
@@ -411,6 +419,12 @@ function SearchPage() {
               <div className="space-y-3"><Skeleton className="h-64" /><Skeleton className="h-64" /></div>
             ) : (
               <ProfileTab profiles={profileData?.profiles ?? []} />
+            )
+          ) : tab === "PMSchedule" ? (
+            pmSchedFetching && !pmSchedData ? (
+              <div className="space-y-3"><Skeleton className="h-64" /></div>
+            ) : (
+              <PmScheduleTab rows={pmSchedData?.rows ?? []} />
             )
           ) : isFetching && !data ? (
             <div className="space-y-3"><Skeleton className="h-24" /><Skeleton className="h-64" /></div>
@@ -1776,6 +1790,58 @@ function ProfileCard({ p }: { p: ProfileItem }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ============ PM Schedule Tab ============
+type PmScheduleRow = {
+  id: string;
+  project: string | null;
+  asset_old_code: string | null;
+  ref_number: string | null;
+  schedule_date: string | null;
+  status: string | null;
+  inform_position: string | null;
+  asset_status: string | null;
+};
+
+function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
+  if (!rows.length) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        ยังไม่มีข้อมูล PM Schedule สำหรับป้ายที่เลือก — กด "ทดสอบดึงข้อมูล Asset" ในหน้าตั้งค่าเพื่อ Sync จาก Modern Corporate Server
+      </div>
+    );
+  }
+  return (
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/50 text-xs uppercase">
+          <tr>
+            <th className="px-3 py-2 text-left">Project</th>
+            <th className="px-3 py-2 text-left">ป้าย (OldCode)</th>
+            <th className="px-3 py-2 text-left">Ref Number</th>
+            <th className="px-3 py-2 text-left">Schedule Date</th>
+            <th className="px-3 py-2 text-left">Status</th>
+            <th className="px-3 py-2 text-left">Inform Position</th>
+            <th className="px-3 py-2 text-left">Asset Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className="border-t hover:bg-accent/30">
+              <td className="px-3 py-2">{r.project ?? "—"}</td>
+              <td className="px-3 py-2 font-mono text-xs">{r.asset_old_code ?? "—"}</td>
+              <td className="px-3 py-2 font-mono text-xs">{r.ref_number ?? "—"}</td>
+              <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.schedule_date)}</td>
+              <td className="px-3 py-2"><Badge tone={/done|complete|finish/i.test(r.status ?? "") ? "success" : "warning"}>{r.status ?? "—"}</Badge></td>
+              <td className="px-3 py-2">{r.inform_position ?? "—"}</td>
+              <td className="px-3 py-2">{r.asset_status ?? "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

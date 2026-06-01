@@ -118,6 +118,45 @@ export type Database = {
           },
         ]
       }
+      asset_pm_schedules: {
+        Row: {
+          asset_old_code: string | null
+          asset_status: string | null
+          id: string
+          inform_position: string | null
+          payload: Json
+          project: string | null
+          ref_number: string | null
+          schedule_date: string | null
+          status: string | null
+          synced_at: string
+        }
+        Insert: {
+          asset_old_code?: string | null
+          asset_status?: string | null
+          id?: string
+          inform_position?: string | null
+          payload?: Json
+          project?: string | null
+          ref_number?: string | null
+          schedule_date?: string | null
+          status?: string | null
+          synced_at?: string
+        }
+        Update: {
+          asset_old_code?: string | null
+          asset_status?: string | null
+          id?: string
+          inform_position?: string | null
+          payload?: Json
+          project?: string | null
+          ref_number?: string | null
+          schedule_date?: string | null
+          status?: string | null
+          synced_at?: string
+        }
+        Relationships: []
+      }
       assets: {
         Row: {
           area: string | null

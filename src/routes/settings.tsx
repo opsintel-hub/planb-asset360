@@ -72,7 +72,7 @@ function MainSettings() {
   const claimAutoSync = settings.claim_auto_sync ?? true;
 
   const assetDb = (settings.asset_db_connection ?? {}) as {
-    host?: string; server?: string; port?: number | string; database?: string; username?: string; table?: string;
+    host?: string; server?: string; port?: number | string; database?: string; username?: string; table?: string; pmScheduleTable?: string;
   };
   const [legacyServer, legacyPort] = String(assetDb.host ?? "magicticket.magicsigncloud.com").split(":");
   const assetDbServer = assetDb.server ?? legacyServer;
@@ -80,6 +80,7 @@ function MainSettings() {
   const assetDbName = assetDb.database ?? "planb";
   const assetDbUser = assetDb.username ?? "planb_viewer";
   const assetDbTable = assetDb.table ?? "Asset";
+  const assetDbPmTable = assetDb.pmScheduleTable ?? "Asset_PM_Schedule";
   const assetSyncDays: number[] = Array.isArray(settings.asset_sync_days) ? settings.asset_sync_days : [];
   const assetSyncTimes: string[] = Array.isArray(settings.asset_sync_times) ? settings.asset_sync_times : ["04:00"];
   
@@ -120,7 +121,7 @@ function MainSettings() {
     <div className="space-y-6">
       <Section title="Modern Corporate Server (Asset Database)" desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB โดยรหัสผ่านเก็บแยกใน Secret Store">
         <AssetDbForm
-          defaults={{ server: assetDbServer, port: assetDbPort, database: assetDbName, username: assetDbUser, table: assetDbTable }}
+          defaults={{ server: assetDbServer, port: assetDbPort, database: assetDbName, username: assetDbUser, table: assetDbTable, pmScheduleTable: assetDbPmTable }}
           syncDays={assetSyncDays}
           syncTimes={assetSyncTimes}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
@@ -350,10 +351,10 @@ function AssetDbForm({
   onTest,
   testing,
 }: {
-  defaults: { server: string; port: string; database: string; username: string; table: string };
+  defaults: { server: string; port: string; database: string; username: string; table: string; pmScheduleTable: string };
   syncDays: number[];
   syncTimes: string[];
-  onSave: (v: { server: string; port: number; database: string; username: string; table: string }) => void;
+  onSave: (v: { server: string; port: number; database: string; username: string; table: string; pmScheduleTable: string }) => void;
   onSaveDays: (days: number[]) => void;
   onSaveTimes: (times: string[]) => void;
   onTest: () => void;
@@ -364,6 +365,7 @@ function AssetDbForm({
   const [database, setDatabase] = useState(defaults.database);
   const [username, setUsername] = useState(defaults.username);
   const [table, setTable] = useState(defaults.table);
+  const [pmScheduleTable, setPmScheduleTable] = useState(defaults.pmScheduleTable);
   const [days, setDays] = useState<number[]>(syncDays);
   const [times, setTimes] = useState<string[]>(syncTimes);
 
@@ -408,7 +410,8 @@ function AssetDbForm({
             เก็บไว้ใน Secret Store (MODERN_CORP_DB_PASSWORD) — แจ้งแอดมินเพื่ออัปเดต
           </p>
         </div>
-        <Field label="Table" value={table} onChange={setTable} />
+        <Field label="Table (Asset)" value={table} onChange={setTable} />
+        <Field label="Table (PM Schedule)" value={pmScheduleTable} onChange={setPmScheduleTable} />
       </div>
 
       <div className="space-y-2 rounded-lg border bg-background/50 p-3">
@@ -510,8 +513,9 @@ function AssetDbForm({
               toast.error("Port ต้องเป็นตัวเลขระหว่าง 1-65535");
               return;
             }
-            const payload: { server: string; port: number; database: string; username: string; table: string } = {
-              server: server.trim(), port: parsedPort, database: database.trim(), username: username.trim(), table: table.trim(),
+            const payload = {
+              server: server.trim(), port: parsedPort, database: database.trim(), username: username.trim(),
+              table: table.trim(), pmScheduleTable: pmScheduleTable.trim(),
             };
             onSave(payload);
           }}

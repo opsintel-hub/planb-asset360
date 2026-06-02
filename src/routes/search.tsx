@@ -989,7 +989,7 @@ function AssetHealthTab({
       {/* Select types + view */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          {(["PM", "Claim", "Monitor"] as const).map((t) => (
+          {(["PM", "Claim", "Monitor", "PMSchedule"] as const).map((t) => (
             <label
               key={t}
               className={cn(
@@ -997,9 +997,10 @@ function AssetHealthTab({
                 sel[t] ? "text-white" : "bg-background",
               )}
               style={sel[t] ? { background: TYPE_COLOR[t], borderColor: TYPE_COLOR[t] } : undefined}
+              title={t === "PMSchedule" ? "แผน PM ที่วางไว้ (จาก Asset_PM_Schedule)" : undefined}
             >
               <input type="checkbox" checked={sel[t]} onChange={(e) => onSel({ ...sel, [t]: e.target.checked })} className="size-3.5" />
-              {t}
+              {t === "PMSchedule" ? "PM แผน" : t}
             </label>
           ))}
         </div>

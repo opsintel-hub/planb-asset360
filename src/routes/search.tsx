@@ -1370,6 +1370,7 @@ function AssetHealthTab({
                   {sel.PM && <Bar dataKey="PM" fill={TYPE_COLOR.PM} radius={[4, 4, 0, 0]} maxBarSize={48} />}
                   {sel.Claim && <Bar dataKey="Claim" fill={TYPE_COLOR.Claim} radius={[4, 4, 0, 0]} maxBarSize={48} />}
                   {sel.Monitor && <Bar dataKey="Monitor" fill={TYPE_COLOR.Monitor} radius={[4, 4, 0, 0]} maxBarSize={48} />}
+                  {sel.PMSchedule && <Bar dataKey="PMSchedule" name="PM แผน" fill={TYPE_COLOR.PMSchedule} radius={[4, 4, 0, 0]} maxBarSize={48} />}
                 </BarChart>
               </ResponsiveContainer>
             )}

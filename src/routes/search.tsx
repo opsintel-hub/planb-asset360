@@ -2364,6 +2364,11 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
                   <td className="px-3 py-2 font-mono text-xs">{r.ref_number ?? "—"}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.schedule_date)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{fmtDate(updatedAt)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-xs">
+                    {s.kind === "overdue" ? <span className="text-destructive font-medium">เกิน {s.days} วัน</span>
+                      : s.kind === "upcoming" ? <span className="text-amber-600 font-medium">อีก {s.days} วัน</span>
+                      : <span className="text-muted-foreground">—</span>}
+                  </td>
                   <td className="px-3 py-2 whitespace-nowrap">{stageBadge(s)}</td>
                   <td className="px-3 py-2">{r.status ?? "—"}</td>
                   <td className="px-3 py-2">{r.inform_position ?? "—"}</td>
@@ -2374,6 +2379,8 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
           </tbody>
         </table>
       </div>
+      )}
+
 
       {latestDoneByAsset.size > 0 && (
         <div className="text-[11px] text-muted-foreground">

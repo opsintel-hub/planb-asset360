@@ -1830,7 +1830,7 @@ function CalendarOverlay({
                         style={{ background: typeColor(e.type) }}
                         title={`${thDate} • ${e.type} • ${e.asset_old_code}${e.status ? " • " + e.status : ""}`}
                       >
-                        <span className="opacity-80 shrink-0">{e.type === "Claim" ? "C" : e.type === "PM" ? "P" : "M"}</span>
+                        <span className="opacity-80 shrink-0">{typeLetter(e.type)}</span>
                         <span className="truncate">{e.asset_old_code}</span>
                       </span>
                     );

@@ -2088,11 +2088,13 @@ function PmScheduleYearCalendar({ rows, statuses }: { rows: PmScheduleRow[]; sta
         if (status.kind === "approved" || status.kind === "finished") done++;
         if (status.kind === "overdue") {
           overdue++;
-          if (!worstOverdue || status.days > worstOverdue.days) worstOverdue = { date: key, days: status.days };
+          const cur = worstOverdue as DD | null;
+          if (!cur || status.days > cur.days) worstOverdue = { date: key, days: status.days };
         }
         if (status.kind === "upcoming") {
           upcoming++;
-          if (!nextDue || status.days < nextDue.days) nextDue = { date: key, days: status.days };
+          const cur = nextDue as DD | null;
+          if (!cur || status.days < cur.days) nextDue = { date: key, days: status.days };
         }
       });
     });

@@ -1246,19 +1246,21 @@ function AssetHealthTab({
                       </tr>
                     </thead>
                     <tbody>
-                      {(["PM", "Claim", "Monitor"] as const).map((t) => {
+                      {(["PM", "Claim", "Monitor", "PMSchedule"] as const).filter((t) => sel[t]).map((t) => {
                         const sum = matrix[t].reduce((a, b) => a + b, 0);
+                        const label = t === "PMSchedule" ? "PM แผน" : t;
                         return (
                           <tr key={t}>
                             <td className="text-muted-foreground pr-1">
-                              <span className="inline-flex items-center gap-1">
+                              <span className="inline-flex items-center gap-1" title={t === "PMSchedule" ? "แผน PM ที่วางไว้ (schedule_date)" : undefined}>
                                 <span className="size-2 rounded-sm" style={{ background: TYPE_COLOR[t] }} />
-                                {t}
+                                {label}
                               </span>
                             </td>
                             {matrix[t].map((v, i) => {
                               const alpha = v === 0 ? 0 : 0.15 + (v / maxVal) * 0.75;
-                              const isOpen = openCell?.assetId === p.asset.id && openCell.type === t && openCell.mo === i;
+                              const clickable = v > 0 && t !== "PMSchedule";
+                              const isOpen = clickable && openCell?.assetId === p.asset.id && openCell.type === t && openCell.mo === i;
                               return (
                                 <td
                                   key={i}
@@ -1267,16 +1269,20 @@ function AssetHealthTab({
                                     background: v === 0 ? "transparent" : `color-mix(in oklab, ${TYPE_COLOR[t]} ${Math.round(alpha * 100)}%, transparent)`,
                                     color: alpha > 0.55 ? "white" : undefined,
                                   }}
-                                  title={`${t} • ${thMonthsShort[i]} ${Number(matrixYear) + 543}: ${v} ครั้ง${v ? " (คลิกเพื่อดูรายการ)" : ""}`}
+                                  title={`${label} • ${thMonthsShort[i]} ${Number(matrixYear) + 543}: ${v} ${t === "PMSchedule" ? "แผน" : "ครั้ง"}${clickable ? " (คลิกเพื่อดูรายการ)" : ""}`}
                                 >
                                   {v > 0 ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => setOpenCell(isOpen ? null : { assetId: p.asset.id, type: t, mo: i })}
-                                      className="w-full h-7 cursor-pointer hover:brightness-110"
-                                    >
-                                      {v}
-                                    </button>
+                                    clickable ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setOpenCell(isOpen ? null : { assetId: p.asset.id, type: t as "PM" | "Claim" | "Monitor", mo: i })}
+                                        className="w-full h-7 cursor-pointer hover:brightness-110"
+                                      >
+                                        {v}
+                                      </button>
+                                    ) : (
+                                      <span className="w-full inline-block h-7 leading-7">{v}</span>
+                                    )
                                   ) : ""}
                                 </td>
                               );

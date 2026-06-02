@@ -935,16 +935,20 @@ function AssetHealthTab({
     const [y, mo] = m.split("-");
     return `${thMonthsShort[Number(mo) - 1]} ${String(Number(y) + 543).slice(-2)}`;
   };
+  // รวมเดือนจาก history + schedule_date ของ PM แผน
   const buckets = new Set<string>();
   history.forEach((h) => { const d = eventDate(h); if (d) buckets.add(d.slice(0, keyLen)); });
+  pmSchedRows.forEach((r) => { if (r.schedule_date) buckets.add(r.schedule_date.slice(0, keyLen)); });
   const bucketLabels = Array.from(buckets).sort();
   const chartData = bucketLabels.map((m) => {
     const inBucket = history.filter((h) => eventDate(h)?.startsWith(m));
+    const schedInBucket = pmSchedRows.filter((r) => r.schedule_date?.startsWith(m)).length;
     return {
       bucket: fmtBucket(m),
       PM: sel.PM ? inBucket.filter((h) => h.type === "PM").length : 0,
       Claim: sel.Claim ? inBucket.filter((h) => h.type === "Claim").length : 0,
       Monitor: sel.Monitor ? inBucket.filter((h) => h.type === "Monitor").length : 0,
+      PMSchedule: sel.PMSchedule ? schedInBucket : 0,
     };
   });
 

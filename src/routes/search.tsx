@@ -2098,7 +2098,7 @@ function PmScheduleYearCalendar({ rows, statuses }: { rows: PmScheduleRow[]; sta
         }
       });
     });
-    return { m, total, done, overdue, upcoming, nextDue, worstOverdue };
+    return { m, total, done, overdue, upcoming, nextDue: nextDue as DD | null, worstOverdue: worstOverdue as DD | null };
   });
 
   return (

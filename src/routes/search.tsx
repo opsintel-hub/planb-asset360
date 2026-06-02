@@ -49,7 +49,7 @@ type PmScheduleRow = {
   status: string | null;
   inform_position: string | null;
   asset_status: string | null;
-  payload?: Record<string, unknown> | null;
+  payload?: unknown;
 };
 
 type PmWorkStage = "pending" | "working" | "finished" | "approved" | "unknown";

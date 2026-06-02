@@ -1031,16 +1031,19 @@ function AssetHealthTab({
           );
         }
         const items = sched.map((r) => ({ row: r, s: computePmSchedStatus(r) }));
-        const done = items.filter((x) => x.s.kind === "done").length;
+        const isDone = (k: PmSchedStatus["kind"]) => k === "approved" || k === "finished";
+        const done = items.filter((x) => isDone(x.s.kind)).length;
         const overdue = items.filter((x) => x.s.kind === "overdue");
         const upcoming = items.filter((x) => x.s.kind === "upcoming").length;
         const maxOverdue = overdue.reduce((m, x) => (x.s.kind === "overdue" && x.s.days > m ? x.s.days : m), 0);
         const lastDoneByAsset = new Map<string, string>();
         items.forEach(({ row, s }) => {
-          if (s.kind !== "done" || !row.asset_old_code) return;
+          if (!isDone(s.kind) || !row.asset_old_code) return;
+          const d = (s.kind === "approved" || s.kind === "finished") ? s.doneDate : null;
+          if (!d) return;
           const prev = lastDoneByAsset.get(row.asset_old_code);
-          if (!prev || new Date(s.doneDate).getTime() > new Date(prev).getTime()) {
-            lastDoneByAsset.set(row.asset_old_code, s.doneDate);
+          if (!prev || new Date(d).getTime() > new Date(prev).getTime()) {
+            lastDoneByAsset.set(row.asset_old_code, d);
           }
         });
         return (

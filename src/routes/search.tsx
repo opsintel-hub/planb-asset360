@@ -895,7 +895,7 @@ function AssetHealthTab({
   pmSchedRows,
 }: {
   assets: Asset[]; history: HistRow[]; colorByAsset: Map<string, string>;
-  sel: { PM: boolean; Claim: boolean; Monitor: boolean }; onSel: (s: typeof sel) => void;
+  sel: { PM: boolean; Claim: boolean; Monitor: boolean; PMSchedule: boolean }; onSel: (s: typeof sel) => void;
   pmFreqDays: number; setPmFreqDays: (n: number) => void;
   debtMonths: number; setDebtMonths: (n: number) => void;
   pmSchedRows: PmScheduleRow[];

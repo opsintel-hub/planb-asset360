@@ -1670,7 +1670,11 @@ function CalendarOverlay({
   const month = cursor.getMonth();
 
   const typeColor = (t: string) =>
-    t === "Claim" ? "oklch(0.6 0.22 25)" : t === "PM" ? "oklch(0.62 0.19 255)" : "oklch(0.65 0.16 155)";
+    t === "Claim" ? "oklch(0.6 0.22 25)"
+    : t === "PM" ? "oklch(0.62 0.19 255)"
+    : t === "PMSchedule" ? "oklch(0.72 0.17 60)"
+    : "oklch(0.65 0.16 155)";
+  const typeLetter = (t: string) => t === "Claim" ? "C" : t === "PM" ? "P" : t === "PMSchedule" ? "S" : "M";
   const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
   // ===== Year view =====

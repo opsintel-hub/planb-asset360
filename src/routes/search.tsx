@@ -1735,6 +1735,7 @@ function CalendarOverlay({
                       <div style={{ width: `${(mo.pm / mo.total) * 100}%`, background: typeColor("PM") }} />
                       <div style={{ width: `${(mo.claim / mo.total) * 100}%`, background: typeColor("Claim") }} />
                       <div style={{ width: `${(mo.monitor / mo.total) * 100}%`, background: typeColor("Monitor") }} />
+                      <div style={{ width: `${(mo.sched / mo.total) * 100}%`, background: typeColor("PMSchedule") }} />
                     </>
                   ) : null}
                 </div>

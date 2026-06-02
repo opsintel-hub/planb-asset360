@@ -2312,6 +2312,31 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
         <div className="mt-1"><b>Schedule Date</b> = วันที่นัดเข้าทำงาน · <b>Asset Update Date</b> = วันล่าสุดที่มีการอัพเดทสถานะ</div>
       </div>
 
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="inline-flex rounded-lg border overflow-hidden">
+          <button
+            onClick={() => setView("calendar")}
+            className={cn("px-3 py-1.5 text-sm", view === "calendar" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent")}
+          >
+            ปฏิทินทั้งปี
+          </button>
+          <button
+            onClick={() => setView("list")}
+            className={cn("px-3 py-1.5 text-sm", view === "list" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent")}
+          >
+            รายการ (ตาราง)
+          </button>
+        </div>
+        <div className="text-[11px] text-muted-foreground">
+          คลิก/ชี้ที่วันในปฏิทินเพื่อดูรายละเอียดงาน · สีบ่งบอกสถานะ
+        </div>
+      </div>
+
+      {view === "calendar" && (
+        <PmScheduleYearCalendar rows={rows} statuses={statuses} />
+      )}
+
+      {view === "list" && (
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-xs uppercase">
@@ -2321,6 +2346,7 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
               <th className="px-3 py-2 text-left">Ref Number</th>
               <th className="px-3 py-2 text-left">Schedule Date</th>
               <th className="px-3 py-2 text-left">Asset Update Date</th>
+              <th className="px-3 py-2 text-left">เหลือ / เกินกำหนด</th>
               <th className="px-3 py-2 text-left">สถานะการทำ</th>
               <th className="px-3 py-2 text-left">Status (ดิบ)</th>
               <th className="px-3 py-2 text-left">Inform Position</th>

@@ -1381,29 +1381,81 @@ function AssetHealthTab({
         </div>
       )}
 
-      {view === "table" && (
-        <div className="rounded-xl border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-              <tr><th className="text-left px-4 py-2.5">ป้าย</th><th className="text-left px-4 py-2.5">ประเภท</th><th className="text-left px-4 py-2.5">วันที่</th><th className="text-left px-4 py-2.5">สถานะ</th></tr>
-            </thead>
-            <tbody className="divide-y">
-              {history.filter((h) => sel[h.type as keyof typeof sel]).slice(0, 50).map((h) => (
-                <tr key={h.id}>
-                  <td className="px-4 py-2 font-mono text-xs">{h.asset_old_code}</td>
-                  <td className="px-4 py-2 text-xs"><Badge tone={h.type === "Claim" ? "danger" : h.type === "PM" ? "info" : "success"}>{h.type}</Badge></td>
-                  <td className="px-4 py-2 text-xs">{fmtDate(h.opened_at)}</td>
-                  <td className="px-4 py-2 text-xs">{h.status ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {view === "calendar" && (
-        <CalendarOverlay history={history.filter((h) => sel[h.type as keyof typeof sel])} colorByAsset={colorByAsset} gran={gran} setGran={setGran} />
-      )}
+      {(view === "table" || view === "calendar") && (() => {
+        // สังเคราะห์ "PM แผน" ให้เป็นแถวเดียวกับ history เพื่อแสดงร่วมในมุมมอง Table/Calendar
+        const assetById = new Map(assets.map((a) => [a.old_code, a.id]));
+        const pmSchedHist: HistRow[] = pmSchedRows
+          .filter((r) => r.schedule_date)
+          .map((r) => {
+            const s = computePmSchedStatus(r);
+            const statusLabel =
+              s.kind === "approved" ? `อนุมัติแล้ว (${fmtDate(s.doneDate)})`
+              : s.kind === "finished" ? `ทำเสร็จ รอตรวจ (${fmtDate(s.doneDate)})`
+              : s.kind === "working" ? `กำลังทำงาน${s.updatedAt ? ` · ${fmtDate(s.updatedAt)}` : ""}`
+              : s.kind === "overdue" ? `เกินกำหนด ${s.days} วัน`
+              : s.kind === "upcoming" ? `อีก ${s.days} วัน`
+              : s.kind === "pending" ? "รอจ่ายงาน"
+              : "—";
+            return {
+              id: `ps-${r.id}`,
+              type: "PMSchedule",
+              asset_id: r.asset_old_code ? assetById.get(r.asset_old_code) ?? null : null,
+              asset_old_code: r.asset_old_code,
+              opened_at: r.schedule_date,
+              closed_at: null,
+              status: statusLabel,
+              pmStatusKind: s.kind,
+            } as HistRow;
+          });
+        const merged: HistRow[] = sel.PMSchedule ? [...history, ...pmSchedHist] : history;
+        const filtered = merged.filter((h) => sel[h.type as keyof typeof sel]);
+        return (
+          <>
+            {view === "table" && (
+              <div className="rounded-xl border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                    <tr><th className="text-left px-4 py-2.5">ป้าย</th><th className="text-left px-4 py-2.5">ประเภท</th><th className="text-left px-4 py-2.5">วันที่</th><th className="text-left px-4 py-2.5">สถานะ</th></tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filtered
+                      .slice()
+                      .sort((a, b) => ((eventDate(b) ?? "") < (eventDate(a) ?? "") ? -1 : 1))
+                      .slice(0, 80)
+                      .map((h) => {
+                        const tone =
+                          h.type === "Claim" ? "danger"
+                          : h.type === "PM" ? "info"
+                          : h.type === "PMSchedule"
+                            ? (h.pmStatusKind === "overdue" ? "danger"
+                              : h.pmStatusKind === "approved" || h.pmStatusKind === "finished" ? "success"
+                              : "warning")
+                          : "success";
+                        const label = h.type === "PMSchedule" ? "PM แผน" : h.type;
+                        return (
+                          <tr key={h.id}>
+                            <td className="px-4 py-2 font-mono text-xs">{h.asset_old_code}</td>
+                            <td className="px-4 py-2 text-xs"><Badge tone={tone}>{label}</Badge></td>
+                            <td className="px-4 py-2 text-xs">{fmtDate(h.opened_at)}</td>
+                            <td className="px-4 py-2 text-xs">{h.status ?? "—"}</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+                {filtered.length > 80 && (
+                  <div className="px-4 py-2 text-[11px] text-muted-foreground bg-muted/20 border-t">
+                    แสดง 80 จาก {filtered.length} รายการ
+                  </div>
+                )}
+              </div>
+            )}
+            {view === "calendar" && (
+              <CalendarOverlay history={filtered} colorByAsset={colorByAsset} gran={gran} setGran={setGran} />
+            )}
+          </>
+        );
+      })()}
 
       {/* Simulators — What-if Analysis */}
       <div className="rounded-xl border bg-card">

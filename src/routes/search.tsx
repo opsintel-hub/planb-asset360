@@ -1096,11 +1096,15 @@ function AssetHealthTab({
       <div className="space-y-4">
         {perAsset.map((p) => {
           const ph = history.filter((h) => h.asset_id === p.asset.id);
-          // pick most recent year with data, fallback current year
-          const years = Array.from(new Set(ph.map((h) => eventDate(h)?.slice(0, 4)).filter(Boolean))) as string[];
+          const psched = pmSchedRows.filter((r) => r.asset_old_code === p.asset.old_code);
+          // pick most recent year with data (history OR PM แผน), fallback current year
+          const yearsAll = new Set<string>();
+          ph.forEach((h) => { const y = eventDate(h)?.slice(0, 4); if (y) yearsAll.add(y); });
+          psched.forEach((r) => { const y = r.schedule_date?.slice(0, 4); if (y) yearsAll.add(y); });
+          const years = Array.from(yearsAll);
           const matrixYear = years.sort().pop() ?? String(new Date().getFullYear());
-          const matrix: Record<"PM" | "Claim" | "Monitor", number[]> = {
-            PM: Array(12).fill(0), Claim: Array(12).fill(0), Monitor: Array(12).fill(0),
+          const matrix: Record<"PM" | "Claim" | "Monitor" | "PMSchedule", number[]> = {
+            PM: Array(12).fill(0), Claim: Array(12).fill(0), Monitor: Array(12).fill(0), PMSchedule: Array(12).fill(0),
           };
           ph.forEach((h) => {
             const d = eventDate(h);
@@ -1110,7 +1114,13 @@ function AssetHealthTab({
               matrix[h.type as "PM" | "Claim" | "Monitor"][mo]++;
             }
           });
-          const maxVal = Math.max(1, ...matrix.PM, ...matrix.Claim, ...matrix.Monitor);
+          psched.forEach((r) => {
+            const d = r.schedule_date;
+            if (!d?.startsWith(matrixYear)) return;
+            const mo = Number(d.slice(5, 7)) - 1;
+            if (mo >= 0 && mo < 12) matrix.PMSchedule[mo]++;
+          });
+          const maxVal = Math.max(1, ...matrix.PM, ...matrix.Claim, ...matrix.Monitor, ...matrix.PMSchedule);
 
           return (
             <div key={p.asset.id} className="rounded-xl border bg-card overflow-hidden">

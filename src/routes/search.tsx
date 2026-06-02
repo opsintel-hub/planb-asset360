@@ -2267,6 +2267,9 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
     return <span className="text-muted-foreground">—</span>;
   };
 
+  // Toggle ระหว่างมุมมองปฏิทินทั้งปี กับมุมมองรายการ
+  const [view, setView] = useState<"calendar" | "list">("calendar");
+
   return (
     <div className="space-y-4">
       {/* Summary cards */}

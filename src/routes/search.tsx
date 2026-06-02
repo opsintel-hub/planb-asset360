@@ -1743,10 +1743,11 @@ function CalendarOverlay({
                 <div className="mt-1 h-1 w-full rounded-full bg-muted overflow-hidden">
                   <div className="h-full bg-primary/40" style={{ width: `${(mo.total / maxTotal) * 100}%` }} />
                 </div>
-                <div className="mt-2 flex gap-2 text-[11px] tabular-nums">
+                <div className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] tabular-nums">
                   <span style={{ color: typeColor("PM") }}>P {mo.pm}</span>
                   <span style={{ color: typeColor("Claim") }}>C {mo.claim}</span>
                   <span style={{ color: typeColor("Monitor") }}>M {mo.monitor}</span>
+                  <span style={{ color: typeColor("PMSchedule") }}>S {mo.sched}</span>
                 </div>
               </button>
             );

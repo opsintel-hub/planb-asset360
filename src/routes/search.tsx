@@ -1346,10 +1346,10 @@ function AssetHealthTab({
               <div className="text-xs text-muted-foreground mt-0.5">แต่ละแท่งคือจำนวนครั้งที่เกิดในช่วงเวลานั้น แยกสีตามประเภท</div>
             </div>
             <div className="flex items-center gap-3 text-xs">
-              {(["PM", "Claim", "Monitor"] as const).filter((t) => sel[t]).map((t) => (
+              {(["PM", "Claim", "Monitor", "PMSchedule"] as const).filter((t) => sel[t]).map((t) => (
                 <span key={t} className="inline-flex items-center gap-1.5">
                   <span className="inline-block w-3 h-3 rounded-sm" style={{ background: TYPE_COLOR[t] }} />
-                  {t}
+                  {t === "PMSchedule" ? "PM แผน" : t}
                 </span>
               ))}
             </div>

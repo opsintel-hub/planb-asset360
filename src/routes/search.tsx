@@ -2035,6 +2035,193 @@ function ProfileCard({ p }: { p: ProfileItem }) {
   );
 }
 
+function PmScheduleYearCalendar({ rows, statuses }: { rows: PmScheduleRow[]; statuses: PmSchedStatus[] }) {
+  const today = new Date();
+  const todayKey = today.toISOString().slice(0, 10);
+
+  // หาปีที่มีข้อมูล (จาก schedule_date)
+  const yearsSet = new Set<number>();
+  rows.forEach((r) => {
+    if (r.schedule_date) {
+      const y = new Date(r.schedule_date).getFullYear();
+      if (Number.isFinite(y)) yearsSet.add(y);
+    }
+  });
+  yearsSet.add(today.getFullYear());
+  const years = Array.from(yearsSet).sort();
+  const [year, setYear] = useState<number>(today.getFullYear());
+
+  // จัดกลุ่มตาม "YYYY-MM-DD"
+  const byDate = new Map<string, Array<{ row: PmScheduleRow; status: PmSchedStatus }>>();
+  rows.forEach((r, i) => {
+    if (!r.schedule_date) return;
+    const d = new Date(r.schedule_date);
+    if (d.getFullYear() !== year) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (!byDate.has(key)) byDate.set(key, []);
+    byDate.get(key)!.push({ row: r, status: statuses[i] });
+  });
+
+  const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const dows = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+
+  // สีตามสถานะ
+  const dotColor = (k: PmSchedStatus["kind"]) =>
+    k === "approved" ? "bg-success"
+    : k === "finished" ? "bg-primary"
+    : k === "working" ? "bg-warning"
+    : k === "overdue" ? "bg-destructive"
+    : k === "upcoming" ? "bg-amber-400"
+    : "bg-muted-foreground/50";
+
+  // สรุปต่อเดือน
+  const monthSummary = Array.from({ length: 12 }, (_, m) => {
+    let total = 0, done = 0, overdue = 0, upcoming = 0;
+    let nextDue: { date: string; days: number } | null = null;
+    let worstOverdue: { date: string; days: number } | null = null;
+    byDate.forEach((items, key) => {
+      const mo = Number(key.slice(5, 7)) - 1;
+      if (mo !== m) return;
+      items.forEach(({ status }) => {
+        total++;
+        if (status.kind === "approved" || status.kind === "finished") done++;
+        if (status.kind === "overdue") {
+          overdue++;
+          if (!worstOverdue || status.days > worstOverdue.days) worstOverdue = { date: key, days: status.days };
+        }
+        if (status.kind === "upcoming") {
+          upcoming++;
+          if (!nextDue || status.days < nextDue.days) nextDue = { date: key, days: status.days };
+        }
+      });
+    });
+    return { m, total, done, overdue, upcoming, nextDue, worstOverdue };
+  });
+
+  return (
+    <div className="rounded-xl border p-4 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="text-sm font-medium flex items-center gap-2">
+          <CalendarClock className="size-4 text-primary" />
+          ปฏิทินรายปี — PM Schedule
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setYear(year - 1)} className="px-2.5 py-1 rounded-md border bg-background hover:bg-accent text-sm">‹</button>
+          <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="px-2 py-1 rounded-md border bg-background text-sm">
+            {years.map((y) => <option key={y} value={y}>พ.ศ. {y + 543}</option>)}
+          </select>
+          <button onClick={() => setYear(year + 1)} className="px-2.5 py-1 rounded-md border bg-background hover:bg-accent text-sm">›</button>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-success" /> อนุมัติแล้ว</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-primary" /> ทำเสร็จ รอตรวจ</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-warning" /> กำลังทำงาน</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-amber-400" /> รอครบกำหนด</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-destructive" /> เกินกำหนด</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-muted-foreground/50" /> รอจ่ายงาน</span>
+      </div>
+
+      {/* 12 เดือน */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {Array.from({ length: 12 }, (_, m) => {
+          const firstDow = new Date(year, m, 1).getDay();
+          const daysInMonth = new Date(year, m + 1, 0).getDate();
+          const cells: Array<{ key: string | null; day: number | null }> = [];
+          for (let i = 0; i < firstDow; i++) cells.push({ key: null, day: null });
+          for (let d = 1; d <= daysInMonth; d++) {
+            const key = `${year}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+            cells.push({ key, day: d });
+          }
+          while (cells.length % 7 !== 0) cells.push({ key: null, day: null });
+          const sm = monthSummary[m];
+          return (
+            <div key={m} className="rounded-lg border bg-card p-3">
+              <div className="flex items-baseline justify-between mb-2">
+                <div className="text-sm font-semibold">{thMonths[m]} {year + 543}</div>
+                <div className="text-[11px] text-muted-foreground tabular-nums">
+                  {sm.total > 0 ? `${sm.total} งาน` : "—"}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-7 gap-0.5 mb-1">
+                {dows.map((d) => <div key={d} className="text-[9px] text-center text-muted-foreground py-0.5">{d}</div>)}
+              </div>
+              <div className="grid grid-cols-7 gap-0.5">
+                {cells.map((c, i) => {
+                  if (!c.key) return <div key={i} className="aspect-square" />;
+                  const items = byDate.get(c.key) ?? [];
+                  const isToday = c.key === todayKey;
+                  // เอาสีของรายการ "สำคัญที่สุด" มาเป็นพื้นหลัง: overdue > working > upcoming > finished > approved > pending
+                  const priority: Record<PmSchedStatus["kind"], number> = {
+                    overdue: 5, working: 4, upcoming: 3, finished: 2, approved: 1, pending: 0, unknown: -1,
+                  };
+                  const top = items.sort((a, b) => priority[b.status.kind] - priority[a.status.kind])[0];
+                  const bg = top ? dotColor(top.status.kind) : "";
+                  const title = items.length
+                    ? items.map(({ row, status }) => {
+                        const code = row.asset_old_code ?? row.ref_number ?? "?";
+                        const tail =
+                          status.kind === "overdue" ? `เกิน ${status.days} วัน`
+                          : status.kind === "upcoming" ? `อีก ${status.days} วัน`
+                          : status.kind === "working" ? "กำลังทำงาน"
+                          : status.kind === "finished" ? "ทำเสร็จ รอตรวจ"
+                          : status.kind === "approved" ? "อนุมัติแล้ว"
+                          : status.kind === "pending" ? "รอจ่ายงาน"
+                          : "—";
+                        return `${code} • ${tail}`;
+                      }).join("\n")
+                    : c.key;
+                  return (
+                    <div
+                      key={c.key}
+                      title={title}
+                      className={cn(
+                        "aspect-square rounded-[3px] text-[9px] flex items-center justify-center relative border",
+                        isToday ? "border-primary ring-1 ring-primary/40 font-semibold" : "border-transparent",
+                        items.length === 0 && "text-muted-foreground/60",
+                        items.length > 0 && bg + " text-white",
+                      )}
+                    >
+                      {c.day}
+                      {items.length > 1 && (
+                        <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-foreground text-background text-[8px] flex items-center justify-center font-bold">
+                          {items.length}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ตัวเลขสรุปด้านล่าง */}
+              {sm.total > 0 && (
+                <div className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] tabular-nums">
+                  {sm.done > 0 && <span className="text-success">✓ {sm.done}</span>}
+                  {sm.overdue > 0 && <span className="text-destructive">⚠︎ เกิน {sm.overdue}</span>}
+                  {sm.upcoming > 0 && <span className="text-amber-600">⏳ รอ {sm.upcoming}</span>}
+                  {sm.worstOverdue && (
+                    <span className="w-full text-destructive">
+                      ค้างนานสุด: {fmtDate(sm.worstOverdue.date)} ({sm.worstOverdue.days} วัน)
+                    </span>
+                  )}
+                  {sm.nextDue && !sm.worstOverdue && (
+                    <span className="w-full text-amber-700">
+                      ครบกำหนดเร็วสุด: {fmtDate(sm.nextDue.date)} (อีก {sm.nextDue.days} วัน)
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
   if (!rows.length) {
     return (

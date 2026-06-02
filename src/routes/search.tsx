@@ -1381,29 +1381,81 @@ function AssetHealthTab({
         </div>
       )}
 
-      {view === "table" && (
-        <div className="rounded-xl border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
-              <tr><th className="text-left px-4 py-2.5">ป้าย</th><th className="text-left px-4 py-2.5">ประเภท</th><th className="text-left px-4 py-2.5">วันที่</th><th className="text-left px-4 py-2.5">สถานะ</th></tr>
-            </thead>
-            <tbody className="divide-y">
-              {history.filter((h) => sel[h.type as keyof typeof sel]).slice(0, 50).map((h) => (
-                <tr key={h.id}>
-                  <td className="px-4 py-2 font-mono text-xs">{h.asset_old_code}</td>
-                  <td className="px-4 py-2 text-xs"><Badge tone={h.type === "Claim" ? "danger" : h.type === "PM" ? "info" : "success"}>{h.type}</Badge></td>
-                  <td className="px-4 py-2 text-xs">{fmtDate(h.opened_at)}</td>
-                  <td className="px-4 py-2 text-xs">{h.status ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {view === "calendar" && (
-        <CalendarOverlay history={history.filter((h) => sel[h.type as keyof typeof sel])} colorByAsset={colorByAsset} gran={gran} setGran={setGran} />
-      )}
+      {(view === "table" || view === "calendar") && (() => {
+        // สังเคราะห์ "PM แผน" ให้เป็นแถวเดียวกับ history เพื่อแสดงร่วมในมุมมอง Table/Calendar
+        const assetById = new Map(assets.map((a) => [a.old_code, a.id]));
+        const pmSchedHist: HistRow[] = pmSchedRows
+          .filter((r) => r.schedule_date)
+          .map((r) => {
+            const s = computePmSchedStatus(r);
+            const statusLabel =
+              s.kind === "approved" ? `อนุมัติแล้ว (${fmtDate(s.doneDate)})`
+              : s.kind === "finished" ? `ทำเสร็จ รอตรวจ (${fmtDate(s.doneDate)})`
+              : s.kind === "working" ? `กำลังทำงาน${s.updatedAt ? ` · ${fmtDate(s.updatedAt)}` : ""}`
+              : s.kind === "overdue" ? `เกินกำหนด ${s.days} วัน`
+              : s.kind === "upcoming" ? `อีก ${s.days} วัน`
+              : s.kind === "pending" ? "รอจ่ายงาน"
+              : "—";
+            return {
+              id: `ps-${r.id}`,
+              type: "PMSchedule",
+              asset_id: r.asset_old_code ? assetById.get(r.asset_old_code) ?? null : null,
+              asset_old_code: r.asset_old_code,
+              opened_at: r.schedule_date,
+              closed_at: null,
+              status: statusLabel,
+              pmStatusKind: s.kind,
+            } as HistRow;
+          });
+        const merged: HistRow[] = sel.PMSchedule ? [...history, ...pmSchedHist] : history;
+        const filtered = merged.filter((h) => sel[h.type as keyof typeof sel]);
+        return (
+          <>
+            {view === "table" && (
+              <div className="rounded-xl border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
+                    <tr><th className="text-left px-4 py-2.5">ป้าย</th><th className="text-left px-4 py-2.5">ประเภท</th><th className="text-left px-4 py-2.5">วันที่</th><th className="text-left px-4 py-2.5">สถานะ</th></tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filtered
+                      .slice()
+                      .sort((a, b) => ((eventDate(b) ?? "") < (eventDate(a) ?? "") ? -1 : 1))
+                      .slice(0, 80)
+                      .map((h) => {
+                        const tone =
+                          h.type === "Claim" ? "danger"
+                          : h.type === "PM" ? "info"
+                          : h.type === "PMSchedule"
+                            ? (h.pmStatusKind === "overdue" ? "danger"
+                              : h.pmStatusKind === "approved" || h.pmStatusKind === "finished" ? "success"
+                              : "warning")
+                          : "success";
+                        const label = h.type === "PMSchedule" ? "PM แผน" : h.type;
+                        return (
+                          <tr key={h.id}>
+                            <td className="px-4 py-2 font-mono text-xs">{h.asset_old_code}</td>
+                            <td className="px-4 py-2 text-xs"><Badge tone={tone}>{label}</Badge></td>
+                            <td className="px-4 py-2 text-xs">{fmtDate(h.opened_at)}</td>
+                            <td className="px-4 py-2 text-xs">{h.status ?? "—"}</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+                {filtered.length > 80 && (
+                  <div className="px-4 py-2 text-[11px] text-muted-foreground bg-muted/20 border-t">
+                    แสดง 80 จาก {filtered.length} รายการ
+                  </div>
+                )}
+              </div>
+            )}
+            {view === "calendar" && (
+              <CalendarOverlay history={filtered} colorByAsset={colorByAsset} gran={gran} setGran={setGran} />
+            )}
+          </>
+        );
+      })()}
 
       {/* Simulators — What-if Analysis */}
       <div className="rounded-xl border bg-card">
@@ -1618,7 +1670,11 @@ function CalendarOverlay({
   const month = cursor.getMonth();
 
   const typeColor = (t: string) =>
-    t === "Claim" ? "oklch(0.6 0.22 25)" : t === "PM" ? "oklch(0.62 0.19 255)" : "oklch(0.65 0.16 155)";
+    t === "Claim" ? "oklch(0.6 0.22 25)"
+    : t === "PM" ? "oklch(0.62 0.19 255)"
+    : t === "PMSchedule" ? "oklch(0.72 0.17 60)"
+    : "oklch(0.65 0.16 155)";
+  const typeLetter = (t: string) => t === "Claim" ? "C" : t === "PM" ? "P" : t === "PMSchedule" ? "S" : "M";
   const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
   // ===== Year view =====
@@ -1632,7 +1688,8 @@ function CalendarOverlay({
       const pm = evs.filter((e) => e.type === "PM").length;
       const claim = evs.filter((e) => e.type === "Claim").length;
       const monitor = evs.filter((e) => e.type === "Monitor").length;
-      return { m, label: thMonths[m], total: evs.length, pm, claim, monitor };
+      const sched = evs.filter((e) => e.type === "PMSchedule").length;
+      return { m, label: thMonths[m], total: evs.length, pm, claim, monitor, sched };
     });
     const maxTotal = Math.max(1, ...months.map((x) => x.total));
 
@@ -1678,6 +1735,7 @@ function CalendarOverlay({
                       <div style={{ width: `${(mo.pm / mo.total) * 100}%`, background: typeColor("PM") }} />
                       <div style={{ width: `${(mo.claim / mo.total) * 100}%`, background: typeColor("Claim") }} />
                       <div style={{ width: `${(mo.monitor / mo.total) * 100}%`, background: typeColor("Monitor") }} />
+                      <div style={{ width: `${(mo.sched / mo.total) * 100}%`, background: typeColor("PMSchedule") }} />
                     </>
                   ) : null}
                 </div>
@@ -1685,10 +1743,11 @@ function CalendarOverlay({
                 <div className="mt-1 h-1 w-full rounded-full bg-muted overflow-hidden">
                   <div className="h-full bg-primary/40" style={{ width: `${(mo.total / maxTotal) * 100}%` }} />
                 </div>
-                <div className="mt-2 flex gap-2 text-[11px] tabular-nums">
+                <div className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] tabular-nums">
                   <span style={{ color: typeColor("PM") }}>P {mo.pm}</span>
                   <span style={{ color: typeColor("Claim") }}>C {mo.claim}</span>
                   <span style={{ color: typeColor("Monitor") }}>M {mo.monitor}</span>
+                  <span style={{ color: typeColor("PMSchedule") }}>S {mo.sched}</span>
                 </div>
               </button>
             );
@@ -1700,6 +1759,7 @@ function CalendarOverlay({
             <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.62_0.19_255)]" /> PM</span>
             <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.6_0.22_25)]" /> Claim</span>
             <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.65_0.16_155)]" /> Monitor</span>
+            <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.72_0.17_60)]" /> PM แผน</span>
           </div>
           <div className="text-xs text-muted-foreground">รวมทั้งปี {yearEvents.length} รายการ • คลิกที่เดือนเพื่อดูรายละเอียด</div>
         </div>
@@ -1770,7 +1830,7 @@ function CalendarOverlay({
                         style={{ background: typeColor(e.type) }}
                         title={`${thDate} • ${e.type} • ${e.asset_old_code}${e.status ? " • " + e.status : ""}`}
                       >
-                        <span className="opacity-80 shrink-0">{e.type === "Claim" ? "C" : e.type === "PM" ? "P" : "M"}</span>
+                        <span className="opacity-80 shrink-0">{typeLetter(e.type)}</span>
                         <span className="truncate">{e.asset_old_code}</span>
                       </span>
                     );
@@ -1790,6 +1850,7 @@ function CalendarOverlay({
           <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.62_0.19_255)]" /> PM</span>
           <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.6_0.22_25)]" /> Claim</span>
           <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.65_0.16_155)]" /> Monitor</span>
+          <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.72_0.17_60)]" /> PM แผน</span>
         </div>
         <div className="text-xs text-muted-foreground">รวม {monthEvents.length} รายการในเดือนนี้</div>
       </div>
@@ -1974,6 +2035,196 @@ function ProfileCard({ p }: { p: ProfileItem }) {
   );
 }
 
+function PmScheduleYearCalendar({ rows, statuses }: { rows: PmScheduleRow[]; statuses: PmSchedStatus[] }) {
+  const today = new Date();
+  const todayKey = today.toISOString().slice(0, 10);
+
+  // หาปีที่มีข้อมูล (จาก schedule_date)
+  const yearsSet = new Set<number>();
+  rows.forEach((r) => {
+    if (r.schedule_date) {
+      const y = new Date(r.schedule_date).getFullYear();
+      if (Number.isFinite(y)) yearsSet.add(y);
+    }
+  });
+  yearsSet.add(today.getFullYear());
+  const years = Array.from(yearsSet).sort();
+  const [year, setYear] = useState<number>(today.getFullYear());
+
+  // จัดกลุ่มตาม "YYYY-MM-DD"
+  const byDate = new Map<string, Array<{ row: PmScheduleRow; status: PmSchedStatus }>>();
+  rows.forEach((r, i) => {
+    if (!r.schedule_date) return;
+    const d = new Date(r.schedule_date);
+    if (d.getFullYear() !== year) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (!byDate.has(key)) byDate.set(key, []);
+    byDate.get(key)!.push({ row: r, status: statuses[i] });
+  });
+
+  const thMonths = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const dows = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+
+  // สีตามสถานะ
+  const dotColor = (k: PmSchedStatus["kind"]) =>
+    k === "approved" ? "bg-success"
+    : k === "finished" ? "bg-primary"
+    : k === "working" ? "bg-warning"
+    : k === "overdue" ? "bg-destructive"
+    : k === "upcoming" ? "bg-amber-400"
+    : "bg-muted-foreground/50";
+
+  // สรุปต่อเดือน
+  const monthSummary = Array.from({ length: 12 }, (_, m) => {
+    let total = 0, done = 0, overdue = 0, upcoming = 0;
+    let nextDue: { date: string; days: number } | null = null;
+    let worstOverdue: { date: string; days: number } | null = null;
+    type DD = { date: string; days: number };
+    byDate.forEach((items, key) => {
+      const mo = Number(key.slice(5, 7)) - 1;
+      if (mo !== m) return;
+      items.forEach(({ status }) => {
+        total++;
+        if (status.kind === "approved" || status.kind === "finished") done++;
+        if (status.kind === "overdue") {
+          overdue++;
+          const cur = worstOverdue as DD | null;
+          if (!cur || status.days > cur.days) worstOverdue = { date: key, days: status.days };
+        }
+        if (status.kind === "upcoming") {
+          upcoming++;
+          const cur = nextDue as DD | null;
+          if (!cur || status.days < cur.days) nextDue = { date: key, days: status.days };
+        }
+      });
+    });
+    return { m, total, done, overdue, upcoming, nextDue: nextDue as DD | null, worstOverdue: worstOverdue as DD | null };
+  });
+
+  return (
+    <div className="rounded-xl border p-4 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="text-sm font-medium flex items-center gap-2">
+          <CalendarClock className="size-4 text-primary" />
+          ปฏิทินรายปี — PM Schedule
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setYear(year - 1)} className="px-2.5 py-1 rounded-md border bg-background hover:bg-accent text-sm">‹</button>
+          <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="px-2 py-1 rounded-md border bg-background text-sm">
+            {years.map((y) => <option key={y} value={y}>พ.ศ. {y + 543}</option>)}
+          </select>
+          <button onClick={() => setYear(year + 1)} className="px-2.5 py-1 rounded-md border bg-background hover:bg-accent text-sm">›</button>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-success" /> อนุมัติแล้ว</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-primary" /> ทำเสร็จ รอตรวจ</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-warning" /> กำลังทำงาน</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-amber-400" /> รอครบกำหนด</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-destructive" /> เกินกำหนด</span>
+        <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-muted-foreground/50" /> รอจ่ายงาน</span>
+      </div>
+
+      {/* 12 เดือน */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {Array.from({ length: 12 }, (_, m) => {
+          const firstDow = new Date(year, m, 1).getDay();
+          const daysInMonth = new Date(year, m + 1, 0).getDate();
+          const cells: Array<{ key: string | null; day: number | null }> = [];
+          for (let i = 0; i < firstDow; i++) cells.push({ key: null, day: null });
+          for (let d = 1; d <= daysInMonth; d++) {
+            const key = `${year}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+            cells.push({ key, day: d });
+          }
+          while (cells.length % 7 !== 0) cells.push({ key: null, day: null });
+          const sm = monthSummary[m];
+          return (
+            <div key={m} className="rounded-lg border bg-card p-3">
+              <div className="flex items-baseline justify-between mb-2">
+                <div className="text-sm font-semibold">{thMonths[m]} {year + 543}</div>
+                <div className="text-[11px] text-muted-foreground tabular-nums">
+                  {sm.total > 0 ? `${sm.total} งาน` : "—"}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-7 gap-0.5 mb-1">
+                {dows.map((d) => <div key={d} className="text-[9px] text-center text-muted-foreground py-0.5">{d}</div>)}
+              </div>
+              <div className="grid grid-cols-7 gap-0.5">
+                {cells.map((c, i) => {
+                  if (!c.key) return <div key={i} className="aspect-square" />;
+                  const items = byDate.get(c.key) ?? [];
+                  const isToday = c.key === todayKey;
+                  // เอาสีของรายการ "สำคัญที่สุด" มาเป็นพื้นหลัง: overdue > working > upcoming > finished > approved > pending
+                  const priority: Record<PmSchedStatus["kind"], number> = {
+                    overdue: 5, working: 4, upcoming: 3, finished: 2, approved: 1, pending: 0, unknown: -1,
+                  };
+                  const top = items.sort((a, b) => priority[b.status.kind] - priority[a.status.kind])[0];
+                  const bg = top ? dotColor(top.status.kind) : "";
+                  const title = items.length
+                    ? items.map(({ row, status }) => {
+                        const code = row.asset_old_code ?? row.ref_number ?? "?";
+                        const tail =
+                          status.kind === "overdue" ? `เกิน ${status.days} วัน`
+                          : status.kind === "upcoming" ? `อีก ${status.days} วัน`
+                          : status.kind === "working" ? "กำลังทำงาน"
+                          : status.kind === "finished" ? "ทำเสร็จ รอตรวจ"
+                          : status.kind === "approved" ? "อนุมัติแล้ว"
+                          : status.kind === "pending" ? "รอจ่ายงาน"
+                          : "—";
+                        return `${code} • ${tail}`;
+                      }).join("\n")
+                    : c.key;
+                  return (
+                    <div
+                      key={c.key}
+                      title={title}
+                      className={cn(
+                        "aspect-square rounded-[3px] text-[9px] flex items-center justify-center relative border",
+                        isToday ? "border-primary ring-1 ring-primary/40 font-semibold" : "border-transparent",
+                        items.length === 0 && "text-muted-foreground/60",
+                        items.length > 0 && bg + " text-white",
+                      )}
+                    >
+                      {c.day}
+                      {items.length > 1 && (
+                        <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-foreground text-background text-[8px] flex items-center justify-center font-bold">
+                          {items.length}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ตัวเลขสรุปด้านล่าง */}
+              {sm.total > 0 && (
+                <div className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] tabular-nums">
+                  {sm.done > 0 && <span className="text-success">✓ {sm.done}</span>}
+                  {sm.overdue > 0 && <span className="text-destructive">⚠︎ เกิน {sm.overdue}</span>}
+                  {sm.upcoming > 0 && <span className="text-amber-600">⏳ รอ {sm.upcoming}</span>}
+                  {sm.worstOverdue && (
+                    <span className="w-full text-destructive">
+                      ค้างนานสุด: {fmtDate(sm.worstOverdue.date)} ({sm.worstOverdue.days} วัน)
+                    </span>
+                  )}
+                  {sm.nextDue && !sm.worstOverdue && (
+                    <span className="w-full text-amber-700">
+                      ครบกำหนดเร็วสุด: {fmtDate(sm.nextDue.date)} (อีก {sm.nextDue.days} วัน)
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
   if (!rows.length) {
     return (
@@ -2015,6 +2266,9 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
     if (s.kind === "pending") return <Badge tone="default">รอจ่ายงาน</Badge>;
     return <span className="text-muted-foreground">—</span>;
   };
+
+  // Toggle ระหว่างมุมมองปฏิทินทั้งปี กับมุมมองรายการ
+  const [view, setView] = useState<"calendar" | "list">("calendar");
 
   return (
     <div className="space-y-4">
@@ -2058,6 +2312,31 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
         <div className="mt-1"><b>Schedule Date</b> = วันที่นัดเข้าทำงาน · <b>Asset Update Date</b> = วันล่าสุดที่มีการอัพเดทสถานะ</div>
       </div>
 
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="inline-flex rounded-lg border overflow-hidden">
+          <button
+            onClick={() => setView("calendar")}
+            className={cn("px-3 py-1.5 text-sm", view === "calendar" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent")}
+          >
+            ปฏิทินทั้งปี
+          </button>
+          <button
+            onClick={() => setView("list")}
+            className={cn("px-3 py-1.5 text-sm", view === "list" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-accent")}
+          >
+            รายการ (ตาราง)
+          </button>
+        </div>
+        <div className="text-[11px] text-muted-foreground">
+          คลิก/ชี้ที่วันในปฏิทินเพื่อดูรายละเอียดงาน · สีบ่งบอกสถานะ
+        </div>
+      </div>
+
+      {view === "calendar" && (
+        <PmScheduleYearCalendar rows={rows} statuses={statuses} />
+      )}
+
+      {view === "list" && (
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-xs uppercase">
@@ -2067,6 +2346,7 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
               <th className="px-3 py-2 text-left">Ref Number</th>
               <th className="px-3 py-2 text-left">Schedule Date</th>
               <th className="px-3 py-2 text-left">Asset Update Date</th>
+              <th className="px-3 py-2 text-left">เหลือ / เกินกำหนด</th>
               <th className="px-3 py-2 text-left">สถานะการทำ</th>
               <th className="px-3 py-2 text-left">Status (ดิบ)</th>
               <th className="px-3 py-2 text-left">Inform Position</th>
@@ -2084,6 +2364,11 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
                   <td className="px-3 py-2 font-mono text-xs">{r.ref_number ?? "—"}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.schedule_date)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{fmtDate(updatedAt)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap text-xs">
+                    {s.kind === "overdue" ? <span className="text-destructive font-medium">เกิน {s.days} วัน</span>
+                      : s.kind === "upcoming" ? <span className="text-amber-600 font-medium">อีก {s.days} วัน</span>
+                      : <span className="text-muted-foreground">—</span>}
+                  </td>
                   <td className="px-3 py-2 whitespace-nowrap">{stageBadge(s)}</td>
                   <td className="px-3 py-2">{r.status ?? "—"}</td>
                   <td className="px-3 py-2">{r.inform_position ?? "—"}</td>
@@ -2094,6 +2379,8 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
           </tbody>
         </table>
       </div>
+      )}
+
 
       {latestDoneByAsset.size > 0 && (
         <div className="text-[11px] text-muted-foreground">

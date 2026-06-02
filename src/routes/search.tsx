@@ -109,11 +109,12 @@ const PALETTE = [
   "oklch(0.6 0.22 25)",
   "oklch(0.55 0.2 305)",
 ];
-// สีเดียวกันทั้งระบบต่อ "ประเภทงาน" — PM / Claim / Monitor
-const TYPE_COLOR: Record<"PM" | "Claim" | "Monitor", string> = {
-  PM: "oklch(0.62 0.19 255)",      // น้ำเงิน
-  Claim: "oklch(0.6 0.22 25)",     // แดง
-  Monitor: "oklch(0.65 0.16 155)", // เขียว
+// สีเดียวกันทั้งระบบต่อ "ประเภทงาน" — PM / Claim / Monitor / PMSchedule (แผน)
+const TYPE_COLOR: Record<"PM" | "Claim" | "Monitor" | "PMSchedule", string> = {
+  PM: "oklch(0.62 0.19 255)",       // น้ำเงิน
+  Claim: "oklch(0.6 0.22 25)",      // แดง
+  Monitor: "oklch(0.65 0.16 155)",  // เขียว
+  PMSchedule: "oklch(0.72 0.17 60)", // ส้ม/อำพัน — สำหรับ "แผน PM"
 };
 // รูปแบบเส้นแยกตามป้าย (สูงสุด 5 slots)
 
@@ -258,7 +259,7 @@ function SearchPage() {
   const [mediaType, setMediaType] = useState("");
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
-  const [healthSel, setHealthSel] = useState<{ PM: boolean; Claim: boolean; Monitor: boolean }>({ PM: true, Claim: true, Monitor: true });
+  const [healthSel, setHealthSel] = useState<{ PM: boolean; Claim: boolean; Monitor: boolean; PMSchedule: boolean }>({ PM: true, Claim: true, Monitor: true, PMSchedule: true });
   const [pmFreqDays, setPmFreqDays] = useState(30);
   const [debtMonths, setDebtMonths] = useState(0);
   const [recent, setRecent] = useState<string[]>([]);
@@ -894,7 +895,7 @@ function AssetHealthTab({
   pmSchedRows,
 }: {
   assets: Asset[]; history: HistRow[]; colorByAsset: Map<string, string>;
-  sel: { PM: boolean; Claim: boolean; Monitor: boolean }; onSel: (s: typeof sel) => void;
+  sel: { PM: boolean; Claim: boolean; Monitor: boolean; PMSchedule: boolean }; onSel: (s: typeof sel) => void;
   pmFreqDays: number; setPmFreqDays: (n: number) => void;
   debtMonths: number; setDebtMonths: (n: number) => void;
   pmSchedRows: PmScheduleRow[];
@@ -934,16 +935,20 @@ function AssetHealthTab({
     const [y, mo] = m.split("-");
     return `${thMonthsShort[Number(mo) - 1]} ${String(Number(y) + 543).slice(-2)}`;
   };
+  // รวมเดือนจาก history + schedule_date ของ PM แผน
   const buckets = new Set<string>();
   history.forEach((h) => { const d = eventDate(h); if (d) buckets.add(d.slice(0, keyLen)); });
+  pmSchedRows.forEach((r) => { if (r.schedule_date) buckets.add(r.schedule_date.slice(0, keyLen)); });
   const bucketLabels = Array.from(buckets).sort();
   const chartData = bucketLabels.map((m) => {
     const inBucket = history.filter((h) => eventDate(h)?.startsWith(m));
+    const schedInBucket = pmSchedRows.filter((r) => r.schedule_date?.startsWith(m)).length;
     return {
       bucket: fmtBucket(m),
       PM: sel.PM ? inBucket.filter((h) => h.type === "PM").length : 0,
       Claim: sel.Claim ? inBucket.filter((h) => h.type === "Claim").length : 0,
       Monitor: sel.Monitor ? inBucket.filter((h) => h.type === "Monitor").length : 0,
+      PMSchedule: sel.PMSchedule ? schedInBucket : 0,
     };
   });
 
@@ -988,7 +993,7 @@ function AssetHealthTab({
       {/* Select types + view */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
-          {(["PM", "Claim", "Monitor"] as const).map((t) => (
+          {(["PM", "Claim", "Monitor", "PMSchedule"] as const).map((t) => (
             <label
               key={t}
               className={cn(
@@ -996,9 +1001,10 @@ function AssetHealthTab({
                 sel[t] ? "text-white" : "bg-background",
               )}
               style={sel[t] ? { background: TYPE_COLOR[t], borderColor: TYPE_COLOR[t] } : undefined}
+              title={t === "PMSchedule" ? "แผน PM ที่วางไว้ (จาก Asset_PM_Schedule)" : undefined}
             >
               <input type="checkbox" checked={sel[t]} onChange={(e) => onSel({ ...sel, [t]: e.target.checked })} className="size-3.5" />
-              {t}
+              {t === "PMSchedule" ? "PM แผน" : t}
             </label>
           ))}
         </div>
@@ -1090,11 +1096,15 @@ function AssetHealthTab({
       <div className="space-y-4">
         {perAsset.map((p) => {
           const ph = history.filter((h) => h.asset_id === p.asset.id);
-          // pick most recent year with data, fallback current year
-          const years = Array.from(new Set(ph.map((h) => eventDate(h)?.slice(0, 4)).filter(Boolean))) as string[];
+          const psched = pmSchedRows.filter((r) => r.asset_old_code === p.asset.old_code);
+          // pick most recent year with data (history OR PM แผน), fallback current year
+          const yearsAll = new Set<string>();
+          ph.forEach((h) => { const y = eventDate(h)?.slice(0, 4); if (y) yearsAll.add(y); });
+          psched.forEach((r) => { const y = r.schedule_date?.slice(0, 4); if (y) yearsAll.add(y); });
+          const years = Array.from(yearsAll);
           const matrixYear = years.sort().pop() ?? String(new Date().getFullYear());
-          const matrix: Record<"PM" | "Claim" | "Monitor", number[]> = {
-            PM: Array(12).fill(0), Claim: Array(12).fill(0), Monitor: Array(12).fill(0),
+          const matrix: Record<"PM" | "Claim" | "Monitor" | "PMSchedule", number[]> = {
+            PM: Array(12).fill(0), Claim: Array(12).fill(0), Monitor: Array(12).fill(0), PMSchedule: Array(12).fill(0),
           };
           ph.forEach((h) => {
             const d = eventDate(h);
@@ -1104,7 +1114,13 @@ function AssetHealthTab({
               matrix[h.type as "PM" | "Claim" | "Monitor"][mo]++;
             }
           });
-          const maxVal = Math.max(1, ...matrix.PM, ...matrix.Claim, ...matrix.Monitor);
+          psched.forEach((r) => {
+            const d = r.schedule_date;
+            if (!d?.startsWith(matrixYear)) return;
+            const mo = Number(d.slice(5, 7)) - 1;
+            if (mo >= 0 && mo < 12) matrix.PMSchedule[mo]++;
+          });
+          const maxVal = Math.max(1, ...matrix.PM, ...matrix.Claim, ...matrix.Monitor, ...matrix.PMSchedule);
 
           return (
             <div key={p.asset.id} className="rounded-xl border bg-card overflow-hidden">
@@ -1230,19 +1246,21 @@ function AssetHealthTab({
                       </tr>
                     </thead>
                     <tbody>
-                      {(["PM", "Claim", "Monitor"] as const).map((t) => {
+                      {(["PM", "Claim", "Monitor", "PMSchedule"] as const).filter((t) => sel[t]).map((t) => {
                         const sum = matrix[t].reduce((a, b) => a + b, 0);
+                        const label = t === "PMSchedule" ? "PM แผน" : t;
                         return (
                           <tr key={t}>
                             <td className="text-muted-foreground pr-1">
-                              <span className="inline-flex items-center gap-1">
+                              <span className="inline-flex items-center gap-1" title={t === "PMSchedule" ? "แผน PM ที่วางไว้ (schedule_date)" : undefined}>
                                 <span className="size-2 rounded-sm" style={{ background: TYPE_COLOR[t] }} />
-                                {t}
+                                {label}
                               </span>
                             </td>
                             {matrix[t].map((v, i) => {
                               const alpha = v === 0 ? 0 : 0.15 + (v / maxVal) * 0.75;
-                              const isOpen = openCell?.assetId === p.asset.id && openCell.type === t && openCell.mo === i;
+                              const clickable = v > 0 && t !== "PMSchedule";
+                              const isOpen = clickable && openCell?.assetId === p.asset.id && openCell.type === t && openCell.mo === i;
                               return (
                                 <td
                                   key={i}
@@ -1251,16 +1269,20 @@ function AssetHealthTab({
                                     background: v === 0 ? "transparent" : `color-mix(in oklab, ${TYPE_COLOR[t]} ${Math.round(alpha * 100)}%, transparent)`,
                                     color: alpha > 0.55 ? "white" : undefined,
                                   }}
-                                  title={`${t} • ${thMonthsShort[i]} ${Number(matrixYear) + 543}: ${v} ครั้ง${v ? " (คลิกเพื่อดูรายการ)" : ""}`}
+                                  title={`${label} • ${thMonthsShort[i]} ${Number(matrixYear) + 543}: ${v} ${t === "PMSchedule" ? "แผน" : "ครั้ง"}${clickable ? " (คลิกเพื่อดูรายการ)" : ""}`}
                                 >
                                   {v > 0 ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => setOpenCell(isOpen ? null : { assetId: p.asset.id, type: t, mo: i })}
-                                      className="w-full h-7 cursor-pointer hover:brightness-110"
-                                    >
-                                      {v}
-                                    </button>
+                                    clickable ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setOpenCell(isOpen ? null : { assetId: p.asset.id, type: t as "PM" | "Claim" | "Monitor", mo: i })}
+                                        className="w-full h-7 cursor-pointer hover:brightness-110"
+                                      >
+                                        {v}
+                                      </button>
+                                    ) : (
+                                      <span className="w-full inline-block h-7 leading-7">{v}</span>
+                                    )
                                   ) : ""}
                                 </td>
                               );
@@ -1324,10 +1346,10 @@ function AssetHealthTab({
               <div className="text-xs text-muted-foreground mt-0.5">แต่ละแท่งคือจำนวนครั้งที่เกิดในช่วงเวลานั้น แยกสีตามประเภท</div>
             </div>
             <div className="flex items-center gap-3 text-xs">
-              {(["PM", "Claim", "Monitor"] as const).filter((t) => sel[t]).map((t) => (
+              {(["PM", "Claim", "Monitor", "PMSchedule"] as const).filter((t) => sel[t]).map((t) => (
                 <span key={t} className="inline-flex items-center gap-1.5">
                   <span className="inline-block w-3 h-3 rounded-sm" style={{ background: TYPE_COLOR[t] }} />
-                  {t}
+                  {t === "PMSchedule" ? "PM แผน" : t}
                 </span>
               ))}
             </div>
@@ -1348,6 +1370,7 @@ function AssetHealthTab({
                   {sel.PM && <Bar dataKey="PM" fill={TYPE_COLOR.PM} radius={[4, 4, 0, 0]} maxBarSize={48} />}
                   {sel.Claim && <Bar dataKey="Claim" fill={TYPE_COLOR.Claim} radius={[4, 4, 0, 0]} maxBarSize={48} />}
                   {sel.Monitor && <Bar dataKey="Monitor" fill={TYPE_COLOR.Monitor} radius={[4, 4, 0, 0]} maxBarSize={48} />}
+                  {sel.PMSchedule && <Bar dataKey="PMSchedule" name="PM แผน" fill={TYPE_COLOR.PMSchedule} radius={[4, 4, 0, 0]} maxBarSize={48} />}
                 </BarChart>
               </ResponsiveContainer>
             )}

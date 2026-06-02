@@ -2348,7 +2348,7 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
               <th className="px-3 py-2 text-left">Asset Update Date</th>
               <th className="px-3 py-2 text-left">เหลือ / เกินกำหนด</th>
               <th className="px-3 py-2 text-left">สถานะการทำ</th>
-              <th className="px-3 py-2 text-left">Status (ดิบ)</th>
+              <th className="px-3 py-2 text-left">Status (Ticket)</th>
               <th className="px-3 py-2 text-left">Inform Position</th>
               <th className="px-3 py-2 text-left">Asset Status</th>
             </tr>
@@ -2357,13 +2357,16 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
             {rows.map((r, i) => {
               const s = statuses[i];
               const updatedAt = getAssetUpdateDate(r);
+              const isPending = (r.asset_status ?? "").toLowerCase() === "pending";
               return (
                 <tr key={r.id} className="border-t hover:bg-accent/30">
                   <td className="px-3 py-2">{r.project ?? "—"}</td>
                   <td className="px-3 py-2 font-mono text-xs">{r.asset_old_code ?? "—"}</td>
                   <td className="px-3 py-2 font-mono text-xs">{r.ref_number ?? "—"}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.schedule_date)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{fmtDate(updatedAt)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {isPending ? <span className="text-muted-foreground">รอจ่ายงาน</span> : fmtDate(updatedAt)}
+                  </td>
                   <td className="px-3 py-2 whitespace-nowrap text-xs">
                     {s.kind === "overdue" ? <span className="text-destructive font-medium">เกิน {s.days} วัน</span>
                       : s.kind === "upcoming" ? <span className="text-amber-600 font-medium">อีก {s.days} วัน</span>

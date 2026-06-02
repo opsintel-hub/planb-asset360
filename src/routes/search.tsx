@@ -259,7 +259,7 @@ function SearchPage() {
   const [mediaType, setMediaType] = useState("");
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
-  const [healthSel, setHealthSel] = useState<{ PM: boolean; Claim: boolean; Monitor: boolean }>({ PM: true, Claim: true, Monitor: true });
+  const [healthSel, setHealthSel] = useState<{ PM: boolean; Claim: boolean; Monitor: boolean; PMSchedule: boolean }>({ PM: true, Claim: true, Monitor: true, PMSchedule: true });
   const [pmFreqDays, setPmFreqDays] = useState(30);
   const [debtMonths, setDebtMonths] = useState(0);
   const [recent, setRecent] = useState<string[]>([]);

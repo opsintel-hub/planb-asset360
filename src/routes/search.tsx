@@ -109,11 +109,12 @@ const PALETTE = [
   "oklch(0.6 0.22 25)",
   "oklch(0.55 0.2 305)",
 ];
-// สีเดียวกันทั้งระบบต่อ "ประเภทงาน" — PM / Claim / Monitor
-const TYPE_COLOR: Record<"PM" | "Claim" | "Monitor", string> = {
-  PM: "oklch(0.62 0.19 255)",      // น้ำเงิน
-  Claim: "oklch(0.6 0.22 25)",     // แดง
-  Monitor: "oklch(0.65 0.16 155)", // เขียว
+// สีเดียวกันทั้งระบบต่อ "ประเภทงาน" — PM / Claim / Monitor / PMSchedule (แผน)
+const TYPE_COLOR: Record<"PM" | "Claim" | "Monitor" | "PMSchedule", string> = {
+  PM: "oklch(0.62 0.19 255)",       // น้ำเงิน
+  Claim: "oklch(0.6 0.22 25)",      // แดง
+  Monitor: "oklch(0.65 0.16 155)",  // เขียว
+  PMSchedule: "oklch(0.72 0.17 60)", // ส้ม/อำพัน — สำหรับ "แผน PM"
 };
 // รูปแบบเส้นแยกตามป้าย (สูงสุด 5 slots)
 

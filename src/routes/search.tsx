@@ -49,24 +49,51 @@ type PmScheduleRow = {
   status: string | null;
   inform_position: string | null;
   asset_status: string | null;
+  payload?: Record<string, unknown> | null;
 };
 
+type PmWorkStage = "pending" | "working" | "finished" | "approved" | "unknown";
+
+/** ดึง AssetUpdateDate จาก payload (sync มาจาก Modern Corp) */
+function getAssetUpdateDate(row: PmScheduleRow): string | null {
+  const p = (row.payload ?? {}) as Record<string, unknown>;
+  const v =
+    p.AssetUpdateDate ?? p.assetUpdateDate ?? p.asset_update_date ?? p.UpdateDate ?? p.updateDate;
+  return v ? String(v) : null;
+}
+
+/** จำแนกขั้นตอนงานจาก status / asset_status (รองรับทั้งไทย/อังกฤษ) */
+function getPmWorkStage(row: PmScheduleRow): PmWorkStage {
+  const s = `${row.status ?? ""} ${row.asset_status ?? ""}`.toLowerCase();
+  if (/approved|pass|อนุมัติ|ผ่าน/.test(s)) return "approved";
+  if (/finish|complete|done|closed|เสร็จ|รอตรวจ/.test(s)) return "finished";
+  if (/working|in.?progress|กำลัง|ระหว่าง/.test(s)) return "working";
+  if (/pending|wait|รอ/.test(s)) return "pending";
+  return "unknown";
+}
+
 type PmSchedStatus =
-  | { kind: "done"; doneDate: string }
+  | { kind: "approved"; doneDate: string | null }
+  | { kind: "finished"; doneDate: string | null } // ทำเสร็จแล้ว รอหัวหน้าตรวจ
+  | { kind: "working"; scheduledFor: string | null; updatedAt: string | null }
   | { kind: "overdue"; days: number; scheduledFor: string }
   | { kind: "upcoming"; days: number; scheduledFor: string }
+  | { kind: "pending"; scheduledFor: string | null }
   | { kind: "unknown" };
 
 function computePmSchedStatus(row: PmScheduleRow): PmSchedStatus {
-  const isDone =
-    /done|complete|finish|approved|closed|pass/i.test(row.status ?? "") ||
-    (!!row.asset_status && row.asset_status.trim() !== "");
-  if (!row.schedule_date) return { kind: "unknown" };
+  const stage = getPmWorkStage(row);
+  const updatedAt = getAssetUpdateDate(row);
+  if (stage === "approved") return { kind: "approved", doneDate: updatedAt };
+  if (stage === "finished") return { kind: "finished", doneDate: updatedAt };
+  if (stage === "working") return { kind: "working", scheduledFor: row.schedule_date, updatedAt };
+
+  if (!row.schedule_date) {
+    return stage === "pending" ? { kind: "pending", scheduledFor: null } : { kind: "unknown" };
+  }
   const sched = new Date(row.schedule_date).getTime();
   if (!Number.isFinite(sched)) return { kind: "unknown" };
-  if (isDone) return { kind: "done", doneDate: row.schedule_date };
-  const today = Date.now();
-  const days = Math.floor((today - sched) / 86_400_000);
+  const days = Math.floor((Date.now() - sched) / 86_400_000);
   if (days > 0) return { kind: "overdue", days, scheduledFor: row.schedule_date };
   return { kind: "upcoming", days: -days, scheduledFor: row.schedule_date };
 }

@@ -1850,6 +1850,7 @@ function CalendarOverlay({
           <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.62_0.19_255)]" /> PM</span>
           <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.6_0.22_25)]" /> Claim</span>
           <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.65_0.16_155)]" /> Monitor</span>
+          <span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-[oklch(0.72_0.17_60)]" /> PM แผน</span>
         </div>
         <div className="text-xs text-muted-foreground">รวม {monthEvents.length} รายการในเดือนนี้</div>
       </div>

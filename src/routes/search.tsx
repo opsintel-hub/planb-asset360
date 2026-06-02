@@ -1962,33 +1962,63 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
 
   // Summary across all rows
   const statuses = rows.map(computePmSchedStatus);
-  const doneCount = statuses.filter((s) => s.kind === "done").length;
+  const approvedCount = statuses.filter((s) => s.kind === "approved").length;
+  const finishedCount = statuses.filter((s) => s.kind === "finished").length;
+  const workingCount = statuses.filter((s) => s.kind === "working").length;
   const overdueCount = statuses.filter((s) => s.kind === "overdue").length;
   const upcomingCount = statuses.filter((s) => s.kind === "upcoming").length;
+  const pendingCount = statuses.filter((s) => s.kind === "pending").length;
   const maxOverdue = statuses.reduce((m, s) => (s.kind === "overdue" && s.days > m ? s.days : m), 0);
 
-  // Latest done per asset
+  // Latest done per asset (รวม Finished + Approved)
   const latestDoneByAsset = new Map<string, string>();
   rows.forEach((r, i) => {
     const s = statuses[i];
-    if (s.kind !== "done" || !r.asset_old_code) return;
+    if (!(s.kind === "approved" || s.kind === "finished") || !r.asset_old_code) return;
+    const d = s.doneDate;
+    if (!d) return;
     const prev = latestDoneByAsset.get(r.asset_old_code);
-    if (!prev || new Date(s.doneDate).getTime() > new Date(prev).getTime()) {
-      latestDoneByAsset.set(r.asset_old_code, s.doneDate);
+    if (!prev || new Date(d).getTime() > new Date(prev).getTime()) {
+      latestDoneByAsset.set(r.asset_old_code, d);
     }
   });
+
+  const stageBadge = (s: PmSchedStatus) => {
+    if (s.kind === "approved") return <Badge tone="success">หัวหน้าอนุมัติแล้ว · {fmtDate(s.doneDate)}</Badge>;
+    if (s.kind === "finished") return <Badge tone="info">ทำเสร็จ รอตรวจ · {fmtDate(s.doneDate)}</Badge>;
+    if (s.kind === "working") return <Badge tone="warning">กำลังทำงาน{s.updatedAt ? ` · อัพเดท ${fmtDate(s.updatedAt)}` : ""}</Badge>;
+    if (s.kind === "overdue") return <Badge tone="danger">เกินกำหนด {s.days} วัน</Badge>;
+    if (s.kind === "upcoming") return <Badge tone="warning">อีก {s.days} วัน</Badge>;
+    if (s.kind === "pending") return <Badge tone="muted">รอจ่ายงาน</Badge>;
+    return <span className="text-muted-foreground">—</span>;
+  };
 
   return (
     <div className="space-y-4">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="rounded-lg border bg-card p-3">
           <div className="text-xs text-muted-foreground">ทั้งหมด</div>
           <div className="text-2xl font-semibold">{rows.length}</div>
         </div>
         <div className="rounded-lg border bg-success/5 p-3">
-          <div className="text-xs text-success">ทำแล้ว</div>
-          <div className="text-2xl font-semibold text-success">{doneCount}</div>
+          <div className="text-xs text-success">Approved</div>
+          <div className="text-2xl font-semibold text-success">{approvedCount}</div>
+          <div className="text-[10px] text-muted-foreground">หัวหน้าตรวจผ่านแล้ว</div>
+        </div>
+        <div className="rounded-lg border bg-primary/5 p-3">
+          <div className="text-xs text-primary">Finished</div>
+          <div className="text-2xl font-semibold text-primary">{finishedCount}</div>
+          <div className="text-[10px] text-muted-foreground">รอหัวหน้าตรวจ</div>
+        </div>
+        <div className="rounded-lg border bg-warning/5 p-3">
+          <div className="text-xs text-warning-foreground">Working On</div>
+          <div className="text-2xl font-semibold">{workingCount}</div>
+          <div className="text-[10px] text-muted-foreground">กำลังทำงาน</div>
+        </div>
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <div className="text-xs text-muted-foreground">Pending / รอถึงกำหนด</div>
+          <div className="text-2xl font-semibold">{pendingCount + upcomingCount}</div>
         </div>
         <div className="rounded-lg border bg-destructive/5 p-3">
           <div className="text-xs text-destructive">เกินกำหนด</div>
@@ -1997,10 +2027,12 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
             <div className="text-[11px] text-destructive/80 mt-0.5">สูงสุด {maxOverdue} วัน</div>
           )}
         </div>
-        <div className="rounded-lg border bg-muted/30 p-3">
-          <div className="text-xs text-muted-foreground">รอถึงกำหนด</div>
-          <div className="text-2xl font-semibold">{upcomingCount}</div>
-        </div>
+      </div>
+
+      <div className="rounded-md border border-dashed bg-muted/20 p-3 text-[11px] text-muted-foreground leading-relaxed">
+        <b>คำอธิบายสถานะ:</b> <Badge tone="muted">Pending</Badge> = รอจ่ายงาน · <Badge tone="warning">Working On</Badge> = ช่างเข้าหน้างานแล้ว ·
+        <Badge tone="info">Finished</Badge> = ช่างทำเสร็จ รอหัวหน้าตรวจ · <Badge tone="success">Approved</Badge> = หัวหน้าตรวจผ่านแล้ว
+        <div className="mt-1"><b>Schedule Date</b> = วันที่นัดเข้าทำงาน · <b>Asset Update Date</b> = วันล่าสุดที่มีการอัพเดทสถานะ</div>
       </div>
 
       <div className="overflow-x-auto rounded-lg border">
@@ -2011,8 +2043,9 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
               <th className="px-3 py-2 text-left">ป้าย (OldCode)</th>
               <th className="px-3 py-2 text-left">Ref Number</th>
               <th className="px-3 py-2 text-left">Schedule Date</th>
+              <th className="px-3 py-2 text-left">Asset Update Date</th>
               <th className="px-3 py-2 text-left">สถานะการทำ</th>
-              <th className="px-3 py-2 text-left">Status</th>
+              <th className="px-3 py-2 text-left">Status (ดิบ)</th>
               <th className="px-3 py-2 text-left">Inform Position</th>
               <th className="px-3 py-2 text-left">Asset Status</th>
             </tr>
@@ -2020,25 +2053,16 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
           <tbody>
             {rows.map((r, i) => {
               const s = statuses[i];
+              const updatedAt = getAssetUpdateDate(r);
               return (
                 <tr key={r.id} className="border-t hover:bg-accent/30">
                   <td className="px-3 py-2">{r.project ?? "—"}</td>
                   <td className="px-3 py-2 font-mono text-xs">{r.asset_old_code ?? "—"}</td>
                   <td className="px-3 py-2 font-mono text-xs">{r.ref_number ?? "—"}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.schedule_date)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {s.kind === "done" && (
-                      <Badge tone="success">ทำแล้ว · {fmtDate(s.doneDate)}</Badge>
-                    )}
-                    {s.kind === "overdue" && (
-                      <Badge tone="danger">เกินกำหนด {s.days} วัน</Badge>
-                    )}
-                    {s.kind === "upcoming" && (
-                      <Badge tone="warning">อีก {s.days} วัน</Badge>
-                    )}
-                    {s.kind === "unknown" && <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-3 py-2"><Badge tone={/done|complete|finish|approved|pass/i.test(r.status ?? "") ? "success" : "warning"}>{r.status ?? "—"}</Badge></td>
+                  <td className="px-3 py-2 whitespace-nowrap">{fmtDate(updatedAt)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{stageBadge(s)}</td>
+                  <td className="px-3 py-2">{r.status ?? "—"}</td>
                   <td className="px-3 py-2">{r.inform_position ?? "—"}</td>
                   <td className="px-3 py-2">{r.asset_status ?? "—"}</td>
                 </tr>

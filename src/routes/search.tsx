@@ -1989,7 +1989,7 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
     if (s.kind === "working") return <Badge tone="warning">กำลังทำงาน{s.updatedAt ? ` · อัพเดท ${fmtDate(s.updatedAt)}` : ""}</Badge>;
     if (s.kind === "overdue") return <Badge tone="danger">เกินกำหนด {s.days} วัน</Badge>;
     if (s.kind === "upcoming") return <Badge tone="warning">อีก {s.days} วัน</Badge>;
-    if (s.kind === "pending") return <Badge tone="muted">รอจ่ายงาน</Badge>;
+    if (s.kind === "pending") return <Badge tone="default">รอจ่ายงาน</Badge>;
     return <span className="text-muted-foreground">—</span>;
   };
 
@@ -2030,7 +2030,7 @@ function PmScheduleTab({ rows }: { rows: PmScheduleRow[] }) {
       </div>
 
       <div className="rounded-md border border-dashed bg-muted/20 p-3 text-[11px] text-muted-foreground leading-relaxed">
-        <b>คำอธิบายสถานะ:</b> <Badge tone="muted">Pending</Badge> = รอจ่ายงาน · <Badge tone="warning">Working On</Badge> = ช่างเข้าหน้างานแล้ว ·
+        <b>คำอธิบายสถานะ:</b> <Badge tone="default">Pending</Badge> = รอจ่ายงาน · <Badge tone="warning">Working On</Badge> = ช่างเข้าหน้างานแล้ว ·
         <Badge tone="info">Finished</Badge> = ช่างทำเสร็จ รอหัวหน้าตรวจ · <Badge tone="success">Approved</Badge> = หัวหน้าตรวจผ่านแล้ว
         <div className="mt-1"><b>Schedule Date</b> = วันที่นัดเข้าทำงาน · <b>Asset Update Date</b> = วันล่าสุดที่มีการอัพเดทสถานะ</div>
       </div>

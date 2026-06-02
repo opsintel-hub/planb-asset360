@@ -1688,7 +1688,8 @@ function CalendarOverlay({
       const pm = evs.filter((e) => e.type === "PM").length;
       const claim = evs.filter((e) => e.type === "Claim").length;
       const monitor = evs.filter((e) => e.type === "Monitor").length;
-      return { m, label: thMonths[m], total: evs.length, pm, claim, monitor };
+      const sched = evs.filter((e) => e.type === "PMSchedule").length;
+      return { m, label: thMonths[m], total: evs.length, pm, claim, monitor, sched };
     });
     const maxTotal = Math.max(1, ...months.map((x) => x.total));
 

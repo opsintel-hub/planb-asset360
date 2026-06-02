@@ -2079,6 +2079,7 @@ function PmScheduleYearCalendar({ rows, statuses }: { rows: PmScheduleRow[]; sta
     let total = 0, done = 0, overdue = 0, upcoming = 0;
     let nextDue: { date: string; days: number } | null = null;
     let worstOverdue: { date: string; days: number } | null = null;
+    type DD = { date: string; days: number };
     byDate.forEach((items, key) => {
       const mo = Number(key.slice(5, 7)) - 1;
       if (mo !== m) return;

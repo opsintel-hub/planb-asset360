@@ -287,6 +287,8 @@ type AgingPair = {
   department: string;
   pmDate: string;
   claimDate: string;
+  pmTicket: string;
+  claimTicket: string;
   days: number;
   problemCategory: string;
   problemDetail: string;
@@ -294,6 +296,35 @@ type AgingPair = {
   solutionCategory: string;
   solutionDetail: string;
 };
+
+function MonthlyChart({ data }: { data: { month: string; pm: number; claim: number }[] }) {
+  const year = new Date().getFullYear();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>PM vs Claim รายเดือน (ปี {year})</CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          เปรียบเทียบจำนวนตั๋ว PM และ Claim ที่เปิดในแต่ละเดือนของปีปัจจุบัน (กรองตาม filter ด้านบน)
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="h-72">
+          <ResponsiveContainer>
+            <BarChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="pm" name="PM" fill="oklch(0.7 0.14 160)" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="claim" name="Claim" fill="oklch(0.6 0.2 25)" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 type DonutKey =
   | "problemCategory"

@@ -54,22 +54,37 @@ export const getPmInsights = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => filtersSchema.parse(i ?? {}))
   .handler(async ({ data: f }) => {
-    // ---- Pull data ----
-    const assetsRes = await supabaseAdmin
-      .from("assets")
-      .select("old_code, department")
-      .limit(20000);
-    if (assetsRes.error) throw new Error(assetsRes.error.message);
-    const assetMap = new Map<string, Asset>();
-    for (const a of assetsRes.data ?? []) assetMap.set(a.old_code, a as Asset);
+    // ---- Pull data (paginate; PostgREST default cap is 1000/req) ----
+    async function fetchAll<T>(
+      build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+      pageSize = 1000,
+    ): Promise<T[]> {
+      const out: T[] = [];
+      for (let page = 0; page < 200; page++) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        const { data, error } = await build(from, to);
+        if (error) throw new Error(error.message);
+        const rows = data ?? [];
+        out.push(...rows);
+        if (rows.length < pageSize) break;
+      }
+      return out;
+    }
 
-    // history (PM + Claim)
-    const { data: hist, error: hErr } = await supabaseAdmin
-      .from("asset_history")
-      .select("asset_old_code, type, payload, created_at")
-      .in("type", ["PM", "Claim"])
-      .limit(50000);
-    if (hErr) throw new Error(hErr.message);
+    const assetsAll = await fetchAll<Asset>((from, to) =>
+      supabaseAdmin.from("assets").select("old_code, department").range(from, to),
+    );
+    const assetMap = new Map<string, Asset>();
+    for (const a of assetsAll) assetMap.set(a.old_code, a);
+
+    const hist = await fetchAll<Hist>((from, to) =>
+      supabaseAdmin
+        .from("asset_history")
+        .select("asset_old_code, type, payload, created_at")
+        .in("type", ["PM", "Claim"])
+        .range(from, to),
+    );
 
     const mapRes = await supabaseAdmin
       .from("informed_mapping")

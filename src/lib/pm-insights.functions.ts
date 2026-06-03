@@ -33,6 +33,7 @@ type Hist = {
   type: string;
   payload: Record<string, unknown>;
   created_at: string;
+  ticket_code: string | null;
 };
 
 type Asset = { old_code: string; department: string | null };

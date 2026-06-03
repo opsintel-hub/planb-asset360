@@ -302,11 +302,17 @@ function MonthlyChart({ data }: { data: { month: string; pm: number; claim: numb
   return (
     <Card>
       <CardHeader>
-        <CardTitle>PM vs Claim รายเดือน (ปี {year})</CardTitle>
-        <p className="text-sm text-muted-foreground mt-1">
-          เปรียบเทียบจำนวนตั๋ว PM และ Claim ที่เปิดในแต่ละเดือนของปีปัจจุบัน (กรองตาม filter ด้านบน)
-        </p>
+        <CardTitle>จำนวนตั๋ว PM และ Claim รายเดือน (ปี {year})</CardTitle>
+        <div className="text-sm text-muted-foreground mt-1 space-y-1">
+          <p>นับจาก <b>วันที่เปิดตั๋ว (createdDate)</b> ของแต่ละตั๋ว แล้วจัดกลุ่มตามเดือนของปี {year}</p>
+          <ul className="list-disc pl-5 space-y-0.5">
+            <li><b>แท่งเขียว (PM)</b> = จำนวนตั๋ว PM ทั้งหมดที่ถูกเปิดในเดือนนั้น (ทุกสถานะ ทั้ง Pass / Fail / In progress)</li>
+            <li><b>แท่งแดง (Claim)</b> = จำนวนตั๋ว Claim ทั้งหมดที่ถูกเปิดในเดือนนั้น (ทุกสถานะ ทั้งปิดแล้วและยังค้าง)</li>
+          </ul>
+          <p>* กราฟนี้ใช้กรองจาก Filter ด้านบน (แผนก / โซน / โปรเจกต์ / ช่วงวันที่) — เดือนที่ยังไม่ถึงจะแสดงเป็นค่าว่าง</p>
+        </div>
       </CardHeader>
+
       <CardContent>
         <div className="h-72">
           <ResponsiveContainer>

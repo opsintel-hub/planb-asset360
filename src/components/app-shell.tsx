@@ -6,6 +6,7 @@ import {
   Wrench,
   Bell,
   ChevronDown,
+  BarChart3,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -15,6 +16,7 @@ import { getMyMenuAccess } from "@/lib/admin.functions";
 const NAV_ALL = [
   { to: "/search", label: "ค้นหาประวัติป้าย", icon: Search },
   { to: "/claims", label: "Claim Aging", icon: Wrench },
+  { to: "/pm-insights", label: "PM Insights", icon: BarChart3 },
   { to: "/settings", label: "ตั้งค่าระบบ", icon: Settings },
   { to: "/permissions", label: "จัดการสิทธิ์", icon: Users },
 ] as const;

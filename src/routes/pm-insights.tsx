@@ -231,14 +231,14 @@ function PmInsightsPage() {
             />
           </div>
 
+          {/* Monthly PM vs Claim (current year) */}
+          <MonthlyChart data={data.monthly} />
+
           {/* Report 1: Aging chart + donuts */}
           <AgingReport aging={data.aging} pairs={data.pairs} />
 
           {/* Pair detail table — separate with pagination */}
           <PairsTable pairs={data.pairs} />
-
-          {/* Report 2: Impact */}
-          <ImpactReport impactStack={data.impactStack} groupTop={data.groupTop} />
 
           {/* Report 3: Score */}
           <ScoreReport scoreRows={data.scoreRows} />

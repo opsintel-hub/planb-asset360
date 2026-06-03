@@ -63,13 +63,12 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const assetMap = new Map<string, Asset>();
     for (const a of assetsRes.data ?? []) assetMap.set(a.old_code, a as Asset);
 
-    // history (PM + Claim), with optional date filter on payload.createdDate
-    let q = supabaseAdmin
+    // history (PM + Claim)
+    const { data: hist, error: hErr } = await supabaseAdmin
       .from("asset_history")
       .select("asset_old_code, type, payload, created_at")
       .in("type", ["PM", "Claim"])
       .limit(50000);
-    const { data: hist, error: hErr } = await q;
     if (hErr) throw new Error(hErr.message);
 
     const mapRes = await supabaseAdmin

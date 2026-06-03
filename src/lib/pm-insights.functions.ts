@@ -183,6 +183,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
         const h = list[i];
         if (h.type !== "PM") continue;
         if (pickStr(h.payload, "assetStatus") !== "Pass") continue;
+        if (!h._inFilter) continue;
         const pmEnd = new Date(
           pickStr(h.payload, "updatedDate") || pickStr(h.payload, "createdDate"),
         ).getTime();

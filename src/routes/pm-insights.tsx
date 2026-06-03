@@ -256,21 +256,26 @@ function KpiCard({
   label,
   value,
   color,
+  description,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number;
   color: string;
+  description?: string;
 }) {
   return (
     <Card>
       <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <div className="text-sm text-muted-foreground">{label}</div>
             <div className="text-3xl font-bold mt-1 tabular-nums">{value.toLocaleString()}</div>
+            {description && (
+              <p className="text-[11px] text-muted-foreground mt-2 leading-snug">{description}</p>
+            )}
           </div>
-          <Icon className={`size-8 ${color}`} />
+          <Icon className={`size-8 shrink-0 ${color}`} />
         </div>
       </CardContent>
     </Card>

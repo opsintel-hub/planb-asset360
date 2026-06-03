@@ -1,70 +1,98 @@
-## เป้าหมาย
-เปลี่ยนทุกหน้า (Dashboard, Search, Claims, Monitoring, Settings, Permissions) จาก mock data ให้ดึงจาก Postgres ของ Lovable Cloud โดยมี Sync Job ที่ดึงข้อมูลจาก PlanB API จริงเข้ามาเก็บไว้
+# PM Insights Dashboard + Import/Export Mapping
 
-## 1. Schema (migration)
+เพิ่มเมนูใหม่ **"PM Insights"** (route `/pm-insights`) เป็นแดชบอร์ดรวม PM + Claim ของป้ายทุกแผนกในหน้าเดียว พร้อมระบบ import/export ไฟล์ mapping ให้ admin แก้ไขได้
 
-สร้างตารางใน Lovable Cloud:
+## 1. ตาราง `informed_mapping` (Lovable Cloud)
 
-- `assets` — ทรัพย์สินป้ายโฆษณา
-  `id (uuid pk), old_code (text unique), name, department, area, status, latitude, longitude, installed_at, last_pm_at, last_claim_at, last_monitor_ok_at, payload jsonb, updated_at`
-- `asset_history` — log งานทั้งหมด (PM / Claim / Monitor)
-  `id, asset_id fk, ticket_code, type ('PM'|'Claim'|'Monitor'|'AssetHealth'), title, status, opened_at, closed_at, sla_hours, payload jsonb`
-- `claims` — Claim Aging snapshot
-  `id, ticket_code unique, asset_id fk null, title, opened_at, age_hours, sla_status, severity, payload jsonb, synced_at`
-- `monitoring_status` — สถานะ online/offline + uptime
-  `asset_id fk pk, online bool, last_seen_at, uptime_7d numeric, error_code, message, updated_at`
-- `airtable_connections` — 8 ช่อง config (รวม schedule)
-  `id smallint pk, name, base_id, table_name, enabled bool, schedule jsonb (เวลา auto-sync), api_key_secret_name, updated_at`
-- `sync_logs` — Sync history ทุกแหล่ง
-  `id bigserial, source ('asset'|'claim'|'airtable'|'monitor'), status ('success'|'warning'|'error'), message, rows_affected int, started_at, finished_at`
-- `app_settings` — key/value (endpoints, schedule รายเดือน)
-  `key text pk, value jsonb, updated_at`
-- `user_roles` + enum `app_role` ('admin','manager','technician','viewer') ตาม security pattern
-- function `has_role(uuid, app_role)`
+สร้างจาก sheet `Data` ของ Excel (534 แถว):
 
-RLS:
-- `assets/asset_history/claims/monitoring_status/sync_logs` — `SELECT` to authenticated; `INSERT/UPDATE/DELETE` ใช้ผ่าน server-fn ด้วย `supabaseAdmin` (RLS deny by default)
-- `airtable_connections/app_settings` — `SELECT/UPDATE` เฉพาะ `has_role(uid,'admin')`
-- `user_roles` — `SELECT` เจ้าของแถวเอง + admin; `INSERT/UPDATE/DELETE` admin เท่านั้น
+| field | Excel column | ใช้ทำอะไร |
+|---|---|---|
+| `informed` | Informed | คีย์อาการ |
+| `impact_level` | AD Display Impact | จอดับ/ไม่เห็นโฆษณา · แสดงผลไม่สมบูรณ์ · ไม่มีผลต่อการมองเห็น |
+| `informed_group` | Informed Group | กลุ่มอาการ |
+| `team` | Team | ทีม/แผนก |
+| `informed_detail` | Informed Details | key เต็มสำหรับ match `payload.problemDetail` (UNIQUE) |
 
-## 2. Auth
-เพิ่ม `/login` (email+password + Google) เพราะแดชบอร์ดต้อง authenticated; ใช้ `_authenticated` layout route ครอบทุกหน้าเดิม
+- RLS: authenticated select / admin write (insert/update/delete)
+- GRANT ครบทั้ง authenticated + service_role
+- index บน `informed_detail`, `informed`, `impact_level`
 
-## 3. Server functions (`src/lib/*.functions.ts`)
+วิธี match กับ Claim:
+1. ลอง `payload.problemDetail` = `informed_detail`
+2. ไม่เจอ → `payload.problemCategory` = `informed`
+3. ไม่เจอ → default `impact_level = "ไม่มีผลต่อการมองเห็น"`
 
-อ่าน (ใช้ requireSupabaseAuth):
-- `getDashboardOverview` — stat cards + trend + status pie + recent + by-department (aggregate จาก assets/asset_history/claims/monitoring_status)
-- `searchAssets({q, type})` — รวม PM/Claim/Monitor/Health tabs ของหน้า Search
-- `getAssetDetail(oldCode)` — history + sim inputs (PM frequency, maintenance debt)
-- `listClaims({slaFilter})` — claim aging
-- `listMonitoring()` — online status + uptime
-- `getSyncLogs({limit})`, `getAppSettings`, `listAirtableSlots`
+## 2. Import / Export Mapping (ในหน้า Settings)
 
-เขียน (admin only):
-- `updateAppSettings`, `updateAirtableSlot`, `assignRole`, `revokeRole`
+เพิ่ม section ใหม่ "Informed Mapping" ใน `/settings`:
 
-Sync (admin only, ผ่าน `supabaseAdmin`):
-- `syncAssetsNow` — เรียก SQL Server endpoint? **ไม่เข้าถึง SQL Server โดยตรงจาก Worker** → เรียกผ่าน HTTP API ที่ผู้ใช้ระบุใน `app_settings.asset_api_url` (ถ้าไม่ตั้งจะ error อ่อนๆ และเขียน `sync_logs`)
-- `syncClaimsNow` — fetch `https://magicticket.magicsigncloud.com/planb_api/api/Ticket/RemainingClaimTickets` (header API key ถ้ามีใน secret `PLANB_API_KEY`) → upsert `claims`
-- `syncAssetHistory(oldCode)` — fetch `…/Ticket/AssetHistory?oldCode={id}` → upsert `asset_history`
-- `syncAirtableSlot(id)` — fetch ผ่าน Airtable connector (LOVABLE_API_KEY + AIRTABLE_API_KEY) — *จะ stub ไว้ถ้ายังไม่ได้ connect*
+- **Export** — ปุ่มดาวน์โหลด `informed_mapping.xlsx` (สร้างจาก DB ปัจจุบัน ด้วย `xlsx` lib client-side)
+- **Import** — อัปโหลด `.xlsx`/`.csv`:
+  - parse header → ตรวจคอลัมน์ครบ (Informed, AD Display Impact, Informed Group, Team, Informed Details)
+  - validate `AD Display Impact` ∈ 3 ค่าที่กำหนด (เตือนถ้าผิดและ skip แถวนั้น)
+  - แสดง preview (จำนวนแถวใหม่/แก้ไข/skip) ก่อนกด **Confirm**
+  - Confirm → server fn `replaceInformedMapping(rows)` ลบทั้งหมดแล้ว insert ใหม่ใน transaction (admin-only middleware)
+- หลัง import สำเร็จ → invalidate React Query cache ของ pm-insights → คำนวณใหม่ทันที
 
-ทุก sync เขียน `sync_logs` ก่อน/หลัง
+ใช้ lib `xlsx` (SheetJS) — ทำงานฝั่ง browser ได้ทั้ง import/export
 
-## 4. Scheduled jobs (pg_cron + pg_net)
-- Claim sync ทุก 15 นาที → `POST /api/public/hooks/sync-claims`
-- Asset sync 04:00 ตามวันที่ตั้งใน `app_settings.asset_sync_days` (cron ทุกวัน 04:00 แล้ว job เช็คเอง)
-- Route `/api/public/hooks/sync-*` ตรวจ `apikey` header == anon key แล้วเรียก function ภายใน
+## 3. หน้า `/pm-insights`
 
-## 5. หน้า UI (refactor)
-ทุกหน้าใช้ `useSuspenseQuery` + `queryOptions` เรียก server functions; ลบ array mock; เพิ่ม empty state + skeleton; ปุ่ม "ทดสอบการ Sync" ใน Settings เรียก `syncAssetsNow`/`syncClaimsNow` จริง พร้อม toast
+### Global Filters (sticky บนสุด)
+แผนก (multi) · BKK/UPC · Project/MediaType · Date range (default 90 วันล่าสุด)
+→ ทุกกราฟ/ตาราง re-compute ผ่าน `useMemo` จาก filtered dataset
 
-## 6. Secrets ที่ต้องขอเพิ่มเติม (หลัง migration)
-- `PLANB_API_KEY` — ถ้า API ต้อง auth (จะถาม user หลัง schema เสร็จ)
-- Airtable connector — ผูกผ่าน connector tool เมื่อผู้ใช้พร้อม
+### KPI Cards (4 ใบ)
+จำนวนป้าย · PM เสร็จในช่วง · Claim ที่ยัง Working/Pending · Total Downtime (ชม. จาก `totalTurnaroundTime`)
 
-## ขอบเขตที่ไม่รวมในรอบนี้
-- การเข้าถึง SQL Server ของ Modern Corporate โดยตรง (Worker เข้าไม่ถึง — ต้องผ่าน HTTP gateway)
-- การ Sync Airtable จริง (รอ connect connector)
+### รายงาน 1 — PM Effectiveness & Aging
+- algorithm: เรียง history ต่อ `asset_old_code`, จับคู่ PM(`assetStatus=Pass`) → Claim ตัวถัดไป, คำนวณ `daysBetween`
+- bucket: 1–3 / 4–7 / 8–15 / 16–30 / 31–60 / 61–90 / >90
+- **Bar chart** นับจำนวน pair ต่อ bucket
+- **Drill-down table**: รหัสป้าย, แผนก, วัน PM, วัน Claim, ห่าง, อาการ — แถว ≤7 วัน ไฮไลท์แดง + badge "Critical"
+- **Donut 3** (เฉพาะ pair ≤30 วัน): problemCategory · problemDetail · problemEquipment
+- **Donut 2**: solutionCategory · solutionDetail
 
-ยืนยันก่อนเริ่มลงมือนะครับ
+### รายงาน 2 — Downtime & Business Impact
+- Join Claim กับ `informed_mapping` → ติด `impact_level`
+- **Stacked Bar**: แกน X = แผนก, Y = ชม. downtime, stack 3 impact levels
+- **Horizontal Bar**: top 15 `informed_group` เรียง downtime มาก→น้อย
+
+### รายงาน 3 — PM Score (รายเดือน × แผนก)
+```
+pointPerPair = min(daysBetween, 90) / 90 * 100   (สูง=ดี)
+score = average(pointPerPair) ของเดือนนั้น
+ถ้า PM แล้วไม่มี Claim ตามมาภายใน 90 วัน → 100
+```
+- **Line chart** หลายเส้น (1 เส้น/แผนก) ตามเดือน
+- ตาราง: เดือน × แผนก พร้อม #PM, #Claim หลัง PM, score
+
+### รายงาน 4 — PM Frequency per Asset
+ตาราง: รหัสป้าย, แผนก, #PM ปีนี้, #PM เดือนนี้, ค่าเฉลี่ยช่วงห่าง PM, #Claim ในแต่ละช่วงรอ PM
+มุมมองสลับได้: **Table / Calendar (heatmap) / List**
+
+## 4. การดึงข้อมูล
+- `src/lib/pm-insights.functions.ts` — server fn `getPmInsights(filters)` (admin import inside handler)
+- ดึง `assets`, `asset_history`, `informed_mapping` ผ่าน `supabaseAdmin` (await import ภายใน handler)
+- คำนวณ pair/bucket/score ฝั่ง server → ส่ง aggregated JSON
+- React Query `staleTime: 5min`
+
+## 5. UI / Library
+- Tailwind + shadcn (Card, Select, Table, Tabs, Badge, Button, Dialog สำหรับ import preview)
+- Charts: **Recharts** (มีแล้ว)
+- ใหม่: `bun add xlsx` (สำหรับ import/export)
+
+## 6. ไฟล์ที่จะสร้าง/แก้
+- migration: `informed_mapping` + GRANT + RLS
+- seed: `supabase--insert` ลง mapping 534 แถวจาก Excel ที่อัปโหลด
+- `src/lib/pm-insights.functions.ts` (getPmInsights)
+- `src/lib/mapping.functions.ts` (listInformedMapping, replaceInformedMapping — admin only)
+- `src/routes/pm-insights.tsx`
+- `src/components/pm-insights/` (Filters, KpiCards, AgingReport, ImpactReport, ScoreReport, FrequencyReport)
+- `src/components/mapping-import-export.tsx` (ใช้ใน settings)
+- แก้ `src/components/app-shell.tsx` (+ nav item PM Insights + BarChart3 icon)
+- แก้ `src/lib/admin.functions.ts` (เพิ่ม `/pm-insights` ในรายการเมนูสิทธิ์)
+- แก้ `src/routes/settings.tsx` (mount Mapping section)
+
+เริ่ม build เลยครับ

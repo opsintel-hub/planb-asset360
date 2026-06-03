@@ -303,6 +303,39 @@ export type Database = {
         }
         Relationships: []
       }
+      informed_mapping: {
+        Row: {
+          created_at: string
+          id: string
+          impact_level: string
+          informed: string
+          informed_detail: string
+          informed_group: string | null
+          team: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          impact_level: string
+          informed: string
+          informed_detail: string
+          informed_group?: string | null
+          team?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          impact_level?: string
+          informed?: string
+          informed_detail?: string
+          informed_group?: string | null
+          team?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       monitoring_status: {
         Row: {
           asset_id: string

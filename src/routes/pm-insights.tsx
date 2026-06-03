@@ -223,8 +223,8 @@ function PmInsightsPage() {
           <AgingReport
             aging={data.aging}
             pairs={data.pairs}
-            donuts={data.donuts}
           />
+
 
           {/* Report 2: Impact */}
           <ImpactReport impactStack={data.impactStack} groupTop={data.groupTop} />

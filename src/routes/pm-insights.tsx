@@ -701,15 +701,15 @@ function DonutPanel({
 function ScoreReport({
   scoreRows,
 }: {
-  scoreRows: { month: string; department: string; score: number; pmCount: number; claimCount: number }[];
+  scoreRows: { month: string; department: string; score: number | null; pmCount: number; claimCount: number }[];
 }) {
   const months = Array.from(new Set(scoreRows.map((r) => r.month))).sort();
   const depts = Array.from(new Set(scoreRows.map((r) => r.department))).sort();
   const lineData = months.map((m) => {
-    const row: Record<string, number | string> = { month: m };
+    const row: Record<string, number | string | null> = { month: m };
     for (const d of depts) {
       const r = scoreRows.find((s) => s.month === m && s.department === d);
-      row[d] = r?.score ?? 0;
+      row[d] = r && r.score !== null ? r.score : null;
     }
     return row;
   });
@@ -717,9 +717,18 @@ function ScoreReport({
     <Card>
       <CardHeader>
         <CardTitle>รายงาน 3 · PM Score รายเดือนต่อแผนก</CardTitle>
-        <p className="text-sm text-muted-foreground mt-1">
-          Score 0–100 · สูง = PM แล้วป้ายไม่เสีย/เสียช้า · ต่ำ = เสียเร็วหลัง PM
-        </p>
+        <div className="text-sm text-muted-foreground mt-2 space-y-1">
+          <p><strong>นิยาม:</strong> วัดคุณภาพการ PM ของแต่ละแผนกต่อเดือน — คะแนนสูง = หลัง PM แล้วป้ายไม่เสีย หรือเสียช้า, คะแนนต่ำ = เสียเร็วหลัง PM</p>
+          <p><strong>ขอบเขตข้อมูล:</strong> นับเฉพาะ PM ที่ <code>assetStatus = Pass</code> ในช่วง filter, จับคู่กับ Claim ตัวถัดไปของป้ายเดียวกัน (ไม่จำกัดวันที่ Claim)</p>
+          <p><strong>สูตร per PM:</strong></p>
+          <ul className="list-disc pl-5 space-y-0.5">
+            <li>ถ้า PM นั้น <u>ไม่มี Claim ตามมา</u> → 100 คะแนน</li>
+            <li>ถ้า PM นั้น <u>มี Claim ตามมา</u> → <code>min(days, 90) / 90 × 100</code> โดย days = จำนวนวันระหว่าง PM ปิดงาน → Claim เปิด (เสียภายใน 1 วัน ≈ 1.1 คะแนน, เสียวันที่ 45 = 50 คะแนน, เสียเกิน 90 วัน = 100 คะแนน)</li>
+          </ul>
+          <p><strong>Score ของเดือน</strong> = ค่าเฉลี่ยคะแนนของ PM ทุกตัวในเดือนนั้น (ปัดเป็นจำนวนเต็ม)</p>
+          <p><strong>เดือนที่ไม่มี PM</strong> → แสดงเป็น "—" (ไม่มีข้อมูล) ไม่นับ 0 และไม่ลากเส้นกราฟ</p>
+          <p><strong>เกณฑ์สี:</strong> <Badge tone="success">≥ 70 ดี</Badge> <Badge tone="warning">40–69 เฝ้าระวัง</Badge> <Badge tone="danger">&lt; 40 ต้องแก้ไข</Badge></p>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="h-72 mb-4">
@@ -738,33 +747,38 @@ function ScoreReport({
                   stroke={PIE_COLORS[i % PIE_COLORS.length]}
                   strokeWidth={2}
                   dot={{ r: 3 }}
+                  connectNulls={false}
                 />
               ))}
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <div className="max-h-72 overflow-auto">
+        <div className="max-h-96 overflow-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>เดือน</TableHead>
                 <TableHead>แผนก</TableHead>
-                <TableHead className="text-right">#PM</TableHead>
+                <TableHead className="text-right">#PM (Pass)</TableHead>
                 <TableHead className="text-right">#Claim หลัง PM</TableHead>
                 <TableHead className="text-right">Score</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {scoreRows.map((r, i) => (
-                <TableRow key={i}>
+                <TableRow key={i} className={r.score === null ? "opacity-50" : ""}>
                   <TableCell>{r.month}</TableCell>
                   <TableCell>{r.department}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.pmCount}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.claimCount}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    <Badge tone={r.score >= 70 ? "success" : r.score >= 40 ? "warning" : "danger"}>
-                      {r.score}
-                    </Badge>
+                    {r.score === null ? (
+                      <span className="text-muted-foreground">— ไม่มี PM</span>
+                    ) : (
+                      <Badge tone={r.score >= 70 ? "success" : r.score >= 40 ? "warning" : "danger"}>
+                        {r.score}
+                      </Badge>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

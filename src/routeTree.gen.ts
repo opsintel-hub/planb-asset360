@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as PmInsightsRouteImport } from './routes/pm-insights'
 import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as MonitoringRouteImport } from './routes/monitoring'
 import { Route as LoginRouteImport } from './routes/login'
@@ -26,6 +27,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PmInsightsRoute = PmInsightsRouteImport.update({
+  id: '/pm-insights',
+  path: '/pm-insights',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PermissionsRoute = PermissionsRouteImport.update({
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
   '/permissions': typeof PermissionsRoute
+  '/pm-insights': typeof PmInsightsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
   '/permissions': typeof PermissionsRoute
+  '/pm-insights': typeof PmInsightsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/monitoring': typeof MonitoringRoute
   '/permissions': typeof PermissionsRoute
+  '/pm-insights': typeof PmInsightsRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/monitoring'
     | '/permissions'
+    | '/pm-insights'
     | '/search'
     | '/settings'
     | '/api/public/hooks/sync-asset-history'
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/monitoring'
     | '/permissions'
+    | '/pm-insights'
     | '/search'
     | '/settings'
     | '/api/public/hooks/sync-asset-history'
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/monitoring'
     | '/permissions'
+    | '/pm-insights'
     | '/search'
     | '/settings'
     | '/api/public/hooks/sync-asset-history'
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MonitoringRoute: typeof MonitoringRoute
   PermissionsRoute: typeof PermissionsRoute
+  PmInsightsRoute: typeof PmInsightsRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   ApiPublicHooksSyncAssetHistoryRoute: typeof ApiPublicHooksSyncAssetHistoryRoute
@@ -149,6 +162,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pm-insights': {
+      id: '/pm-insights'
+      path: '/pm-insights'
+      fullPath: '/pm-insights'
+      preLoaderRoute: typeof PmInsightsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/permissions': {
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MonitoringRoute: MonitoringRoute,
   PermissionsRoute: PermissionsRoute,
+  PmInsightsRoute: PmInsightsRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   ApiPublicHooksSyncAssetHistoryRoute: ApiPublicHooksSyncAssetHistoryRoute,
@@ -209,13 +230,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -1,0 +1,655 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { useMemo, useState } from "react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  LineChart,
+  Line,
+} from "recharts";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui-bits";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getPmInsights } from "@/lib/pm-insights.functions";
+import { BarChart3, Building2, Wrench, Activity, Clock, RefreshCw } from "lucide-react";
+
+export const Route = createFileRoute("/pm-insights")({
+  head: () => ({
+    meta: [
+      { title: "PM Insights — แดชบอร์ดประสิทธิภาพ PM" },
+      { name: "description", content: "วิเคราะห์ประสิทธิภาพ PM และ Claim ภาพรวมทั้งบริษัท" },
+    ],
+  }),
+  component: PmInsightsPage,
+});
+
+const PIE_COLORS = [
+  "oklch(0.66 0.18 250)",
+  "oklch(0.72 0.17 60)",
+  "oklch(0.68 0.18 25)",
+  "oklch(0.7 0.14 160)",
+  "oklch(0.7 0.18 320)",
+  "oklch(0.75 0.14 100)",
+  "oklch(0.65 0.15 200)",
+  "oklch(0.7 0.12 30)",
+];
+
+function MultiSelect({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full inline-flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-sm hover:bg-accent"
+      >
+        <span className="truncate">
+          {label}: {value.length === 0 ? "ทั้งหมด" : `${value.length} รายการ`}
+        </span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute z-20 mt-1 max-h-72 w-72 overflow-auto rounded-md border bg-popover p-2 shadow-lg">
+            <div className="flex justify-between px-1 pb-2 text-xs">
+              <button className="text-primary" onClick={() => onChange(options)}>เลือกทั้งหมด</button>
+              <button className="text-muted-foreground" onClick={() => onChange([])}>ล้าง</button>
+            </div>
+            {options.map((o) => {
+              const checked = value.includes(o);
+              return (
+                <label key={o} className="flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() =>
+                      onChange(checked ? value.filter((v) => v !== o) : [...value, o])
+                    }
+                  />
+                  <span className="truncate">{o}</span>
+                </label>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PmInsightsPage() {
+  const fn = useServerFn(getPmInsights);
+  const qc = useQueryClient();
+  const today = new Date();
+  const default90 = new Date(today.getTime() - 90 * 86400_000);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [zones, setZones] = useState<string[]>([]);
+  const [projects, setProjects] = useState<string[]>([]);
+  const [fromDate, setFromDate] = useState(default90.toISOString().slice(0, 10));
+  const [toDate, setToDate] = useState(today.toISOString().slice(0, 10));
+
+  const filters = { departments, zones, projects, fromDate, toDate };
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["pm-insights", filters],
+    queryFn: () => fn({ data: filters }),
+    staleTime: 5 * 60_000,
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <BarChart3 className="size-6 text-primary" /> PM Insights
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            วิเคราะห์ประสิทธิภาพการทำ PM และผลกระทบจาก Claim ภาพรวมทุกป้าย
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => qc.invalidateQueries({ queryKey: ["pm-insights"] })}
+          disabled={isFetching}
+        >
+          <RefreshCw className={"size-4 " + (isFetching ? "animate-spin" : "")} />
+          รีเฟรช
+        </Button>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+            <MultiSelect
+              label="แผนก"
+              options={data?.filters.departments ?? []}
+              value={departments}
+              onChange={setDepartments}
+            />
+            <MultiSelect
+              label="พื้นที่"
+              options={data?.filters.zones ?? []}
+              value={zones}
+              onChange={setZones}
+            />
+            <MultiSelect
+              label="Project"
+              options={data?.filters.projects ?? []}
+              value={projects}
+              onChange={setProjects}
+            />
+            <div>
+              <label className="text-xs text-muted-foreground">วันที่เริ่ม</label>
+              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">ถึงวันที่</label>
+              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {isLoading ? (
+        <div className="grid grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
+        </div>
+      ) : data ? (
+        <>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard icon={Building2} label="จำนวนป้าย" value={data.kpi.assets} color="text-blue-500" />
+            <KpiCard icon={Wrench} label="PM เสร็จในช่วง" value={data.kpi.pmDone} color="text-green-500" />
+            <KpiCard icon={Activity} label="Claim เปิดอยู่" value={data.kpi.claimOpen} color="text-orange-500" />
+            <KpiCard icon={Clock} label="Downtime รวม (ชม.)" value={data.kpi.downtimeHours} color="text-red-500" />
+          </div>
+
+          {/* Report 1: Aging */}
+          <AgingReport
+            aging={data.aging}
+            pairs={data.pairs}
+            donuts={data.donuts}
+          />
+
+          {/* Report 2: Impact */}
+          <ImpactReport impactStack={data.impactStack} groupTop={data.groupTop} />
+
+          {/* Report 3: Score */}
+          <ScoreReport scoreRows={data.scoreRows} />
+
+          {/* Report 4: Frequency */}
+          <FrequencyReport rows={data.frequency} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  color,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  color: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="pt-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm text-muted-foreground">{label}</div>
+            <div className="text-3xl font-bold mt-1 tabular-nums">{value.toLocaleString()}</div>
+          </div>
+          <Icon className={`size-8 ${color}`} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type AgingPair = {
+  assetCode: string;
+  department: string;
+  pmDate: string;
+  claimDate: string;
+  days: number;
+  problemCategory: string;
+  problemDetail: string;
+};
+type DonutSlice = { name: string; value: number };
+
+function AgingReport({
+  aging,
+  pairs,
+  donuts,
+}: {
+  aging: { bucket: string; count: number }[];
+  pairs: AgingPair[];
+  donuts: {
+    problemCategory: DonutSlice[];
+    problemDetail: DonutSlice[];
+    problemEquipment: DonutSlice[];
+    solutionCategory: DonutSlice[];
+    solutionDetail: DonutSlice[];
+  };
+}) {
+  const [view, setView] = useState<"chart" | "table">("chart");
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <CardTitle>รายงาน 1 · PM Effectiveness & Aging</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              ระยะเวลาจากวัน PM ผ่าน → วัน Claim ครั้งถัดไป ของป้ายเดียวกัน
+            </p>
+          </div>
+          <div className="flex gap-1">
+            {(["chart", "table"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={
+                  "px-3 py-1 text-xs rounded " +
+                  (view === v ? "bg-primary text-primary-foreground" : "bg-muted")
+                }
+              >
+                {v === "chart" ? "กราฟ" : "ตาราง"}
+              </button>
+            ))}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {view === "chart" ? (
+          <div className="h-72">
+            <ResponsiveContainer>
+              <BarChart data={aging}>
+                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                <XAxis dataKey="bucket" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="count" fill="oklch(0.66 0.18 250)" radius={[8, 8, 0, 0]}>
+                  {aging.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={
+                        entry.bucket === "1-3" || entry.bucket === "4-7"
+                          ? "oklch(0.6 0.2 25)"
+                          : "oklch(0.66 0.18 250)"
+                      }
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="max-h-96 overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>รหัสป้าย</TableHead>
+                  <TableHead>แผนก</TableHead>
+                  <TableHead>วัน PM</TableHead>
+                  <TableHead>วัน Claim</TableHead>
+                  <TableHead className="text-right">ห่าง (วัน)</TableHead>
+                  <TableHead>อาการ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pairs.slice(0, 200).map((p, i) => (
+                  <TableRow key={i} className={p.days <= 7 ? "bg-red-50 dark:bg-red-950/30" : ""}>
+                    <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
+                    <TableCell>{p.department}</TableCell>
+                    <TableCell className="text-xs">{p.pmDate}</TableCell>
+                    <TableCell className="text-xs">{p.claimDate}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {p.days <= 7 ? (
+                        <Badge tone="danger">{p.days} วัน · Critical</Badge>
+                      ) : (
+                        p.days
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs max-w-xs truncate" title={p.problemDetail}>
+                      {p.problemDetail}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        <div className="mt-6">
+          <h4 className="font-semibold text-sm mb-3">
+            อาการ/วิธีแก้ที่พบบ่อย (เฉพาะ Claim ภายใน 30 วันหลัง PM)
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <DonutPanel title="Problem Category" data={donuts.problemCategory} />
+            <DonutPanel title="Problem Detail" data={donuts.problemDetail} />
+            <DonutPanel title="Problem Equipment" data={donuts.problemEquipment} />
+            <DonutPanel title="Solution Category" data={donuts.solutionCategory} />
+            <DonutPanel title="Solution Detail" data={donuts.solutionDetail} />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DonutPanel({ title, data }: { title: string; data: DonutSlice[] }) {
+  if (!data.length) {
+    return (
+      <div className="text-xs text-muted-foreground text-center py-8 border rounded">
+        {title}<br />ไม่มีข้อมูล
+      </div>
+    );
+  }
+  return (
+    <div className="border rounded-lg p-3">
+      <div className="text-xs font-medium text-center mb-2">{title}</div>
+      <div className="h-40">
+        <ResponsiveContainer>
+          <PieChart>
+            <Pie data={data} dataKey="value" innerRadius={30} outerRadius={55} paddingAngle={2}>
+              {data.map((_, i) => (
+                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-2 space-y-1 max-h-28 overflow-auto">
+        {data.map((d, i) => (
+          <div key={i} className="flex items-center gap-1.5 text-[11px]">
+            <span
+              className="size-2 rounded-sm shrink-0"
+              style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
+            />
+            <span className="truncate flex-1" title={d.name}>{d.name}</span>
+            <span className="tabular-nums text-muted-foreground">{d.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ImpactReport({
+  impactStack,
+  groupTop,
+}: {
+  impactStack: { department: string; จอดับ: number; ไม่สมบูรณ์: number; ไม่มีผล: number; total: number }[];
+  groupTop: { name: string; hours: number }[];
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>รายงาน 2 · Downtime & Business Impact</CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          ชั่วโมง Downtime ที่กระทบโฆษณา แยกตามแผนกและกลุ่มอาการ
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <div className="text-xs font-medium mb-2">ชม. Downtime ตามแผนก × ระดับผลกระทบ</div>
+            <div className="h-80">
+              <ResponsiveContainer>
+                <BarChart data={impactStack}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="department" angle={-20} textAnchor="end" height={70} interval={0} />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="จอดับ" stackId="a" fill="oklch(0.6 0.2 25)" />
+                  <Bar dataKey="ไม่สมบูรณ์" stackId="a" fill="oklch(0.72 0.17 60)" />
+                  <Bar dataKey="ไม่มีผล" stackId="a" fill="oklch(0.7 0.12 140)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div>
+            <div className="text-xs font-medium mb-2">Top กลุ่มอาการ — ชม. Downtime สูงสุด</div>
+            <div className="h-80">
+              <ResponsiveContainer>
+                <BarChart data={groupTop} layout="vertical" margin={{ left: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Bar dataKey="hours" fill="oklch(0.66 0.18 250)" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ScoreReport({
+  scoreRows,
+}: {
+  scoreRows: { month: string; department: string; score: number; pmCount: number; claimCount: number }[];
+}) {
+  const months = Array.from(new Set(scoreRows.map((r) => r.month))).sort();
+  const depts = Array.from(new Set(scoreRows.map((r) => r.department))).sort();
+  const lineData = months.map((m) => {
+    const row: Record<string, number | string> = { month: m };
+    for (const d of depts) {
+      const r = scoreRows.find((s) => s.month === m && s.department === d);
+      row[d] = r?.score ?? 0;
+    }
+    return row;
+  });
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>รายงาน 3 · PM Score รายเดือนต่อแผนก</CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          Score 0–100 · สูง = PM แล้วป้ายไม่เสีย/เสียช้า · ต่ำ = เสียเร็วหลัง PM
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="h-72 mb-4">
+          <ResponsiveContainer>
+            <LineChart data={lineData}>
+              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+              <XAxis dataKey="month" />
+              <YAxis domain={[0, 100]} />
+              <Tooltip />
+              <Legend />
+              {depts.map((d, i) => (
+                <Line
+                  key={d}
+                  type="monotone"
+                  dataKey={d}
+                  stroke={PIE_COLORS[i % PIE_COLORS.length]}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="max-h-72 overflow-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>เดือน</TableHead>
+                <TableHead>แผนก</TableHead>
+                <TableHead className="text-right">#PM</TableHead>
+                <TableHead className="text-right">#Claim หลัง PM</TableHead>
+                <TableHead className="text-right">Score</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {scoreRows.map((r, i) => (
+                <TableRow key={i}>
+                  <TableCell>{r.month}</TableCell>
+                  <TableCell>{r.department}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.pmCount}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.claimCount}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <Badge tone={r.score >= 70 ? "success" : r.score >= 40 ? "warning" : "danger"}>
+                      {r.score}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FrequencyReport({
+  rows,
+}: {
+  rows: {
+    assetCode: string;
+    department: string;
+    pmYear: number;
+    pmMonth: number;
+    avgGapDays: number | null;
+    claimsAfterPM: number;
+  }[];
+}) {
+  const [filter, setFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
+  const filtered = useMemo(
+    () =>
+      rows.filter((r) => {
+        if (filter !== "all" && r.department !== filter) return false;
+        if (search && !r.assetCode.toLowerCase().includes(search.toLowerCase())) return false;
+        return true;
+      }),
+    [rows, filter, search],
+  );
+  const depts = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.department))).filter(Boolean).sort(),
+    [rows],
+  );
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <CardTitle>รายงาน 4 · ความถี่การ PM รายป้าย</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              ป้ายไหนทำ PM กี่ครั้ง · ค่าเฉลี่ยช่วงห่าง · มี Claim ตามมากี่ครั้ง
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              placeholder="ค้นหารหัสป้าย"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-48"
+            />
+            <Select value={filter} onValueChange={setFilter}>
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="แผนก" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทุกแผนก</SelectItem>
+                {depts.map((d) => (
+                  <SelectItem key={d} value={d}>{d}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="max-h-96 overflow-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>รหัสป้าย</TableHead>
+                <TableHead>แผนก</TableHead>
+                <TableHead className="text-right">#PM ปีนี้</TableHead>
+                <TableHead className="text-right">#PM เดือนนี้</TableHead>
+                <TableHead className="text-right">เฉลี่ยห่าง (วัน)</TableHead>
+                <TableHead className="text-right">Claim หลัง PM</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((r) => (
+                <TableRow key={r.assetCode}>
+                  <TableCell className="font-mono text-xs">{r.assetCode}</TableCell>
+                  <TableCell>{r.department}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.pmYear}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.pmMonth}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.avgGapDays ?? "—"}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {r.claimsAfterPM > 0 ? (
+                      <Badge tone={r.claimsAfterPM >= 3 ? "danger" : "warning"}>{r.claimsAfterPM}</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">0</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

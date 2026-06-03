@@ -92,7 +92,10 @@ function MultiSelect({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 mt-1 max-h-72 w-72 overflow-auto rounded-md border bg-popover p-2 shadow-lg">
+          <div
+            className="absolute z-20 mt-1 max-h-72 w-72 overflow-auto rounded-md border bg-popover p-2 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between px-1 pb-2 text-xs">
               <button className="text-primary" onClick={() => onChange(options)}>เลือกทั้งหมด</button>
               <button className="text-muted-foreground" onClick={() => onChange([])}>ล้าง</button>
@@ -112,6 +115,15 @@ function MultiSelect({
                 </label>
               );
             })}
+            <div className="sticky bottom-0 pt-2 mt-2 border-t bg-popover">
+              <button
+                type="button"
+                className="w-full rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:opacity-90"
+                onClick={() => setOpen(false)}
+              >
+                เสร็จ ({value.length} รายการ)
+              </button>
+            </div>
           </div>
         </>
       )}

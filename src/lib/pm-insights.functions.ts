@@ -115,13 +115,15 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const allProjects = new Set<string>();
     for (const a of assetMap.values()) if (a.department) allDepts.add(a.department);
     for (const h of hist ?? []) {
-      const z = pickStr(h.payload, "bkkUpc");
+      const z = pickStr(asPayload(h.payload), "bkkUpc");
       if (z) allZones.add(z);
-      const p = pickStr(h.payload, "project");
+      const p = pickStr(asPayload(h.payload), "project");
       if (p) allProjects.add(p);
     }
 
-    const filtered = (hist ?? []).filter(inFilter) as Hist[];
+    const filtered: Hist[] = (hist ?? [])
+      .map((h) => ({ ...h, payload: asPayload(h.payload) }))
+      .filter(inFilter);
 
     // ---- KPIs ----
     const claimSet = new Set<string>();

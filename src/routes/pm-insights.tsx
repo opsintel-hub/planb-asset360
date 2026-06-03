@@ -174,25 +174,25 @@ function PmInsightsPage() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-            <MultiSelect
-              label="แผนก"
-              options={data?.filters.departments ?? []}
-              value={departments}
-              onChange={setDepartments}
-            />
-            <MultiSelect
-              label="พื้นที่"
-              options={data?.filters.zones ?? []}
-              value={zones}
-              onChange={setZones}
-            />
-            <MultiSelect
-              label="Project"
-              options={data?.filters.projects ?? []}
-              value={projects}
-              onChange={setProjects}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Project</label>
+              <MultiSelect
+                label="Project"
+                options={data?.filters.projects ?? []}
+                value={projects}
+                onChange={setProjects}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">พื้นที่</label>
+              <MultiSelect
+                label="พื้นที่"
+                options={data?.filters.zones ?? []}
+                value={zones}
+                onChange={setZones}
+              />
+            </div>
             <div>
               <label className="text-xs text-muted-foreground">วันที่เริ่ม</label>
               <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />

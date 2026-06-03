@@ -243,12 +243,14 @@ export const getPmInsights = createServerFn({ method: "POST" })
       }
     }
 
-    // Monthly PM vs Claim (12 months of current year, based on filtered tickets)
+    // Monthly PM vs Claim (12 เดือนของปีปัจจุบัน — ไม่นับช่วงวันที่ filter เพื่อให้เห็นภาพรวมทั้งปี)
     const year = new Date().getFullYear();
     const monthlyMap = new Map<number, { pm: number; claim: number }>();
     for (let m = 0; m < 12; m++) monthlyMap.set(m, { pm: 0, claim: 0 });
-    for (const h of filtered) {
+    for (const h of allHist) {
+      if (!inScopeFilter(h)) continue;
       const date = pickStr(h.payload, "createdDate") || h.created_at;
+
       const d = new Date(date);
       if (!Number.isFinite(d.getTime()) || d.getFullYear() !== year) continue;
       const row = monthlyMap.get(d.getMonth())!;

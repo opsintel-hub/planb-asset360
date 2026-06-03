@@ -408,6 +408,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
 
     return {
       kpi,
+      monthly,
       aging,
       donuts,
       impactStack,

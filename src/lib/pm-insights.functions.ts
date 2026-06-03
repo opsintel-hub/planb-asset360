@@ -82,7 +82,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const hist = await fetchAll<Hist>((from, to) =>
       supabaseAdmin
         .from("asset_history")
-        .select("asset_old_code, type, payload, created_at")
+        .select("asset_old_code, type, payload, created_at, ticket_code")
         .in("type", ["PM", "Claim"])
         .range(from, to),
     );

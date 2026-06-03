@@ -697,59 +697,6 @@ function DonutPanel({
 }
 
 
-function ImpactReport({
-  impactStack,
-  groupTop,
-}: {
-  impactStack: { department: string; จอดับ: number; ไม่สมบูรณ์: number; ไม่มีผล: number; total: number }[];
-  groupTop: { name: string; hours: number }[];
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>รายงาน 2 · Downtime & Business Impact</CardTitle>
-        <p className="text-sm text-muted-foreground mt-1">
-          ชั่วโมง Downtime ที่กระทบโฆษณา แยกตามแผนกและกลุ่มอาการ
-        </p>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
-            <div className="text-xs font-medium mb-2">ชม. Downtime ตามแผนก × ระดับผลกระทบ</div>
-            <div className="h-80">
-              <ResponsiveContainer>
-                <BarChart data={impactStack}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis dataKey="department" angle={-20} textAnchor="end" height={70} interval={0} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="จอดับ" stackId="a" fill="oklch(0.6 0.2 25)" />
-                  <Bar dataKey="ไม่สมบูรณ์" stackId="a" fill="oklch(0.72 0.17 60)" />
-                  <Bar dataKey="ไม่มีผล" stackId="a" fill="oklch(0.7 0.12 140)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div>
-            <div className="text-xs font-medium mb-2">Top กลุ่มอาการ — ชม. Downtime สูงสุด</div>
-            <div className="h-80">
-              <ResponsiveContainer>
-                <BarChart data={groupTop} layout="vertical" margin={{ left: 16 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis type="number" />
-                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 10 }} />
-                  <Tooltip />
-                  <Bar dataKey="hours" fill="oklch(0.66 0.18 250)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 function ScoreReport({
   scoreRows,

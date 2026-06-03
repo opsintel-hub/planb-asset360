@@ -125,7 +125,6 @@ export const getPmInsights = createServerFn({ method: "POST" })
       .filter(inFilter);
 
     // ---- KPIs ----
-    const claimSet = new Set<string>();
     let downtime = 0;
     let pmDone = 0;
     let claimOpen = 0;
@@ -137,7 +136,6 @@ export const getPmInsights = createServerFn({ method: "POST" })
         downtime += pickNum(h.payload, "totalTurnaroundTime");
         const st = pickStr(h.payload, "status");
         if (st !== "Finished" && pickStr(h.payload, "assetStatus") !== "Pass") claimOpen++;
-        claimSet.add(pickStr(h.payload, "informedDetail"));
       }
     }
     const kpi = {

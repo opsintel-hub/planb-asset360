@@ -274,25 +274,74 @@ type AgingPair = {
   days: number;
   problemCategory: string;
   problemDetail: string;
+  problemEquipment: string;
+  solutionCategory: string;
+  solutionDetail: string;
 };
-type DonutSlice = { name: string; value: number };
+
+type DonutKey =
+  | "problemCategory"
+  | "problemDetail"
+  | "problemEquipment"
+  | "solutionCategory"
+  | "solutionDetail";
+
+const DONUT_DEFS: { key: DonutKey; title: string }[] = [
+  { key: "problemCategory", title: "Problem Category" },
+  { key: "problemDetail", title: "Problem Detail" },
+  { key: "problemEquipment", title: "Problem Equipment" },
+  { key: "solutionCategory", title: "Solution Category" },
+  { key: "solutionDetail", title: "Solution Detail" },
+];
 
 function AgingReport({
   aging,
   pairs,
-  donuts,
 }: {
   aging: { bucket: string; count: number }[];
   pairs: AgingPair[];
-  donuts: {
-    problemCategory: DonutSlice[];
-    problemDetail: DonutSlice[];
-    problemEquipment: DonutSlice[];
-    solutionCategory: DonutSlice[];
-    solutionDetail: DonutSlice[];
-  };
 }) {
   const [view, setView] = useState<"chart" | "table">("chart");
+  const [sel, setSel] = useState<Record<DonutKey, string | null>>({
+    problemCategory: null,
+    problemDetail: null,
+    problemEquipment: null,
+    solutionCategory: null,
+    solutionDetail: null,
+  });
+
+  const early = useMemo(() => pairs.filter((p) => p.days <= 30), [pairs]);
+
+  // For each donut, filter by OTHER selections (slicer behavior)
+  const donutData = useMemo(() => {
+    const out: Record<DonutKey, { name: string; value: number }[]> = {
+      problemCategory: [],
+      problemDetail: [],
+      problemEquipment: [],
+      solutionCategory: [],
+      solutionDetail: [],
+    };
+    for (const def of DONUT_DEFS) {
+      const filtered = early.filter((p) =>
+        DONUT_DEFS.every((d) =>
+          d.key === def.key ? true : !sel[d.key] || p[d.key] === sel[d.key],
+        ),
+      );
+      const m = new Map<string, number>();
+      for (const p of filtered) {
+        const v = p[def.key];
+        m.set(v, (m.get(v) ?? 0) + 1);
+      }
+      out[def.key] = Array.from(m.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 12);
+    }
+    return out;
+  }, [early, sel]);
+
+  const activeFilters = DONUT_DEFS.filter((d) => sel[d.key]);
+
   return (
     <Card>
       <CardHeader>
@@ -381,15 +430,50 @@ function AgingReport({
         )}
 
         <div className="mt-6">
-          <h4 className="font-semibold text-sm mb-3">
-            อาการ/วิธีแก้ที่พบบ่อย (เฉพาะ Claim ภายใน 30 วันหลัง PM)
-          </h4>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <h4 className="font-semibold text-sm">
+              อาการ/วิธีแก้ที่พบบ่อย (เฉพาะ Claim ภายใน 30 วันหลัง PM)
+            </h4>
+            {activeFilters.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {activeFilters.map((d) => (
+                  <button
+                    key={d.key}
+                    onClick={() => setSel((s) => ({ ...s, [d.key]: null }))}
+                    className="text-[11px] px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20"
+                  >
+                    {d.title}: {sel[d.key]} ✕
+                  </button>
+                ))}
+                <button
+                  onClick={() =>
+                    setSel({
+                      problemCategory: null,
+                      problemDetail: null,
+                      problemEquipment: null,
+                      solutionCategory: null,
+                      solutionDetail: null,
+                    })
+                  }
+                  className="text-[11px] text-muted-foreground hover:text-foreground underline"
+                >
+                  ล้างทั้งหมด
+                </button>
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <DonutPanel title="Problem Category" data={donuts.problemCategory} />
-            <DonutPanel title="Problem Detail" data={donuts.problemDetail} />
-            <DonutPanel title="Problem Equipment" data={donuts.problemEquipment} />
-            <DonutPanel title="Solution Category" data={donuts.solutionCategory} />
-            <DonutPanel title="Solution Detail" data={donuts.solutionDetail} />
+            {DONUT_DEFS.map((d) => (
+              <DonutPanel
+                key={d.key}
+                title={d.title}
+                data={donutData[d.key]}
+                selected={sel[d.key]}
+                onSelect={(name) =>
+                  setSel((s) => ({ ...s, [d.key]: s[d.key] === name ? null : name }))
+                }
+              />
+            ))}
           </div>
         </div>
       </CardContent>
@@ -397,7 +481,17 @@ function AgingReport({
   );
 }
 
-function DonutPanel({ title, data }: { title: string; data: DonutSlice[] }) {
+function DonutPanel({
+  title,
+  data,
+  selected,
+  onSelect,
+}: {
+  title: string;
+  data: { name: string; value: number }[];
+  selected: string | null;
+  onSelect: (name: string) => void;
+}) {
   if (!data.length) {
     return (
       <div className="text-xs text-muted-foreground text-center py-8 border rounded">
@@ -411,9 +505,21 @@ function DonutPanel({ title, data }: { title: string; data: DonutSlice[] }) {
       <div className="h-40">
         <ResponsiveContainer>
           <PieChart>
-            <Pie data={data} dataKey="value" innerRadius={30} outerRadius={55} paddingAngle={2}>
-              {data.map((_, i) => (
-                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+            <Pie
+              data={data}
+              dataKey="value"
+              innerRadius={30}
+              outerRadius={55}
+              paddingAngle={2}
+              onClick={(d: { name?: string }) => d?.name && onSelect(d.name)}
+            >
+              {data.map((d, i) => (
+                <Cell
+                  key={i}
+                  fill={PIE_COLORS[i % PIE_COLORS.length]}
+                  opacity={!selected || selected === d.name ? 1 : 0.3}
+                  cursor="pointer"
+                />
               ))}
             </Pie>
             <Tooltip />
@@ -421,20 +527,31 @@ function DonutPanel({ title, data }: { title: string; data: DonutSlice[] }) {
         </ResponsiveContainer>
       </div>
       <div className="mt-2 space-y-1 max-h-28 overflow-auto">
-        {data.map((d, i) => (
-          <div key={i} className="flex items-center gap-1.5 text-[11px]">
-            <span
-              className="size-2 rounded-sm shrink-0"
-              style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
-            />
-            <span className="truncate flex-1" title={d.name}>{d.name}</span>
-            <span className="tabular-nums text-muted-foreground">{d.value}</span>
-          </div>
-        ))}
+        {data.map((d, i) => {
+          const isSel = selected === d.name;
+          return (
+            <button
+              key={i}
+              onClick={() => onSelect(d.name)}
+              className={
+                "w-full flex items-center gap-1.5 text-[11px] px-1 py-0.5 rounded hover:bg-accent text-left " +
+                (isSel ? "bg-primary/10 font-medium" : "")
+              }
+            >
+              <span
+                className="size-2 rounded-sm shrink-0"
+                style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
+              />
+              <span className="truncate flex-1" title={d.name}>{d.name}</span>
+              <span className="tabular-nums text-muted-foreground">{d.value}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
+
 
 function ImpactReport({
   impactStack,

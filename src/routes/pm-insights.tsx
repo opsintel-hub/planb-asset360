@@ -549,7 +549,9 @@ function PairsTable({ pairs }: { pairs: AgingPair[] }) {
               <TableRow>
                 <TableHead>รหัสป้าย</TableHead>
                 <TableHead>แผนก</TableHead>
+                <TableHead>ตั๋ว PM</TableHead>
                 <TableHead>วัน PM</TableHead>
+                <TableHead>ตั๋ว Claim</TableHead>
                 <TableHead>วัน Claim</TableHead>
                 <TableHead className="text-right">ห่าง (วัน)</TableHead>
                 <TableHead>หมวดอาการ</TableHead>

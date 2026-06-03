@@ -215,16 +215,27 @@ function PmInsightsPage() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <KpiCard icon={Building2} label="จำนวนป้ายทั้งหมด" value={data.kpi.assets} color="text-blue-500" />
-            <KpiCard icon={Wrench} label="จำนวนป้ายที่เปิดตั๋ว PM" value={data.kpi.pmDone} color="text-green-500" />
+            <KpiCard
+              icon={Building2}
+              label="จำนวนป้ายทั้งหมด"
+              value={data.kpi.assets}
+              color="text-blue-500"
+              description="นับ distinct asset_old_code จากตาราง assets ทั้งหมด (ไม่ขึ้นกับ filter วันที่)"
+            />
+            <KpiCard
+              icon={Wrench}
+              label="จำนวนป้ายที่เปิดตั๋ว PM"
+              value={data.kpi.pmDone}
+              color="text-green-500"
+              description="นับ distinct asset_old_code ที่มี PM ticket (ทุกสถานะ) ภายในช่วงวันที่ filter — รวม PM ที่ยังไม่ Pass และ PM Pass ที่ยังไม่มี Claim ตามมา จึงมากกว่าจำนวนคู่ใน Aging chart"
+            />
           </div>
 
-          {/* Report 1: Aging */}
-          <AgingReport
-            aging={data.aging}
-            pairs={data.pairs}
-          />
+          {/* Report 1: Aging chart + donuts */}
+          <AgingReport aging={data.aging} pairs={data.pairs} />
 
+          {/* Pair detail table — separate with pagination */}
+          <PairsTable pairs={data.pairs} />
 
           {/* Report 2: Impact */}
           <ImpactReport impactStack={data.impactStack} groupTop={data.groupTop} />

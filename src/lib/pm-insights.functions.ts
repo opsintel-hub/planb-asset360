@@ -37,6 +37,10 @@ type Hist = {
 
 type Asset = { old_code: string; department: string | null };
 
+function asPayload(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+}
+
 function pickStr(p: Record<string, unknown>, k: string): string {
   const v = p?.[k];
   return typeof v === "string" ? v : "";

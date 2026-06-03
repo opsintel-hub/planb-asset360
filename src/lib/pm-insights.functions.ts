@@ -111,18 +111,23 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const zoneSet = new Set(f.zones);
     const projSet = new Set(f.projects);
 
-    function inFilter(h: Hist): boolean {
+    function inScopeFilter(h: Hist): boolean {
+      // ไม่นับ date — ใช้สำหรับกราฟรายเดือน (โชว์ทั้งปี)
       const code = h.asset_old_code ?? "";
-      const asset = assetMap.get(code);
-      const dept = asset?.department ?? "";
-      const created = pickStr(h.payload, "createdDate") || h.created_at;
-      const ts = new Date(created).getTime();
-      if (Number.isFinite(ts) && (ts < fromTs || ts > toTs)) return false;
+      const dept = assetMap.get(code)?.department ?? "";
       if (depSet.size && !depSet.has(dept)) return false;
       if (zoneSet.size && !zoneSet.has(pickStr(h.payload, "bkkUpc"))) return false;
       if (projSet.size && !projSet.has(pickStr(h.payload, "project"))) return false;
       return true;
     }
+    function inFilter(h: Hist): boolean {
+      if (!inScopeFilter(h)) return false;
+      const created = pickStr(h.payload, "createdDate") || h.created_at;
+      const ts = new Date(created).getTime();
+      if (Number.isFinite(ts) && (ts < fromTs || ts > toTs)) return false;
+      return true;
+    }
+
 
     // For filter dropdowns: collect distinct values from full dataset
     const allDepts = new Set<string>();
@@ -238,12 +243,14 @@ export const getPmInsights = createServerFn({ method: "POST" })
       }
     }
 
-    // Monthly PM vs Claim (12 months of current year, based on filtered tickets)
+    // Monthly PM vs Claim (12 เดือนของปีปัจจุบัน — ไม่นับช่วงวันที่ filter เพื่อให้เห็นภาพรวมทั้งปี)
     const year = new Date().getFullYear();
     const monthlyMap = new Map<number, { pm: number; claim: number }>();
     for (let m = 0; m < 12; m++) monthlyMap.set(m, { pm: 0, claim: 0 });
-    for (const h of filtered) {
+    for (const h of allHist) {
+      if (!inScopeFilter(h)) continue;
       const date = pickStr(h.payload, "createdDate") || h.created_at;
+
       const d = new Date(date);
       if (!Number.isFinite(d.getTime()) || d.getFullYear() !== year) continue;
       const row = monthlyMap.get(d.getMonth())!;

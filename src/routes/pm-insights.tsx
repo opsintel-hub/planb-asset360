@@ -562,7 +562,7 @@ function PairsTable({ pairs }: { pairs: AgingPair[] }) {
             <TableBody>
               {visible.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     ไม่พบข้อมูล
                   </TableCell>
                 </TableRow>
@@ -571,7 +571,9 @@ function PairsTable({ pairs }: { pairs: AgingPair[] }) {
                   <TableRow key={start + i} className={p.days <= 7 ? "bg-red-50 dark:bg-red-950/30" : ""}>
                     <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
                     <TableCell className="text-xs">{p.department}</TableCell>
+                    <TableCell className="font-mono text-xs">{p.pmTicket || "—"}</TableCell>
                     <TableCell className="text-xs">{p.pmDate}</TableCell>
+                    <TableCell className="font-mono text-xs">{p.claimTicket || "—"}</TableCell>
                     <TableCell className="text-xs">{p.claimDate}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {p.days <= 7 ? (

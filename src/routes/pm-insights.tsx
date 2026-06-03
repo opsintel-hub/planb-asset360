@@ -431,34 +431,6 @@ function AgingReport({
               </div>
             )}
           </div>
-            {activeFilters.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                {activeFilters.map((d) => (
-                  <button
-                    key={d.key}
-                    onClick={() => setSel((s) => ({ ...s, [d.key]: null }))}
-                    className="text-[11px] px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20"
-                  >
-                    {d.title}: {sel[d.key]} ✕
-                  </button>
-                ))}
-                <button
-                  onClick={() =>
-                    setSel({
-                      problemCategory: null,
-                      problemDetail: null,
-                      problemEquipment: null,
-                      solutionCategory: null,
-                      solutionDetail: null,
-                    })
-                  }
-                  className="text-[11px] text-muted-foreground hover:text-foreground underline"
-                >
-                  ล้างทั้งหมด
-                </button>
-              </div>
-            )}
-          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {DONUT_DEFS.map((d) => (
               <DonutPanel

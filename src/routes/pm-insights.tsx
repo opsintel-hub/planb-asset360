@@ -317,7 +317,6 @@ function AgingReport({
   aging: { bucket: string; count: number }[];
   pairs: AgingPair[];
 }) {
-  const [view, setView] = useState<"chart" | "table">("chart");
   const [sel, setSel] = useState<Record<DonutKey, string | null>>({
     problemCategory: null,
     problemDetail: null,
@@ -327,6 +326,7 @@ function AgingReport({
   });
 
   const early = useMemo(() => pairs.filter((p) => p.days <= 30), [pairs]);
+  const totalPairs = aging.reduce((s, b) => s + b.count, 0);
 
   // For each donut, filter by OTHER selections (slicer behavior)
   const donutData = useMemo(() => {
@@ -361,95 +361,76 @@ function AgingReport({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <CardTitle>รายงาน 1 · PM Effectiveness & Aging</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              ระยะเวลาจากวัน PM ผ่าน → วัน Claim ครั้งถัดไป ของป้ายเดียวกัน
-            </p>
-          </div>
-          <div className="flex gap-1">
-            {(["chart", "table"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={
-                  "px-3 py-1 text-xs rounded " +
-                  (view === v ? "bg-primary text-primary-foreground" : "bg-muted")
-                }
-              >
-                {v === "chart" ? "กราฟ" : "ตาราง"}
-              </button>
-            ))}
-          </div>
-        </div>
+        <CardTitle>รายงาน 1 · PM Effectiveness & Aging</CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          จับคู่ PM (assetStatus = Pass) กับ Claim ครั้งถัดไปของป้ายเดียวกัน แล้วนับจำนวน "คู่" ตามช่วงวันที่ห่างกัน
+          · รวม <span className="font-semibold text-foreground">{totalPairs}</span> คู่ ·
+          แท่ง 1–3, 4–7 วัน = Critical (PM แล้วเสียซ้ำเร็ว) ·
+          PM Pass ที่ยังไม่มี Claim ตามมาจะไม่ถูกนับในกราฟนี้ (ดูจำนวนเต็มที่ KPI ด้านบน)
+        </p>
       </CardHeader>
       <CardContent>
-        {view === "chart" ? (
-          <div className="h-72">
-            <ResponsiveContainer>
-              <BarChart data={aging}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="bucket" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="oklch(0.66 0.18 250)" radius={[8, 8, 0, 0]}>
-                  {aging.map((entry, i) => (
-                    <Cell
-                      key={i}
-                      fill={
-                        entry.bucket === "1-3" || entry.bucket === "4-7"
-                          ? "oklch(0.6 0.2 25)"
-                          : "oklch(0.66 0.18 250)"
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <div className="max-h-96 overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>รหัสป้าย</TableHead>
-                  <TableHead>แผนก</TableHead>
-                  <TableHead>วัน PM</TableHead>
-                  <TableHead>วัน Claim</TableHead>
-                  <TableHead className="text-right">ห่าง (วัน)</TableHead>
-                  <TableHead>อาการ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pairs.slice(0, 200).map((p, i) => (
-                  <TableRow key={i} className={p.days <= 7 ? "bg-red-50 dark:bg-red-950/30" : ""}>
-                    <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
-                    <TableCell>{p.department}</TableCell>
-                    <TableCell className="text-xs">{p.pmDate}</TableCell>
-                    <TableCell className="text-xs">{p.claimDate}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {p.days <= 7 ? (
-                        <Badge tone="danger">{p.days} วัน · Critical</Badge>
-                      ) : (
-                        p.days
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs max-w-xs truncate" title={p.problemDetail}>
-                      {p.problemDetail}
-                    </TableCell>
-                  </TableRow>
+        <div className="h-72">
+          <ResponsiveContainer>
+            <BarChart data={aging}>
+              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+              <XAxis dataKey="bucket" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count" fill="oklch(0.66 0.18 250)" radius={[8, 8, 0, 0]}>
+                {aging.map((entry, i) => (
+                  <Cell
+                    key={i}
+                    fill={
+                      entry.bucket === "1-3" || entry.bucket === "4-7"
+                        ? "oklch(0.6 0.2 25)"
+                        : "oklch(0.66 0.18 250)"
+                    }
+                  />
                 ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
 
         <div className="mt-6">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-            <h4 className="font-semibold text-sm">
-              อาการ/วิธีแก้ที่พบบ่อย (เฉพาะ Claim ภายใน 30 วันหลัง PM)
-            </h4>
+            <div>
+              <h4 className="font-semibold text-sm">
+                อาการ/วิธีแก้ที่พบบ่อย (เฉพาะ Claim ภายใน 30 วันหลัง PM)
+              </h4>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                นับจำนวนคู่ PM→Claim ที่ห่างกัน ≤ 30 วัน ({early.length} คู่) · คลิกชิ้นโดนัทเพื่อกรองข้าม chart
+              </p>
+            </div>
+            {activeFilters.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {activeFilters.map((d) => (
+                  <button
+                    key={d.key}
+                    onClick={() => setSel((s) => ({ ...s, [d.key]: null }))}
+                    className="text-[11px] px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20"
+                  >
+                    {d.title}: {sel[d.key]} ✕
+                  </button>
+                ))}
+                <button
+                  onClick={() =>
+                    setSel({
+                      problemCategory: null,
+                      problemDetail: null,
+                      problemEquipment: null,
+                      solutionCategory: null,
+                      solutionDetail: null,
+                    })
+                  }
+                  className="text-[11px] text-muted-foreground hover:text-foreground underline"
+                >
+                  ล้างทั้งหมด
+                </button>
+              </div>
+            )}
+          </div>
             {activeFilters.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
                 {activeFilters.map((d) => (

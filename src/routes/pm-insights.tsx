@@ -231,14 +231,14 @@ function PmInsightsPage() {
             />
           </div>
 
+          {/* Monthly PM vs Claim (current year) */}
+          <MonthlyChart data={data.monthly} />
+
           {/* Report 1: Aging chart + donuts */}
           <AgingReport aging={data.aging} pairs={data.pairs} />
 
           {/* Pair detail table — separate with pagination */}
           <PairsTable pairs={data.pairs} />
-
-          {/* Report 2: Impact */}
-          <ImpactReport impactStack={data.impactStack} groupTop={data.groupTop} />
 
           {/* Report 3: Score */}
           <ScoreReport scoreRows={data.scoreRows} />
@@ -287,6 +287,8 @@ type AgingPair = {
   department: string;
   pmDate: string;
   claimDate: string;
+  pmTicket: string;
+  claimTicket: string;
   days: number;
   problemCategory: string;
   problemDetail: string;
@@ -294,6 +296,35 @@ type AgingPair = {
   solutionCategory: string;
   solutionDetail: string;
 };
+
+function MonthlyChart({ data }: { data: { month: string; pm: number; claim: number }[] }) {
+  const year = new Date().getFullYear();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>PM vs Claim รายเดือน (ปี {year})</CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          เปรียบเทียบจำนวนตั๋ว PM และ Claim ที่เปิดในแต่ละเดือนของปีปัจจุบัน (กรองตาม filter ด้านบน)
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="h-72">
+          <ResponsiveContainer>
+            <BarChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="pm" name="PM" fill="oklch(0.7 0.14 160)" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="claim" name="Claim" fill="oklch(0.6 0.2 25)" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 type DonutKey =
   | "problemCategory"
@@ -518,7 +549,9 @@ function PairsTable({ pairs }: { pairs: AgingPair[] }) {
               <TableRow>
                 <TableHead>รหัสป้าย</TableHead>
                 <TableHead>แผนก</TableHead>
+                <TableHead>ตั๋ว PM</TableHead>
                 <TableHead>วัน PM</TableHead>
+                <TableHead>ตั๋ว Claim</TableHead>
                 <TableHead>วัน Claim</TableHead>
                 <TableHead className="text-right">ห่าง (วัน)</TableHead>
                 <TableHead>หมวดอาการ</TableHead>
@@ -529,7 +562,7 @@ function PairsTable({ pairs }: { pairs: AgingPair[] }) {
             <TableBody>
               {visible.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                     ไม่พบข้อมูล
                   </TableCell>
                 </TableRow>
@@ -538,7 +571,9 @@ function PairsTable({ pairs }: { pairs: AgingPair[] }) {
                   <TableRow key={start + i} className={p.days <= 7 ? "bg-red-50 dark:bg-red-950/30" : ""}>
                     <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
                     <TableCell className="text-xs">{p.department}</TableCell>
+                    <TableCell className="font-mono text-xs">{p.pmTicket || "—"}</TableCell>
                     <TableCell className="text-xs">{p.pmDate}</TableCell>
+                    <TableCell className="font-mono text-xs">{p.claimTicket || "—"}</TableCell>
                     <TableCell className="text-xs">{p.claimDate}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {p.days <= 7 ? (
@@ -662,59 +697,6 @@ function DonutPanel({
 }
 
 
-function ImpactReport({
-  impactStack,
-  groupTop,
-}: {
-  impactStack: { department: string; จอดับ: number; ไม่สมบูรณ์: number; ไม่มีผล: number; total: number }[];
-  groupTop: { name: string; hours: number }[];
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>รายงาน 2 · Downtime & Business Impact</CardTitle>
-        <p className="text-sm text-muted-foreground mt-1">
-          ชั่วโมง Downtime ที่กระทบโฆษณา แยกตามแผนกและกลุ่มอาการ
-        </p>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
-            <div className="text-xs font-medium mb-2">ชม. Downtime ตามแผนก × ระดับผลกระทบ</div>
-            <div className="h-80">
-              <ResponsiveContainer>
-                <BarChart data={impactStack}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis dataKey="department" angle={-20} textAnchor="end" height={70} interval={0} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="จอดับ" stackId="a" fill="oklch(0.6 0.2 25)" />
-                  <Bar dataKey="ไม่สมบูรณ์" stackId="a" fill="oklch(0.72 0.17 60)" />
-                  <Bar dataKey="ไม่มีผล" stackId="a" fill="oklch(0.7 0.12 140)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div>
-            <div className="text-xs font-medium mb-2">Top กลุ่มอาการ — ชม. Downtime สูงสุด</div>
-            <div className="h-80">
-              <ResponsiveContainer>
-                <BarChart data={groupTop} layout="vertical" margin={{ left: 16 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis type="number" />
-                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 10 }} />
-                  <Tooltip />
-                  <Bar dataKey="hours" fill="oklch(0.66 0.18 250)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 function ScoreReport({
   scoreRows,

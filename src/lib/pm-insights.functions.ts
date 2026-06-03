@@ -33,6 +33,7 @@ type Hist = {
   type: string;
   payload: Record<string, unknown>;
   created_at: string;
+  ticket_code: string | null;
 };
 
 type Asset = { old_code: string; department: string | null };
@@ -81,7 +82,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const hist = await fetchAll<Hist>((from, to) =>
       supabaseAdmin
         .from("asset_history")
-        .select("asset_old_code, type, payload, created_at")
+        .select("asset_old_code, type, payload, created_at, ticket_code")
         .in("type", ["PM", "Claim"])
         .range(from, to),
     );
@@ -180,6 +181,8 @@ export const getPmInsights = createServerFn({ method: "POST" })
       department: string;
       pmDate: string;
       claimDate: string;
+      pmTicket: string;
+      claimTicket: string;
       days: number;
       problemCategory: string;
       problemDetail: string;
@@ -218,6 +221,8 @@ export const getPmInsights = createServerFn({ method: "POST" })
             department: assetMap.get(code)?.department ?? "",
             pmDate: new Date(pmEnd).toISOString().slice(0, 10),
             claimDate: new Date(cStart).toISOString().slice(0, 10),
+            pmTicket: h.ticket_code ?? pickStr(h.payload, "ticketCode") ?? "",
+            claimTicket: c.ticket_code ?? pickStr(c.payload, "ticketCode") ?? "",
             days,
             problemCategory: cat || "(ไม่ระบุ)",
             problemDetail: detail || "(ไม่ระบุ)",
@@ -232,6 +237,25 @@ export const getPmInsights = createServerFn({ method: "POST" })
         }
       }
     }
+
+    // Monthly PM vs Claim (12 months of current year, based on filtered tickets)
+    const year = new Date().getFullYear();
+    const monthlyMap = new Map<number, { pm: number; claim: number }>();
+    for (let m = 0; m < 12; m++) monthlyMap.set(m, { pm: 0, claim: 0 });
+    for (const h of filtered) {
+      const date = pickStr(h.payload, "createdDate") || h.created_at;
+      const d = new Date(date);
+      if (!Number.isFinite(d.getTime()) || d.getFullYear() !== year) continue;
+      const row = monthlyMap.get(d.getMonth())!;
+      if (h.type === "PM") row.pm++;
+      else if (h.type === "Claim") row.claim++;
+    }
+    const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthly = MONTH_LABELS.map((label, i) => ({
+      month: label,
+      pm: monthlyMap.get(i)!.pm,
+      claim: monthlyMap.get(i)!.claim,
+    }));
 
     // Aging histogram
     const agingMap = new Map<string, number>();
@@ -384,6 +408,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
 
     return {
       kpi,
+      monthly,
       aging,
       donuts,
       impactStack,

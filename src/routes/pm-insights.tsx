@@ -92,7 +92,10 @@ function MultiSelect({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 mt-1 max-h-72 w-72 overflow-auto rounded-md border bg-popover p-2 shadow-lg">
+          <div
+            className="absolute z-20 mt-1 max-h-72 w-72 overflow-auto rounded-md border bg-popover p-2 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between px-1 pb-2 text-xs">
               <button className="text-primary" onClick={() => onChange(options)}>เลือกทั้งหมด</button>
               <button className="text-muted-foreground" onClick={() => onChange([])}>ล้าง</button>
@@ -112,6 +115,15 @@ function MultiSelect({
                 </label>
               );
             })}
+            <div className="sticky bottom-0 pt-2 mt-2 border-t bg-popover">
+              <button
+                type="button"
+                className="w-full rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:opacity-90"
+                onClick={() => setOpen(false)}
+              >
+                เสร็จ ({value.length} รายการ)
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -162,25 +174,25 @@ function PmInsightsPage() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-            <MultiSelect
-              label="แผนก"
-              options={data?.filters.departments ?? []}
-              value={departments}
-              onChange={setDepartments}
-            />
-            <MultiSelect
-              label="พื้นที่"
-              options={data?.filters.zones ?? []}
-              value={zones}
-              onChange={setZones}
-            />
-            <MultiSelect
-              label="Project"
-              options={data?.filters.projects ?? []}
-              value={projects}
-              onChange={setProjects}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Project</label>
+              <MultiSelect
+                label="Project"
+                options={data?.filters.projects ?? []}
+                value={projects}
+                onChange={setProjects}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">พื้นที่</label>
+              <MultiSelect
+                label="พื้นที่"
+                options={data?.filters.zones ?? []}
+                value={zones}
+                onChange={setZones}
+              />
+            </div>
             <div>
               <label className="text-xs text-muted-foreground">วันที่เริ่ม</label>
               <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
@@ -202,11 +214,9 @@ function PmInsightsPage() {
       ) : data ? (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard icon={Building2} label="จำนวนป้าย" value={data.kpi.assets} color="text-blue-500" />
-            <KpiCard icon={Wrench} label="PM เสร็จในช่วง" value={data.kpi.pmDone} color="text-green-500" />
-            <KpiCard icon={Activity} label="Claim เปิดอยู่" value={data.kpi.claimOpen} color="text-orange-500" />
-            <KpiCard icon={Clock} label="Downtime รวม (ชม.)" value={data.kpi.downtimeHours} color="text-red-500" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <KpiCard icon={Building2} label="จำนวนป้ายทั้งหมด" value={data.kpi.assets} color="text-blue-500" />
+            <KpiCard icon={Wrench} label="จำนวนป้ายที่เปิดตั๋ว PM" value={data.kpi.pmDone} color="text-green-500" />
           </div>
 
           {/* Report 1: Aging */}

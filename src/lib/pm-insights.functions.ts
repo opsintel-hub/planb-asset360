@@ -120,18 +120,18 @@ export const getPmInsights = createServerFn({ method: "POST" })
       if (p) allProjects.add(p);
     }
 
-    const filtered: Hist[] = (hist ?? [])
-      .map((h) => ({ ...h, payload: asPayload(h.payload) }))
-      .filter(inFilter);
+    const allHist: Hist[] = (hist ?? []).map((h) => ({
+      ...h,
+      payload: asPayload(h.payload),
+    }));
+    const filtered: Hist[] = allHist.filter(inFilter);
 
     // ---- KPIs ----
     let downtime = 0;
-    let pmDone = 0;
     let claimOpen = 0;
-    const assetCodes = new Set<string>();
+    const pmAssetSet = new Set<string>();
     for (const h of filtered) {
-      assetCodes.add(h.asset_old_code ?? "");
-      if (h.type === "PM" && pickStr(h.payload, "assetStatus") === "Pass") pmDone++;
+      if (h.type === "PM" && h.asset_old_code) pmAssetSet.add(h.asset_old_code);
       if (h.type === "Claim") {
         downtime += pickNum(h.payload, "totalTurnaroundTime");
         const st = pickStr(h.payload, "status");
@@ -139,21 +139,22 @@ export const getPmInsights = createServerFn({ method: "POST" })
       }
     }
     const kpi = {
-      assets: assetCodes.size,
-      pmDone,
+      assets: assetMap.size,
+      pmDone: pmAssetSet.size,
       claimOpen,
       downtimeHours: Math.round(downtime / 60),
     };
 
     // ---- Pair PM -> next Claim per asset ----
-    type HistN = Hist & { _ts: number };
+    // Build full per-asset timeline (ignore filter) so next Claim can fall outside the date range.
+    type HistN = Hist & { _ts: number; _inFilter: boolean };
     const byAsset = new Map<string, HistN[]>();
-    for (const h of filtered) {
+    for (const h of allHist) {
       const code = h.asset_old_code ?? "";
       if (!code) continue;
       const ts = new Date(pickStr(h.payload, "createdDate") || h.created_at).getTime();
       if (!Number.isFinite(ts)) continue;
-      const item = { ...h, _ts: ts };
+      const item: HistN = { ...h, _ts: ts, _inFilter: inFilter(h) };
       const list = byAsset.get(code) ?? [];
       list.push(item);
       byAsset.set(code, list);
@@ -182,6 +183,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
         const h = list[i];
         if (h.type !== "PM") continue;
         if (pickStr(h.payload, "assetStatus") !== "Pass") continue;
+        if (!h._inFilter) continue;
         const pmEnd = new Date(
           pickStr(h.payload, "updatedDate") || pickStr(h.payload, "createdDate"),
         ).getTime();

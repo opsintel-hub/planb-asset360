@@ -326,14 +326,21 @@ export const getPmInsights = createServerFn({ method: "POST" })
       .sort((a, b) => b.hours - a.hours)
       .slice(0, 15);
 
-    // Monthly score (department × month)
-    type MonthRow = { month: string; department: string; score: number; pmCount: number; claimCount: number };
+    // Monthly score (department × month) — fill all 12 months of current year
+    type MonthRow = {
+      month: string;
+      department: string;
+      score: number | null;
+      pmCount: number;
+      claimCount: number;
+    };
     const scoreMap = new Map<string, { sum: number; n: number; pm: number; claim: number }>();
-    // count PMs in month per department
+    const deptSet = new Set<string>();
     for (const h of filtered) {
       if (h.type !== "PM" || pickStr(h.payload, "assetStatus") !== "Pass") continue;
       const code = h.asset_old_code ?? "";
       const dept = assetMap.get(code)?.department ?? "(ไม่ระบุ)";
+      deptSet.add(dept);
       const date = pickStr(h.payload, "updatedDate") || pickStr(h.payload, "createdDate");
       if (!date) continue;
       const m = date.slice(0, 7);
@@ -344,7 +351,9 @@ export const getPmInsights = createServerFn({ method: "POST" })
     }
     for (const p of pairs) {
       const m = p.pmDate.slice(0, 7);
-      const key = `${m}|${p.department || "(ไม่ระบุ)"}`;
+      const dept = p.department || "(ไม่ระบุ)";
+      deptSet.add(dept);
+      const key = `${m}|${dept}`;
       const v = scoreMap.get(key) ?? { sum: 0, n: 0, pm: 0, claim: 0 };
       const point = (Math.min(p.days, 90) / 90) * 100;
       v.sum += point;
@@ -352,16 +361,29 @@ export const getPmInsights = createServerFn({ method: "POST" })
       v.claim++;
       scoreMap.set(key, v);
     }
-    const scoreRows: MonthRow[] = Array.from(scoreMap.entries())
-      .map(([key, v]) => {
-        const [month, department] = key.split("|");
-        // PMs without subsequent claim count as score 100
+    // Expand to all 12 months × all known departments (เดือนไม่มี PM → score = null)
+    const scoreYear = new Date().getFullYear();
+    const scoreRows: MonthRow[] = [];
+    for (const dept of Array.from(deptSet).sort()) {
+      for (let mi = 0; mi < 12; mi++) {
+        const month = `${scoreYear}-${String(mi + 1).padStart(2, "0")}`;
+        const v = scoreMap.get(`${month}|${dept}`);
+        if (!v || v.pm === 0) {
+          scoreRows.push({ month, department: dept, score: null, pmCount: 0, claimCount: v?.claim ?? 0 });
+          continue;
+        }
         const unpaired = Math.max(v.pm - v.claim, 0);
         const totalN = v.n + unpaired;
         const score = totalN > 0 ? (v.sum + unpaired * 100) / totalN : 0;
-        return { month, department, score: Math.round(score), pmCount: v.pm, claimCount: v.claim };
-      })
-      .sort((a, b) => (a.month < b.month ? -1 : 1));
+        scoreRows.push({
+          month,
+          department: dept,
+          score: Math.round(score),
+          pmCount: v.pm,
+          claimCount: v.claim,
+        });
+      }
+    }
 
     // Frequency per asset (year/month PM count, avg gap, claims-per-gap-bucket)
     const now = new Date();

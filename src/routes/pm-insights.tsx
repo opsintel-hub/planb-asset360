@@ -215,16 +215,27 @@ function PmInsightsPage() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <KpiCard icon={Building2} label="จำนวนป้ายทั้งหมด" value={data.kpi.assets} color="text-blue-500" />
-            <KpiCard icon={Wrench} label="จำนวนป้ายที่เปิดตั๋ว PM" value={data.kpi.pmDone} color="text-green-500" />
+            <KpiCard
+              icon={Building2}
+              label="จำนวนป้ายทั้งหมด"
+              value={data.kpi.assets}
+              color="text-blue-500"
+              description="นับ distinct asset_old_code จากตาราง assets ทั้งหมด (ไม่ขึ้นกับ filter วันที่)"
+            />
+            <KpiCard
+              icon={Wrench}
+              label="จำนวนป้ายที่เปิดตั๋ว PM"
+              value={data.kpi.pmDone}
+              color="text-green-500"
+              description="นับ distinct asset_old_code ที่มี PM ticket (ทุกสถานะ) ภายในช่วงวันที่ filter — รวม PM ที่ยังไม่ Pass และ PM Pass ที่ยังไม่มี Claim ตามมา จึงมากกว่าจำนวนคู่ใน Aging chart"
+            />
           </div>
 
-          {/* Report 1: Aging */}
-          <AgingReport
-            aging={data.aging}
-            pairs={data.pairs}
-          />
+          {/* Report 1: Aging chart + donuts */}
+          <AgingReport aging={data.aging} pairs={data.pairs} />
 
+          {/* Pair detail table — separate with pagination */}
+          <PairsTable pairs={data.pairs} />
 
           {/* Report 2: Impact */}
           <ImpactReport impactStack={data.impactStack} groupTop={data.groupTop} />
@@ -245,21 +256,26 @@ function KpiCard({
   label,
   value,
   color,
+  description,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number;
   color: string;
+  description?: string;
 }) {
   return (
     <Card>
       <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <div className="text-sm text-muted-foreground">{label}</div>
             <div className="text-3xl font-bold mt-1 tabular-nums">{value.toLocaleString()}</div>
+            {description && (
+              <p className="text-[11px] text-muted-foreground mt-2 leading-snug">{description}</p>
+            )}
           </div>
-          <Icon className={`size-8 ${color}`} />
+          <Icon className={`size-8 shrink-0 ${color}`} />
         </div>
       </CardContent>
     </Card>
@@ -301,7 +317,6 @@ function AgingReport({
   aging: { bucket: string; count: number }[];
   pairs: AgingPair[];
 }) {
-  const [view, setView] = useState<"chart" | "table">("chart");
   const [sel, setSel] = useState<Record<DonutKey, string | null>>({
     problemCategory: null,
     problemDetail: null,
@@ -311,6 +326,7 @@ function AgingReport({
   });
 
   const early = useMemo(() => pairs.filter((p) => p.days <= 30), [pairs]);
+  const totalPairs = aging.reduce((s, b) => s + b.count, 0);
 
   // For each donut, filter by OTHER selections (slicer behavior)
   const donutData = useMemo(() => {
@@ -345,95 +361,48 @@ function AgingReport({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <CardTitle>รายงาน 1 · PM Effectiveness & Aging</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              ระยะเวลาจากวัน PM ผ่าน → วัน Claim ครั้งถัดไป ของป้ายเดียวกัน
-            </p>
-          </div>
-          <div className="flex gap-1">
-            {(["chart", "table"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={
-                  "px-3 py-1 text-xs rounded " +
-                  (view === v ? "bg-primary text-primary-foreground" : "bg-muted")
-                }
-              >
-                {v === "chart" ? "กราฟ" : "ตาราง"}
-              </button>
-            ))}
-          </div>
-        </div>
+        <CardTitle>รายงาน 1 · PM Effectiveness & Aging</CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          จับคู่ PM (assetStatus = Pass) กับ Claim ครั้งถัดไปของป้ายเดียวกัน แล้วนับจำนวน "คู่" ตามช่วงวันที่ห่างกัน
+          · รวม <span className="font-semibold text-foreground">{totalPairs}</span> คู่ ·
+          แท่ง 1–3, 4–7 วัน = Critical (PM แล้วเสียซ้ำเร็ว) ·
+          PM Pass ที่ยังไม่มี Claim ตามมาจะไม่ถูกนับในกราฟนี้ (ดูจำนวนเต็มที่ KPI ด้านบน)
+        </p>
       </CardHeader>
       <CardContent>
-        {view === "chart" ? (
-          <div className="h-72">
-            <ResponsiveContainer>
-              <BarChart data={aging}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="bucket" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="oklch(0.66 0.18 250)" radius={[8, 8, 0, 0]}>
-                  {aging.map((entry, i) => (
-                    <Cell
-                      key={i}
-                      fill={
-                        entry.bucket === "1-3" || entry.bucket === "4-7"
-                          ? "oklch(0.6 0.2 25)"
-                          : "oklch(0.66 0.18 250)"
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <div className="max-h-96 overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>รหัสป้าย</TableHead>
-                  <TableHead>แผนก</TableHead>
-                  <TableHead>วัน PM</TableHead>
-                  <TableHead>วัน Claim</TableHead>
-                  <TableHead className="text-right">ห่าง (วัน)</TableHead>
-                  <TableHead>อาการ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pairs.slice(0, 200).map((p, i) => (
-                  <TableRow key={i} className={p.days <= 7 ? "bg-red-50 dark:bg-red-950/30" : ""}>
-                    <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
-                    <TableCell>{p.department}</TableCell>
-                    <TableCell className="text-xs">{p.pmDate}</TableCell>
-                    <TableCell className="text-xs">{p.claimDate}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {p.days <= 7 ? (
-                        <Badge tone="danger">{p.days} วัน · Critical</Badge>
-                      ) : (
-                        p.days
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs max-w-xs truncate" title={p.problemDetail}>
-                      {p.problemDetail}
-                    </TableCell>
-                  </TableRow>
+        <div className="h-72">
+          <ResponsiveContainer>
+            <BarChart data={aging}>
+              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+              <XAxis dataKey="bucket" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count" fill="oklch(0.66 0.18 250)" radius={[8, 8, 0, 0]}>
+                {aging.map((entry, i) => (
+                  <Cell
+                    key={i}
+                    fill={
+                      entry.bucket === "1-3" || entry.bucket === "4-7"
+                        ? "oklch(0.6 0.2 25)"
+                        : "oklch(0.66 0.18 250)"
+                    }
+                  />
                 ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
 
         <div className="mt-6">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-            <h4 className="font-semibold text-sm">
-              อาการ/วิธีแก้ที่พบบ่อย (เฉพาะ Claim ภายใน 30 วันหลัง PM)
-            </h4>
+            <div>
+              <h4 className="font-semibold text-sm">
+                อาการ/วิธีแก้ที่พบบ่อย (เฉพาะ Claim ภายใน 30 วันหลัง PM)
+              </h4>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                นับจำนวนคู่ PM→Claim ที่ห่างกัน ≤ 30 วัน ({early.length} คู่) · คลิกชิ้นโดนัทเพื่อกรองข้าม chart
+              </p>
+            </div>
             {activeFilters.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
                 {activeFilters.map((d) => (
@@ -480,6 +449,146 @@ function AgingReport({
     </Card>
   );
 }
+
+function PairsTable({ pairs }: { pairs: AgingPair[] }) {
+  const [search, setSearch] = useState("");
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(1);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return pairs;
+    return pairs.filter(
+      (p) =>
+        p.assetCode.toLowerCase().includes(q) ||
+        p.department.toLowerCase().includes(q) ||
+        p.problemDetail.toLowerCase().includes(q) ||
+        p.problemCategory.toLowerCase().includes(q),
+    );
+  }, [pairs, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const visible = filtered.slice(start, start + pageSize);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <CardTitle>รายละเอียดคู่ PM → Claim (ทั้งหมด)</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              ทุกคู่ที่จับได้จากช่วงวันที่ filter · เรียงห่างน้อย→มาก · รวม {filtered.length.toLocaleString()} คู่
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="ค้นหารหัสป้าย / แผนก / อาการ"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-64"
+            />
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="20">20 / หน้า</SelectItem>
+                <SelectItem value="50">50 / หน้า</SelectItem>
+                <SelectItem value="100">100 / หน้า</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-auto border rounded">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>รหัสป้าย</TableHead>
+                <TableHead>แผนก</TableHead>
+                <TableHead>วัน PM</TableHead>
+                <TableHead>วัน Claim</TableHead>
+                <TableHead className="text-right">ห่าง (วัน)</TableHead>
+                <TableHead>หมวดอาการ</TableHead>
+                <TableHead>อาการ</TableHead>
+                <TableHead>วิธีแก้</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visible.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    ไม่พบข้อมูล
+                  </TableCell>
+                </TableRow>
+              ) : (
+                visible.map((p, i) => (
+                  <TableRow key={start + i} className={p.days <= 7 ? "bg-red-50 dark:bg-red-950/30" : ""}>
+                    <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
+                    <TableCell className="text-xs">{p.department}</TableCell>
+                    <TableCell className="text-xs">{p.pmDate}</TableCell>
+                    <TableCell className="text-xs">{p.claimDate}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {p.days <= 7 ? (
+                        <Badge tone="danger">{p.days} · Critical</Badge>
+                      ) : (
+                        p.days
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs max-w-[160px] truncate" title={p.problemCategory}>
+                      {p.problemCategory}
+                    </TableCell>
+                    <TableCell className="text-xs max-w-[220px] truncate" title={p.problemDetail}>
+                      {p.problemDetail}
+                    </TableCell>
+                    <TableCell className="text-xs max-w-[200px] truncate" title={p.solutionDetail}>
+                      {p.solutionDetail}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
+          <div>
+            แสดง {filtered.length === 0 ? 0 : start + 1}–{Math.min(start + pageSize, filtered.length)} จาก {filtered.length.toLocaleString()}
+          </div>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(1)}>
+              «
+            </Button>
+            <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
+              ก่อนหน้า
+            </Button>
+            <span className="px-2 tabular-nums">
+              หน้า {currentPage} / {totalPages}
+            </span>
+            <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>
+              ถัดไป
+            </Button>
+            <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage(totalPages)}>
+              »
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 
 function DonutPanel({
   title,

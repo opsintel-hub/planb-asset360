@@ -450,6 +450,146 @@ function AgingReport({
   );
 }
 
+function PairsTable({ pairs }: { pairs: AgingPair[] }) {
+  const [search, setSearch] = useState("");
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(1);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return pairs;
+    return pairs.filter(
+      (p) =>
+        p.assetCode.toLowerCase().includes(q) ||
+        p.department.toLowerCase().includes(q) ||
+        p.problemDetail.toLowerCase().includes(q) ||
+        p.problemCategory.toLowerCase().includes(q),
+    );
+  }, [pairs, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const visible = filtered.slice(start, start + pageSize);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <CardTitle>รายละเอียดคู่ PM → Claim (ทั้งหมด)</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              ทุกคู่ที่จับได้จากช่วงวันที่ filter · เรียงห่างน้อย→มาก · รวม {filtered.length.toLocaleString()} คู่
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="ค้นหารหัสป้าย / แผนก / อาการ"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-64"
+            />
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="20">20 / หน้า</SelectItem>
+                <SelectItem value="50">50 / หน้า</SelectItem>
+                <SelectItem value="100">100 / หน้า</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-auto border rounded">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>รหัสป้าย</TableHead>
+                <TableHead>แผนก</TableHead>
+                <TableHead>วัน PM</TableHead>
+                <TableHead>วัน Claim</TableHead>
+                <TableHead className="text-right">ห่าง (วัน)</TableHead>
+                <TableHead>หมวดอาการ</TableHead>
+                <TableHead>อาการ</TableHead>
+                <TableHead>วิธีแก้</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visible.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    ไม่พบข้อมูล
+                  </TableCell>
+                </TableRow>
+              ) : (
+                visible.map((p, i) => (
+                  <TableRow key={start + i} className={p.days <= 7 ? "bg-red-50 dark:bg-red-950/30" : ""}>
+                    <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
+                    <TableCell className="text-xs">{p.department}</TableCell>
+                    <TableCell className="text-xs">{p.pmDate}</TableCell>
+                    <TableCell className="text-xs">{p.claimDate}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {p.days <= 7 ? (
+                        <Badge tone="danger">{p.days} · Critical</Badge>
+                      ) : (
+                        p.days
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs max-w-[160px] truncate" title={p.problemCategory}>
+                      {p.problemCategory}
+                    </TableCell>
+                    <TableCell className="text-xs max-w-[220px] truncate" title={p.problemDetail}>
+                      {p.problemDetail}
+                    </TableCell>
+                    <TableCell className="text-xs max-w-[200px] truncate" title={p.solutionDetail}>
+                      {p.solutionDetail}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
+          <div>
+            แสดง {filtered.length === 0 ? 0 : start + 1}–{Math.min(start + pageSize, filtered.length)} จาก {filtered.length.toLocaleString()}
+          </div>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(1)}>
+              «
+            </Button>
+            <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
+              ก่อนหน้า
+            </Button>
+            <span className="px-2 tabular-nums">
+              หน้า {currentPage} / {totalPages}
+            </span>
+            <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>
+              ถัดไป
+            </Button>
+            <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage(totalPages)}>
+              »
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
 function DonutPanel({
   title,
   data,

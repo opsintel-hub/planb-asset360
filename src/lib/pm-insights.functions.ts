@@ -56,16 +56,16 @@ export const getPmInsights = createServerFn({ method: "POST" })
   .handler(async ({ data: f }) => {
     // ---- Pull data (paginate; PostgREST default cap is 1000/req) ----
     async function fetchAll<T>(
-      build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+      build: (from: number, to: number) => { range: never } | PromiseLike<{ data: unknown; error: { message: string } | null }>,
       pageSize = 1000,
     ): Promise<T[]> {
       const out: T[] = [];
       for (let page = 0; page < 200; page++) {
         const from = page * pageSize;
         const to = from + pageSize - 1;
-        const { data, error } = await build(from, to);
-        if (error) throw new Error(error.message);
-        const rows = data ?? [];
+        const res = (await (build(from, to) as PromiseLike<{ data: unknown; error: { message: string } | null }>));
+        if (res.error) throw new Error(res.error.message);
+        const rows = (res.data as T[] | null) ?? [];
         out.push(...rows);
         if (rows.length < pageSize) break;
       }

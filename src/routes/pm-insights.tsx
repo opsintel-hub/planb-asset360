@@ -214,11 +214,9 @@ function PmInsightsPage() {
       ) : data ? (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard icon={Building2} label="จำนวนป้าย" value={data.kpi.assets} color="text-blue-500" />
-            <KpiCard icon={Wrench} label="PM เสร็จในช่วง" value={data.kpi.pmDone} color="text-green-500" />
-            <KpiCard icon={Activity} label="Claim เปิดอยู่" value={data.kpi.claimOpen} color="text-orange-500" />
-            <KpiCard icon={Clock} label="Downtime รวม (ชม.)" value={data.kpi.downtimeHours} color="text-red-500" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <KpiCard icon={Building2} label="จำนวนป้ายทั้งหมด" value={data.kpi.assets} color="text-blue-500" />
+            <KpiCard icon={Wrench} label="จำนวนป้ายที่เปิดตั๋ว PM" value={data.kpi.pmDone} color="text-green-500" />
           </div>
 
           {/* Report 1: Aging */}

@@ -23,11 +23,12 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const [active, setActive] = useState<"main" | "airtable" | "mappings">("main");
+  const [active, setActive] = useState<"main" | "airtable" | "mappings" | "informed">("main");
   const sections = [
     { id: "main", label: "การเชื่อมต่อหลัก", icon: Server },
     { id: "airtable", label: "Airtable Connections", icon: Database },
     { id: "mappings", label: "Diagram Mappings", icon: Tag },
+    { id: "informed", label: "Informed Mapping (PM Insights)", icon: FileSpreadsheet },
   ] as const;
 
   return (
@@ -48,7 +49,10 @@ function SettingsPage() {
         })}
       </div>
 
-      {active === "main" ? <MainSettings /> : active === "airtable" ? <AirtableSection /> : <DiagramMappingsSection />}
+      {active === "main" ? <MainSettings />
+        : active === "airtable" ? <AirtableSection />
+        : active === "mappings" ? <DiagramMappingsSection />
+        : <MappingImportExport />}
     </div>
   );
 }

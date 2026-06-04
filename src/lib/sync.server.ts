@@ -209,9 +209,23 @@ export async function runAssetHistorySyncBatch(limit = 100): Promise<{ ok: boole
     let totalRows = 0;
     let processed = 0;
     let failed = 0;
-    for (const a of assets ?? []) {
-      const oldCode = a.old_code as string;
-      if (!oldCode) continue;
+    const errorSamples: string[] = [];
+
+    type HistoryRow = {
+      asset_id: string | null;
+      asset_old_code: string;
+      ticket_code: string;
+      type: string;
+      title: string | null;
+      status: string | null;
+      opened_at: string | null;
+      closed_at: string | null;
+      payload: never;
+    };
+
+    async function syncOne(a: { id: string | null; old_code: string }) {
+      const oldCode = a.old_code;
+      if (!oldCode) return;
       try {
         const url = tmpl.replace("{id}", encodeURIComponent(oldCode));
         const raw = (await fetchPlanB(url)) as Record<string, unknown>;
@@ -221,17 +235,6 @@ export async function runAssetHistorySyncBatch(limit = 100): Promise<{ ok: boole
           { key: "claim", type: "Claim" },
         ];
         await supabaseAdmin.from("asset_history").delete().eq("asset_old_code", oldCode);
-        type HistoryRow = {
-          asset_id: string | null;
-          asset_old_code: string;
-          ticket_code: string;
-          type: string;
-          title: string | null;
-          status: string | null;
-          opened_at: string | null;
-          closed_at: string | null;
-          payload: never;
-        };
         const rows: HistoryRow[] = [];
         for (const g of groups) {
           const list = Array.isArray(raw?.[g.key]) ? (raw[g.key] as Record<string, unknown>[]) : [];
@@ -248,7 +251,7 @@ export async function runAssetHistorySyncBatch(limit = 100): Promise<{ ok: boole
                   ? "Preventive Maintenance"
                   : "Monitoring Check";
             rows.push({
-              asset_id: (a.id as string) ?? null,
+              asset_id: a.id ?? null,
               asset_old_code: oldCode,
               ticket_code: `${g.type}-${oldCode}-${createdDate ?? "na"}-${idx}`,
               type: g.type,
@@ -274,9 +277,24 @@ export async function runAssetHistorySyncBatch(limit = 100): Promise<{ ok: boole
         processed++;
       } catch (e) {
         failed++;
-        console.warn(`asset-history sync failed for ${oldCode}:`, (e as Error).message);
+        const msg = (e as Error).message;
+        if (errorSamples.length < 3) errorSamples.push(`${oldCode}: ${msg}`);
+        console.warn(`asset-history sync failed for ${oldCode}:`, msg);
       }
     }
+
+    // Run with bounded concurrency to stay inside the Worker time budget.
+    const queue = [...(assets ?? [])] as { id: string | null; old_code: string }[];
+    const concurrency = 4;
+    const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+      while (queue.length) {
+        const next = queue.shift();
+        if (!next) break;
+        await syncOne(next);
+      }
+    });
+    await Promise.all(workers);
+
     await logFinish(
       id,
       failed === 0 ? "success" : "warning",

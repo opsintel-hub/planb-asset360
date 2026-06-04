@@ -508,6 +508,7 @@ function AssetDbForm({
         </div>
         <Field label="Table (Asset)" value={table} onChange={setTable} />
         <Field label="Table (PM Schedule)" value={pmScheduleTable} onChange={setPmScheduleTable} />
+        <Field label="Table (Asset History)" value={historyTable} onChange={setHistoryTable} />
       </div>
 
       <div className="space-y-2 rounded-lg border bg-background/50 p-3">

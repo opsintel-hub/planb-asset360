@@ -168,21 +168,6 @@ async function runSync(
     }));
 
 
-    if (reset) {
-      await admin.from("mssql_asset_history").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    }
-
-    const nowIso = new Date().toISOString();
-    const rows = list.map((item) => ({
-      asset_old_code: pickStr(item, ["OldCode"]),
-      ref_number: pickStr(item, ["RefNumber"]),
-      action_date: pickStr(item, ["ActionDate"]),
-      action: pickStr(item, ["Action"]),
-      status: pickStr(item, ["Status"]),
-      project: pickStr(item, ["Project"]),
-      payload: null,
-      synced_at: nowIso,
-    }));
 
 
     let inserted = 0;

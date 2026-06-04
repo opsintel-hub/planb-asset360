@@ -100,6 +100,7 @@ function MainSettings() {
     username?: string;
     table?: string;
     pmScheduleTable?: string;
+    historyTable?: string;
   };
   const [legacyServer, legacyPort] = String(assetDb.host ?? "magicticket.magicsigncloud.com").split(":");
   const assetDbServer = assetDb.server ?? legacyServer;
@@ -108,6 +109,7 @@ function MainSettings() {
   const assetDbUser = assetDb.username ?? "planb_viewer";
   const assetDbTable = assetDb.table ?? "Asset";
   const assetDbPmTable = assetDb.pmScheduleTable ?? "Asset_PM_Schedule";
+  const assetDbHistoryTable = assetDb.historyTable ?? "AssetHistory";
   const assetSyncDays: number[] = Array.isArray(settings.asset_sync_days) ? settings.asset_sync_days : [];
   const assetSyncTimes: string[] = Array.isArray(settings.asset_sync_times) ? settings.asset_sync_times : ["04:00"];
 

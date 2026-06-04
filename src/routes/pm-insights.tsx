@@ -178,7 +178,36 @@ function PmInsightsPage() {
     staleTime: 5 * 60_000,
   });
 
-  const filterOptions = data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
+  // Options query — auto-loads on mount so dropdowns are populated
+  // before the user clicks "แสดงข้อมูล"
+  const { data: optionsData } = useQuery({
+    queryKey: ["pm-insights-options"],
+    queryFn: () =>
+      fn({
+        data: {
+          departments: [],
+          zones: [],
+          projects: [],
+          mediaTypes: [],
+          fromDate: null,
+          toDate: null,
+          assetCode: null,
+        },
+      }),
+    staleTime: 10 * 60_000,
+  });
+
+  const filterOptions =
+    data?.filters ??
+    optionsData?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
+  const assetCodeOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of optionsData?.frequency ?? []) set.add(r.assetCode);
+    for (const p of optionsData?.pairs ?? []) set.add(p.assetCode);
+    for (const r of data?.frequency ?? []) set.add(r.assetCode);
+    for (const p of data?.pairs ?? []) set.add(p.assetCode);
+    return Array.from(set).sort();
+  }, [optionsData, data]);
 
   const handleApply = () => {
     setBucketFilter(null);

@@ -380,7 +380,7 @@ function SearchPage() {
       <div className="rounded-xl border bg-card p-4 shadow-[var(--shadow-card)] space-y-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="text-xs font-medium text-muted-foreground">
-            🔍 กรองข้อมูลก่อนค้นหา — เลือก Department/พื้นที่/Media Type เพื่อให้ผลค้นหาในช่องด้านล่างแคบลง
+            🔍 กรองข้อมูลก่อนค้นหา — เลือกแผนกเจ้าของป้าย/พื้นที่/Media Type เพื่อให้ผลค้นหาในช่องด้านล่างแคบลง
           </div>
           {(dept || region || mediaType) && (
             <button

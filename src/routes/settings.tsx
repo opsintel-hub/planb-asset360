@@ -447,6 +447,8 @@ function AssetDbForm({
   onSaveTimes,
   onTest,
   testing,
+  onTestHistory,
+  testingHistory,
 }: {
   defaults: {
     server: string;
@@ -472,6 +474,8 @@ function AssetDbForm({
   onSaveTimes: (times: string[]) => void;
   onTest: () => void;
   testing: boolean;
+  onTestHistory: () => void;
+  testingHistory: boolean;
 }) {
   const [server, setServer] = useState(defaults.server);
   const [port, setPort] = useState(defaults.port);

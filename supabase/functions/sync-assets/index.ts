@@ -256,63 +256,21 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ---- AssetHistory sync (same connection, additional table) ----
-    let histCount = 0;
-    if (historyTable) {
-      try {
-        const hResult = await pool.request().query(`SELECT * FROM ${historyTable}`);
-        const hList = (hResult.recordset ?? []) as Record<string, unknown>[];
-
-        // Wipe & insert (no stable PK guaranteed from source)
-        await admin.from("mssql_asset_history").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-
-        const hRows = hList.map((item) => ({
-          asset_old_code: pickStr(item, [
-            "OldCode", "oldCode", "old_code",
-            "OlaCode", "olaCode",
-            "AssetCode", "assetCode", "Code", "code",
-          ]),
-          ref_number: pickStr(item, ["RefNumber", "refNumber", "ref_number"]),
-          action_date: pickStr(item, [
-            "ActionDate", "actionDate", "action_date",
-            "Date", "date", "CreatedDate", "createdDate", "TransactionDate",
-          ]),
-          action: pickStr(item, ["Action", "action", "ActionType", "actionType", "Type", "type"]),
-          status: pickStr(item, ["Status", "status"]),
-          project: pickStr(item, ["Project", "project"]),
-          payload: item,
-          synced_at: new Date().toISOString(),
-        }));
-
-        const hBatch = 200;
-        for (let i = 0; i < hRows.length; i += hBatch) {
-          const slice = hRows.slice(i, i + hBatch);
-          if (!slice.length) continue;
-          const { error } = await admin.from("mssql_asset_history").insert(slice);
-          if (error) throw new Error(error.message);
-          histCount += slice.length;
-        }
-      } catch (hErr) {
-        console.error("sync-assets: AssetHistory failed", (hErr as Error).message);
-        await admin.from("sync_logs").insert({
-          source: "mssql_asset_history",
-          status: "error",
-          message: `AssetHistory sync failed: ${(hErr as Error).message}`,
-          rows_affected: 0,
-          finished_at: new Date().toISOString(),
-        });
-      }
-    }
+    // NOTE: AssetHistory sync moved to a dedicated edge function `sync-asset-history`
+    // because the table is large enough to exceed the Worker CPU-time budget when
+    // combined with Asset + Asset_PM_Schedule in a single invocation.
+    const histCount = 0;
 
     await pool.close();
     pool = null;
     await finish(
       "success",
-      `synced ${n} assets + ${pmCount} PM schedules + ${histCount} history via MSSQL`,
-      n + pmCount + histCount,
+      `synced ${n} assets + ${pmCount} PM schedules via MSSQL`,
+      n + pmCount,
     );
 
     return jsonResponse({ ok: true, rows: n, pmRows: pmCount, historyRows: histCount });
+
   } catch (e) {
     const msg = (e as Error).message;
     const userMessage = toUserFacingError(msg, targetHost);

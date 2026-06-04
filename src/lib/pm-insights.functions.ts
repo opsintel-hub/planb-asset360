@@ -195,6 +195,9 @@ export const getPmInsights = createServerFn({ method: "POST" })
     type Pair = {
       assetCode: string;
       department: string;
+      mediaType: string;
+      zone: string;
+      project: string;
       pmDate: string;
       claimDate: string;
       pmTicket: string;

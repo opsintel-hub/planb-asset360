@@ -112,21 +112,21 @@ async function runSync(
     }
 
     const dateCols = ["ActionDate", "actionDate", "CreatedDate", "TransactionDate", "Date"];
+    // SELECT only the columns we map to keep payload tiny and CPU low
+    const cols = "[OldCode],[RefNumber],[ActionDate],[Action],[Status],[Project]";
+    const maxRows = Number.isFinite((opts as { maxRows?: number }).maxRows)
+      ? Math.max(100, Math.min(50000, Number((opts as { maxRows?: number }).maxRows)))
+      : 10000;
     let list: Record<string, unknown>[] = [];
     let usedFilter = false;
-    for (const col of dateCols) {
-      try {
-        const q = `SELECT * FROM ${historyTable} WHERE [${col}] >= DATEADD(day, -${days}, GETDATE())`;
-        const r = await pool!.request().query(q);
-        list = (r.recordset ?? []) as Record<string, unknown>[];
-        usedFilter = true;
-        break;
-      } catch {
-        /* try next */
-      }
-    }
-    if (!usedFilter) {
-      const r = await pool!.request().query(`SELECT TOP 5000 * FROM ${historyTable}`);
+    try {
+      const q = `SELECT TOP ${maxRows} ${cols} FROM ${historyTable} WHERE [ActionDate] >= DATEADD(day, -${days}, GETDATE()) ORDER BY [ActionDate] DESC`;
+      const r = await pool!.request().query(q);
+      list = (r.recordset ?? []) as Record<string, unknown>[];
+      usedFilter = true;
+    } catch {
+      // Fallback: no filter, top N by inserted order
+      const r = await pool!.request().query(`SELECT TOP ${maxRows} ${cols} FROM ${historyTable}`);
       list = (r.recordset ?? []) as Record<string, unknown>[];
     }
 
@@ -136,22 +136,16 @@ async function runSync(
 
     const nowIso = new Date().toISOString();
     const rows = list.map((item) => ({
-      asset_old_code: pickStr(item, [
-        "OldCode", "oldCode", "old_code",
-        "OlaCode", "olaCode",
-        "AssetCode", "assetCode", "Code", "code",
-      ]),
-      ref_number: pickStr(item, ["RefNumber", "refNumber", "ref_number"]),
-      action_date: pickStr(item, [
-        "ActionDate", "actionDate", "action_date",
-        "Date", "date", "CreatedDate", "createdDate", "TransactionDate",
-      ]),
-      action: pickStr(item, ["Action", "action", "ActionType", "actionType", "Type", "type"]),
-      status: pickStr(item, ["Status", "status"]),
-      project: pickStr(item, ["Project", "project"]),
-      payload: item,
+      asset_old_code: pickStr(item, ["OldCode"]),
+      ref_number: pickStr(item, ["RefNumber"]),
+      action_date: pickStr(item, ["ActionDate"]),
+      action: pickStr(item, ["Action"]),
+      status: pickStr(item, ["Status"]),
+      project: pickStr(item, ["Project"]),
+      payload: null,
       synced_at: nowIso,
     }));
+
 
     let inserted = 0;
     for (let i = 0; i < rows.length; i += pageSize) {

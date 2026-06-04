@@ -263,9 +263,11 @@ function PmInsightsPage() {
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground">Project</label>
+              <label className="text-xs text-muted-foreground" title="กลุ่มสื่อจาก asset_history.payload.project (ครอบหลายแผนกย่อย เช่น Airport = Airport Media + Airport Static Media + Airport Digital Network)">
+                กลุ่มสื่อ (Project)
+              </label>
               <MultiSelect
-                label="Project"
+                label="กลุ่มสื่อ"
                 options={filterOptions.projects}
                 value={projects}
                 onChange={setProjects}

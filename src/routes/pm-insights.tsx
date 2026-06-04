@@ -205,7 +205,7 @@ function PmInsightsPage() {
     setApplied(null);
   };
 
-  const assetSearch = applied?.assetSearch ?? "";
+
 
   return (
     <div className="space-y-6">

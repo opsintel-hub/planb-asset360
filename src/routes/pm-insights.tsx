@@ -208,10 +208,26 @@ function PmInsightsPage() {
             <div>
               <label className="text-xs text-muted-foreground">ค้นหารหัสป้าย (Old Code)</label>
               <Input
-                placeholder="เช่น LPT-GOV-01"
+                list="pm-asset-codes"
+                placeholder="พิมพ์เพื่อค้นหา..."
                 value={assetSearch}
                 onChange={(e) => setAssetSearch(e.target.value)}
               />
+              <datalist id="pm-asset-codes">
+                {Array.from(
+                  new Set([
+                    ...(data?.frequency.map((r) => r.assetCode) ?? []),
+                    ...(data?.pairs.map((p) => p.assetCode) ?? []),
+                  ]),
+                )
+                  .filter((c) =>
+                    assetSearch ? c.toLowerCase().includes(assetSearch.toLowerCase()) : true,
+                  )
+                  .slice(0, 50)
+                  .map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+              </datalist>
             </div>
             <div>
               <label className="text-xs text-muted-foreground">วันที่เริ่ม</label>

@@ -638,7 +638,15 @@ function AssetDbForm({
             className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
           >
             <RefreshCw className={cn("size-4", testing && "animate-spin")} />
-            {testing ? "กำลังดึงข้อมูล..." : "ทดสอบดึงข้อมูล Asset + PM Schedule"}
+            {testing ? "กำลังดึงข้อมูล..." : "ทดสอบดึง Asset"}
+          </button>
+          <button
+            onClick={onTestPm}
+            disabled={testingPm}
+            className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-card text-primary px-4 py-2 text-sm font-medium hover:bg-primary/10 disabled:opacity-50"
+          >
+            <RefreshCw className={cn("size-4", testingPm && "animate-spin")} />
+            {testingPm ? "กำลังดึงข้อมูล..." : "ทดสอบดึง PM Schedule"}
           </button>
           <button
             onClick={onTestHistory}
@@ -650,7 +658,7 @@ function AssetDbForm({
           </button>
         </div>
         <p className="text-xs text-muted-foreground">
-          AssetHistory แยกออกมาเป็น Edge Function ต่างหาก เพราะตารางขนาดใหญ่เกิน CPU budget เมื่อ Sync รวมกับ Asset + PM Schedule
+          แต่ละตาราง Sync แยกกันเป็น Edge Function ต่างหาก เพื่อหลีกเลี่ยง CPU limit ของ Cloudflare Worker
         </p>
       </div>
 

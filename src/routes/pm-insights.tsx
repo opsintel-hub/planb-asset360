@@ -950,10 +950,10 @@ function FrequencyReport({
                 <TableHead>Media Type</TableHead>
                 <TableHead>แผนก</TableHead>
                 <TableHead>พื้นที่</TableHead>
-                <TableHead className="text-right">#PM ปีนี้</TableHead>
-                <TableHead className="text-right">#PM เดือนนี้</TableHead>
-                <TableHead className="text-right">เฉลี่ยห่าง (วัน)</TableHead>
-                <TableHead className="text-right">Claim หลัง PM</TableHead>
+                <TableHead className="text-right" title="จำนวนครั้งที่ทำ PM (Pass) ภายในปีนี้">#PM ปีนี้ (ครั้ง)</TableHead>
+                <TableHead className="text-right" title="จำนวนครั้งที่ทำ PM (Pass) ภายในเดือนปัจจุบัน">#PM เดือนนี้ (ครั้ง)</TableHead>
+                <TableHead className="text-right" title="ค่าเฉลี่ยจำนวนวันระหว่าง PM แต่ละครั้ง (นับจากวันที่ PM Pass ครั้งก่อนหน้าถึงครั้งถัดไป)">เฉลี่ยห่าง (วัน/ครั้ง)</TableHead>
+                <TableHead className="text-right" title="จำนวน Claim ที่เปิดหลัง PM Pass (นับเฉพาะ Claim ที่เกิดหลัง PM ในช่วง filter)">Claim หลัง PM (ครั้ง)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

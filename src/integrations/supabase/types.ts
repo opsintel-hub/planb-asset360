@@ -377,6 +377,42 @@ export type Database = {
           },
         ]
       }
+      mssql_asset_history: {
+        Row: {
+          action: string | null
+          action_date: string | null
+          asset_old_code: string | null
+          id: string
+          payload: Json
+          project: string | null
+          ref_number: string | null
+          status: string | null
+          synced_at: string
+        }
+        Insert: {
+          action?: string | null
+          action_date?: string | null
+          asset_old_code?: string | null
+          id?: string
+          payload?: Json
+          project?: string | null
+          ref_number?: string | null
+          status?: string | null
+          synced_at?: string
+        }
+        Update: {
+          action?: string | null
+          action_date?: string | null
+          asset_old_code?: string | null
+          id?: string
+          payload?: Json
+          project?: string | null
+          ref_number?: string | null
+          status?: string | null
+          synced_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

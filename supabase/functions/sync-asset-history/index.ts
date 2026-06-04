@@ -112,23 +112,61 @@ async function runSync(
     }
 
     
-    // SELECT only the columns we map to keep payload tiny and CPU low
-    const cols = "[OldCode],[RefNumber],[ActionDate],[Action],[Status],[Project]";
+    // Probe columns first (TOP 0 returns schema only — extremely cheap)
+    const probe = await pool!.request().query(`SELECT TOP 1 * FROM ${historyTable}`);
+    const sample = (probe.recordset?.[0] ?? {}) as Record<string, unknown>;
+    const availableCols = new Set(Object.keys(sample));
+    const pickCol = (cands: string[]) => cands.find((c) => availableCols.has(c));
+
+    const colOld = pickCol(["OldCode", "oldCode", "AssetCode", "Code"]);
+    const colRef = pickCol(["RefNumber", "refNumber", "Ref", "DocNo"]);
+    const colDate = pickCol(["ActionDate", "actionDate", "CreatedDate", "TransactionDate", "Date"]);
+    const colAction = pickCol(["Action", "ActionType", "Type", "Operation", "Event"]);
+    const colStatus = pickCol(["Status", "status"]);
+    const colProject = pickCol(["Project", "project"]);
+
+    const selectCols = [colOld, colRef, colDate, colAction, colStatus, colProject]
+      .filter(Boolean)
+      .map((c) => `[${c}]`)
+      .join(",");
+    if (!selectCols) throw new Error(`No mappable columns found. Available: ${[...availableCols].join(", ")}`);
+
     const maxRows = Number.isFinite((opts as { maxRows?: number }).maxRows)
       ? Math.max(100, Math.min(50000, Number((opts as { maxRows?: number }).maxRows)))
       : 10000;
     let list: Record<string, unknown>[] = [];
     let usedFilter = false;
-    try {
-      const q = `SELECT TOP ${maxRows} ${cols} FROM ${historyTable} WHERE [ActionDate] >= DATEADD(day, -${days}, GETDATE()) ORDER BY [ActionDate] DESC`;
-      const r = await pool!.request().query(q);
-      list = (r.recordset ?? []) as Record<string, unknown>[];
-      usedFilter = true;
-    } catch {
-      // Fallback: no filter, top N by inserted order
-      const r = await pool!.request().query(`SELECT TOP ${maxRows} ${cols} FROM ${historyTable}`);
+    if (colDate) {
+      try {
+        const q = `SELECT TOP ${maxRows} ${selectCols} FROM ${historyTable} WHERE [${colDate}] >= DATEADD(day, -${days}, GETDATE()) ORDER BY [${colDate}] DESC`;
+        const r = await pool!.request().query(q);
+        list = (r.recordset ?? []) as Record<string, unknown>[];
+        usedFilter = true;
+      } catch {
+        /* fallback below */
+      }
+    }
+    if (!usedFilter) {
+      const r = await pool!.request().query(`SELECT TOP ${maxRows} ${selectCols} FROM ${historyTable}`);
       list = (r.recordset ?? []) as Record<string, unknown>[];
     }
+
+    if (reset) {
+      await admin.from("mssql_asset_history").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    }
+
+    const nowIso = new Date().toISOString();
+    const rows = list.map((item) => ({
+      asset_old_code: colOld ? pickStr(item, [colOld]) : null,
+      ref_number: colRef ? pickStr(item, [colRef]) : null,
+      action_date: colDate ? pickStr(item, [colDate]) : null,
+      action: colAction ? pickStr(item, [colAction]) : null,
+      status: colStatus ? pickStr(item, [colStatus]) : null,
+      project: colProject ? pickStr(item, [colProject]) : null,
+      payload: null,
+      synced_at: nowIso,
+    }));
+
 
     if (reset) {
       await admin.from("mssql_asset_history").delete().neq("id", "00000000-0000-0000-0000-000000000000");

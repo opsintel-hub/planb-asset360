@@ -165,6 +165,22 @@ function MainSettings() {
     onError: (e: Error) => toast.error(`ดึงข้อมูลล้มเหลว: ${e.message}`),
   });
 
+  const syncPmFn = useServerFn(syncPmSchedulesNow);
+  const pmSyncMutation = useMutation({
+    mutationFn: () => syncPmFn({}),
+    onSuccess: (r) => {
+      if (!r.ok) {
+        toast.error(`ดึงข้อมูล PM Schedule ล้มเหลว: ${r.error ?? "ไม่สำเร็จ"}`);
+        qc.invalidateQueries({ queryKey: ["sync-logs"] });
+        return;
+      }
+      toast.success(`ดึงข้อมูล PM Schedule สำเร็จ: ${r.rows ?? 0} รายการ`);
+      qc.invalidateQueries({ queryKey: ["sync-logs"] });
+    },
+    onError: (e: Error) => toast.error(`ดึงข้อมูลล้มเหลว: ${e.message}`),
+  });
+
+
 
   return (
     <div className="space-y-6">

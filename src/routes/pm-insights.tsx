@@ -143,6 +143,7 @@ function PmInsightsPage() {
   const [fromDate, setFromDate] = useState(default90.toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(today.toISOString().slice(0, 10));
   const [bucketFilter, setBucketFilter] = useState<string | null>(null);
+  const [assetSearch, setAssetSearch] = useState("");
 
   const filters = { departments, zones, projects, mediaTypes, fromDate, toDate };
   const { data, isLoading, isFetching } = useQuery({

@@ -143,8 +143,7 @@ Deno.serve(async (req: Request) => {
     const table = quoteTableName(conn.table ?? "Asset");
     const pmTableRaw = (conn.pmScheduleTable ?? "Asset_PM_Schedule").trim();
     const pmTable = pmTableRaw ? quoteTableName(pmTableRaw) : null;
-    const historyTableRaw = (conn.historyTable ?? "AssetHistory").trim();
-    const historyTable = historyTableRaw ? quoteTableName(historyTableRaw) : null;
+    // historyTable is now synced via the dedicated `sync-asset-history` edge function.
 
     const parsed = parseHostPort(host);
     const server = parsed.server;

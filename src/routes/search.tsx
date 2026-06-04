@@ -392,7 +392,7 @@ function SearchPage() {
           )}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Slicer label="Department" value={dept} onChange={setDept} options={filterOpts.departments} />
+          <Slicer label="แผนกเจ้าของป้าย (Department)" value={dept} onChange={setDept} options={filterOpts.departments} />
           <Slicer label="BKK / UPC" value={region} onChange={setRegion} options={filterOpts.regions} />
           <Slicer label="Media Type" value={mediaType} onChange={setMediaType} options={filterOpts.mediaTypes} />
           <div>

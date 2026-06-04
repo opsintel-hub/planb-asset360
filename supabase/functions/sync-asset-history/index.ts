@@ -1,6 +1,6 @@
-// Supabase Edge Function (Deno) — Sync MSSQL AssetHistory table only.
-// Split out from sync-assets to avoid Worker CPU-time limits when the
-// AssetHistory table is large.
+// Supabase Edge Function (Deno) — Sync MSSQL AssetHistory with real
+// cursor-based pagination. Each invocation processes ONE batch then
+// self-invokes for the next batch until the source is exhausted.
 
 // @ts-ignore deno npm specifier
 import sql from "npm:mssql@10.0.2";
@@ -21,6 +21,16 @@ interface AssetDbConn {
   username?: string;
   historyTable?: string;
   encrypt?: boolean;
+}
+
+interface BatchOpts {
+  days: number;
+  batchSize: number;
+  reset: boolean;
+  beforeDate?: string;
+  batchIndex: number;
+  maxBatches: number;
+  logId?: number;
 }
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -72,13 +82,23 @@ async function connectMssql(c: {
   });
 }
 
-async function runSync(
+function isoOrNull(v: unknown): string | null {
+  if (v == null) return null;
+  if (v instanceof Date) return v.toISOString();
+  const s = String(v);
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? s : d.toISOString();
+}
+
+async function runBatch(
   admin: ReturnType<typeof createClient>,
   DB_PASSWORD: string,
-  opts: { days: number; pageSize: number; reset: boolean; logId?: number },
+  SUPABASE_URL: string,
+  SERVICE_KEY: string,
+  opts: BatchOpts,
 ) {
-  const { days, pageSize, reset, logId } = opts;
-  const finish = async (status: "success" | "error", message: string, rows: number) => {
+  const { days, batchSize, reset, beforeDate, batchIndex, maxBatches, logId } = opts;
+  const setLog = async (status: "success" | "error", message: string, rows: number) => {
     if (logId)
       await admin
         .from("sync_logs")
@@ -111,8 +131,7 @@ async function runSync(
       pool = await connectMssql({ server, port, database, user, password: DB_PASSWORD, encrypt: true });
     }
 
-    
-    // Probe columns first (TOP 0 returns schema only — extremely cheap)
+    // Probe columns
     const probe = await pool!.request().query(`SELECT TOP 1 * FROM ${historyTable}`);
     const sample = (probe.recordset?.[0] ?? {}) as Record<string, unknown>;
     const availableCols = new Set(Object.keys(sample));
@@ -125,33 +144,23 @@ async function runSync(
     const colStatus = pickCol(["Status", "status"]);
     const colProject = pickCol(["Project", "project"]);
 
+    if (!colDate) throw new Error("No date column found on AssetHistory — cursor pagination requires a date column");
+
     const selectCols = [colOld, colRef, colDate, colAction, colStatus, colProject]
       .filter(Boolean)
       .map((c) => `[${c}]`)
       .join(",");
-    if (!selectCols) throw new Error(`No mappable columns found. Available: ${[...availableCols].join(", ")}`);
 
-    const maxRows = Number.isFinite((opts as { maxRows?: number }).maxRows)
-      ? Math.max(100, Math.min(50000, Number((opts as { maxRows?: number }).maxRows)))
-      : 10000;
-    let list: Record<string, unknown>[] = [];
-    let usedFilter = false;
-    if (colDate) {
-      try {
-        const q = `SELECT TOP ${maxRows} ${selectCols} FROM ${historyTable} WHERE [${colDate}] >= DATEADD(day, -${days}, GETDATE()) ORDER BY [${colDate}] DESC`;
-        const r = await pool!.request().query(q);
-        list = (r.recordset ?? []) as Record<string, unknown>[];
-        usedFilter = true;
-      } catch {
-        /* fallback below */
-      }
-    }
-    if (!usedFilter) {
-      const r = await pool!.request().query(`SELECT TOP ${maxRows} ${selectCols} FROM ${historyTable}`);
-      list = (r.recordset ?? []) as Record<string, unknown>[];
-    }
+    // Build WHERE: in-window + before cursor
+    const where: string[] = [`[${colDate}] >= DATEADD(day, -${days}, GETDATE())`];
+    if (beforeDate) where.push(`[${colDate}] < '${beforeDate.replace(/'/g, "''")}'`);
+    const q = `SELECT TOP ${batchSize} ${selectCols} FROM ${historyTable} WHERE ${where.join(" AND ")} ORDER BY [${colDate}] DESC`;
 
-    if (reset) {
+    const r = await pool!.request().query(q);
+    const list = (r.recordset ?? []) as Record<string, unknown>[];
+
+    // First batch only: wipe target if reset
+    if (reset && batchIndex === 0) {
       await admin.from("mssql_asset_history").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     }
 
@@ -159,7 +168,7 @@ async function runSync(
     const rows = list.map((item) => ({
       asset_old_code: colOld ? pickStr(item, [colOld]) : null,
       ref_number: colRef ? pickStr(item, [colRef]) : null,
-      action_date: colDate ? pickStr(item, [colDate]) : null,
+      action_date: colDate ? isoOrNull(item[colDate]) : null,
       action: colAction ? pickStr(item, [colAction]) : null,
       status: colStatus ? pickStr(item, [colStatus]) : null,
       project: colProject ? pickStr(item, [colProject]) : null,
@@ -167,26 +176,81 @@ async function runSync(
       synced_at: nowIso,
     }));
 
-
-
-
     let inserted = 0;
-    for (let i = 0; i < rows.length; i += pageSize) {
-      const slice = rows.slice(i, i + pageSize);
-      if (!slice.length) continue;
+    const chunk = 500;
+    for (let i = 0; i < rows.length; i += chunk) {
+      const slice = rows.slice(i, i + chunk);
       const { error } = await admin.from("mssql_asset_history").insert(slice);
       if (error) throw new Error(error.message);
       inserted += slice.length;
     }
 
+    // Compute next cursor: last row's date (smallest in DESC order)
+    const lastDateRaw = list.length ? list[list.length - 1][colDate] : null;
+    const nextCursor = lastDateRaw ? isoOrNull(lastDateRaw) : null;
+    const isFull = list.length === batchSize;
+    const hasMore = isFull && nextCursor && batchIndex + 1 < maxBatches;
+
     await pool!.close();
     pool = null;
-    await finish("success", `synced ${inserted} rows (days=${days}, filtered=${usedFilter})`, inserted);
+
+    await setLog(
+      "success",
+      `batch #${batchIndex} synced ${inserted} rows (cursor<${beforeDate ?? "now"}, next=${hasMore ? nextCursor : "done"})`,
+      inserted,
+    );
+
+    if (hasMore) {
+      // Insert next log entry as running, then fire next invocation
+      const { data: nextLog } = await admin
+        .from("sync_logs")
+        .insert({
+          source: "mssql_asset_history",
+          status: "running",
+          message: `batch #${batchIndex + 1} starting (cursor<${nextCursor})`,
+        })
+        .select("id")
+        .single();
+      const nextLogId = nextLog?.id as number | undefined;
+
+      // Fire-and-forget self-invoke; do NOT await so this worker can exit
+      const url = `${SUPABASE_URL}/functions/v1/sync-asset-history`;
+      const body = JSON.stringify({
+        days,
+        batchSize,
+        reset: false,
+        beforeDate: nextCursor,
+        batchIndex: batchIndex + 1,
+        maxBatches,
+        _logId: nextLogId,
+      });
+      // @ts-ignore EdgeRuntime
+      EdgeRuntime.waitUntil(
+        fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SERVICE_KEY}`,
+          },
+          body,
+        }).catch(async (err) => {
+          if (nextLogId)
+            await admin
+              .from("sync_logs")
+              .update({
+                status: "error",
+                message: `failed to chain next batch: ${(err as Error).message}`,
+                finished_at: new Date().toISOString(),
+              })
+              .eq("id", nextLogId);
+        }),
+      );
+    }
   } catch (e) {
     const msg = (e as Error).message;
-    console.error("sync-asset-history failed", msg);
+    console.error("sync-asset-history batch failed", msg);
     if (pool) await pool.close().catch(() => null);
-    await finish("error", msg, 0);
+    await setLog("error", `batch #${batchIndex} failed: ${msg}`, 0);
   }
 }
 
@@ -203,30 +267,72 @@ Deno.serve(async (req: Request) => {
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  let body: { days?: number; reset?: boolean; pageSize?: number } = {};
+  let body: {
+    days?: number;
+    batchSize?: number;
+    reset?: boolean;
+    beforeDate?: string;
+    batchIndex?: number;
+    maxBatches?: number;
+    _logId?: number;
+  } = {};
   try {
     body = await req.json();
   } catch {
     /* empty body ok */
   }
-  const days = Number.isFinite(body.days) ? Math.max(1, Math.min(3650, Number(body.days))) : 7;
-  const pageSize = Number.isFinite(body.pageSize) ? Math.max(100, Math.min(2000, Number(body.pageSize!))) : 500;
-  const reset = body.reset !== false;
+
+  const days = Number.isFinite(body.days) ? Math.max(1, Math.min(3650, Number(body.days))) : 90;
+  const batchSize = Number.isFinite(body.batchSize)
+    ? Math.max(100, Math.min(10000, Number(body.batchSize)))
+    : 5000;
+  const reset = body.reset !== false; // default true for first call
+  const batchIndex = Number.isFinite(body.batchIndex) ? Math.max(0, Number(body.batchIndex)) : 0;
+  const maxBatches = Number.isFinite(body.maxBatches)
+    ? Math.max(1, Math.min(1000, Number(body.maxBatches)))
+    : 200; // safety cap: 200 batches × 5000 = 1M rows max
+  const beforeDate = typeof body.beforeDate === "string" ? body.beforeDate : undefined;
 
   if (!DB_PASSWORD) {
     return jsonResponse({ ok: false, error: "MODERN_CORP_DB_PASSWORD secret not set" }, 500);
   }
 
-  const { data: logRow } = await admin
-    .from("sync_logs")
-    .insert({ source: "mssql_asset_history", status: "running", message: `started (days=${days})` })
-    .select("id")
-    .single();
-  const logId = logRow?.id as number | undefined;
+  // Reuse log id if chained call provided one; otherwise create a new one
+  let logId = body._logId;
+  if (!logId) {
+    const { data: logRow } = await admin
+      .from("sync_logs")
+      .insert({
+        source: "mssql_asset_history",
+        status: "running",
+        message: `batch #${batchIndex} starting (days=${days}, batchSize=${batchSize})`,
+      })
+      .select("id")
+      .single();
+    logId = logRow?.id as number | undefined;
+  }
 
-  // Run in background to avoid CPU/wall-time limits on the request path
+  // Run in background so the HTTP response returns immediately
   // @ts-ignore EdgeRuntime
-  EdgeRuntime.waitUntil(runSync(admin, DB_PASSWORD, { days, pageSize, reset, logId }));
+  EdgeRuntime.waitUntil(
+    runBatch(admin, DB_PASSWORD, SUPABASE_URL, SERVICE_KEY, {
+      days,
+      batchSize,
+      reset,
+      beforeDate,
+      batchIndex,
+      maxBatches,
+      logId,
+    }),
+  );
 
-  return jsonResponse({ ok: true, queued: true, logId, days, message: "started in background; check sync_logs" });
+  return jsonResponse({
+    ok: true,
+    queued: true,
+    logId,
+    batchIndex,
+    days,
+    batchSize,
+    message: "batch queued; subsequent batches will auto-chain. Watch sync_logs.",
+  });
 });

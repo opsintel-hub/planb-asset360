@@ -296,10 +296,11 @@ export async function runAssetHistorySyncBatch(limit = 100): Promise<{ ok: boole
     });
     await Promise.all(workers);
 
+    const errorTail = errorSamples.length ? ` | errors: ${errorSamples.join(" ; ")}` : "";
     await logFinish(
       id,
       failed === 0 ? "success" : "warning",
-      `batch: ${processed} assets synced, ${failed} failed, ${totalRows} history rows`,
+      `batch: ${processed} assets synced, ${failed} failed, ${totalRows} history rows${errorTail}`,
       totalRows,
     );
     return { ok: true, rows: totalRows, processed, failed };

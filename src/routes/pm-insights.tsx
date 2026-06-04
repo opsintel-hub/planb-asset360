@@ -206,6 +206,14 @@ function PmInsightsPage() {
               />
             </div>
             <div>
+              <label className="text-xs text-muted-foreground">ค้นหารหัสป้าย (Old Code)</label>
+              <Input
+                placeholder="เช่น LPT-GOV-01"
+                value={assetSearch}
+                onChange={(e) => setAssetSearch(e.target.value)}
+              />
+            </div>
+            <div>
               <label className="text-xs text-muted-foreground">วันที่เริ่ม</label>
               <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
             </div>

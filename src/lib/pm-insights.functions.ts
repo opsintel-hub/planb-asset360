@@ -75,10 +75,13 @@ export const getPmInsights = createServerFn({ method: "POST" })
     }
 
     const assetsAll = await fetchAll<Asset>((from, to) =>
-      supabaseAdmin.from("assets").select("old_code, department").range(from, to),
+      supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
     );
     const assetMap = new Map<string, Asset>();
-    for (const a of assetsAll) assetMap.set(a.old_code, a);
+    for (const a of assetsAll) {
+      a.mediaType = pickStr(asPayload(a.payload), "MediaType");
+      assetMap.set(a.old_code, a);
+    }
 
     const hist = await fetchAll<Hist>((from, to) =>
       supabaseAdmin

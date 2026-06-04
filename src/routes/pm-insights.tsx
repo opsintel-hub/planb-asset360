@@ -840,31 +840,43 @@ function ScoreReport({
   );
 }
 
+type FreqAggRow = { name: string; pm: number; claim: number; assets: number };
+
 function FrequencyReport({
   rows,
+  agg,
 }: {
   rows: {
     assetCode: string;
     department: string;
+    mediaType: string;
+    zone: string;
     pmYear: number;
     pmMonth: number;
     avgGapDays: number | null;
     claimsAfterPM: number;
   }[];
+  agg: { byMediaType: FreqAggRow[]; byDepartment: FreqAggRow[]; byZone: FreqAggRow[] };
 }) {
   const [filter, setFilter] = useState<string>("all");
+  const [mtFilter, setMtFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const filtered = useMemo(
     () =>
       rows.filter((r) => {
         if (filter !== "all" && r.department !== filter) return false;
+        if (mtFilter !== "all" && r.mediaType !== mtFilter) return false;
         if (search && !r.assetCode.toLowerCase().includes(search.toLowerCase())) return false;
         return true;
       }),
-    [rows, filter, search],
+    [rows, filter, mtFilter, search],
   );
   const depts = useMemo(
     () => Array.from(new Set(rows.map((r) => r.department))).filter(Boolean).sort(),
+    [rows],
+  );
+  const mts = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.mediaType))).filter(Boolean).sort(),
     [rows],
   );
   return (
@@ -874,10 +886,10 @@ function FrequencyReport({
           <div>
             <CardTitle>รายงาน 4 · ความถี่การ PM รายป้าย</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              ป้ายไหนทำ PM กี่ครั้ง · ค่าเฉลี่ยช่วงห่าง · มี Claim ตามมากี่ครั้ง
+              ป้ายไหนทำ PM กี่ครั้ง · ค่าเฉลี่ยช่วงห่าง · มี Claim ตามมากี่ครั้ง · กรองตาม filter ด้านบน
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Input
               placeholder="ค้นหารหัสป้าย"
               value={search}
@@ -885,26 +897,38 @@ function FrequencyReport({
               className="w-48"
             />
             <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="แผนก" />
-              </SelectTrigger>
+              <SelectTrigger className="w-44"><SelectValue placeholder="แผนก" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">ทุกแผนก</SelectItem>
-                {depts.map((d) => (
-                  <SelectItem key={d} value={d}>{d}</SelectItem>
-                ))}
+                {depts.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}
+              </SelectContent>
+            </Select>
+            <Select value={mtFilter} onValueChange={setMtFilter}>
+              <SelectTrigger className="w-52"><SelectValue placeholder="Media Type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทุก Media Type</SelectItem>
+                {mts.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="max-h-96 overflow-auto">
+      <CardContent className="space-y-6">
+        {/* Multi-dimension charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <FreqAggBar title="Top 15 ตาม Media Type" data={agg.byMediaType} />
+          <FreqAggBar title="แยกตามแผนก" data={agg.byDepartment} />
+          <FreqAggDonut title="สัดส่วน PM ตาม Media Type (Top 8)" data={agg.byMediaType.slice(0, 8)} />
+        </div>
+
+        <div className="max-h-96 overflow-auto border rounded">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>รหัสป้าย</TableHead>
+                <TableHead>Media Type</TableHead>
                 <TableHead>แผนก</TableHead>
+                <TableHead>พื้นที่</TableHead>
                 <TableHead className="text-right">#PM ปีนี้</TableHead>
                 <TableHead className="text-right">#PM เดือนนี้</TableHead>
                 <TableHead className="text-right">เฉลี่ยห่าง (วัน)</TableHead>
@@ -915,7 +939,9 @@ function FrequencyReport({
               {filtered.map((r) => (
                 <TableRow key={r.assetCode}>
                   <TableCell className="font-mono text-xs">{r.assetCode}</TableCell>
-                  <TableCell>{r.department}</TableCell>
+                  <TableCell className="text-xs">{r.mediaType}</TableCell>
+                  <TableCell className="text-xs">{r.department}</TableCell>
+                  <TableCell className="text-xs">{r.zone || "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.pmYear}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.pmMonth}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.avgGapDays ?? "—"}</TableCell>
@@ -933,5 +959,47 @@ function FrequencyReport({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function FreqAggBar({ title, data }: { title: string; data: FreqAggRow[] }) {
+  return (
+    <div className="border rounded-lg p-3">
+      <div className="text-xs font-semibold mb-2">{title}</div>
+      <div className="h-64">
+        <ResponsiveContainer>
+          <BarChart data={data} layout="vertical" margin={{ left: 8, right: 16 }}>
+            <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+            <XAxis type="number" />
+            <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10 }} />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey="pm" name="PM" fill="oklch(0.7 0.14 160)" />
+            <Bar dataKey="claim" name="Claim หลัง PM" fill="oklch(0.6 0.2 25)" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function FreqAggDonut({ title, data }: { title: string; data: FreqAggRow[] }) {
+  return (
+    <div className="border rounded-lg p-3">
+      <div className="text-xs font-semibold mb-2">{title}</div>
+      <div className="h-64">
+        <ResponsiveContainer>
+          <PieChart>
+            <Pie data={data} dataKey="pm" nameKey="name" innerRadius={40} outerRadius={80} paddingAngle={2}>
+              {data.map((_, i) => (
+                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+            <Legend wrapperStyle={{ fontSize: 10 }} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
   );
 }

@@ -514,10 +514,13 @@ function AgingReport({
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
             <div>
               <h4 className="font-semibold text-sm">
-                อาการ/วิธีแก้ที่พบบ่อย (เฉพาะ Claim ภายใน 30 วันหลัง PM)
+                อาการ/วิธีแก้ที่พบบ่อย {bucketFilter ? `(ช่วง ${bucketFilter} วัน)` : "(เฉพาะ Claim ภายใน 30 วันหลัง PM)"}
               </h4>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                นับจำนวนคู่ PM→Claim ที่ห่างกัน ≤ 30 วัน ({early.length} คู่) · คลิกชิ้นโดนัทเพื่อกรองตารางและ chart อื่น
+                {bucketFilter
+                  ? `นับเฉพาะคู่ PM→Claim ที่ห่างกัน ${bucketFilter} วัน (${early.length} คู่) · คลิกแท่งกราฟด้านบนเพื่อเปลี่ยนช่วง`
+                  : `นับจำนวนคู่ PM→Claim ที่ห่างกัน ≤ 30 วัน (${early.length} คู่) · คลิกแท่งกราฟด้านบนเพื่อโฟกัสช่วงอื่น`}
+                 · คลิกชิ้นโดนัทเพื่อกรองตารางและ chart อื่น
               </p>
             </div>
             {activeDonutFilters.length > 0 && (

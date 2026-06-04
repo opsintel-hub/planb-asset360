@@ -395,7 +395,13 @@ function AgingReport({
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
 
-  const early = useMemo(() => pairs.filter((p) => p.days <= 30), [pairs]);
+  const early = useMemo(() => {
+    if (bucketFilter) {
+      const r = BUCKET_RANGES[bucketFilter];
+      if (r) return pairs.filter((p) => p.days >= r[0] && p.days <= r[1]);
+    }
+    return pairs.filter((p) => p.days <= 30);
+  }, [pairs, bucketFilter]);
   const totalPairs = aging.reduce((s, b) => s + b.count, 0);
 
   // For each donut, filter by OTHER selections (slicer behavior)
@@ -508,10 +514,13 @@ function AgingReport({
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
             <div>
               <h4 className="font-semibold text-sm">
-                อาการ/วิธีแก้ที่พบบ่อย (เฉพาะ Claim ภายใน 30 วันหลัง PM)
+                อาการ/วิธีแก้ที่พบบ่อย {bucketFilter ? `(ช่วง ${bucketFilter} วัน)` : "(เฉพาะ Claim ภายใน 30 วันหลัง PM)"}
               </h4>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                นับจำนวนคู่ PM→Claim ที่ห่างกัน ≤ 30 วัน ({early.length} คู่) · คลิกชิ้นโดนัทเพื่อกรองตารางและ chart อื่น
+                {bucketFilter
+                  ? `นับเฉพาะคู่ PM→Claim ที่ห่างกัน ${bucketFilter} วัน (${early.length} คู่) · คลิกแท่งกราฟด้านบนเพื่อเปลี่ยนช่วง`
+                  : `นับจำนวนคู่ PM→Claim ที่ห่างกัน ≤ 30 วัน (${early.length} คู่) · คลิกแท่งกราฟด้านบนเพื่อโฟกัสช่วงอื่น`}
+                 · คลิกชิ้นโดนัทเพื่อกรองตารางและ chart อื่น
               </p>
             </div>
             {activeDonutFilters.length > 0 && (

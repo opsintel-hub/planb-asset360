@@ -188,6 +188,8 @@ function MainSettings() {
           onSaveTimes={(times) => saveMutation.mutate({ key: "asset_sync_times", value: times })}
           onTest={() => assetSyncMutation.mutate()}
           testing={assetSyncMutation.isPending}
+          onTestHistory={() => historySyncMutation.mutate()}
+          testingHistory={historySyncMutation.isPending}
         />
       </Section>
 

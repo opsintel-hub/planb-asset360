@@ -162,6 +162,7 @@ function MainSettings() {
             username: assetDbUser,
             table: assetDbTable,
             pmScheduleTable: assetDbPmTable,
+            historyTable: assetDbHistoryTable,
           }}
           syncDays={assetSyncDays}
           syncTimes={assetSyncTimes}

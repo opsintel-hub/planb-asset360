@@ -238,6 +238,9 @@ export const getPmInsights = createServerFn({ method: "POST" })
           pairs.push({
             assetCode: code,
             department: assetMap.get(code)?.department ?? "",
+            mediaType: assetMap.get(code)?.mediaType ?? "(ไม่ระบุ)",
+            zone: pickStr(h.payload, "bkkUpc") || pickStr(c.payload, "bkkUpc") || "",
+            project: pickStr(h.payload, "project") || pickStr(c.payload, "project") || "",
             pmDate: new Date(pmEnd).toISOString().slice(0, 10),
             claimDate: new Date(cStart).toISOString().slice(0, 10),
             pmTicket: h.ticket_code ?? pickStr(h.payload, "ticketCode") ?? "",

@@ -266,6 +266,19 @@ export const syncMssqlAssetHistoryNow = createServerFn({ method: "POST" })
     return { ok: true, rows: r.rows ?? 0 };
   });
 
+// Invoke the dedicated MSSQL Asset_PM_Schedule sync edge function.
+export const syncPmSchedulesNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    const { data: res, error } = await supabaseAdmin.functions.invoke("sync-pm-schedules", { body: {} });
+    if (error) return { ok: false, rows: 0, error: `sync-pm-schedules failed: ${error.message}` };
+    const r = res as { ok?: boolean; rows?: number; error?: string } | null;
+    if (!r?.ok) return { ok: false, rows: r?.rows ?? 0, error: r?.error ?? "no result" };
+    return { ok: true, rows: r.rows ?? 0 };
+  });
+
+
 
 // ---------- Diagram Mappings writes ----------
 const mappingInput = z.object({

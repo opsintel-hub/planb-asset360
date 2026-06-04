@@ -10,6 +10,7 @@ const filtersSchema = z.object({
   mediaTypes: z.array(z.string()).optional().default([]),
   fromDate: z.string().optional().nullable(),
   toDate: z.string().optional().nullable(),
+  assetCode: z.string().optional().nullable(),
 });
 
 export type PmInsightsFilters = z.infer<typeof filtersSchema>;

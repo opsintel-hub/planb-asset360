@@ -410,12 +410,15 @@ export const getPmInsights = createServerFn({ method: "POST" })
     }
 
     // Frequency per asset (year/month PM count, avg gap, claims-per-gap-bucket)
+    // ใช้ inScopeFilter เพื่อให้ตรงกับ filter ด้านบน (ไม่นับวันที่)
     const now = new Date();
     const yearStart = `${now.getFullYear()}-01-01`;
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
     type FreqRow = {
       assetCode: string;
       department: string;
+      mediaType: string;
+      zone: string;
       pmYear: number;
       pmMonth: number;
       avgGapDays: number | null;
@@ -423,7 +426,18 @@ export const getPmInsights = createServerFn({ method: "POST" })
     };
     const freqMap = new Map<string, FreqRow>();
     for (const [code, list] of byAsset) {
-      const dept = assetMap.get(code)?.department ?? "";
+      const asset = assetMap.get(code);
+      // skip assets ที่ไม่ตรง filter (department/zone/project/mediaType)
+      const sampleH = list[0];
+      if (sampleH && !inScopeFilter(sampleH)) continue;
+      if (!sampleH) {
+        // ตรวจสอบจาก asset โดยตรง
+        const dept = asset?.department ?? "";
+        if (depSet.size && !depSet.has(dept)) continue;
+        if (mtSet.size && !mtSet.has(asset?.mediaType ?? "")) continue;
+      }
+      const dept = asset?.department ?? "";
+      const zone = list.find((h) => pickStr(h.payload, "bkkUpc"))?.payload?.bkkUpc as string ?? "";
       const pms = list
         .filter((h) => h.type === "PM" && pickStr(h.payload, "assetStatus") === "Pass")
         .map((h) => ({
@@ -438,6 +452,8 @@ export const getPmInsights = createServerFn({ method: "POST" })
       freqMap.set(code, {
         assetCode: code,
         department: dept,
+        mediaType: asset?.mediaType ?? "(ไม่ระบุ)",
+        zone,
         pmYear: pms.filter((p) => p.date >= yearStart).length,
         pmMonth: pms.filter((p) => p.date >= monthStart).length,
         avgGapDays: gaps.length ? Math.round(gaps.reduce((s, g) => s + g, 0) / gaps.length) : null,
@@ -448,6 +464,27 @@ export const getPmInsights = createServerFn({ method: "POST" })
       .filter((r) => r.pmYear > 0 || r.claimsAfterPM > 0)
       .sort((a, b) => b.pmYear - a.pmYear)
       .slice(0, 500);
+
+    // ---- Aggregations for FrequencyReport charts ----
+    function aggBy(key: "mediaType" | "department" | "zone") {
+      const m = new Map<string, { pm: number; claim: number; assets: number }>();
+      for (const r of frequency) {
+        const k = (r[key] || "(ไม่ระบุ)") as string;
+        const v = m.get(k) ?? { pm: 0, claim: 0, assets: 0 };
+        v.pm += r.pmYear;
+        v.claim += r.claimsAfterPM;
+        v.assets += 1;
+        m.set(k, v);
+      }
+      return Array.from(m.entries())
+        .map(([name, v]) => ({ name, ...v }))
+        .sort((a, b) => b.pm - a.pm);
+    }
+    const freqAgg = {
+      byMediaType: aggBy("mediaType").slice(0, 15),
+      byDepartment: aggBy("department"),
+      byZone: aggBy("zone").slice(0, 15),
+    };
 
     // Sort pairs by days asc (most critical first)
     pairs.sort((a, b) => a.days - b.days);
@@ -461,11 +498,13 @@ export const getPmInsights = createServerFn({ method: "POST" })
       groupTop,
       scoreRows,
       frequency,
-      pairs: pairs.slice(0, 1000),
+      freqAgg,
+      pairs: pairs.slice(0, 2000),
       filters: {
         departments: Array.from(allDepts).sort(),
         zones: Array.from(allZones).sort(),
         projects: Array.from(allProjects).sort(),
+        mediaTypes: Array.from(allMediaTypes).sort(),
       },
     };
   });

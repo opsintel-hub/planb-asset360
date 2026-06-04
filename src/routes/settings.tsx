@@ -149,6 +149,22 @@ function MainSettings() {
     onError: (e: Error) => toast.error(`ดึงข้อมูลล้มเหลว: ${e.message}`),
   });
 
+  const syncHistoryFn = useServerFn(syncMssqlAssetHistoryNow);
+  const historySyncMutation = useMutation({
+    mutationFn: () => syncHistoryFn({ data: { days: 90 } }),
+    onSuccess: (r) => {
+      if (!r.ok) {
+        toast.error(`ดึงข้อมูล Asset History ล้มเหลว: ${r.error ?? "ไม่สำเร็จ"}`);
+        qc.invalidateQueries({ queryKey: ["sync-logs"] });
+        return;
+      }
+      toast.success(`ดึงข้อมูล Asset History สำเร็จ: ${r.rows ?? 0} รายการ (90 วันล่าสุด)`);
+      qc.invalidateQueries({ queryKey: ["sync-logs"] });
+    },
+    onError: (e: Error) => toast.error(`ดึงข้อมูลล้มเหลว: ${e.message}`),
+  });
+
+
   return (
     <div className="space-y-6">
       <Section

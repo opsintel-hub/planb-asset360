@@ -139,10 +139,12 @@ function PmInsightsPage() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [zones, setZones] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
+  const [mediaTypes, setMediaTypes] = useState<string[]>([]);
   const [fromDate, setFromDate] = useState(default90.toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(today.toISOString().slice(0, 10));
+  const [bucketFilter, setBucketFilter] = useState<string | null>(null);
 
-  const filters = { departments, zones, projects, fromDate, toDate };
+  const filters = { departments, zones, projects, mediaTypes, fromDate, toDate };
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["pm-insights", filters],
     queryFn: () => fn({ data: filters }),
@@ -174,7 +176,7 @@ function PmInsightsPage() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
             <div>
               <label className="text-xs text-muted-foreground">Project</label>
               <MultiSelect
@@ -191,6 +193,15 @@ function PmInsightsPage() {
                 options={data?.filters.zones ?? []}
                 value={zones}
                 onChange={setZones}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Media Type</label>
+              <MultiSelect
+                label="Media Type"
+                options={data?.filters.mediaTypes ?? []}
+                value={mediaTypes}
+                onChange={setMediaTypes}
               />
             </div>
             <div>
@@ -234,17 +245,19 @@ function PmInsightsPage() {
           {/* Monthly PM vs Claim (current year) */}
           <MonthlyChart data={data.monthly} />
 
-          {/* Report 1: Aging chart + donuts */}
-          <AgingReport aging={data.aging} pairs={data.pairs} />
-
-          {/* Pair detail table — separate with pagination */}
-          <PairsTable pairs={data.pairs} />
+          {/* Report 1: Aging chart + donuts + pairs table (merged) */}
+          <AgingReport
+            aging={data.aging}
+            pairs={data.pairs}
+            bucketFilter={bucketFilter}
+            onBucketFilter={setBucketFilter}
+          />
 
           {/* Report 3: Score */}
           <ScoreReport scoreRows={data.scoreRows} />
 
           {/* Report 4: Frequency */}
-          <FrequencyReport rows={data.frequency} />
+          <FrequencyReport rows={data.frequency} agg={data.freqAgg} />
         </>
       ) : null}
     </div>

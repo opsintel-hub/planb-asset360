@@ -143,6 +143,7 @@ function PmInsightsPage() {
   const [fromDate, setFromDate] = useState(default90.toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(today.toISOString().slice(0, 10));
   const [bucketFilter, setBucketFilter] = useState<string | null>(null);
+  const [assetSearch, setAssetSearch] = useState("");
 
   const filters = { departments, zones, projects, mediaTypes, fromDate, toDate };
   const { data, isLoading, isFetching } = useQuery({
@@ -176,7 +177,7 @@ function PmInsightsPage() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
             <div>
               <label className="text-xs text-muted-foreground">Project</label>
               <MultiSelect
@@ -202,6 +203,14 @@ function PmInsightsPage() {
                 options={data?.filters.mediaTypes ?? []}
                 value={mediaTypes}
                 onChange={setMediaTypes}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">ค้นหารหัสป้าย (Old Code)</label>
+              <Input
+                placeholder="เช่น LPT-GOV-01"
+                value={assetSearch}
+                onChange={(e) => setAssetSearch(e.target.value)}
               />
             </div>
             <div>
@@ -248,7 +257,7 @@ function PmInsightsPage() {
           {/* Report 1: Aging chart + donuts + pairs table (merged) */}
           <AgingReport
             aging={data.aging}
-            pairs={data.pairs}
+            pairs={assetSearch ? data.pairs.filter((p) => p.assetCode.toLowerCase().includes(assetSearch.toLowerCase())) : data.pairs}
             bucketFilter={bucketFilter}
             onBucketFilter={setBucketFilter}
           />
@@ -257,7 +266,10 @@ function PmInsightsPage() {
           <ScoreReport scoreRows={data.scoreRows} />
 
           {/* Report 4: Frequency */}
-          <FrequencyReport rows={data.frequency} agg={data.freqAgg} />
+          <FrequencyReport
+            rows={assetSearch ? data.frequency.filter((r) => r.assetCode.toLowerCase().includes(assetSearch.toLowerCase())) : data.frequency}
+            agg={data.freqAgg}
+          />
         </>
       ) : null}
     </div>
@@ -895,7 +907,7 @@ function FrequencyReport({
           <div>
             <CardTitle>รายงาน 4 · ความถี่การ PM รายป้าย</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              ป้ายไหนทำ PM กี่ครั้ง · ค่าเฉลี่ยช่วงห่าง · มี Claim ตามมากี่ครั้ง · กรองตาม filter ด้านบน
+              ป้ายไหนทำ PM กี่ครั้งต่อปี/เดือน · ห่างกันเฉลี่ยกี่วัน (นับจาก PM ครั้งก่อนหน้า) · มี Claim ตามมาภายหลังกี่ครั้ง · กรองตาม filter ด้านบน
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -938,10 +950,10 @@ function FrequencyReport({
                 <TableHead>Media Type</TableHead>
                 <TableHead>แผนก</TableHead>
                 <TableHead>พื้นที่</TableHead>
-                <TableHead className="text-right">#PM ปีนี้</TableHead>
-                <TableHead className="text-right">#PM เดือนนี้</TableHead>
-                <TableHead className="text-right">เฉลี่ยห่าง (วัน)</TableHead>
-                <TableHead className="text-right">Claim หลัง PM</TableHead>
+                <TableHead className="text-right" title="จำนวนครั้งที่ทำ PM (Pass) ภายในปีนี้">#PM ปีนี้ (ครั้ง)</TableHead>
+                <TableHead className="text-right" title="จำนวนครั้งที่ทำ PM (Pass) ภายในเดือนปัจจุบัน">#PM เดือนนี้ (ครั้ง)</TableHead>
+                <TableHead className="text-right" title="ค่าเฉลี่ยจำนวนวันระหว่าง PM แต่ละครั้ง (นับจากวันที่ PM Pass ครั้งก่อนหน้าถึงครั้งถัดไป)">เฉลี่ยห่าง (วัน/ครั้ง)</TableHead>
+                <TableHead className="text-right" title="จำนวน Claim ที่เปิดหลัง PM Pass (นับเฉพาะ Claim ที่เกิดหลัง PM ในช่วง filter)">Claim หลัง PM (ครั้ง)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

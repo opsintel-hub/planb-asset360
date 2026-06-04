@@ -395,7 +395,13 @@ function AgingReport({
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
 
-  const early = useMemo(() => pairs.filter((p) => p.days <= 30), [pairs]);
+  const early = useMemo(() => {
+    if (bucketFilter) {
+      const r = BUCKET_RANGES[bucketFilter];
+      if (r) return pairs.filter((p) => p.days >= r[0] && p.days <= r[1]);
+    }
+    return pairs.filter((p) => p.days <= 30);
+  }, [pairs, bucketFilter]);
   const totalPairs = aging.reduce((s, b) => s + b.count, 0);
 
   // For each donut, filter by OTHER selections (slicer behavior)

@@ -141,8 +141,7 @@ Deno.serve(async (req: Request) => {
     const database = conn.database ?? "planb";
     const user = conn.username ?? "planb_viewer";
     const table = quoteTableName(conn.table ?? "Asset");
-    const pmTableRaw = (conn.pmScheduleTable ?? "Asset_PM_Schedule").trim();
-    const pmTable = pmTableRaw ? quoteTableName(pmTableRaw) : null;
+    // pmScheduleTable is synced via the dedicated `sync-pm-schedules` edge function.
     // historyTable is now synced via the dedicated `sync-asset-history` edge function.
 
     const parsed = parseHostPort(host);

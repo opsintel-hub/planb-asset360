@@ -376,9 +376,13 @@ const DONUT_DEFS: { key: DonutKey; title: string }[] = [
 function AgingReport({
   aging,
   pairs,
+  bucketFilter,
+  onBucketFilter,
 }: {
   aging: { bucket: string; count: number }[];
   pairs: AgingPair[];
+  bucketFilter: string | null;
+  onBucketFilter: (b: string | null) => void;
 }) {
   const [sel, setSel] = useState<Record<DonutKey, string | null>>({
     problemCategory: null,
@@ -387,6 +391,9 @@ function AgingReport({
     solutionCategory: null,
     solutionDetail: null,
   });
+  const [search, setSearch] = useState("");
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(1);
 
   const early = useMemo(() => pairs.filter((p) => p.days <= 30), [pairs]);
   const totalPairs = aging.reduce((s, b) => s + b.count, 0);
@@ -419,7 +426,38 @@ function AgingReport({
     return out;
   }, [early, sel]);
 
-  const activeFilters = DONUT_DEFS.filter((d) => sel[d.key]);
+  const activeDonutFilters = DONUT_DEFS.filter((d) => sel[d.key]);
+
+  // Pairs table: filter by bucket + donut selections + search
+  const tablePairs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return pairs.filter((p) => {
+      if (bucketFilter) {
+        const r = BUCKET_RANGES[bucketFilter];
+        if (!r || p.days < r[0] || p.days > r[1]) return false;
+      }
+      for (const d of DONUT_DEFS) {
+        if (sel[d.key] && p[d.key] !== sel[d.key]) return false;
+      }
+      if (
+        q &&
+        !p.assetCode.toLowerCase().includes(q) &&
+        !p.department.toLowerCase().includes(q) &&
+        !p.mediaType.toLowerCase().includes(q) &&
+        !p.problemDetail.toLowerCase().includes(q) &&
+        !p.problemCategory.toLowerCase().includes(q) &&
+        !p.pmTicket.toLowerCase().includes(q) &&
+        !p.claimTicket.toLowerCase().includes(q)
+      )
+        return false;
+      return true;
+    });
+  }, [pairs, bucketFilter, sel, search]);
+
+  const totalPages = Math.max(1, Math.ceil(tablePairs.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const visible = tablePairs.slice(start, start + pageSize);
 
   return (
     <Card>
@@ -429,7 +467,7 @@ function AgingReport({
           จับคู่ PM (assetStatus = Pass) กับ Claim ครั้งถัดไปของป้ายเดียวกัน แล้วนับจำนวน "คู่" ตามช่วงวันที่ห่างกัน
           · รวม <span className="font-semibold text-foreground">{totalPairs}</span> คู่ ·
           แท่ง 1–3, 4–7 วัน = Critical (PM แล้วเสียซ้ำเร็ว) ·
-          PM Pass ที่ยังไม่มี Claim ตามมาจะไม่ถูกนับในกราฟนี้ (ดูจำนวนเต็มที่ KPI ด้านบน)
+          <b> คลิกแท่งกราฟเพื่อเปิดรายการคู่ในช่วงนั้น</b>
         </p>
       </CardHeader>
       <CardContent>
@@ -440,17 +478,27 @@ function AgingReport({
               <XAxis dataKey="bucket" />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="count" fill="oklch(0.66 0.18 250)" radius={[8, 8, 0, 0]}>
-                {aging.map((entry, i) => (
-                  <Cell
-                    key={i}
-                    fill={
-                      entry.bucket === "1-3" || entry.bucket === "4-7"
-                        ? "oklch(0.6 0.2 25)"
-                        : "oklch(0.66 0.18 250)"
-                    }
-                  />
-                ))}
+              <Bar
+                dataKey="count"
+                radius={[8, 8, 0, 0]}
+                cursor="pointer"
+                onClick={(d: { bucket?: string }) => {
+                  if (!d?.bucket) return;
+                  onBucketFilter(bucketFilter === d.bucket ? null : d.bucket);
+                  setPage(1);
+                }}
+              >
+                {aging.map((entry, i) => {
+                  const isSelected = bucketFilter === entry.bucket;
+                  const isCritical = entry.bucket === "1-3" || entry.bucket === "4-7";
+                  return (
+                    <Cell
+                      key={i}
+                      fill={isCritical ? "oklch(0.6 0.2 25)" : "oklch(0.66 0.18 250)"}
+                      opacity={!bucketFilter || isSelected ? 1 : 0.35}
+                    />
+                  );
+                })}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -463,12 +511,12 @@ function AgingReport({
                 อาการ/วิธีแก้ที่พบบ่อย (เฉพาะ Claim ภายใน 30 วันหลัง PM)
               </h4>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                นับจำนวนคู่ PM→Claim ที่ห่างกัน ≤ 30 วัน ({early.length} คู่) · คลิกชิ้นโดนัทเพื่อกรองข้าม chart
+                นับจำนวนคู่ PM→Claim ที่ห่างกัน ≤ 30 วัน ({early.length} คู่) · คลิกชิ้นโดนัทเพื่อกรองตารางและ chart อื่น
               </p>
             </div>
-            {activeFilters.length > 0 && (
+            {activeDonutFilters.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
-                {activeFilters.map((d) => (
+                {activeDonutFilters.map((d) => (
                   <button
                     key={d.key}
                     onClick={() => setSel((s) => ({ ...s, [d.key]: null }))}
@@ -508,147 +556,117 @@ function AgingReport({
             ))}
           </div>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
 
-function PairsTable({ pairs }: { pairs: AgingPair[] }) {
-  const [search, setSearch] = useState("");
-  const [pageSize, setPageSize] = useState(20);
-  const [page, setPage] = useState(1);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return pairs;
-    return pairs.filter(
-      (p) =>
-        p.assetCode.toLowerCase().includes(q) ||
-        p.department.toLowerCase().includes(q) ||
-        p.problemDetail.toLowerCase().includes(q) ||
-        p.problemCategory.toLowerCase().includes(q),
-    );
-  }, [pairs, search]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const start = (currentPage - 1) * pageSize;
-  const visible = filtered.slice(start, start + pageSize);
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <CardTitle>รายละเอียดคู่ PM → Claim (ทั้งหมด)</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              ทุกคู่ที่จับได้จากช่วงวันที่ filter · เรียงห่างน้อย→มาก · รวม {filtered.length.toLocaleString()} คู่
-            </p>
+        {/* Merged pairs table */}
+        <div className="mt-8 border-t pt-6">
+          <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+            <div>
+              <h4 className="font-semibold text-base">รายละเอียดคู่ PM → Claim</h4>
+              <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+                <span>เรียงห่างน้อย→มาก · รวม <b>{tablePairs.length.toLocaleString()}</b> คู่</span>
+                {bucketFilter && (
+                  <button
+                    onClick={() => onBucketFilter(null)}
+                    className="text-[11px] px-2 py-1 rounded bg-destructive/10 text-destructive hover:bg-destructive/20"
+                  >
+                    ช่วง {bucketFilter} วัน ✕
+                  </button>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="ค้นหารหัสป้าย / แผนก / Media Type / อาการ / เลขตั๋ว"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className="w-80"
+              />
+              <Select
+                value={String(pageSize)}
+                onValueChange={(v) => {
+                  setPageSize(Number(v));
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="20">20 / หน้า</SelectItem>
+                  <SelectItem value="50">50 / หน้า</SelectItem>
+                  <SelectItem value="100">100 / หน้า</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="ค้นหารหัสป้าย / แผนก / อาการ"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="w-64"
-            />
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => {
-                setPageSize(Number(v));
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="20">20 / หน้า</SelectItem>
-                <SelectItem value="50">50 / หน้า</SelectItem>
-                <SelectItem value="100">100 / หน้า</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-auto border rounded">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>รหัสป้าย</TableHead>
-                <TableHead>แผนก</TableHead>
-                <TableHead>ตั๋ว PM</TableHead>
-                <TableHead>วัน PM</TableHead>
-                <TableHead>ตั๋ว Claim</TableHead>
-                <TableHead>วัน Claim</TableHead>
-                <TableHead className="text-right">ห่าง (วัน)</TableHead>
-                <TableHead>หมวดอาการ</TableHead>
-                <TableHead>อาการ</TableHead>
-                <TableHead>วิธีแก้</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.length === 0 ? (
+          <div className="overflow-auto border rounded">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
-                    ไม่พบข้อมูล
-                  </TableCell>
+                  <TableHead>รหัสป้าย</TableHead>
+                  <TableHead>Media Type</TableHead>
+                  <TableHead>แผนก</TableHead>
+                  <TableHead>ตั๋ว PM</TableHead>
+                  <TableHead>วัน PM</TableHead>
+                  <TableHead>ตั๋ว Claim</TableHead>
+                  <TableHead>วัน Claim</TableHead>
+                  <TableHead className="text-right">ห่าง (วัน)</TableHead>
+                  <TableHead>หมวดอาการ</TableHead>
+                  <TableHead>อาการ</TableHead>
+                  <TableHead>อุปกรณ์</TableHead>
+                  <TableHead>วิธีแก้ (หมวด)</TableHead>
+                  <TableHead>วิธีแก้</TableHead>
                 </TableRow>
-              ) : (
-                visible.map((p, i) => (
-                  <TableRow key={start + i} className={p.days <= 7 ? "bg-red-50 dark:bg-red-950/30" : ""}>
-                    <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
-                    <TableCell className="text-xs">{p.department}</TableCell>
-                    <TableCell className="font-mono text-xs">{p.pmTicket || "—"}</TableCell>
-                    <TableCell className="text-xs">{p.pmDate}</TableCell>
-                    <TableCell className="font-mono text-xs">{p.claimTicket || "—"}</TableCell>
-                    <TableCell className="text-xs">{p.claimDate}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {p.days <= 7 ? (
-                        <Badge tone="danger">{p.days} · Critical</Badge>
-                      ) : (
-                        p.days
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs max-w-[160px] truncate" title={p.problemCategory}>
-                      {p.problemCategory}
-                    </TableCell>
-                    <TableCell className="text-xs max-w-[220px] truncate" title={p.problemDetail}>
-                      {p.problemDetail}
-                    </TableCell>
-                    <TableCell className="text-xs max-w-[200px] truncate" title={p.solutionDetail}>
-                      {p.solutionDetail}
+              </TableHeader>
+              <TableBody>
+                {visible.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
+                      ไม่พบข้อมูลตามเงื่อนไข
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-        <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
-          <div>
-            แสดง {filtered.length === 0 ? 0 : start + 1}–{Math.min(start + pageSize, filtered.length)} จาก {filtered.length.toLocaleString()}
+                ) : (
+                  visible.map((p, i) => (
+                    <TableRow key={start + i} className={p.days <= 7 ? "bg-red-50 dark:bg-red-950/30" : ""}>
+                      <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
+                      <TableCell className="text-xs">{p.mediaType}</TableCell>
+                      <TableCell className="text-xs">{p.department}</TableCell>
+                      <TableCell className="font-mono text-xs">{p.pmTicket || "—"}</TableCell>
+                      <TableCell className="text-xs">{p.pmDate}</TableCell>
+                      <TableCell className="font-mono text-xs">{p.claimTicket || "—"}</TableCell>
+                      <TableCell className="text-xs">{p.claimDate}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {p.days <= 7 ? (
+                          <Badge tone="danger">{p.days} · Critical</Badge>
+                        ) : (
+                          p.days
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs max-w-[140px] truncate" title={p.problemCategory}>{p.problemCategory}</TableCell>
+                      <TableCell className="text-xs max-w-[200px] truncate" title={p.problemDetail}>{p.problemDetail}</TableCell>
+                      <TableCell className="text-xs max-w-[160px] truncate" title={p.problemEquipment}>{p.problemEquipment}</TableCell>
+                      <TableCell className="text-xs max-w-[140px] truncate" title={p.solutionCategory}>{p.solutionCategory}</TableCell>
+                      <TableCell className="text-xs max-w-[200px] truncate" title={p.solutionDetail}>{p.solutionDetail}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
-          <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(1)}>
-              «
-            </Button>
-            <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
-              ก่อนหน้า
-            </Button>
-            <span className="px-2 tabular-nums">
-              หน้า {currentPage} / {totalPages}
-            </span>
-            <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>
-              ถัดไป
-            </Button>
-            <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage(totalPages)}>
-              »
-            </Button>
+          <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
+            <div>
+              แสดง {tablePairs.length === 0 ? 0 : start + 1}–{Math.min(start + pageSize, tablePairs.length)} จาก {tablePairs.length.toLocaleString()}
+            </div>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(1)}>«</Button>
+              <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>ก่อนหน้า</Button>
+              <span className="px-2 tabular-nums">หน้า {currentPage} / {totalPages}</span>
+              <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>ถัดไป</Button>
+              <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage(totalPages)}>»</Button>
+            </div>
           </div>
         </div>
       </CardContent>

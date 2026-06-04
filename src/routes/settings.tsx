@@ -13,6 +13,7 @@ import {
   syncClaimsNow,
   syncAssetsNow,
   syncAssetHistoryBatchNow,
+  syncMssqlAssetHistoryNow,
 } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DiagramMappingsSection } from "@/components/diagram-mappings-section";

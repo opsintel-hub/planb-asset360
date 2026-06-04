@@ -13,6 +13,7 @@ import {
   syncClaimsNow,
   syncAssetsNow,
   syncAssetHistoryBatchNow,
+  syncMssqlAssetHistoryNow,
 } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DiagramMappingsSection } from "@/components/diagram-mappings-section";
@@ -148,6 +149,22 @@ function MainSettings() {
     onError: (e: Error) => toast.error(`ดึงข้อมูลล้มเหลว: ${e.message}`),
   });
 
+  const syncHistoryFn = useServerFn(syncMssqlAssetHistoryNow);
+  const historySyncMutation = useMutation({
+    mutationFn: () => syncHistoryFn({ data: { days: 90 } }),
+    onSuccess: (r) => {
+      if (!r.ok) {
+        toast.error(`ดึงข้อมูล Asset History ล้มเหลว: ${r.error ?? "ไม่สำเร็จ"}`);
+        qc.invalidateQueries({ queryKey: ["sync-logs"] });
+        return;
+      }
+      toast.success(`ดึงข้อมูล Asset History สำเร็จ: ${r.rows ?? 0} รายการ (90 วันล่าสุด)`);
+      qc.invalidateQueries({ queryKey: ["sync-logs"] });
+    },
+    onError: (e: Error) => toast.error(`ดึงข้อมูลล้มเหลว: ${e.message}`),
+  });
+
+
   return (
     <div className="space-y-6">
       <Section
@@ -171,6 +188,8 @@ function MainSettings() {
           onSaveTimes={(times) => saveMutation.mutate({ key: "asset_sync_times", value: times })}
           onTest={() => assetSyncMutation.mutate()}
           testing={assetSyncMutation.isPending}
+          onTestHistory={() => historySyncMutation.mutate()}
+          testingHistory={historySyncMutation.isPending}
         />
       </Section>
 
@@ -428,6 +447,8 @@ function AssetDbForm({
   onSaveTimes,
   onTest,
   testing,
+  onTestHistory,
+  testingHistory,
 }: {
   defaults: {
     server: string;
@@ -453,6 +474,8 @@ function AssetDbForm({
   onSaveTimes: (times: string[]) => void;
   onTest: () => void;
   testing: boolean;
+  onTestHistory: () => void;
+  testingHistory: boolean;
 }) {
   const [server, setServer] = useState(defaults.server);
   const [port, setPort] = useState(defaults.port);
@@ -585,14 +608,27 @@ function AssetDbForm({
           หาก timeout ที่พอร์ต 1433 ให้ตรวจ firewall/allowlist ของ Modern Corporate Server เพื่อเปิดทางเชื่อมต่อจาก
           Lovable Cloud
         </p>
-        <button
-          onClick={onTest}
-          disabled={testing}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
-        >
-          <RefreshCw className={cn("size-4", testing && "animate-spin")} />
-          {testing ? "กำลังดึงข้อมูล..." : "ทดสอบดึงข้อมูล Asset"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={onTest}
+            disabled={testing}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            <RefreshCw className={cn("size-4", testing && "animate-spin")} />
+            {testing ? "กำลังดึงข้อมูล..." : "ทดสอบดึงข้อมูล Asset + PM Schedule"}
+          </button>
+          <button
+            onClick={onTestHistory}
+            disabled={testingHistory}
+            className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-card text-primary px-4 py-2 text-sm font-medium hover:bg-primary/10 disabled:opacity-50"
+          >
+            <RefreshCw className={cn("size-4", testingHistory && "animate-spin")} />
+            {testingHistory ? "กำลังดึงข้อมูล..." : "ทดสอบดึง Asset History (90 วันล่าสุด)"}
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          AssetHistory แยกออกมาเป็น Edge Function ต่างหาก เพราะตารางขนาดใหญ่เกิน CPU budget เมื่อ Sync รวมกับ Asset + PM Schedule
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-2 pt-2 border-t">

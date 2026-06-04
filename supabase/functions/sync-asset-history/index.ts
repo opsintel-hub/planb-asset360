@@ -1,0 +1,203 @@
+// Supabase Edge Function (Deno) — Sync MSSQL AssetHistory table only.
+// Split out from sync-assets to avoid Worker CPU-time limits when the
+// AssetHistory table is large.
+
+// @ts-ignore deno npm specifier
+import sql from "npm:mssql@10.0.2";
+// @ts-ignore deno esm
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+interface AssetDbConn {
+  host?: string;
+  server?: string;
+  port?: number | string;
+  database?: string;
+  username?: string;
+  historyTable?: string;
+  encrypt?: boolean;
+}
+
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function quoteTableName(raw: string): string {
+  const parts = raw
+    .split(".")
+    .map((p) => p.replace(/[^a-zA-Z0-9_]/g, ""))
+    .filter(Boolean);
+  if (!parts.length) throw new Error("invalid table name");
+  return parts.map((p) => `[${p}]`).join(".");
+}
+
+function parseHostPort(raw: string): { server: string; port: number } {
+  const [s, p] = raw.split(":");
+  return { server: s.trim(), port: p ? Number(p.trim()) : 1433 };
+}
+
+function pickStr(o: Record<string, unknown>, keys: string[]): string | null {
+  for (const k of keys) {
+    const v = o[k];
+    if (v != null && String(v).trim() !== "") return String(v);
+  }
+  return null;
+}
+
+async function connectMssql(c: {
+  server: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+  encrypt: boolean;
+}) {
+  return sql.connect({
+    server: c.server,
+    port: c.port,
+    database: c.database,
+    user: c.user,
+    password: c.password,
+    options: { encrypt: c.encrypt, trustServerCertificate: true, enableArithAbort: true },
+    connectionTimeout: 30_000,
+    requestTimeout: 120_000,
+  });
+}
+
+// @ts-ignore Deno
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  // @ts-ignore Deno
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  // @ts-ignore Deno
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  // @ts-ignore Deno
+  const DB_PASSWORD = Deno.env.get("MODERN_CORP_DB_PASSWORD");
+
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+  let body: { days?: number; reset?: boolean; pageSize?: number } = {};
+  try {
+    body = await req.json();
+  } catch {
+    /* empty body ok */
+  }
+  const days = Number.isFinite(body.days) ? Math.max(1, Math.min(3650, Number(body.days))) : 90;
+  const pageSize = Number.isFinite(body.pageSize) ? Math.max(100, Math.min(2000, Number(body.pageSize!))) : 500;
+  const reset = body.reset !== false; // default true
+
+  const { data: logRow } = await admin
+    .from("sync_logs")
+    .insert({ source: "mssql_asset_history", status: "running", message: `started (days=${days})` })
+    .select("id")
+    .single();
+  const logId = logRow?.id as number | undefined;
+
+  const finish = async (status: "success" | "error", message: string, rows: number) => {
+    if (logId)
+      await admin
+        .from("sync_logs")
+        .update({ status, message, rows_affected: rows, finished_at: new Date().toISOString() })
+        .eq("id", logId);
+  };
+
+  let pool: { close: () => Promise<void>; request: () => { query: (q: string) => Promise<{ recordset: Record<string, unknown>[] }> } } | null = null;
+
+  try {
+    if (!DB_PASSWORD) throw new Error("MODERN_CORP_DB_PASSWORD secret not set");
+
+    const { data: connRow } = await admin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "asset_db_connection")
+      .maybeSingle();
+    const conn = (connRow?.value ?? {}) as AssetDbConn;
+    const host = conn.server ?? conn.host ?? "magicticket.magicsigncloud.com";
+    const database = conn.database ?? "planb";
+    const user = conn.username ?? "planb_viewer";
+    const historyTable = quoteTableName((conn.historyTable ?? "AssetHistory").trim());
+
+    const parsed = parseHostPort(host);
+    const server = parsed.server;
+    const port = conn.port ? Number(conn.port) : parsed.port;
+    const encrypt = conn.encrypt ?? false;
+
+    try {
+      pool = await connectMssql({ server, port, database, user, password: DB_PASSWORD, encrypt });
+    } catch (e) {
+      if (encrypt) throw e;
+      pool = await connectMssql({ server, port, database, user, password: DB_PASSWORD, encrypt: true });
+    }
+
+    // Date filter — try common column names; fall back to no filter if it fails
+    const dateCols = ["ActionDate", "actionDate", "CreatedDate", "TransactionDate", "Date"];
+    let list: Record<string, unknown>[] = [];
+    let usedFilter = false;
+    for (const col of dateCols) {
+      try {
+        const q = `SELECT * FROM ${historyTable} WHERE [${col}] >= DATEADD(day, -${days}, GETDATE())`;
+        const r = await pool!.request().query(q);
+        list = (r.recordset ?? []) as Record<string, unknown>[];
+        usedFilter = true;
+        break;
+      } catch {
+        /* try next */
+      }
+    }
+    if (!usedFilter) {
+      const r = await pool!.request().query(`SELECT * FROM ${historyTable}`);
+      list = (r.recordset ?? []) as Record<string, unknown>[];
+    }
+
+    if (reset) {
+      await admin.from("mssql_asset_history").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    }
+
+    const rows = list.map((item) => ({
+      asset_old_code: pickStr(item, [
+        "OldCode", "oldCode", "old_code",
+        "OlaCode", "olaCode",
+        "AssetCode", "assetCode", "Code", "code",
+      ]),
+      ref_number: pickStr(item, ["RefNumber", "refNumber", "ref_number"]),
+      action_date: pickStr(item, [
+        "ActionDate", "actionDate", "action_date",
+        "Date", "date", "CreatedDate", "createdDate", "TransactionDate",
+      ]),
+      action: pickStr(item, ["Action", "action", "ActionType", "actionType", "Type", "type"]),
+      status: pickStr(item, ["Status", "status"]),
+      project: pickStr(item, ["Project", "project"]),
+      payload: item,
+      synced_at: new Date().toISOString(),
+    }));
+
+    let inserted = 0;
+    for (let i = 0; i < rows.length; i += pageSize) {
+      const slice = rows.slice(i, i + pageSize);
+      if (!slice.length) continue;
+      const { error } = await admin.from("mssql_asset_history").insert(slice);
+      if (error) throw new Error(error.message);
+      inserted += slice.length;
+    }
+
+    await pool!.close();
+    pool = null;
+    await finish("success", `synced ${inserted} rows (days=${days}, filtered=${usedFilter})`, inserted);
+    return jsonResponse({ ok: true, rows: inserted, days, filtered: usedFilter });
+  } catch (e) {
+    const msg = (e as Error).message;
+    console.error("sync-asset-history failed", msg);
+    if (pool) await pool.close().catch(() => null);
+    await finish("error", msg, 0);
+    return jsonResponse({ ok: false, rows: 0, error: msg });
+  }
+});

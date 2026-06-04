@@ -351,10 +351,6 @@ function PmInsightsPage() {
             <p className="text-sm">ยังไม่มีข้อมูลแสดง</p>
             <p className="text-xs">
               กรุณาตั้งค่าตัวกรองด้านบน แล้วกดปุ่ม “แสดงข้อมูล” เพื่อเริ่มต้น
-              <br />
-              <span className="opacity-70">
-                (ครั้งแรกตัวเลือก Project / พื้นที่ / Media Type อาจยังว่าง — กดแสดงข้อมูลครั้งแรกเพื่อโหลดตัวเลือก แล้วค่อยปรับและกดอีกครั้ง)
-              </span>
             </p>
           </CardContent>
         </Card>

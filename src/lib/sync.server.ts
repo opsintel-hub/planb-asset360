@@ -21,13 +21,25 @@ async function logFinish(id: number | undefined, status: "success" | "warning" |
     .eq("id", id);
 }
 
-async function fetchPlanB(url: string): Promise<unknown> {
+async function fetchPlanB(url: string, timeoutMs = 12000): Promise<unknown> {
   const apiKey = process.env.PLANB_API_KEY;
-  const res = await fetch(url, {
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}`, Accept: "application/json" } : { Accept: "application/json" },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  return res.json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}`, Accept: "application/json" } : { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    return await res.json();
+  } catch (e) {
+    if ((e as Error).name === "AbortError") {
+      throw new Error(`upstream timeout after ${timeoutMs}ms: ${url}`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function runAssetListSync() {
@@ -184,8 +196,9 @@ export async function runAssetHistorySync(oldCode: string) {
 export async function runAssetHistorySyncBatch(limit = 100): Promise<{ ok: boolean; rows: number; processed: number; failed: number; error?: string }> {
   const id = await logStart("asset-history-batch");
   try {
-    const tmpl = (await readSetting("asset_history_endpoint")) as string | undefined;
-    if (!tmpl) throw new Error("ยังไม่ได้ตั้งค่า asset_history_endpoint");
+    const tmplRaw = (await readSetting("asset_history_endpoint")) as string | undefined;
+    if (!tmplRaw) throw new Error("ยังไม่ได้ตั้งค่า asset_history_endpoint");
+    const tmpl: string = tmplRaw;
 
     const { data: assets, error: aErr } = await supabaseAdmin
       .from("assets")
@@ -197,9 +210,23 @@ export async function runAssetHistorySyncBatch(limit = 100): Promise<{ ok: boole
     let totalRows = 0;
     let processed = 0;
     let failed = 0;
-    for (const a of assets ?? []) {
-      const oldCode = a.old_code as string;
-      if (!oldCode) continue;
+    const errorSamples: string[] = [];
+
+    type HistoryRow = {
+      asset_id: string | null;
+      asset_old_code: string;
+      ticket_code: string;
+      type: string;
+      title: string | null;
+      status: string | null;
+      opened_at: string | null;
+      closed_at: string | null;
+      payload: never;
+    };
+
+    async function syncOne(a: { id: string | null; old_code: string }) {
+      const oldCode = a.old_code;
+      if (!oldCode) return;
       try {
         const url = tmpl.replace("{id}", encodeURIComponent(oldCode));
         const raw = (await fetchPlanB(url)) as Record<string, unknown>;
@@ -209,17 +236,6 @@ export async function runAssetHistorySyncBatch(limit = 100): Promise<{ ok: boole
           { key: "claim", type: "Claim" },
         ];
         await supabaseAdmin.from("asset_history").delete().eq("asset_old_code", oldCode);
-        type HistoryRow = {
-          asset_id: string | null;
-          asset_old_code: string;
-          ticket_code: string;
-          type: string;
-          title: string | null;
-          status: string | null;
-          opened_at: string | null;
-          closed_at: string | null;
-          payload: never;
-        };
         const rows: HistoryRow[] = [];
         for (const g of groups) {
           const list = Array.isArray(raw?.[g.key]) ? (raw[g.key] as Record<string, unknown>[]) : [];
@@ -236,7 +252,7 @@ export async function runAssetHistorySyncBatch(limit = 100): Promise<{ ok: boole
                   ? "Preventive Maintenance"
                   : "Monitoring Check";
             rows.push({
-              asset_id: (a.id as string) ?? null,
+              asset_id: a.id ?? null,
               asset_old_code: oldCode,
               ticket_code: `${g.type}-${oldCode}-${createdDate ?? "na"}-${idx}`,
               type: g.type,
@@ -262,13 +278,29 @@ export async function runAssetHistorySyncBatch(limit = 100): Promise<{ ok: boole
         processed++;
       } catch (e) {
         failed++;
-        console.warn(`asset-history sync failed for ${oldCode}:`, (e as Error).message);
+        const msg = (e as Error).message;
+        if (errorSamples.length < 3) errorSamples.push(`${oldCode}: ${msg}`);
+        console.warn(`asset-history sync failed for ${oldCode}:`, msg);
       }
     }
+
+    // Run with bounded concurrency to stay inside the Worker time budget.
+    const queue = [...(assets ?? [])] as { id: string | null; old_code: string }[];
+    const concurrency = 4;
+    const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+      while (queue.length) {
+        const next = queue.shift();
+        if (!next) break;
+        await syncOne(next);
+      }
+    });
+    await Promise.all(workers);
+
+    const errorTail = errorSamples.length ? ` | errors: ${errorSamples.join(" ; ")}` : "";
     await logFinish(
       id,
       failed === 0 ? "success" : "warning",
-      `batch: ${processed} assets synced, ${failed} failed, ${totalRows} history rows`,
+      `batch: ${processed} assets synced, ${failed} failed, ${totalRows} history rows${errorTail}`,
       totalRows,
     );
     return { ok: true, rows: totalRows, processed, failed };

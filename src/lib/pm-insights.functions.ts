@@ -10,6 +10,7 @@ const filtersSchema = z.object({
   mediaTypes: z.array(z.string()).optional().default([]),
   fromDate: z.string().optional().nullable(),
   toDate: z.string().optional().nullable(),
+  assetCode: z.string().optional().nullable(),
 });
 
 export type PmInsightsFilters = z.infer<typeof filtersSchema>;
@@ -115,6 +116,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const zoneSet = new Set(f.zones);
     const projSet = new Set(f.projects);
     const mtSet = new Set(f.mediaTypes);
+    const assetCodeQ = (f.assetCode ?? "").trim().toLowerCase();
 
     function inScopeFilter(h: Hist): boolean {
       // ไม่นับ date — ใช้สำหรับกราฟรายเดือน (โชว์ทั้งปี)
@@ -125,6 +127,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       if (zoneSet.size && !zoneSet.has(pickStr(h.payload, "bkkUpc"))) return false;
       if (projSet.size && !projSet.has(pickStr(h.payload, "project"))) return false;
       if (mtSet.size && !mtSet.has(asset?.mediaType ?? "")) return false;
+      if (assetCodeQ && code.toLowerCase() !== assetCodeQ) return false;
       return true;
     }
     function inFilter(h: Hist): boolean {
@@ -170,8 +173,16 @@ export const getPmInsights = createServerFn({ method: "POST" })
         if (st !== "Finished" && pickStr(h.payload, "assetStatus") !== "Pass") claimOpen++;
       }
     }
+    // นับ assets ตาม filter (department/mediaType/assetCode) — ไม่ขึ้นกับวันที่
+    let assetCount = 0;
+    for (const a of assetMap.values()) {
+      if (depSet.size && !depSet.has(a.department ?? "")) continue;
+      if (mtSet.size && !mtSet.has(a.mediaType ?? "")) continue;
+      if (assetCodeQ && a.old_code.toLowerCase() !== assetCodeQ) continue;
+      assetCount++;
+    }
     const kpi = {
-      assets: assetMap.size,
+      assets: assetCount,
       pmDone: pmAssetSet.size,
       claimOpen,
       downtimeHours: Math.round(downtime / 60),

@@ -171,6 +171,7 @@ function PmInsightsPage() {
           mediaTypes: applied!.mediaTypes,
           fromDate: applied!.fromDate,
           toDate: applied!.toDate,
+          assetCode: applied!.assetSearch || null,
         },
       }),
     enabled: applied !== null,
@@ -204,7 +205,7 @@ function PmInsightsPage() {
     setApplied(null);
   };
 
-  const assetSearch = applied?.assetSearch ?? "";
+
 
   return (
     <div className="space-y-6">
@@ -365,7 +366,7 @@ function PmInsightsPage() {
           {/* Report 1: Aging chart + donuts + pairs table (merged) */}
           <AgingReport
             aging={data.aging}
-            pairs={assetSearch ? data.pairs.filter((p) => p.assetCode.toLowerCase().includes(assetSearch.toLowerCase())) : data.pairs}
+            pairs={data.pairs}
             bucketFilter={bucketFilter}
             onBucketFilter={setBucketFilter}
           />
@@ -375,7 +376,7 @@ function PmInsightsPage() {
 
           {/* Report 4: Frequency */}
           <FrequencyReport
-            rows={assetSearch ? data.frequency.filter((r) => r.assetCode.toLowerCase().includes(assetSearch.toLowerCase())) : data.frequency}
+            rows={data.frequency}
             agg={data.freqAgg}
           />
         </>

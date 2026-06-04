@@ -159,7 +159,7 @@ function MainSettings() {
         qc.invalidateQueries({ queryKey: ["sync-logs"] });
         return;
       }
-      toast.success(`ดึงข้อมูล Asset History สำเร็จ: ${r.rows ?? 0} รายการ (90 วันล่าสุด)`);
+      toast.success("เริ่มดึง Asset History แล้ว (ทำงานเบื้องหลัง) — ดูผลที่ Sync Logs ด้านล่าง");
       qc.invalidateQueries({ queryKey: ["sync-logs"] });
     },
     onError: (e: Error) => toast.error(`ดึงข้อมูลล้มเหลว: ${e.message}`),

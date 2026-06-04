@@ -614,6 +614,7 @@ function AssetDbForm({
               username: username.trim(),
               table: table.trim(),
               pmScheduleTable: pmScheduleTable.trim(),
+              historyTable: historyTable.trim(),
             };
             onSave(payload);
           }}

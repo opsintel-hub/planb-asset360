@@ -447,6 +447,7 @@ function AssetDbForm({
     username: string;
     table: string;
     pmScheduleTable: string;
+    historyTable: string;
   }) => void;
   onSaveDays: (days: number[]) => void;
   onSaveTimes: (times: string[]) => void;

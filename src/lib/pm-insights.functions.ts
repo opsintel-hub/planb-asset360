@@ -116,8 +116,18 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const depSet = new Set(f.departments);
     const zoneSet = new Set(f.zones);
     const projSet = new Set(f.projects);
+    // Expand selected Projects → their mapped Departments (assets.department)
+    const projDeptSet = departmentsForProjects(f.projects);
     const mtSet = new Set(f.mediaTypes);
     const assetCodeQ = (f.assetCode ?? "").trim().toLowerCase();
+
+    function matchProject(h: Hist, asset: Asset | undefined): boolean {
+      if (!projSet.size) return true;
+      // Match either history.payload.project OR asset.department (via mapping)
+      if (projSet.has(pickStr(h.payload, "project"))) return true;
+      if (asset?.department && projDeptSet.has(asset.department)) return true;
+      return false;
+    }
 
     function inScopeFilter(h: Hist): boolean {
       // ไม่นับ date — ใช้สำหรับกราฟรายเดือน (โชว์ทั้งปี)
@@ -126,7 +136,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       const dept = asset?.department ?? "";
       if (depSet.size && !depSet.has(dept)) return false;
       if (zoneSet.size && !zoneSet.has(pickStr(h.payload, "bkkUpc"))) return false;
-      if (projSet.size && !projSet.has(pickStr(h.payload, "project"))) return false;
+      if (!matchProject(h, asset)) return false;
       if (mtSet.size && !mtSet.has(asset?.mediaType ?? "")) return false;
       if (assetCodeQ && code.toLowerCase() !== assetCodeQ) return false;
       return true;

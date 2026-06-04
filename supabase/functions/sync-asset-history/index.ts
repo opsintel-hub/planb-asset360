@@ -163,7 +163,7 @@ async function runSync(
       action: colAction ? pickStr(item, [colAction]) : null,
       status: colStatus ? pickStr(item, [colStatus]) : null,
       project: colProject ? pickStr(item, [colProject]) : null,
-      payload: null,
+      payload: {},
       synced_at: nowIso,
     }));
 

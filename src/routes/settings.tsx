@@ -207,6 +207,8 @@ function MainSettings() {
           testing={assetSyncMutation.isPending}
           onTestHistory={() => historySyncMutation.mutate()}
           testingHistory={historySyncMutation.isPending}
+          onTestPm={() => pmSyncMutation.mutate()}
+          testingPm={pmSyncMutation.isPending}
         />
       </Section>
 

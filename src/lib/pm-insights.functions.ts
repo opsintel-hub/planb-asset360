@@ -114,14 +114,17 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const depSet = new Set(f.departments);
     const zoneSet = new Set(f.zones);
     const projSet = new Set(f.projects);
+    const mtSet = new Set(f.mediaTypes);
 
     function inScopeFilter(h: Hist): boolean {
       // ไม่นับ date — ใช้สำหรับกราฟรายเดือน (โชว์ทั้งปี)
       const code = h.asset_old_code ?? "";
-      const dept = assetMap.get(code)?.department ?? "";
+      const asset = assetMap.get(code);
+      const dept = asset?.department ?? "";
       if (depSet.size && !depSet.has(dept)) return false;
       if (zoneSet.size && !zoneSet.has(pickStr(h.payload, "bkkUpc"))) return false;
       if (projSet.size && !projSet.has(pickStr(h.payload, "project"))) return false;
+      if (mtSet.size && !mtSet.has(asset?.mediaType ?? "")) return false;
       return true;
     }
     function inFilter(h: Hist): boolean {
@@ -137,7 +140,11 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const allDepts = new Set<string>();
     const allZones = new Set<string>();
     const allProjects = new Set<string>();
-    for (const a of assetMap.values()) if (a.department) allDepts.add(a.department);
+    const allMediaTypes = new Set<string>();
+    for (const a of assetMap.values()) {
+      if (a.department) allDepts.add(a.department);
+      if (a.mediaType) allMediaTypes.add(a.mediaType);
+    }
     for (const h of hist ?? []) {
       const z = pickStr(asPayload(h.payload), "bkkUpc");
       if (z) allZones.add(z);

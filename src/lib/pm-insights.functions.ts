@@ -116,6 +116,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const zoneSet = new Set(f.zones);
     const projSet = new Set(f.projects);
     const mtSet = new Set(f.mediaTypes);
+    const assetCodeQ = (f.assetCode ?? "").trim().toLowerCase();
 
     function inScopeFilter(h: Hist): boolean {
       // ไม่นับ date — ใช้สำหรับกราฟรายเดือน (โชว์ทั้งปี)
@@ -126,6 +127,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       if (zoneSet.size && !zoneSet.has(pickStr(h.payload, "bkkUpc"))) return false;
       if (projSet.size && !projSet.has(pickStr(h.payload, "project"))) return false;
       if (mtSet.size && !mtSet.has(asset?.mediaType ?? "")) return false;
+      if (assetCodeQ && code.toLowerCase() !== assetCodeQ) return false;
       return true;
     }
     function inFilter(h: Hist): boolean {

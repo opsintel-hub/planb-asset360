@@ -192,68 +192,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ---- Asset_PM_Schedule sync (same connection, additional table) ----
-    let pmCount = 0;
-    if (pmTable) {
-      try {
-        const pmResult = await pool.request().query(`SELECT * FROM ${pmTable}`);
-        const pmList = (pmResult.recordset ?? []) as Record<string, unknown>[];
+    // NOTE: Asset_PM_Schedule sync moved to a dedicated edge function `sync-pm-schedules`
+    // to keep this function's CPU budget for the larger Asset table.
+    const pmCount = 0;
 
-        // Wipe & insert (small table, no stable PK guaranteed from source)
-        await admin.from("asset_pm_schedules").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-
-        // Dedupe by natural key (ref_number, asset_old_code, schedule_date)
-        // — source can have duplicates which violate uniq_asset_pm_schedules_natkey
-        const pmMap = new Map<string, Record<string, unknown>>();
-        for (const item of pmList) {
-          const row = {
-            project: pickStr(item, ["Project", "project"]),
-            asset_old_code: pickStr(item, [
-              "OldCode", "oldCode", "old_code",
-              "OlaCode", "olaCode", // tolerate typo from source
-              "AssetCode", "assetCode", "Code", "code",
-            ]),
-            ref_number: pickStr(item, ["RefNumber", "refNumber", "ref_number"]),
-            schedule_date: pickStr(item, ["ScheduleDate", "scheduleDate", "schedule_date"]),
-            status: pickStr(item, ["Status", "status"]),
-            inform_position: pickStr(item, [
-              "InformPosition", "informPosition",
-              "InformPsition", "informPsition", // tolerate typo from source
-              "Inform_Position",
-            ]),
-            asset_status: pickStr(item, [
-              "AssetStatus", "assetStatus",
-              "AssetSataus", "assetSataus", // tolerate typo from source
-              "Asset_Status",
-            ]),
-            payload: item,
-            synced_at: new Date().toISOString(),
-          };
-          const key = `${row.ref_number ?? ""}|${row.asset_old_code ?? ""}|${row.schedule_date ?? ""}`;
-          pmMap.set(key, row); // last wins
-        }
-        const pmRows = Array.from(pmMap.values());
-
-        const pmBatch = 200;
-        for (let i = 0; i < pmRows.length; i += pmBatch) {
-          const slice = pmRows.slice(i, i + pmBatch);
-          if (!slice.length) continue;
-          const { error } = await admin.from("asset_pm_schedules").insert(slice);
-          if (error) throw new Error(error.message);
-          pmCount += slice.length;
-        }
-      } catch (pmErr) {
-        console.error("sync-assets: Asset_PM_Schedule failed", (pmErr as Error).message);
-        // Don't fail the whole sync — log a warning instead
-        await admin.from("sync_logs").insert({
-          source: "asset_pm_schedule",
-          status: "error",
-          message: `PM Schedule sync failed: ${(pmErr as Error).message}`,
-          rows_affected: 0,
-          finished_at: new Date().toISOString(),
-        });
-      }
-    }
 
     // NOTE: AssetHistory sync moved to a dedicated edge function `sync-asset-history`
     // because the table is large enough to exceed the Worker CPU-time budget when

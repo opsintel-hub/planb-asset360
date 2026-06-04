@@ -37,7 +37,7 @@ type Hist = {
   ticket_code: string | null;
 };
 
-type Asset = { old_code: string; department: string | null };
+type Asset = { old_code: string; department: string | null; payload?: Record<string, unknown> | null; mediaType?: string };
 
 function asPayload(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};

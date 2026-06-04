@@ -196,8 +196,9 @@ export async function runAssetHistorySync(oldCode: string) {
 export async function runAssetHistorySyncBatch(limit = 100): Promise<{ ok: boolean; rows: number; processed: number; failed: number; error?: string }> {
   const id = await logStart("asset-history-batch");
   try {
-    const tmpl = (await readSetting("asset_history_endpoint")) as string | undefined;
-    if (!tmpl) throw new Error("ยังไม่ได้ตั้งค่า asset_history_endpoint");
+    const tmplRaw = (await readSetting("asset_history_endpoint")) as string | undefined;
+    if (!tmplRaw) throw new Error("ยังไม่ได้ตั้งค่า asset_history_endpoint");
+    const tmpl: string = tmplRaw;
 
     const { data: assets, error: aErr } = await supabaseAdmin
       .from("assets")

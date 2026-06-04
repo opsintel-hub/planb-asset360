@@ -21,13 +21,25 @@ async function logFinish(id: number | undefined, status: "success" | "warning" |
     .eq("id", id);
 }
 
-async function fetchPlanB(url: string): Promise<unknown> {
+async function fetchPlanB(url: string, timeoutMs = 12000): Promise<unknown> {
   const apiKey = process.env.PLANB_API_KEY;
-  const res = await fetch(url, {
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}`, Accept: "application/json" } : { Accept: "application/json" },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  return res.json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}`, Accept: "application/json" } : { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    return await res.json();
+  } catch (e) {
+    if ((e as Error).name === "AbortError") {
+      throw new Error(`upstream timeout after ${timeoutMs}ms: ${url}`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function runAssetListSync() {

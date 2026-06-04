@@ -7,7 +7,13 @@ import { PageHeader, Badge } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { getAppSettings, getSyncLogs, listAirtableSlots, getSchemaStatus } from "@/lib/data.functions";
-import { updateAppSetting, updateAirtableSlot, syncClaimsNow, syncAssetsNow, syncAssetHistoryBatchNow } from "@/lib/admin.functions";
+import {
+  updateAppSetting,
+  updateAirtableSlot,
+  syncClaimsNow,
+  syncAssetsNow,
+  syncAssetHistoryBatchNow,
+} from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DiagramMappingsSection } from "@/components/diagram-mappings-section";
 import { MappingImportExport } from "@/components/mapping-import-export";
@@ -39,20 +45,29 @@ function SettingsPage() {
         {sections.map((s) => {
           const Icon = s.icon;
           return (
-            <button key={s.id} onClick={() => setActive(s.id)} className={cn(
-              "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition",
-              active === s.id ? "bg-primary text-primary-foreground shadow" : "bg-card border hover:bg-accent",
-            )}>
+            <button
+              key={s.id}
+              onClick={() => setActive(s.id)}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition",
+                active === s.id ? "bg-primary text-primary-foreground shadow" : "bg-card border hover:bg-accent",
+              )}
+            >
               <Icon className="size-4" /> {s.label}
             </button>
           );
         })}
       </div>
 
-      {active === "main" ? <MainSettings />
-        : active === "airtable" ? <AirtableSection />
-        : active === "mappings" ? <DiagramMappingsSection />
-        : <MappingImportExport />}
+      {active === "main" ? (
+        <MainSettings />
+      ) : active === "airtable" ? (
+        <AirtableSection />
+      ) : active === "mappings" ? (
+        <DiagramMappingsSection />
+      ) : (
+        <MappingImportExport />
+      )}
     </div>
   );
 }
@@ -73,11 +88,18 @@ function MainSettings() {
   const claimEndpoint =
     settings.claim_api_endpoint ?? "https://magicticket.magicsigncloud.com/planb_api/api/Ticket/RemainingClaimTickets";
   const assetHistoryEndpoint =
-    settings.asset_history_endpoint ?? "https://uat-magicticket.magicsigncloud.com/planb_api/api/Ticket/AssetHistory?oldCode={id}";
+    settings.asset_history_endpoint ??
+    "https://uat-magicticket.magicsigncloud.com/planb_api/api/Ticket/AssetHistory?oldCode={id}";
   const claimAutoSync = settings.claim_auto_sync ?? true;
 
   const assetDb = (settings.asset_db_connection ?? {}) as {
-    host?: string; server?: string; port?: number | string; database?: string; username?: string; table?: string; pmScheduleTable?: string;
+    host?: string;
+    server?: string;
+    port?: number | string;
+    database?: string;
+    username?: string;
+    table?: string;
+    pmScheduleTable?: string;
   };
   const [legacyServer, legacyPort] = String(assetDb.host ?? "magicticket.magicsigncloud.com").split(":");
   const assetDbServer = assetDb.server ?? legacyServer;
@@ -88,11 +110,13 @@ function MainSettings() {
   const assetDbPmTable = assetDb.pmScheduleTable ?? "Asset_PM_Schedule";
   const assetSyncDays: number[] = Array.isArray(settings.asset_sync_days) ? settings.asset_sync_days : [];
   const assetSyncTimes: string[] = Array.isArray(settings.asset_sync_times) ? settings.asset_sync_times : ["04:00"];
-  
 
   const saveMutation = useMutation({
     mutationFn: (vars: { key: string; value: unknown }) => updateFn({ data: vars }),
-    onSuccess: () => { toast.success("บันทึกแล้ว"); qc.invalidateQueries({ queryKey: ["settings"] }); },
+    onSuccess: () => {
+      toast.success("บันทึกแล้ว");
+      qc.invalidateQueries({ queryKey: ["settings"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -124,9 +148,19 @@ function MainSettings() {
 
   return (
     <div className="space-y-6">
-      <Section title="Modern Corporate Server (Asset Database)" desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB โดยรหัสผ่านเก็บแยกใน Secret Store">
+      <Section
+        title="Modern Corporate Server (Asset Database)"
+        desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB โดยรหัสผ่านเก็บแยกใน Secret Store"
+      >
         <AssetDbForm
-          defaults={{ server: assetDbServer, port: assetDbPort, database: assetDbName, username: assetDbUser, table: assetDbTable, pmScheduleTable: assetDbPmTable }}
+          defaults={{
+            server: assetDbServer,
+            port: assetDbPort,
+            database: assetDbName,
+            username: assetDbUser,
+            table: assetDbTable,
+            pmScheduleTable: assetDbPmTable,
+          }}
           syncDays={assetSyncDays}
           syncTimes={assetSyncTimes}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
@@ -139,20 +173,25 @@ function MainSettings() {
 
       <SchemaAlertSection />
 
-
-
-      <Section title="API ค้นหาประวัติ Asset" desc="ใช้สำหรับดึงประวัติทรัพย์สินจากระบบ PlanB (PM / Claim / Monitoring)">
+      <Section
+        title="API ค้นหาประวัติ Asset"
+        desc="ใช้สำหรับดึงประวัติทรัพย์สินจากระบบ PlanB (PM / Claim / Monitoring)"
+      >
         <EditableField
           label="API Endpoint"
           defaultValue={assetHistoryEndpoint}
           onSave={(v) => saveMutation.mutate({ key: "asset_history_endpoint", value: v })}
         />
         <AssetHistoryScheduleControl
-          mode={((settings.asset_history_schedule as { mode?: string } | undefined)?.mode ?? "off") as "off" | "every_3h" | "daytime_3h" | "daily_0530"}
-          limit={Number((settings.asset_history_schedule as { limit?: number } | undefined)?.limit ?? 25)}
-          onSaveMode={(mode, limit) =>
-            saveMutation.mutate({ key: "asset_history_schedule", value: { mode, limit } })
+          mode={
+            ((settings.asset_history_schedule as { mode?: string } | undefined)?.mode ?? "off") as
+              | "off"
+              | "every_3h"
+              | "daytime_3h"
+              | "daily_0530"
           }
+          limit={Number((settings.asset_history_schedule as { limit?: number } | undefined)?.limit ?? 25)}
+          onSaveMode={(mode, limit) => saveMutation.mutate({ key: "asset_history_schedule", value: { mode, limit } })}
         />
       </Section>
 
@@ -172,7 +211,11 @@ function MainSettings() {
             />
             เปิด Auto-Sync (ทุก 15 นาที)
           </label>
-          {claimAutoSync && <Badge tone="success"><CheckCircle2 className="inline size-3 mr-1" /> Active</Badge>}
+          {claimAutoSync && (
+            <Badge tone="success">
+              <CheckCircle2 className="inline size-3 mr-1" /> Active
+            </Badge>
+          )}
           <button
             onClick={() => syncMutation.mutate()}
             disabled={syncMutation.isPending}
@@ -186,7 +229,11 @@ function MainSettings() {
       <Section title="Sync Logs (60 ครั้งล่าสุด)" desc="ผลการเชื่อมต่อย้อนหลัง">
         <div className="rounded-lg border overflow-hidden">
           {logsLoading ? (
-            <div className="p-3 space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8" />)}</div>
+            <div className="p-3 space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-8" />
+              ))}
+            </div>
           ) : logs.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">ยังไม่มี Sync Log</div>
           ) : (
@@ -206,7 +253,9 @@ function MainSettings() {
                     <td className="px-4 py-2.5 font-mono text-xs">{new Date(l.started_at).toLocaleString("th-TH")}</td>
                     <td className="px-4 py-2.5 text-xs">{l.source}</td>
                     <td className="px-4 py-2.5">
-                      <Badge tone={l.status === "success" ? "success" : l.status === "warning" ? "warning" : "danger"}>{l.status}</Badge>
+                      <Badge tone={l.status === "success" ? "success" : l.status === "warning" ? "warning" : "danger"}>
+                        {l.status}
+                      </Badge>
                     </td>
                     <td className="px-4 py-2.5 text-xs">{l.message ?? "—"}</td>
                     <td className="px-4 py-2.5 text-xs">{l.rows_affected ?? "—"}</td>
@@ -240,24 +289,35 @@ function AirtableSection() {
 
       {isLoading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-32" />)}
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {slots.map((s) => <AirtableSlotCard key={s.id} slot={s} />)}
+          {slots.map((s) => (
+            <AirtableSlotCard key={s.id} slot={s} />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-function AirtableSlotCard({ slot }: { slot: { id: number; name: string | null; base_id: string | null; table_name: string | null; enabled: boolean } }) {
+function AirtableSlotCard({
+  slot,
+}: {
+  slot: { id: number; name: string | null; base_id: string | null; table_name: string | null; enabled: boolean };
+}) {
   const fn = useServerFn(updateAirtableSlot);
   const qc = useQueryClient();
   type SlotUpdate = { id: number; name?: string; base_id?: string; table_name?: string; enabled?: boolean };
   const m = useMutation({
     mutationFn: (vars: SlotUpdate) => fn({ data: vars }),
-    onSuccess: () => { toast.success("บันทึกการเชื่อมต่อแล้ว"); qc.invalidateQueries({ queryKey: ["airtable-slots"] }); },
+    onSuccess: () => {
+      toast.success("บันทึกการเชื่อมต่อแล้ว");
+      qc.invalidateQueries({ queryKey: ["airtable-slots"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -269,7 +329,9 @@ function AirtableSlotCard({ slot }: { slot: { id: number; name: string | null; b
     <div className="rounded-lg border bg-background p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 flex-1">
-          <span className="size-7 rounded-md bg-primary/10 text-primary grid place-items-center text-xs font-bold">{slot.id}</span>
+          <span className="size-7 rounded-md bg-primary/10 text-primary grid place-items-center text-xs font-bold">
+            {slot.id}
+          </span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -324,7 +386,15 @@ function Section({ title, desc, children }: { title: string; desc?: string; chil
   );
 }
 
-function EditableField({ label, defaultValue, onSave }: { label: string; defaultValue: string; onSave: (v: string) => void }) {
+function EditableField({
+  label,
+  defaultValue,
+  onSave,
+}: {
+  label: string;
+  defaultValue: string;
+  onSave: (v: string) => void;
+}) {
   const [value, setValue] = useState(defaultValue);
   return (
     <div className="space-y-1.5">
@@ -356,10 +426,24 @@ function AssetDbForm({
   onTest,
   testing,
 }: {
-  defaults: { server: string; port: string; database: string; username: string; table: string; pmScheduleTable: string };
+  defaults: {
+    server: string;
+    port: string;
+    database: string;
+    username: string;
+    table: string;
+    pmScheduleTable: string;
+  };
   syncDays: number[];
   syncTimes: string[];
-  onSave: (v: { server: string; port: number; database: string; username: string; table: string; pmScheduleTable: string }) => void;
+  onSave: (v: {
+    server: string;
+    port: number;
+    database: string;
+    username: string;
+    table: string;
+    pmScheduleTable: string;
+  }) => void;
   onSaveDays: (days: number[]) => void;
   onSaveTimes: (times: string[]) => void;
   onTest: () => void;
@@ -378,12 +462,13 @@ function AssetDbForm({
   const toggleTime = (t: string) => {
     setTimes((prev) => {
       if (prev.includes(t)) return prev.filter((x) => x !== t);
-      if (prev.length >= 12) { toast.error("เลือกได้สูงสุด 12 ช่วงเวลา/วัน"); return prev; }
+      if (prev.length >= 12) {
+        toast.error("เลือกได้สูงสุด 12 ช่วงเวลา/วัน");
+        return prev;
+      }
       return [...prev, t].sort();
     });
   };
-
-
 
   const toggleDay = (d: number) => {
     setDays((prev) => {
@@ -447,9 +532,7 @@ function AssetDbForm({
             );
           })}
         </div>
-        {days.length > 0 && (
-          <div className="text-xs text-muted-foreground">วันที่ {days.join(", ")} ของทุกเดือน</div>
-        )}
+        {days.length > 0 && <div className="text-xs text-muted-foreground">วันที่ {days.join(", ")} ของทุกเดือน</div>}
       </div>
 
       <div className="space-y-2 rounded-lg border bg-background/50 p-3">
@@ -485,7 +568,6 @@ function AssetDbForm({
         )}
       </div>
 
-
       <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
         <div className="text-sm font-medium">เชื่อมต่อ MSSQL โดยตรง (Lovable Cloud Function)</div>
         <p className="text-xs text-muted-foreground">
@@ -493,7 +575,8 @@ function AssetDbForm({
           โดยไม่ต้องมี HTTP gateway คั่นกลาง — ใช้ทั้งการกด "ทดสอบ" และ Auto-Sync เวลา 04:00 น.
         </p>
         <p className="text-xs text-muted-foreground">
-          หาก timeout ที่พอร์ต 1433 ให้ตรวจ firewall/allowlist ของ Modern Corporate Server เพื่อเปิดทางเชื่อมต่อจาก Lovable Cloud
+          หาก timeout ที่พอร์ต 1433 ให้ตรวจ firewall/allowlist ของ Modern Corporate Server เพื่อเปิดทางเชื่อมต่อจาก
+          Lovable Cloud
         </p>
         <button
           onClick={onTest}
@@ -504,7 +587,6 @@ function AssetDbForm({
           {testing ? "กำลังดึงข้อมูล..." : "ทดสอบดึงข้อมูล Asset"}
         </button>
       </div>
-
 
       <div className="flex flex-wrap gap-2 pt-2 border-t">
         <button
@@ -519,8 +601,12 @@ function AssetDbForm({
               return;
             }
             const payload = {
-              server: server.trim(), port: parsedPort, database: database.trim(), username: username.trim(),
-              table: table.trim(), pmScheduleTable: pmScheduleTable.trim(),
+              server: server.trim(),
+              port: parsedPort,
+              database: database.trim(),
+              username: username.trim(),
+              table: table.trim(),
+              pmScheduleTable: pmScheduleTable.trim(),
             };
             onSave(payload);
           }}
@@ -540,7 +626,6 @@ function AssetDbForm({
         >
           บันทึกเวลา
         </button>
-
       </div>
     </div>
   );
@@ -554,7 +639,12 @@ function SchemaAlertSection() {
 
   const acceptMutation = useMutation({
     mutationFn: () =>
-      updFn({ data: { key: "asset_schema_snapshot", value: { keys: data?.currentKeys ?? [], takenAt: new Date().toISOString() } } }),
+      updFn({
+        data: {
+          key: "asset_schema_snapshot",
+          value: { keys: data?.currentKeys ?? [], takenAt: new Date().toISOString() },
+        },
+      }),
     onSuccess: () => {
       toast.success("บันทึก Schema ปัจจุบันเป็นค่าอ้างอิงแล้ว");
       qc.invalidateQueries({ queryKey: ["schema-status"] });
@@ -595,7 +685,9 @@ function SchemaAlertSection() {
                   <span className="text-xs text-muted-foreground">เพิ่ม ({data.added.length}):</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {data.added.map((k) => (
-                      <code key={k} className="text-xs px-2 py-0.5 rounded bg-success/10 text-success">+{k}</code>
+                      <code key={k} className="text-xs px-2 py-0.5 rounded bg-success/10 text-success">
+                        +{k}
+                      </code>
                     ))}
                   </div>
                 </div>
@@ -605,7 +697,9 @@ function SchemaAlertSection() {
                   <span className="text-xs text-muted-foreground">หายไป ({data.removed.length}):</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {data.removed.map((k) => (
-                      <code key={k} className="text-xs px-2 py-0.5 rounded bg-destructive/10 text-destructive">−{k}</code>
+                      <code key={k} className="text-xs px-2 py-0.5 rounded bg-destructive/10 text-destructive">
+                        −{k}
+                      </code>
                     ))}
                   </div>
                 </div>
@@ -619,7 +713,9 @@ function SchemaAlertSection() {
             </summary>
             <div className="flex flex-wrap gap-1 mt-2">
               {data.currentKeys.map((k) => (
-                <code key={k} className="text-xs px-2 py-0.5 rounded bg-muted">{k}</code>
+                <code key={k} className="text-xs px-2 py-0.5 rounded bg-muted">
+                  {k}
+                </code>
               ))}
             </div>
           </details>
@@ -685,10 +781,22 @@ function AssetHistoryScheduleControl({
   });
 
   const options: Array<{ id: "off" | "every_3h" | "daytime_3h" | "daily_0530"; title: string; desc: string }> = [
-    { id: "every_3h", title: "ทุก 3 ชั่วโมง (24 ชม.)", desc: "รันเวลา 00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00" },
+    {
+      id: "every_3h",
+      title: "ทุก 3 ชั่วโมง (24 ชม.)",
+      desc: "รันเวลา 00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00",
+    },
     { id: "daytime_3h", title: "เฉพาะกลางวัน ทุก 3 ชั่วโมง", desc: "รันเวลา 06:00, 09:00, 12:00, 15:00, 18:00" },
-    { id: "daily_0530", title: "ทุกวัน 05:30 น.", desc: "รันวันละครั้ง เวลา 05:30 น. (เหมาะกับการ Sync ก่อนเริ่มงานเช้า)" },
-    { id: "off", title: "ปิด Auto-Sync (Manual เท่านั้น)", desc: "ระบบจะไม่ดึงข้อมูลอัตโนมัติ ต้องกดปุ่ม Manual Sync เอง" },
+    {
+      id: "daily_0530",
+      title: "ทุกวัน 05:30 น.",
+      desc: "รันวันละครั้ง เวลา 05:30 น. (เหมาะกับการ Sync ก่อนเริ่มงานเช้า)",
+    },
+    {
+      id: "off",
+      title: "ปิด Auto-Sync (Manual เท่านั้น)",
+      desc: "ระบบจะไม่ดึงข้อมูลอัตโนมัติ ต้องกดปุ่ม Manual Sync เอง",
+    },
   ];
 
   return (
@@ -726,7 +834,7 @@ function AssetHistoryScheduleControl({
             className="w-32 h-9 rounded-md border bg-background px-3 text-sm"
           />
           <div className="text-[11px] text-muted-foreground">
-            แนะนำ 25–50 ป้าย/รอบ (ถ้าใหญ่เกินอาจ Timeout) — ระบบจะดึงป้ายที่ Sync นานสุดก่อนเสมอ
+            แนะนำ 10–15 ป้าย/รอบ (ถ้าใหญ่เกินอาจ Timeout) — ระบบจะดึงป้ายที่ Sync นานสุดก่อนเสมอ
           </div>
         </div>
         <div className="flex gap-2 ml-auto">
@@ -752,4 +860,3 @@ function AssetHistoryScheduleControl({
     </div>
   );
 }
-

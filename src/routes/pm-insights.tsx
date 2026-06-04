@@ -257,7 +257,7 @@ function PmInsightsPage() {
           {/* Report 1: Aging chart + donuts + pairs table (merged) */}
           <AgingReport
             aging={data.aging}
-            pairs={data.pairs}
+            pairs={assetSearch ? data.pairs.filter((p) => p.assetCode.toLowerCase().includes(assetSearch.toLowerCase())) : data.pairs}
             bucketFilter={bucketFilter}
             onBucketFilter={setBucketFilter}
           />
@@ -266,7 +266,10 @@ function PmInsightsPage() {
           <ScoreReport scoreRows={data.scoreRows} />
 
           {/* Report 4: Frequency */}
-          <FrequencyReport rows={data.frequency} agg={data.freqAgg} />
+          <FrequencyReport
+            rows={assetSearch ? data.frequency.filter((r) => r.assetCode.toLowerCase().includes(assetSearch.toLowerCase())) : data.frequency}
+            agg={data.freqAgg}
+          />
         </>
       ) : null}
     </div>

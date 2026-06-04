@@ -907,7 +907,7 @@ function FrequencyReport({
           <div>
             <CardTitle>รายงาน 4 · ความถี่การ PM รายป้าย</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              ป้ายไหนทำ PM กี่ครั้ง · ค่าเฉลี่ยช่วงห่าง · มี Claim ตามมากี่ครั้ง · กรองตาม filter ด้านบน
+              ป้ายไหนทำ PM กี่ครั้งต่อปี/เดือน · ห่างกันเฉลี่ยกี่วัน (นับจาก PM ครั้งก่อนหน้า) · มี Claim ตามมาภายหลังกี่ครั้ง · กรองตาม filter ด้านบน
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">

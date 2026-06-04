@@ -173,8 +173,16 @@ export const getPmInsights = createServerFn({ method: "POST" })
         if (st !== "Finished" && pickStr(h.payload, "assetStatus") !== "Pass") claimOpen++;
       }
     }
+    // นับ assets ตาม filter (department/mediaType/assetCode) — ไม่ขึ้นกับวันที่
+    let assetCount = 0;
+    for (const a of assetMap.values()) {
+      if (depSet.size && !depSet.has(a.department ?? "")) continue;
+      if (mtSet.size && !mtSet.has(a.mediaType ?? "")) continue;
+      if (assetCodeQ && a.old_code.toLowerCase() !== assetCodeQ) continue;
+      assetCount++;
+    }
     const kpi = {
-      assets: assetMap.size,
+      assets: assetCount,
       pmDone: pmAssetSet.size,
       claimOpen,
       downtimeHours: Math.round(downtime / 60),

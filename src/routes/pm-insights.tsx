@@ -298,6 +298,9 @@ function KpiCard({
 type AgingPair = {
   assetCode: string;
   department: string;
+  mediaType: string;
+  zone: string;
+  project: string;
   pmDate: string;
   claimDate: string;
   pmTicket: string;
@@ -308,6 +311,16 @@ type AgingPair = {
   problemEquipment: string;
   solutionCategory: string;
   solutionDetail: string;
+};
+
+const BUCKET_RANGES: Record<string, [number, number]> = {
+  "1-3": [1, 3],
+  "4-7": [4, 7],
+  "8-15": [8, 15],
+  "16-30": [16, 30],
+  "31-60": [31, 60],
+  "61-90": [61, 90],
+  ">90": [91, 9e9],
 };
 
 function MonthlyChart({ data }: { data: { month: string; pm: number; claim: number }[] }) {

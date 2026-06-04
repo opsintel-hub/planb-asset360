@@ -298,12 +298,7 @@ function PmInsightsPage() {
                 onChange={(e) => setAssetSearchDraft(e.target.value)}
               />
               <datalist id="pm-asset-codes">
-                {Array.from(
-                  new Set([
-                    ...(data?.frequency.map((r) => r.assetCode) ?? []),
-                    ...(data?.pairs.map((p) => p.assetCode) ?? []),
-                  ]),
-                )
+                {assetCodeOptions
                   .filter((c) =>
                     assetSearchDraft ? c.toLowerCase().includes(assetSearchDraft.toLowerCase()) : true,
                   )

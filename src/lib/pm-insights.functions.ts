@@ -188,6 +188,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     let assetCount = 0;
     for (const a of assetMap.values()) {
       if (depSet.size && !depSet.has(a.department ?? "")) continue;
+      if (projSet.size && !(a.department && projDeptSet.has(a.department))) continue;
       if (mtSet.size && !mtSet.has(a.mediaType ?? "")) continue;
       if (assetCodeQ && a.old_code.toLowerCase() !== assetCodeQ) continue;
       assetCount++;

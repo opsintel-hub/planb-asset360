@@ -436,6 +436,7 @@ function AssetDbForm({
     username: string;
     table: string;
     pmScheduleTable: string;
+    historyTable: string;
   };
   syncDays: number[];
   syncTimes: string[];

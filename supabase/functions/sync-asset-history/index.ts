@@ -111,7 +111,7 @@ async function runSync(
       pool = await connectMssql({ server, port, database, user, password: DB_PASSWORD, encrypt: true });
     }
 
-    const dateCols = ["ActionDate", "actionDate", "CreatedDate", "TransactionDate", "Date"];
+    
     // SELECT only the columns we map to keep payload tiny and CPU low
     const cols = "[OldCode],[RefNumber],[ActionDate],[Action],[Status],[Project]";
     const maxRows = Number.isFinite((opts as { maxRows?: number }).maxRows)

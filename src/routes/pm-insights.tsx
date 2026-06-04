@@ -171,6 +171,7 @@ function PmInsightsPage() {
           mediaTypes: applied!.mediaTypes,
           fromDate: applied!.fromDate,
           toDate: applied!.toDate,
+          assetCode: applied!.assetSearch || null,
         },
       }),
     enabled: applied !== null,

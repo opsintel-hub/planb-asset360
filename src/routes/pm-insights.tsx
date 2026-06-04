@@ -131,26 +131,80 @@ function MultiSelect({
   );
 }
 
+type AppliedFilters = {
+  departments: string[];
+  zones: string[];
+  projects: string[];
+  mediaTypes: string[];
+  fromDate: string;
+  toDate: string;
+  assetSearch: string;
+};
+
 function PmInsightsPage() {
   const fn = useServerFn(getPmInsights);
   const qc = useQueryClient();
   const today = new Date();
   const default90 = new Date(today.getTime() - 90 * 86400_000);
+
+  // Draft filter state (not applied until user clicks the button)
   const [departments, setDepartments] = useState<string[]>([]);
   const [zones, setZones] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
   const [fromDate, setFromDate] = useState(default90.toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(today.toISOString().slice(0, 10));
-  const [bucketFilter, setBucketFilter] = useState<string | null>(null);
-  const [assetSearch, setAssetSearch] = useState("");
+  const [assetSearchDraft, setAssetSearchDraft] = useState("");
 
-  const filters = { departments, zones, projects, mediaTypes, fromDate, toDate };
+  // Applied filter state — query only runs / page only renders when this is set
+  const [applied, setApplied] = useState<AppliedFilters | null>(null);
+  const [bucketFilter, setBucketFilter] = useState<string | null>(null);
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["pm-insights", filters],
-    queryFn: () => fn({ data: filters }),
+    queryKey: ["pm-insights", applied],
+    queryFn: () =>
+      fn({
+        data: {
+          departments: applied!.departments,
+          zones: applied!.zones,
+          projects: applied!.projects,
+          mediaTypes: applied!.mediaTypes,
+          fromDate: applied!.fromDate,
+          toDate: applied!.toDate,
+        },
+      }),
+    enabled: applied !== null,
     staleTime: 5 * 60_000,
   });
+
+  const filterOptions = data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
+
+  const handleApply = () => {
+    setBucketFilter(null);
+    setApplied({
+      departments,
+      zones,
+      projects,
+      mediaTypes,
+      fromDate,
+      toDate,
+      assetSearch: assetSearchDraft.trim(),
+    });
+  };
+
+  const handleReset = () => {
+    setDepartments([]);
+    setZones([]);
+    setProjects([]);
+    setMediaTypes([]);
+    setFromDate(default90.toISOString().slice(0, 10));
+    setToDate(today.toISOString().slice(0, 10));
+    setAssetSearchDraft("");
+    setBucketFilter(null);
+    setApplied(null);
+  };
+
+  const assetSearch = applied?.assetSearch ?? "";
 
   return (
     <div className="space-y-6">
@@ -167,7 +221,7 @@ function PmInsightsPage() {
           variant="outline"
           size="sm"
           onClick={() => qc.invalidateQueries({ queryKey: ["pm-insights"] })}
-          disabled={isFetching}
+          disabled={isFetching || applied === null}
         >
           <RefreshCw className={"size-4 " + (isFetching ? "animate-spin" : "")} />
           รีเฟรช
@@ -182,7 +236,7 @@ function PmInsightsPage() {
               <label className="text-xs text-muted-foreground">Project</label>
               <MultiSelect
                 label="Project"
-                options={data?.filters.projects ?? []}
+                options={filterOptions.projects}
                 value={projects}
                 onChange={setProjects}
               />
@@ -191,7 +245,7 @@ function PmInsightsPage() {
               <label className="text-xs text-muted-foreground">พื้นที่</label>
               <MultiSelect
                 label="พื้นที่"
-                options={data?.filters.zones ?? []}
+                options={filterOptions.zones}
                 value={zones}
                 onChange={setZones}
               />
@@ -200,7 +254,7 @@ function PmInsightsPage() {
               <label className="text-xs text-muted-foreground">Media Type</label>
               <MultiSelect
                 label="Media Type"
-                options={data?.filters.mediaTypes ?? []}
+                options={filterOptions.mediaTypes}
                 value={mediaTypes}
                 onChange={setMediaTypes}
               />
@@ -210,8 +264,8 @@ function PmInsightsPage() {
               <Input
                 list="pm-asset-codes"
                 placeholder="พิมพ์เพื่อค้นหา..."
-                value={assetSearch}
-                onChange={(e) => setAssetSearch(e.target.value)}
+                value={assetSearchDraft}
+                onChange={(e) => setAssetSearchDraft(e.target.value)}
               />
               <datalist id="pm-asset-codes">
                 {Array.from(
@@ -221,7 +275,7 @@ function PmInsightsPage() {
                   ]),
                 )
                   .filter((c) =>
-                    assetSearch ? c.toLowerCase().includes(assetSearch.toLowerCase()) : true,
+                    assetSearchDraft ? c.toLowerCase().includes(assetSearchDraft.toLowerCase()) : true,
                   )
                   .slice(0, 50)
                   .map((c) => (
@@ -238,10 +292,48 @@ function PmInsightsPage() {
               <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
             </div>
           </div>
+          <div className="flex items-center justify-between gap-3 mt-4 flex-wrap">
+            <p className="text-xs text-muted-foreground">
+              {applied === null
+                ? "ตั้งค่าตัวกรองให้ครบ แล้วกดปุ่ม “แสดงข้อมูล” เพื่อโหลดทุกกราฟและตารางพร้อมกัน"
+                : "ตัวกรองปัจจุบันถูกใช้กับทุกกราฟและตารางในหน้านี้ · ปรับค่าแล้วกด “อัปเดตข้อมูล” อีกครั้งเพื่อโหลดใหม่"}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleReset} disabled={isFetching}>
+                ล้างค่า
+              </Button>
+              <Button size="sm" onClick={handleApply} disabled={isFetching}>
+                {isFetching ? (
+                  <>
+                    <RefreshCw className="size-4 animate-spin" />
+                    กำลังโหลด...
+                  </>
+                ) : applied === null ? (
+                  "แสดงข้อมูล"
+                ) : (
+                  "อัปเดตข้อมูล"
+                )}
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {isLoading ? (
+      {applied === null ? (
+        <Card>
+          <CardContent className="py-16 text-center text-muted-foreground space-y-2">
+            <BarChart3 className="size-10 mx-auto opacity-40" />
+            <p className="text-sm">ยังไม่มีข้อมูลแสดง</p>
+            <p className="text-xs">
+              กรุณาตั้งค่าตัวกรองด้านบน แล้วกดปุ่ม “แสดงข้อมูล” เพื่อเริ่มต้น
+              <br />
+              <span className="opacity-70">
+                (ครั้งแรกตัวเลือก Project / พื้นที่ / Media Type อาจยังว่าง — กดแสดงข้อมูลครั้งแรกเพื่อโหลดตัวเลือก แล้วค่อยปรับและกดอีกครั้ง)
+              </span>
+            </p>
+          </CardContent>
+        </Card>
+      ) : isLoading ? (
         <div className="grid grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton key={i} className="h-24" />

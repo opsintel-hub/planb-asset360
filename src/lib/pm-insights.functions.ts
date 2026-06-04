@@ -7,6 +7,7 @@ const filtersSchema = z.object({
   departments: z.array(z.string()).optional().default([]),
   zones: z.array(z.string()).optional().default([]),
   projects: z.array(z.string()).optional().default([]),
+  mediaTypes: z.array(z.string()).optional().default([]),
   fromDate: z.string().optional().nullable(),
   toDate: z.string().optional().nullable(),
 });

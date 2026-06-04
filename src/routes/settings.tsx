@@ -100,6 +100,7 @@ function MainSettings() {
     username?: string;
     table?: string;
     pmScheduleTable?: string;
+    historyTable?: string;
   };
   const [legacyServer, legacyPort] = String(assetDb.host ?? "magicticket.magicsigncloud.com").split(":");
   const assetDbServer = assetDb.server ?? legacyServer;
@@ -108,6 +109,7 @@ function MainSettings() {
   const assetDbUser = assetDb.username ?? "planb_viewer";
   const assetDbTable = assetDb.table ?? "Asset";
   const assetDbPmTable = assetDb.pmScheduleTable ?? "Asset_PM_Schedule";
+  const assetDbHistoryTable = assetDb.historyTable ?? "AssetHistory";
   const assetSyncDays: number[] = Array.isArray(settings.asset_sync_days) ? settings.asset_sync_days : [];
   const assetSyncTimes: string[] = Array.isArray(settings.asset_sync_times) ? settings.asset_sync_times : ["04:00"];
 
@@ -160,6 +162,7 @@ function MainSettings() {
             username: assetDbUser,
             table: assetDbTable,
             pmScheduleTable: assetDbPmTable,
+            historyTable: assetDbHistoryTable,
           }}
           syncDays={assetSyncDays}
           syncTimes={assetSyncTimes}
@@ -433,6 +436,7 @@ function AssetDbForm({
     username: string;
     table: string;
     pmScheduleTable: string;
+    historyTable: string;
   };
   syncDays: number[];
   syncTimes: string[];
@@ -443,6 +447,7 @@ function AssetDbForm({
     username: string;
     table: string;
     pmScheduleTable: string;
+    historyTable: string;
   }) => void;
   onSaveDays: (days: number[]) => void;
   onSaveTimes: (times: string[]) => void;
@@ -455,6 +460,7 @@ function AssetDbForm({
   const [username, setUsername] = useState(defaults.username);
   const [table, setTable] = useState(defaults.table);
   const [pmScheduleTable, setPmScheduleTable] = useState(defaults.pmScheduleTable);
+  const [historyTable, setHistoryTable] = useState(defaults.historyTable);
   const [days, setDays] = useState<number[]>(syncDays);
   const [times, setTimes] = useState<string[]>(syncTimes);
 
@@ -502,6 +508,7 @@ function AssetDbForm({
         </div>
         <Field label="Table (Asset)" value={table} onChange={setTable} />
         <Field label="Table (PM Schedule)" value={pmScheduleTable} onChange={setPmScheduleTable} />
+        <Field label="Table (Asset History)" value={historyTable} onChange={setHistoryTable} />
       </div>
 
       <div className="space-y-2 rounded-lg border bg-background/50 p-3">
@@ -607,6 +614,7 @@ function AssetDbForm({
               username: username.trim(),
               table: table.trim(),
               pmScheduleTable: pmScheduleTable.trim(),
+              historyTable: historyTable.trim(),
             };
             onSave(payload);
           }}

@@ -285,12 +285,12 @@ Deno.serve(async (req: Request) => {
   const days = Number.isFinite(body.days) ? Math.max(1, Math.min(3650, Number(body.days))) : 90;
   const batchSize = Number.isFinite(body.batchSize)
     ? Math.max(100, Math.min(10000, Number(body.batchSize)))
-    : 5000;
+    : 10000;
   const reset = body.reset !== false; // default true for first call
   const batchIndex = Number.isFinite(body.batchIndex) ? Math.max(0, Number(body.batchIndex)) : 0;
   const maxBatches = Number.isFinite(body.maxBatches)
-    ? Math.max(1, Math.min(1000, Number(body.maxBatches)))
-    : 200; // safety cap: 200 batches × 5000 = 1M rows max
+    ? Math.max(1, Math.min(20000, Number(body.maxBatches)))
+    : 10000; // safety cap: 10000 batches × 10000 = 100M rows max
   const beforeDate = typeof body.beforeDate === "string" ? body.beforeDate : undefined;
 
   if (!DB_PASSWORD) {

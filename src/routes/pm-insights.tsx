@@ -78,15 +78,26 @@ function MultiSelect({
   onChange: (v: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const summary =
+    value.length === 0
+      ? "ทั้งหมด"
+      : value.length <= 3
+        ? value.join(", ")
+        : `${value.slice(0, 2).join(", ")} +${value.length - 2}`;
   return (
     <div className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        title={value.length ? value.join(", ") : "ทั้งหมด"}
         className="w-full inline-flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-sm hover:bg-accent"
       >
-        <span className="truncate">
-          {label}: {value.length === 0 ? "ทั้งหมด" : `${value.length} รายการ`}
+        <span className="truncate text-left">
+          <span className="text-muted-foreground">{label}:</span>{" "}
+          <span className="font-medium">{summary}</span>
+          {value.length > 0 && (
+            <span className="text-muted-foreground"> ({value.length})</span>
+          )}
         </span>
       </button>
       {open && (

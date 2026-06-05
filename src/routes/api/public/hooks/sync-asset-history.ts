@@ -31,6 +31,24 @@ export const Route = createFileRoute("/api/public/hooks/sync-asset-history")({
           | "daily_0530";
         const limit = Number((row?.value as { limit?: number } | null)?.limit ?? 25);
 
+        // Per-table on/off — if assetHistory is explicitly disabled, skip even when
+        // the schedule says to run.
+        const { data: toggleRow } = await supabaseAdmin
+          .from("app_settings")
+          .select("value")
+          .eq("key", "asset_sync_tables_enabled")
+          .maybeSingle();
+        const tablesEnabled = (toggleRow?.value ?? {}) as {
+          asset?: boolean; pmSchedule?: boolean; assetHistory?: boolean;
+        };
+        if (tablesEnabled.assetHistory === false) {
+          return new Response(
+            JSON.stringify({ skipped: true, reason: "assetHistory disabled in app_settings.asset_sync_tables_enabled" }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+
+
         // Bangkok hour (UTC+7)
         const nowBkk = new Date(Date.now() + 7 * 3600 * 1000);
         const hour = nowBkk.getUTCHours();

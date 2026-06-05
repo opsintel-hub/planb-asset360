@@ -363,7 +363,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     for (const h of filtered) {
       if (h.type !== "PM" || h.assetStatus !== "Pass") continue;
       const code = h.asset_old_code ?? "";
-      const dept = assetMap.get(code)?.department ?? "(ไม่ระบุ)";
+      const dept = (assetMap.get(code)?.department || "").trim() || "(ไม่มีสังกัดแผนก)";
       deptSet.add(dept);
       const date = h.updatedDate || h.createdDate;
       if (!date) continue;
@@ -375,7 +375,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     }
     for (const p of pairs) {
       const m = p.pmDate.slice(0, 7);
-      const dept = p.department || "(ไม่ระบุ)";
+      const dept = (p.department || "").trim() || "(ไม่มีสังกัดแผนก)";
       deptSet.add(dept);
       const key = `${m}|${dept}`;
       const v = scoreMap.get(key) ?? { sum: 0, n: 0, pm: 0, claim: 0 };
@@ -387,7 +387,13 @@ export const getPmInsights = createServerFn({ method: "POST" })
     }
     const scoreYear = new Date().getFullYear();
     const scoreRows: MonthRow[] = [];
+    // Determine which depts have any PM activity at all this year — drop the rest
+    const deptsWithPm = new Set<string>();
+    for (const [k, v] of scoreMap) {
+      if (v.pm > 0) deptsWithPm.add(k.split("|")[1]);
+    }
     for (const dept of Array.from(deptSet).sort()) {
+      if (!deptsWithPm.has(dept)) continue;
       for (let mi = 0; mi < 12; mi++) {
         const month = `${scoreYear}-${String(mi + 1).padStart(2, "0")}`;
         const v = scoreMap.get(`${month}|${dept}`);
@@ -498,5 +504,71 @@ export const getPmInsights = createServerFn({ method: "POST" })
         projects: Array.from(allProjects).sort(),
         mediaTypes: Array.from(allMediaTypes).sort(),
       },
+    };
+  });
+
+// Lightweight server fn — returns only filter dropdown options + asset codes.
+// Used so the filter UI populates quickly on mount, without waiting for
+// the heavy PM-pair / aging / score computation.
+export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    async function fetchAll<T>(
+      build: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+      pageSize = 1000,
+    ): Promise<T[]> {
+      const out: T[] = [];
+      for (let page = 0; page < 500; page++) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        const res = await build(from, to);
+        if (res.error) throw new Error(res.error.message);
+        const rows = (res.data as T[] | null) ?? [];
+        out.push(...rows);
+        if (rows.length < pageSize) break;
+      }
+      return out;
+    }
+
+    type AssetLite = { old_code: string; department: string | null; payload: Record<string, unknown> | null };
+    const assets = await fetchAll<AssetLite>((from, to) =>
+      supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
+    );
+    type HistLite = { project: string | null; payload: Record<string, unknown> | null };
+    const hist = await fetchAll<HistLite>((from, to) =>
+      supabaseAdmin
+        .from("mssql_asset_history")
+        .select("project, payload")
+        .in("payload->>Category", ["PM (Media)", "PM (non Media)", "Claim"])
+        .range(from, to),
+    );
+
+    const deps = new Set<string>();
+    const zones = new Set<string>();
+    const projects = new Set<string>();
+    const mediaTypes = new Set<string>();
+    const assetCodes = new Set<string>();
+    for (const a of assets) {
+      if (a.department) deps.add(a.department);
+      assetCodes.add(a.old_code);
+      const p = (a.payload ?? {}) as Record<string, unknown>;
+      const mt = p?.MediaType;
+      if (typeof mt === "string" && mt) mediaTypes.add(mt);
+    }
+    for (const h of hist) {
+      const p = (h.payload ?? {}) as Record<string, unknown>;
+      const proj = (typeof p?.Project === "string" && p.Project) || h.project || "";
+      if (proj) projects.add(proj);
+      const bkk = p?.BKKUPC;
+      if (typeof bkk === "string" && bkk) zones.add(bkk);
+      const mt = p?.MediaType;
+      if (typeof mt === "string" && mt) mediaTypes.add(mt);
+    }
+    return {
+      departments: Array.from(deps).sort(),
+      zones: Array.from(zones).sort(),
+      projects: Array.from(projects).sort(),
+      mediaTypes: Array.from(mediaTypes).sort(),
+      assetCodes: Array.from(assetCodes).sort(),
     };
   });

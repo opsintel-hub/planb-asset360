@@ -112,18 +112,34 @@ export const getPmInsights = createServerFn({ method: "POST" })
       action_date: string | null;
       status: string | null;
       project: string | null;
+      ref_number: string | null;
       payload: Record<string, unknown> | null;
     };
     const raw = await fetchAll<RawHist>((from, to) =>
       supabaseAdmin
         .from("mssql_asset_history")
-        .select("asset_old_code, action_date, status, project, payload")
+        .select("asset_old_code, action_date, status, project, ref_number, payload")
         .in("payload->>Category", ["PM (Media)", "PM (non Media)", "Claim"])
         .range(from, to),
     );
 
-    const allHist: Hist[] = [];
+    // Dedupe by ref_number — same ticket sometimes appears as multiple action rows
+    // (e.g. "Open" + "Close"), which would otherwise double-count pairs.
+    const dedupMap = new Map<string, RawHist>();
+    const unkeyed: RawHist[] = [];
     for (const r of raw) {
+      const key = (r.ref_number || "").trim();
+      if (!key) { unkeyed.push(r); continue; }
+      const prev = dedupMap.get(key);
+      if (!prev) { dedupMap.set(key, r); continue; }
+      const tNew = new Date(r.action_date ?? 0).getTime();
+      const tOld = new Date(prev.action_date ?? 0).getTime();
+      if (tNew >= tOld) dedupMap.set(key, r);
+    }
+    const dedupedRaw: RawHist[] = [...dedupMap.values(), ...unkeyed];
+
+    const allHist: Hist[] = [];
+    for (const r of dedupedRaw) {
       const p = asPayload(r.payload);
       const category = pickStr(p, "Category");
       const type: "PM" | "Claim" = category === "Claim" ? "Claim" : "PM";
@@ -145,7 +161,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
         solutionCategory: pickStr(p, "SolutionCategory"),
         solutionDetail: pickStr(p, "SolutionDetail"),
         totalTurnaroundTime: pickNum(p, "TotalTurnaroundTime"),
-        ticket_code: "",
+        ticket_code: r.ref_number || "",
       });
     }
 

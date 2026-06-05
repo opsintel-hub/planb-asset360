@@ -278,6 +278,45 @@ export const syncPmSchedulesNow = createServerFn({ method: "POST" })
     return { ok: true, rows: r.rows ?? 0 };
   });
 
+// ---------- MSSQL Explorer (list tables / preview rows / columns) ----------
+export const mssqlListTables = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    const { data: res, error } = await supabaseAdmin.functions.invoke("mssql-explore", {
+      body: { mode: "list" },
+    });
+    if (error) return { ok: false, error: error.message, tables: [] as Array<{ schema: string; table: string; row_count: number; column_count: number }> };
+    const r = res as { ok?: boolean; error?: string; tables?: Array<{ schema: string; table: string; row_count: number; column_count: number }> } | null;
+    if (!r?.ok) return { ok: false, error: r?.error ?? "no result", tables: [] };
+    return { ok: true, tables: r.tables ?? [] };
+  });
+
+export const mssqlPreviewTable = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z.object({
+      table: z.string().min(1).max(200).regex(/^[a-zA-Z0-9_.]+$/, "ใช้ตัวอักษร a-z 0-9 _ . เท่านั้น"),
+      limit: z.number().int().min(1).max(50).optional(),
+    }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { data: res, error } = await supabaseAdmin.functions.invoke("mssql-explore", {
+      body: { mode: "preview", table: data.table, limit: data.limit ?? 10 },
+    });
+    if (error) return { ok: false, error: error.message, columns: [], rows: [] };
+    const r = res as {
+      ok?: boolean; error?: string;
+      columns?: Array<{ name: string; type: string }>;
+      rows?: Array<Record<string, unknown>>;
+    } | null;
+    if (!r?.ok) return { ok: false, error: r?.error ?? "no result", columns: [], rows: [] };
+    return { ok: true, columns: r.columns ?? [], rows: r.rows ?? [] };
+  });
+
+
+
 
 
 // ---------- Diagram Mappings writes ----------

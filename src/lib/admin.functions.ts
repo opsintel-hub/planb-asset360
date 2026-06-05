@@ -250,20 +250,21 @@ export const syncAssetHistoryBatchNow = createServerFn({ method: "POST" })
   });
 
 // Invoke the dedicated MSSQL AssetHistory sync edge function.
+// `reset=true` does a full wipe + re-pull; otherwise it runs incremental from the saved cursor.
 export const syncMssqlAssetHistoryNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) =>
-    z.object({ days: z.number().int().min(1).max(3650).optional() }).parse(i ?? {}),
+    z.object({ reset: z.boolean().optional() }).parse(i ?? {}),
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.userId);
     const { data: res, error } = await supabaseAdmin.functions.invoke("sync-asset-history", {
-      body: { days: data.days ?? 90 },
+      body: { reset: data.reset === true },
     });
     if (error) return { ok: false, rows: 0, error: `sync-asset-history failed: ${error.message}` };
-    const r = res as { ok?: boolean; rows?: number; error?: string } | null;
-    if (!r?.ok) return { ok: false, rows: r?.rows ?? 0, error: r?.error ?? "no result" };
-    return { ok: true, rows: r.rows ?? 0 };
+    const r = res as { ok?: boolean; queued?: boolean; error?: string } | null;
+    if (!r?.ok) return { ok: false, rows: 0, error: r?.error ?? "no result" };
+    return { ok: true, rows: 0 };
   });
 
 // Invoke the dedicated MSSQL Asset_PM_Schedule sync edge function.

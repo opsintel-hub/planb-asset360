@@ -220,6 +220,7 @@ function PmInsightsPage() {
       zones,
       projects,
       mediaTypes,
+      pmCategory,
       fromDate,
       toDate,
       assetSearch: assetSearchDraft.trim(),

@@ -144,6 +144,7 @@ type AppliedFilters = {
 
 function PmInsightsPage() {
   const fn = useServerFn(getPmInsights);
+  const optsFn = useServerFn(getPmInsightsFilterOptions);
   const qc = useQueryClient();
   const today = new Date();
   const default90 = new Date(today.getTime() - 90 * 86400_000);
@@ -160,7 +161,8 @@ function PmInsightsPage() {
 
   // Applied filter state — query only runs / page only renders when this is set
   const [applied, setApplied] = useState<AppliedFilters | null>(null);
-  const [bucketFilter, setBucketFilter] = useState<string | null>(null);
+  // Multi-select aging buckets (empty = default ≤30 view, no table filter)
+  const [bucketSel, setBucketSel] = useState<string[]>([]);
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["pm-insights", applied],
@@ -181,33 +183,20 @@ function PmInsightsPage() {
     staleTime: 5 * 60_000,
   });
 
-  // Options query — auto-loads on mount so dropdowns are populated
-  // before the user clicks "แสดงข้อมูล"
+  // Lightweight options query — fast, fetched on mount so dropdowns are
+  // immediately responsive without waiting for the heavy insights computation.
   const { data: optionsData } = useQuery({
-    queryKey: ["pm-insights-options"],
-    queryFn: () =>
-      fn({
-        data: {
-          departments: [],
-          zones: [],
-          projects: [],
-          mediaTypes: [],
-          pmCategory: "all",
-          fromDate: null,
-          toDate: null,
-          assetCode: null,
-        },
-      }),
+    queryKey: ["pm-insights-filter-options"],
+    queryFn: () => optsFn(),
     staleTime: 10 * 60_000,
   });
 
   const filterOptions =
-    data?.filters ??
-    optionsData?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
+    optionsData ??
+    data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
   const assetCodeOptions = useMemo(() => {
+    if (optionsData?.assetCodes) return optionsData.assetCodes;
     const set = new Set<string>();
-    for (const r of optionsData?.frequency ?? []) set.add(r.assetCode);
-    for (const p of optionsData?.pairs ?? []) set.add(p.assetCode);
     for (const r of data?.frequency ?? []) set.add(r.assetCode);
     for (const p of data?.pairs ?? []) set.add(p.assetCode);
     return Array.from(set).sort();

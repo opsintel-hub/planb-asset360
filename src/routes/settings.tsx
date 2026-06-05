@@ -517,7 +517,7 @@ function AssetDbForm({
   onSaveTimes: (times: string[]) => void;
   onTest: () => void;
   testing: boolean;
-  onTestHistory: () => void;
+  onTestHistory: (reset: boolean) => void;
   testingHistory: boolean;
   onTestPm: () => void;
   testingPm: boolean;

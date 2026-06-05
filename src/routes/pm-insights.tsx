@@ -42,7 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getPmInsights } from "@/lib/pm-insights.functions";
+import { getPmInsights, getPmInsightsFilterOptions } from "@/lib/pm-insights.functions";
 import { BarChart3, Building2, Wrench, Monitor, PackageOpen, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/pm-insights")({

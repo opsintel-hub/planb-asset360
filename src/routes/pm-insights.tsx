@@ -388,21 +388,35 @@ function PmInsightsPage() {
         </div>
       ) : data ? (
         <>
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* KPI Cards — 4 boxes */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               icon={Building2}
               label="จำนวนป้ายทั้งหมด"
               value={data.kpi.assets}
               color="text-blue-500"
-              description="นับ distinct asset_old_code จากตาราง assets ทั้งหมด (ไม่ขึ้นกับ filter วันที่)"
+              description="นับ distinct asset_old_code จากตาราง assets (ไม่ขึ้นกับ filter วันที่)"
             />
             <KpiCard
               icon={Wrench}
-              label="จำนวนป้ายที่เปิดตั๋ว PM"
-              value={data.kpi.pmDone}
+              label="ป้ายที่เปิดตั๋ว PM ทั้งหมด"
+              value={data.kpi.pmAll}
               color="text-green-500"
-              description="นับ distinct asset_old_code ที่มี PM ticket (ทุกสถานะ) ภายในช่วงวันที่ filter — รวม PM ที่ยังไม่ Pass และ PM Pass ที่ยังไม่มี Claim ตามมา จึงมากกว่าจำนวนคู่ใน Aging chart"
+              description="นับ distinct asset_old_code ที่มี PM (Media) หรือ PM (non Media) ทุกสถานะในช่วง filter"
+            />
+            <KpiCard
+              icon={Monitor}
+              label="ป้ายที่เปิดตั๋ว PM (Media)"
+              value={data.kpi.pmMedia}
+              color="text-purple-500"
+              description="นับเฉพาะ payload.Category = 'PM (Media)'"
+            />
+            <KpiCard
+              icon={PackageOpen}
+              label="ป้ายที่เปิดตั๋ว PM (non Media)"
+              value={data.kpi.pmNonMedia}
+              color="text-orange-500"
+              description="นับเฉพาะ payload.Category = 'PM (non Media)'"
             />
           </div>
 

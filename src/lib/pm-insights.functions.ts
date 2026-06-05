@@ -9,6 +9,8 @@ const filtersSchema = z.object({
   zones: z.array(z.string()).optional().default([]),
   projects: z.array(z.string()).optional().default([]),
   mediaTypes: z.array(z.string()).optional().default([]),
+  // "" | "all" → ทั้ง PM (Media) + PM (non Media); "media" → PM (Media) เท่านั้น; "non-media" → PM (non Media) เท่านั้น
+  pmCategory: z.enum(["all", "media", "non-media"]).optional().default("all"),
   fromDate: z.string().optional().nullable(),
   toDate: z.string().optional().nullable(),
   assetCode: z.string().optional().nullable(),
@@ -31,12 +33,25 @@ function bucketOf(d: number): string {
   return ">90";
 }
 
+// Normalized internal record — fields are lowercase regardless of source casing.
 type Hist = {
   asset_old_code: string | null;
-  type: string;
-  payload: Record<string, unknown>;
-  created_at: string;
-  ticket_code: string | null;
+  category: string;       // "PM (Media)" | "PM (non Media)" | "Claim"
+  type: "PM" | "Claim";   // simplified bucket
+  createdDate: string;    // ISO
+  updatedDate: string;    // ISO or ""
+  project: string;
+  mediaType: string;
+  bkkUpc: string;
+  assetStatus: string;
+  status: string;
+  problemCategory: string;
+  problemDetail: string;
+  problemEquipment: string;
+  solutionCategory: string;
+  solutionDetail: string;
+  totalTurnaroundTime: number;
+  ticket_code: string;
 };
 
 type Asset = { old_code: string; department: string | null; payload?: Record<string, unknown> | null; mediaType?: string };
@@ -45,26 +60,32 @@ function asPayload(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 }
 
-function pickStr(p: Record<string, unknown>, k: string): string {
-  const v = p?.[k];
-  return typeof v === "string" ? v : "";
+function pickStr(p: Record<string, unknown>, ...keys: string[]): string {
+  for (const k of keys) {
+    const v = p?.[k];
+    if (typeof v === "string" && v) return v;
+  }
+  return "";
 }
-function pickNum(p: Record<string, unknown>, k: string): number {
-  const v = p?.[k];
-  return typeof v === "number" ? v : 0;
+function pickNum(p: Record<string, unknown>, ...keys: string[]): number {
+  for (const k of keys) {
+    const v = p?.[k];
+    if (typeof v === "number") return v;
+    if (typeof v === "string" && v && !Number.isNaN(Number(v))) return Number(v);
+  }
+  return 0;
 }
 
 export const getPmInsights = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => filtersSchema.parse(i ?? {}))
   .handler(async ({ data: f }) => {
-    // ---- Pull data (paginate; PostgREST default cap is 1000/req) ----
     async function fetchAll<T>(
       build: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
       pageSize = 1000,
     ): Promise<T[]> {
       const out: T[] = [];
-      for (let page = 0; page < 200; page++) {
+      for (let page = 0; page < 500; page++) {
         const from = page * pageSize;
         const to = from + pageSize - 1;
         const res = await build(from, to);
@@ -85,28 +106,46 @@ export const getPmInsights = createServerFn({ method: "POST" })
       assetMap.set(a.old_code, a);
     }
 
-    const hist = await fetchAll<Hist>((from, to) =>
+    // Pull only PM/Claim categories from mssql_asset_history (skip Monitoring/PM Schedule)
+    type RawHist = {
+      asset_old_code: string | null;
+      action_date: string | null;
+      status: string | null;
+      project: string | null;
+      payload: Record<string, unknown> | null;
+    };
+    const raw = await fetchAll<RawHist>((from, to) =>
       supabaseAdmin
-        .from("asset_history")
-        .select("asset_old_code, type, payload, created_at, ticket_code")
-        .in("type", ["PM", "Claim"])
+        .from("mssql_asset_history")
+        .select("asset_old_code, action_date, status, project, payload")
+        .in("payload->>Category", ["PM (Media)", "PM (non Media)", "Claim"])
         .range(from, to),
     );
 
-    const mapRes = await supabaseAdmin
-      .from("informed_mapping")
-      .select("informed, impact_level, informed_group, informed_detail");
-    if (mapRes.error) throw new Error(mapRes.error.message);
-    const mapByDetail = new Map<string, { impact: string; group: string | null }>();
-    const mapByInformed = new Map<string, { impact: string; group: string | null }>();
-    for (const m of mapRes.data ?? []) {
-      mapByDetail.set(m.informed_detail, {
-        impact: m.impact_level,
-        group: m.informed_group,
-      });
-      mapByInformed.set(m.informed, {
-        impact: m.impact_level,
-        group: m.informed_group,
+    const allHist: Hist[] = [];
+    for (const r of raw) {
+      const p = asPayload(r.payload);
+      const category = pickStr(p, "Category");
+      const type: "PM" | "Claim" = category === "Claim" ? "Claim" : "PM";
+      const createdRaw = pickStr(p, "CreatedDate") || r.action_date || "";
+      allHist.push({
+        asset_old_code: r.asset_old_code,
+        category,
+        type,
+        createdDate: createdRaw,
+        updatedDate: pickStr(p, "UpdatedDate"),
+        project: pickStr(p, "Project") || r.project || "",
+        mediaType: pickStr(p, "MediaType"),
+        bkkUpc: pickStr(p, "BKKUPC"),
+        assetStatus: pickStr(p, "AssetStatus"),
+        status: pickStr(p, "Status") || r.status || "",
+        problemCategory: pickStr(p, "ProblemCategory"),
+        problemDetail: pickStr(p, "ProblemDetail"),
+        problemEquipment: pickStr(p, "ProblemEquipment"),
+        solutionCategory: pickStr(p, "SolutionCategory"),
+        solutionDetail: pickStr(p, "SolutionDetail"),
+        totalTurnaroundTime: pickNum(p, "TotalTurnaroundTime"),
+        ticket_code: "",
       });
     }
 
@@ -116,41 +155,46 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const depSet = new Set(f.departments);
     const zoneSet = new Set(f.zones);
     const projSet = new Set(f.projects);
-    // Expand selected Projects → their mapped Departments (assets.department)
     const projDeptSet = departmentsForProjects(f.projects);
     const mtSet = new Set(f.mediaTypes);
     const assetCodeQ = (f.assetCode ?? "").trim().toLowerCase();
 
+    function matchPmCategory(h: Hist): boolean {
+      if (h.type !== "PM") return true; // Claim always passes the PM-category filter
+      if (f.pmCategory === "media") return h.category === "PM (Media)";
+      if (f.pmCategory === "non-media") return h.category === "PM (non Media)";
+      return true;
+    }
+
     function matchProject(h: Hist, asset: Asset | undefined): boolean {
       if (!projSet.size) return true;
-      // Match either history.payload.project OR asset.department (via mapping)
-      if (projSet.has(pickStr(h.payload, "project"))) return true;
+      if (projSet.has(h.project)) return true;
       if (asset?.department && projDeptSet.has(asset.department)) return true;
       return false;
     }
 
     function inScopeFilter(h: Hist): boolean {
-      // ไม่นับ date — ใช้สำหรับกราฟรายเดือน (โชว์ทั้งปี)
       const code = h.asset_old_code ?? "";
       const asset = assetMap.get(code);
       const dept = asset?.department ?? "";
       if (depSet.size && !depSet.has(dept)) return false;
-      if (zoneSet.size && !zoneSet.has(pickStr(h.payload, "bkkUpc"))) return false;
+      if (zoneSet.size && !zoneSet.has(h.bkkUpc)) return false;
       if (!matchProject(h, asset)) return false;
-      if (mtSet.size && !mtSet.has(asset?.mediaType ?? "")) return false;
+      // Prefer MediaType from history payload (more reliable per-ticket); fall back to asset
+      const mt = h.mediaType || asset?.mediaType || "";
+      if (mtSet.size && !mtSet.has(mt)) return false;
+      if (!matchPmCategory(h)) return false;
       if (assetCodeQ && code.toLowerCase() !== assetCodeQ) return false;
       return true;
     }
     function inFilter(h: Hist): boolean {
       if (!inScopeFilter(h)) return false;
-      const created = pickStr(h.payload, "createdDate") || h.created_at;
-      const ts = new Date(created).getTime();
+      const ts = new Date(h.createdDate).getTime();
       if (Number.isFinite(ts) && (ts < fromTs || ts > toTs)) return false;
       return true;
     }
 
-
-    // For filter dropdowns: collect distinct values from full dataset
+    // For filter dropdowns
     const allDepts = new Set<string>();
     const allZones = new Set<string>();
     const allProjects = new Set<string>();
@@ -159,32 +203,25 @@ export const getPmInsights = createServerFn({ method: "POST" })
       if (a.department) allDepts.add(a.department);
       if (a.mediaType) allMediaTypes.add(a.mediaType);
     }
-    for (const h of hist ?? []) {
-      const z = pickStr(asPayload(h.payload), "bkkUpc");
-      if (z) allZones.add(z);
-      const p = pickStr(asPayload(h.payload), "project");
-      if (p) allProjects.add(p);
+    for (const h of allHist) {
+      if (h.bkkUpc) allZones.add(h.bkkUpc);
+      if (h.project) allProjects.add(h.project);
+      if (h.mediaType) allMediaTypes.add(h.mediaType);
     }
 
-    const allHist: Hist[] = (hist ?? []).map((h) => ({
-      ...h,
-      payload: asPayload(h.payload),
-    }));
     const filtered: Hist[] = allHist.filter(inFilter);
 
-    // ---- KPIs ----
-    let downtime = 0;
-    let claimOpen = 0;
-    const pmAssetSet = new Set<string>();
+    // ---- KPIs (4 cards) ----
+    const pmAllAssets = new Set<string>();
+    const pmMediaAssets = new Set<string>();
+    const pmNonMediaAssets = new Set<string>();
     for (const h of filtered) {
-      if (h.type === "PM" && h.asset_old_code) pmAssetSet.add(h.asset_old_code);
-      if (h.type === "Claim") {
-        downtime += pickNum(h.payload, "totalTurnaroundTime");
-        const st = pickStr(h.payload, "status");
-        if (st !== "Finished" && pickStr(h.payload, "assetStatus") !== "Pass") claimOpen++;
-      }
+      if (h.type !== "PM" || !h.asset_old_code) continue;
+      pmAllAssets.add(h.asset_old_code);
+      if (h.category === "PM (Media)") pmMediaAssets.add(h.asset_old_code);
+      if (h.category === "PM (non Media)") pmNonMediaAssets.add(h.asset_old_code);
     }
-    // นับ assets ตาม filter (department/mediaType/assetCode) — ไม่ขึ้นกับวันที่
+    // Asset count uses the same scope filters (no date)
     let assetCount = 0;
     for (const a of assetMap.values()) {
       if (depSet.size && !depSet.has(a.department ?? "")) continue;
@@ -195,19 +232,18 @@ export const getPmInsights = createServerFn({ method: "POST" })
     }
     const kpi = {
       assets: assetCount,
-      pmDone: pmAssetSet.size,
-      claimOpen,
-      downtimeHours: Math.round(downtime / 60),
+      pmAll: pmAllAssets.size,
+      pmMedia: pmMediaAssets.size,
+      pmNonMedia: pmNonMediaAssets.size,
     };
 
-    // ---- Pair PM -> next Claim per asset ----
-    // Build full per-asset timeline (ignore filter) so next Claim can fall outside the date range.
+    // ---- Pair PM → next Claim per asset ----
     type HistN = Hist & { _ts: number; _inFilter: boolean };
     const byAsset = new Map<string, HistN[]>();
     for (const h of allHist) {
       const code = h.asset_old_code ?? "";
       if (!code) continue;
-      const ts = new Date(pickStr(h.payload, "createdDate") || h.created_at).getTime();
+      const ts = new Date(h.createdDate).getTime();
       if (!Number.isFinite(ts)) continue;
       const item: HistN = { ...h, _ts: ts, _inFilter: inFilter(h) };
       const list = byAsset.get(code) ?? [];
@@ -231,9 +267,6 @@ export const getPmInsights = createServerFn({ method: "POST" })
       problemEquipment: string;
       solutionCategory: string;
       solutionDetail: string;
-      impactLevel: string;
-      informedGroup: string | null;
-      downtimeMin: number;
     };
 
     const pairs: Pair[] = [];
@@ -242,60 +275,49 @@ export const getPmInsights = createServerFn({ method: "POST" })
       for (let i = 0; i < list.length; i++) {
         const h = list[i];
         if (h.type !== "PM") continue;
-        if (pickStr(h.payload, "assetStatus") !== "Pass") continue;
+        if (h.assetStatus !== "Pass") continue;
         if (!h._inFilter) continue;
-        const pmEnd = new Date(
-          pickStr(h.payload, "updatedDate") || pickStr(h.payload, "createdDate"),
-        ).getTime();
+        const pmEnd = new Date(h.updatedDate || h.createdDate).getTime();
         if (!Number.isFinite(pmEnd)) continue;
-        // find first claim after pmEnd
         for (let j = i + 1; j < list.length; j++) {
           const c = list[j];
           if (c.type !== "Claim") continue;
-          const cStart = new Date(pickStr(c.payload, "createdDate")).getTime();
+          const cStart = new Date(c.createdDate).getTime();
           if (!Number.isFinite(cStart) || cStart < pmEnd) continue;
           const days = Math.max(1, Math.round((cStart - pmEnd) / 86400_000));
-          const detail = pickStr(c.payload, "problemDetail");
-          const cat = pickStr(c.payload, "problemCategory");
-          const m = mapByDetail.get(detail) ?? mapByInformed.get(cat);
           pairs.push({
             assetCode: code,
             department: assetMap.get(code)?.department ?? "",
-            mediaType: assetMap.get(code)?.mediaType ?? "(ไม่ระบุ)",
-            zone: pickStr(h.payload, "bkkUpc") || pickStr(c.payload, "bkkUpc") || "",
-            project: pickStr(h.payload, "project") || pickStr(c.payload, "project") || "",
+            mediaType: h.mediaType || assetMap.get(code)?.mediaType || "(ไม่ระบุ)",
+            zone: h.bkkUpc || c.bkkUpc || "",
+            project: h.project || c.project || "",
             pmDate: new Date(pmEnd).toISOString().slice(0, 10),
             claimDate: new Date(cStart).toISOString().slice(0, 10),
-            pmTicket: h.ticket_code ?? pickStr(h.payload, "ticketCode") ?? "",
-            claimTicket: c.ticket_code ?? pickStr(c.payload, "ticketCode") ?? "",
+            pmTicket: h.ticket_code || "",
+            claimTicket: c.ticket_code || "",
             days,
-            problemCategory: cat || "(ไม่ระบุ)",
-            problemDetail: detail || "(ไม่ระบุ)",
-            problemEquipment: pickStr(c.payload, "problemEquipment") || "(ไม่ระบุ)",
-            solutionCategory: pickStr(c.payload, "solutionCategory") || "(ไม่ระบุ)",
-            solutionDetail: pickStr(c.payload, "solutionDetail") || "(ไม่ระบุ)",
-            impactLevel: m?.impact ?? "ไม่มีผลต่อการมองเห็น",
-            informedGroup: m?.group ?? null,
-            downtimeMin: pickNum(c.payload, "totalTurnaroundTime"),
+            problemCategory: c.problemCategory || "(ไม่ระบุ)",
+            problemDetail: c.problemDetail || "(ไม่ระบุ)",
+            problemEquipment: c.problemEquipment || "(ไม่ระบุ)",
+            solutionCategory: c.solutionCategory || "(ไม่ระบุ)",
+            solutionDetail: c.solutionDetail || "(ไม่ระบุ)",
           });
           break;
         }
       }
     }
 
-    // Monthly PM vs Claim (12 เดือนของปีปัจจุบัน — ไม่นับช่วงวันที่ filter เพื่อให้เห็นภาพรวมทั้งปี)
+    // Monthly PM vs Claim (current year, ignores date filter for full-year view)
     const year = new Date().getFullYear();
     const monthlyMap = new Map<number, { pm: number; claim: number }>();
     for (let m = 0; m < 12; m++) monthlyMap.set(m, { pm: 0, claim: 0 });
     for (const h of allHist) {
       if (!inScopeFilter(h)) continue;
-      const date = pickStr(h.payload, "createdDate") || h.created_at;
-
-      const d = new Date(date);
+      const d = new Date(h.createdDate);
       if (!Number.isFinite(d.getTime()) || d.getFullYear() !== year) continue;
       const row = monthlyMap.get(d.getMonth())!;
       if (h.type === "PM") row.pm++;
-      else if (h.type === "Claim") row.claim++;
+      else row.claim++;
     }
     const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const monthly = MONTH_LABELS.map((label, i) => ({
@@ -328,52 +350,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       solutionDetail: topN(earlyFails.map((p) => p.solutionDetail), 8),
     };
 
-    // Impact stacked bar (department × 3 impact levels, hours)
-    const impactByDept = new Map<string, Record<string, number>>();
-    for (const h of filtered) {
-      if (h.type !== "Claim") continue;
-      const code = h.asset_old_code ?? "";
-      const dept = assetMap.get(code)?.department ?? "(ไม่ระบุ)";
-      const detail = pickStr(h.payload, "problemDetail");
-      const cat = pickStr(h.payload, "problemCategory");
-      const m = mapByDetail.get(detail) ?? mapByInformed.get(cat);
-      const impact = m?.impact ?? "ไม่มีผลต่อการมองเห็น";
-      const hours = pickNum(h.payload, "totalTurnaroundTime") / 60;
-      const row = impactByDept.get(dept) ?? {};
-      row[impact] = (row[impact] ?? 0) + hours;
-      impactByDept.set(dept, row);
-    }
-    const impactStack = Array.from(impactByDept.entries())
-      .map(([department, levels]) => ({
-        department,
-        จอดับ: Math.round(levels["จอดับ/ไม่เห็นโฆษณา"] ?? 0),
-        ไม่สมบูรณ์: Math.round(levels["แสดงผลไม่สมบูรณ์"] ?? 0),
-        ไม่มีผล: Math.round(levels["ไม่มีผลต่อการมองเห็น"] ?? 0),
-        total:
-          Math.round(
-            (levels["จอดับ/ไม่เห็นโฆษณา"] ?? 0) +
-              (levels["แสดงผลไม่สมบูรณ์"] ?? 0) +
-              (levels["ไม่มีผลต่อการมองเห็น"] ?? 0),
-          ),
-      }))
-      .sort((a, b) => b.total - a.total);
-
-    // Top informed_group by downtime
-    const groupHours = new Map<string, number>();
-    for (const h of filtered) {
-      if (h.type !== "Claim") continue;
-      const detail = pickStr(h.payload, "problemDetail");
-      const cat = pickStr(h.payload, "problemCategory");
-      const m = mapByDetail.get(detail) ?? mapByInformed.get(cat);
-      const grp = m?.group ?? "(ไม่ระบุ)";
-      groupHours.set(grp, (groupHours.get(grp) ?? 0) + pickNum(h.payload, "totalTurnaroundTime") / 60);
-    }
-    const groupTop = Array.from(groupHours.entries())
-      .map(([name, hours]) => ({ name, hours: Math.round(hours) }))
-      .sort((a, b) => b.hours - a.hours)
-      .slice(0, 15);
-
-    // Monthly score (department × month) — fill all 12 months of current year
+    // Monthly score per department
     type MonthRow = {
       month: string;
       department: string;
@@ -384,11 +361,11 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const scoreMap = new Map<string, { sum: number; n: number; pm: number; claim: number }>();
     const deptSet = new Set<string>();
     for (const h of filtered) {
-      if (h.type !== "PM" || pickStr(h.payload, "assetStatus") !== "Pass") continue;
+      if (h.type !== "PM" || h.assetStatus !== "Pass") continue;
       const code = h.asset_old_code ?? "";
       const dept = assetMap.get(code)?.department ?? "(ไม่ระบุ)";
       deptSet.add(dept);
-      const date = pickStr(h.payload, "updatedDate") || pickStr(h.payload, "createdDate");
+      const date = h.updatedDate || h.createdDate;
       if (!date) continue;
       const m = date.slice(0, 7);
       const key = `${m}|${dept}`;
@@ -408,7 +385,6 @@ export const getPmInsights = createServerFn({ method: "POST" })
       v.claim++;
       scoreMap.set(key, v);
     }
-    // Expand to all 12 months × all known departments (เดือนไม่มี PM → score = null)
     const scoreYear = new Date().getFullYear();
     const scoreRows: MonthRow[] = [];
     for (const dept of Array.from(deptSet).sort()) {
@@ -432,8 +408,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       }
     }
 
-    // Frequency per asset (year/month PM count, avg gap, claims-per-gap-bucket)
-    // ใช้ inScopeFilter เพื่อให้ตรงกับ filter ด้านบน (ไม่นับวันที่)
+    // Frequency per asset
     const now = new Date();
     const yearStart = `${now.getFullYear()}-01-01`;
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
@@ -450,21 +425,19 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const freqMap = new Map<string, FreqRow>();
     for (const [code, list] of byAsset) {
       const asset = assetMap.get(code);
-      // skip assets ที่ไม่ตรง filter (department/zone/project/mediaType)
       const sampleH = list[0];
       if (sampleH && !inScopeFilter(sampleH)) continue;
       if (!sampleH) {
-        // ตรวจสอบจาก asset โดยตรง
         const dept = asset?.department ?? "";
         if (depSet.size && !depSet.has(dept)) continue;
         if (mtSet.size && !mtSet.has(asset?.mediaType ?? "")) continue;
       }
       const dept = asset?.department ?? "";
-      const zone = list.find((h) => pickStr(h.payload, "bkkUpc"))?.payload?.bkkUpc as string ?? "";
+      const zone = list.find((h) => h.bkkUpc)?.bkkUpc ?? "";
       const pms = list
-        .filter((h) => h.type === "PM" && pickStr(h.payload, "assetStatus") === "Pass")
+        .filter((h) => h.type === "PM" && h.assetStatus === "Pass")
         .map((h) => ({
-          date: pickStr(h.payload, "updatedDate") || pickStr(h.payload, "createdDate"),
+          date: h.updatedDate || h.createdDate,
           ts: h._ts,
         }))
         .filter((x) => x.date)
@@ -475,7 +448,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       freqMap.set(code, {
         assetCode: code,
         department: dept,
-        mediaType: asset?.mediaType ?? "(ไม่ระบุ)",
+        mediaType: list.find((h) => h.mediaType)?.mediaType || asset?.mediaType || "(ไม่ระบุ)",
         zone,
         pmYear: pms.filter((p) => p.date >= yearStart).length,
         pmMonth: pms.filter((p) => p.date >= monthStart).length,
@@ -488,7 +461,6 @@ export const getPmInsights = createServerFn({ method: "POST" })
       .sort((a, b) => b.pmYear - a.pmYear)
       .slice(0, 500);
 
-    // ---- Aggregations for FrequencyReport charts ----
     function aggBy(key: "mediaType" | "department" | "zone") {
       const m = new Map<string, { pm: number; claim: number; assets: number }>();
       for (const r of frequency) {
@@ -509,7 +481,6 @@ export const getPmInsights = createServerFn({ method: "POST" })
       byZone: aggBy("zone").slice(0, 15),
     };
 
-    // Sort pairs by days asc (most critical first)
     pairs.sort((a, b) => a.days - b.days);
 
     return {
@@ -517,8 +488,6 @@ export const getPmInsights = createServerFn({ method: "POST" })
       monthly,
       aging,
       donuts,
-      impactStack,
-      groupTop,
       scoreRows,
       frequency,
       freqAgg,

@@ -43,7 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getPmInsights } from "@/lib/pm-insights.functions";
-import { BarChart3, Building2, Wrench, Activity, Clock, RefreshCw } from "lucide-react";
+import { BarChart3, Building2, Wrench, Monitor, PackageOpen, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/pm-insights")({
   head: () => ({
@@ -136,6 +136,7 @@ type AppliedFilters = {
   zones: string[];
   projects: string[];
   mediaTypes: string[];
+  pmCategory: "all" | "media" | "non-media";
   fromDate: string;
   toDate: string;
   assetSearch: string;
@@ -152,6 +153,7 @@ function PmInsightsPage() {
   const [zones, setZones] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
+  const [pmCategory, setPmCategory] = useState<"all" | "media" | "non-media">("all");
   const [fromDate, setFromDate] = useState(default90.toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(today.toISOString().slice(0, 10));
   const [assetSearchDraft, setAssetSearchDraft] = useState("");
@@ -169,6 +171,7 @@ function PmInsightsPage() {
           zones: applied!.zones,
           projects: applied!.projects,
           mediaTypes: applied!.mediaTypes,
+          pmCategory: applied!.pmCategory,
           fromDate: applied!.fromDate,
           toDate: applied!.toDate,
           assetCode: applied!.assetSearch || null,
@@ -189,6 +192,7 @@ function PmInsightsPage() {
           zones: [],
           projects: [],
           mediaTypes: [],
+          pmCategory: "all",
           fromDate: null,
           toDate: null,
           assetCode: null,
@@ -216,6 +220,7 @@ function PmInsightsPage() {
       zones,
       projects,
       mediaTypes,
+      pmCategory,
       fromDate,
       toDate,
       assetSearch: assetSearchDraft.trim(),
@@ -227,6 +232,7 @@ function PmInsightsPage() {
     setZones([]);
     setProjects([]);
     setMediaTypes([]);
+    setPmCategory("all");
     setFromDate(default90.toISOString().slice(0, 10));
     setToDate(today.toISOString().slice(0, 10));
     setAssetSearchDraft("");
@@ -261,9 +267,27 @@ function PmInsightsPage() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground" title="กลุ่มสื่อจาก asset_history.payload.project (ครอบหลายแผนกย่อย เช่น Airport = Airport Media + Airport Static Media + Airport Digital Network)">
+              <label className="text-xs text-muted-foreground" title="กรองตาม payload.Category ของ mssql_asset_history">
+                ประเภท PM
+              </label>
+              <Select
+                value={pmCategory}
+                onValueChange={(v) => setPmCategory(v as "all" | "media" | "non-media")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">ทั้งหมด (Media + non Media)</SelectItem>
+                  <SelectItem value="media">PM (Media)</SelectItem>
+                  <SelectItem value="non-media">PM (non Media)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground" title="กลุ่มสื่อจาก mssql_asset_history.payload.Project">
                 กลุ่มสื่อ (Project)
               </label>
               <MultiSelect
@@ -274,7 +298,7 @@ function PmInsightsPage() {
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">พื้นที่</label>
+              <label className="text-xs text-muted-foreground">พื้นที่ (BKK/UPC)</label>
               <MultiSelect
                 label="พื้นที่"
                 options={filterOptions.zones}
@@ -364,21 +388,35 @@ function PmInsightsPage() {
         </div>
       ) : data ? (
         <>
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* KPI Cards — 4 boxes */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               icon={Building2}
               label="จำนวนป้ายทั้งหมด"
               value={data.kpi.assets}
               color="text-blue-500"
-              description="นับ distinct asset_old_code จากตาราง assets ทั้งหมด (ไม่ขึ้นกับ filter วันที่)"
+              description="นับ distinct asset_old_code จากตาราง assets (ไม่ขึ้นกับ filter วันที่)"
             />
             <KpiCard
               icon={Wrench}
-              label="จำนวนป้ายที่เปิดตั๋ว PM"
-              value={data.kpi.pmDone}
+              label="ป้ายที่เปิดตั๋ว PM ทั้งหมด"
+              value={data.kpi.pmAll}
               color="text-green-500"
-              description="นับ distinct asset_old_code ที่มี PM ticket (ทุกสถานะ) ภายในช่วงวันที่ filter — รวม PM ที่ยังไม่ Pass และ PM Pass ที่ยังไม่มี Claim ตามมา จึงมากกว่าจำนวนคู่ใน Aging chart"
+              description="นับ distinct asset_old_code ที่มี PM (Media) หรือ PM (non Media) ทุกสถานะในช่วง filter"
+            />
+            <KpiCard
+              icon={Monitor}
+              label="ป้ายที่เปิดตั๋ว PM (Media)"
+              value={data.kpi.pmMedia}
+              color="text-purple-500"
+              description="นับเฉพาะ payload.Category = 'PM (Media)'"
+            />
+            <KpiCard
+              icon={PackageOpen}
+              label="ป้ายที่เปิดตั๋ว PM (non Media)"
+              value={data.kpi.pmNonMedia}
+              color="text-orange-500"
+              description="นับเฉพาะ payload.Category = 'PM (non Media)'"
             />
           </div>
 
@@ -471,9 +509,9 @@ function MonthlyChart({ data }: { data: { month: string; pm: number; claim: numb
   return (
     <Card>
       <CardHeader>
-        <CardTitle>จำนวนตั๋ว PM และ Claim รายเดือน (ปี {year})</CardTitle>
+        <CardTitle>จำนวนตั๋ว PM และ Claim รายเดือน</CardTitle>
         <div className="text-sm text-muted-foreground mt-1 space-y-1">
-          <p>นับจาก <b>วันที่เปิดตั๋ว (createdDate)</b> ของแต่ละตั๋ว แล้วจัดกลุ่มตามเดือนของปี {year}</p>
+          <p>นับจาก <b>วันที่เปิดตั๋ว (CreatedDate)</b> ของแต่ละตั๋ว แล้วจัดกลุ่มตามเดือนของปี {year}</p>
           <ul className="list-disc pl-5 space-y-0.5">
             <li><b>แท่งเขียว (PM)</b> = จำนวนตั๋ว PM ทั้งหมดที่ถูกเปิดในเดือนนั้น (ทุกสถานะ ทั้ง Pass / Fail / In progress)</li>
             <li><b>แท่งแดง (Claim)</b> = จำนวนตั๋ว Claim ทั้งหมดที่ถูกเปิดในเดือนนั้น (ทุกสถานะ ทั้งปิดแล้วและยังค้าง)</li>
@@ -611,7 +649,7 @@ function AgingReport({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>รายงาน 1 · PM Effectiveness & Aging</CardTitle>
+        <CardTitle>PM Effectiveness & Aging</CardTitle>
         <p className="text-sm text-muted-foreground mt-1">
           จับคู่ PM (assetStatus = Pass) กับ Claim ครั้งถัดไปของป้ายเดียวกัน แล้วนับจำนวน "คู่" ตามช่วงวันที่ห่างกัน
           · รวม <span className="font-semibold text-foreground">{totalPairs}</span> คู่ ·
@@ -918,7 +956,7 @@ function ScoreReport({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>รายงาน 3 · PM Score รายเดือนต่อแผนก</CardTitle>
+        <CardTitle>PM Score รายเดือน</CardTitle>
         <div className="text-sm text-muted-foreground mt-2 space-y-1">
           <p><strong>นิยาม:</strong> วัดคุณภาพการ PM ของแต่ละแผนกต่อเดือน — คะแนนสูง = หลัง PM แล้วป้ายไม่เสีย หรือเสียช้า, คะแนนต่ำ = เสียเร็วหลัง PM</p>
           <p><strong>ขอบเขตข้อมูล:</strong> นับเฉพาะ PM ที่ <code>assetStatus = Pass</code> ในช่วง filter, จับคู่กับ Claim ตัวถัดไปของป้ายเดียวกัน (ไม่จำกัดวันที่ Claim)</p>
@@ -1036,7 +1074,7 @@ function FrequencyReport({
       <CardHeader>
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <CardTitle>รายงาน 4 · ความถี่การ PM รายป้าย</CardTitle>
+            <CardTitle>ความถี่ของการ PM</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
               ป้ายไหนทำ PM กี่ครั้งต่อปี/เดือน · ห่างกันเฉลี่ยกี่วัน (นับจาก PM ครั้งก่อนหน้า) · มี Claim ตามมาภายหลังกี่ครั้ง · กรองตาม filter ด้านบน
             </p>

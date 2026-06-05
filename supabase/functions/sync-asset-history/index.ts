@@ -226,11 +226,21 @@ async function runBatch(
 
     await pool!.close(); pool = null;
 
+    // When sync is done (no more chaining), refresh materialized views in background
+    if (!hasMore) {
+      // @ts-ignore EdgeRuntime
+      EdgeRuntime.waitUntil(
+        admin.rpc("refresh_pm_views").then(({ error }: { error: { message: string } | null }) => {
+          if (error) console.error("refresh_pm_views failed:", error.message);
+        }),
+      );
+    }
+
     const reason = !isFull ? "no more changes" : noProgress ? "STOPPED: cursor stuck" :
       batchIndex + 1 >= maxBatches ? "maxBatches reached" : "continuing";
     await setLog(
       "success",
-      `batch #${batchIndex} upserted ${upserted} rows (since=${sinceCursor}, next=${nextCursor}) — ${hasMore ? "chaining" : reason}`,
+      `batch #${batchIndex} upserted ${upserted} rows (since=${sinceCursor}, next=${nextCursor}) — ${hasMore ? "chaining" : reason + " · refreshing PM views"}`,
       upserted,
     );
 

@@ -9,7 +9,6 @@ const filtersSchema = z.object({
   zones: z.array(z.string()).optional().default([]),
   projects: z.array(z.string()).optional().default([]),
   mediaTypes: z.array(z.string()).optional().default([]),
-  // "" | "all" → ทั้ง PM (Media) + PM (non Media); "media" → PM (Media) เท่านั้น; "non-media" → PM (non Media) เท่านั้น
   pmCategory: z.enum(["all", "media", "non-media"]).optional().default("all"),
   fromDate: z.string().optional().nullable(),
   toDate: z.string().optional().nullable(),
@@ -33,139 +32,101 @@ function bucketOf(d: number): string {
   return ">90";
 }
 
-// Normalized internal record — fields are lowercase regardless of source casing.
-type Hist = {
-  asset_old_code: string | null;
-  category: string;       // "PM (Media)" | "PM (non Media)" | "Claim"
-  type: "PM" | "Claim";   // simplified bucket
-  createdDate: string;    // ISO
-  updatedDate: string;    // ISO or ""
-  project: string;
-  mediaType: string;
-  bkkUpc: string;
-  assetStatus: string;
-  status: string;
-  problemCategory: string;
-  problemDetail: string;
-  problemEquipment: string;
-  solutionCategory: string;
-  solutionDetail: string;
-  totalTurnaroundTime: number;
-  ticket_code: string;
+async function fetchAll<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+  pageSize = 1000,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let page = 0; page < 500; page++) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    const res = await build(from, to);
+    if (res.error) throw new Error(res.error.message);
+    const rows = (res.data as T[] | null) ?? [];
+    out.push(...rows);
+    if (rows.length < pageSize) break;
+  }
+  return out;
+}
+
+type HistRow = {
+  ref_number: string;
+  asset_old_code: string;
+  created_at: string | null;
+  updated_at: string | null;
+  event_ts: string | null;
+  category: string;
+  type: "PM" | "Claim";
+  project: string | null;
+  media_type: string | null;
+  bkk_upc: string | null;
+  asset_status: string | null;
+  status: string | null;
+  problem_category: string | null;
+  problem_detail: string | null;
+  problem_equipment: string | null;
+  solution_category: string | null;
+  solution_detail: string | null;
+  asset_department: string | null;
+  asset_media_type: string | null;
 };
 
-type Asset = { old_code: string; department: string | null; payload?: Record<string, unknown> | null; mediaType?: string };
+type PairRow = {
+  asset_old_code: string;
+  pm_ref: string;
+  pm_category: string;
+  pm_end_ts: string;
+  claim_ref: string | null;
+  claim_ts: string | null;
+  days: number | null;
+  media_type: string | null;
+  department: string | null;
+  zone: string | null;
+  project: string | null;
+  problem_category: string | null;
+  problem_detail: string | null;
+  problem_equipment: string | null;
+  solution_category: string | null;
+  solution_detail: string | null;
+};
 
-function asPayload(v: unknown): Record<string, unknown> {
-  return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
-}
-
-function pickStr(p: Record<string, unknown>, ...keys: string[]): string {
-  for (const k of keys) {
-    const v = p?.[k];
-    if (typeof v === "string" && v) return v;
-  }
-  return "";
-}
-function pickNum(p: Record<string, unknown>, ...keys: string[]): number {
-  for (const k of keys) {
-    const v = p?.[k];
-    if (typeof v === "number") return v;
-    if (typeof v === "string" && v && !Number.isNaN(Number(v))) return Number(v);
-  }
-  return 0;
-}
+type AssetLite = {
+  old_code: string;
+  department: string | null;
+  asset_media_type: string | null;
+};
 
 export const getPmInsights = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => filtersSchema.parse(i ?? {}))
   .handler(async ({ data: f }) => {
-    async function fetchAll<T>(
-      build: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
-      pageSize = 1000,
-    ): Promise<T[]> {
-      const out: T[] = [];
-      for (let page = 0; page < 500; page++) {
-        const from = page * pageSize;
-        const to = from + pageSize - 1;
-        const res = await build(from, to);
-        if (res.error) throw new Error(res.error.message);
-        const rows = (res.data as T[] | null) ?? [];
-        out.push(...rows);
-        if (rows.length < pageSize) break;
-      }
-      return out;
-    }
+    // Pull pre-aggregated MV rows (already deduped + joined with assets)
+    const [hist, pairsAll, assetsLite] = await Promise.all([
+      fetchAll<HistRow>((from, to) =>
+        (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_history").select("*").range(from, to),
+      ),
+      fetchAll<PairRow>((from, to) =>
+        (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_claim_pairs").select("*").range(from, to),
+      ),
+      fetchAll<{ old_code: string; department: string | null; payload: Record<string, unknown> | null }>(
+        (from, to) => supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
+      ).then((rows) =>
+        rows.map<AssetLite>((r) => ({
+          old_code: r.old_code,
+          department: r.department,
+          asset_media_type:
+            r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
+              ? typeof (r.payload as Record<string, unknown>).MediaType === "string"
+                ? ((r.payload as Record<string, unknown>).MediaType as string)
+                : null
+              : null,
+        })),
+      ),
+    ]);
 
-    const assetsAll = await fetchAll<Asset>((from, to) =>
-      supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
-    );
-    const assetMap = new Map<string, Asset>();
-    for (const a of assetsAll) {
-      a.mediaType = pickStr(asPayload(a.payload), "MediaType");
-      assetMap.set(a.old_code, a);
-    }
+    const assetMap = new Map<string, AssetLite>();
+    for (const a of assetsLite) assetMap.set(a.old_code, a);
 
-    // Pull only PM/Claim categories from mssql_asset_history (skip Monitoring/PM Schedule)
-    type RawHist = {
-      asset_old_code: string | null;
-      action_date: string | null;
-      status: string | null;
-      project: string | null;
-      ref_number: string | null;
-      payload: Record<string, unknown> | null;
-    };
-    const raw = await fetchAll<RawHist>((from, to) =>
-      supabaseAdmin
-        .from("mssql_asset_history")
-        .select("asset_old_code, action_date, status, project, ref_number, payload")
-        .in("payload->>Category", ["PM (Media)", "PM (non Media)", "Claim"])
-        .range(from, to),
-    );
-
-    // Dedupe by ref_number — same ticket sometimes appears as multiple action rows
-    // (e.g. "Open" + "Close"), which would otherwise double-count pairs.
-    const dedupMap = new Map<string, RawHist>();
-    const unkeyed: RawHist[] = [];
-    for (const r of raw) {
-      const key = (r.ref_number || "").trim();
-      if (!key) { unkeyed.push(r); continue; }
-      const prev = dedupMap.get(key);
-      if (!prev) { dedupMap.set(key, r); continue; }
-      const tNew = new Date(r.action_date ?? 0).getTime();
-      const tOld = new Date(prev.action_date ?? 0).getTime();
-      if (tNew >= tOld) dedupMap.set(key, r);
-    }
-    const dedupedRaw: RawHist[] = [...dedupMap.values(), ...unkeyed];
-
-    const allHist: Hist[] = [];
-    for (const r of dedupedRaw) {
-      const p = asPayload(r.payload);
-      const category = pickStr(p, "Category");
-      const type: "PM" | "Claim" = category === "Claim" ? "Claim" : "PM";
-      const createdRaw = pickStr(p, "CreatedDate") || r.action_date || "";
-      allHist.push({
-        asset_old_code: r.asset_old_code,
-        category,
-        type,
-        createdDate: createdRaw,
-        updatedDate: pickStr(p, "UpdatedDate"),
-        project: pickStr(p, "Project") || r.project || "",
-        mediaType: pickStr(p, "MediaType"),
-        bkkUpc: pickStr(p, "BKKUPC"),
-        assetStatus: pickStr(p, "AssetStatus"),
-        status: pickStr(p, "Status") || r.status || "",
-        problemCategory: pickStr(p, "ProblemCategory"),
-        problemDetail: pickStr(p, "ProblemDetail"),
-        problemEquipment: pickStr(p, "ProblemEquipment"),
-        solutionCategory: pickStr(p, "SolutionCategory"),
-        solutionDetail: pickStr(p, "SolutionDetail"),
-        totalTurnaroundTime: pickNum(p, "TotalTurnaroundTime"),
-        ticket_code: r.ref_number || "",
-      });
-    }
-
-    // ---- Filter helpers ----
     const fromTs = f.fromDate ? new Date(f.fromDate).getTime() : -Infinity;
     const toTs = f.toDate ? new Date(f.toDate).getTime() + 86400_000 : Infinity;
     const depSet = new Set(f.departments);
@@ -175,74 +136,84 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const mtSet = new Set(f.mediaTypes);
     const assetCodeQ = (f.assetCode ?? "").trim().toLowerCase();
 
-    function matchPmCategory(h: Hist): boolean {
-      if (h.type !== "PM") return true; // Claim always passes the PM-category filter
-      if (f.pmCategory === "media") return h.category === "PM (Media)";
-      if (f.pmCategory === "non-media") return h.category === "PM (non Media)";
+    function matchPmCategory(category: string, type: "PM" | "Claim"): boolean {
+      if (type !== "PM") return true;
+      if (f.pmCategory === "media") return category === "PM (Media)";
+      if (f.pmCategory === "non-media") return category === "PM (non Media)";
       return true;
     }
-
-    function matchProject(h: Hist, asset: Asset | undefined): boolean {
+    function matchProject(project: string, dept: string): boolean {
       if (!projSet.size) return true;
-      if (projSet.has(h.project)) return true;
-      if (asset?.department && projDeptSet.has(asset.department)) return true;
+      if (projSet.has(project)) return true;
+      if (dept && projDeptSet.has(dept)) return true;
       return false;
     }
-
-    function inScopeFilter(h: Hist): boolean {
-      const code = h.asset_old_code ?? "";
-      const asset = assetMap.get(code);
-      const dept = asset?.department ?? "";
+    function inScopeHist(h: HistRow): boolean {
+      const dept = h.asset_department ?? "";
       if (depSet.size && !depSet.has(dept)) return false;
-      if (zoneSet.size && !zoneSet.has(h.bkkUpc)) return false;
-      if (!matchProject(h, asset)) return false;
-      // Prefer MediaType from history payload (more reliable per-ticket); fall back to asset
-      const mt = h.mediaType || asset?.mediaType || "";
+      if (zoneSet.size && !zoneSet.has(h.bkk_upc ?? "")) return false;
+      if (!matchProject(h.project ?? "", dept)) return false;
+      const mt = h.media_type || h.asset_media_type || "";
       if (mtSet.size && !mtSet.has(mt)) return false;
-      if (!matchPmCategory(h)) return false;
-      if (assetCodeQ && code.toLowerCase() !== assetCodeQ) return false;
+      if (!matchPmCategory(h.category, h.type)) return false;
+      if (assetCodeQ && (h.asset_old_code ?? "").toLowerCase() !== assetCodeQ) return false;
       return true;
     }
-    function inFilter(h: Hist): boolean {
-      if (!inScopeFilter(h)) return false;
-      const ts = new Date(h.createdDate).getTime();
+    function inFilterHist(h: HistRow): boolean {
+      if (!inScopeHist(h)) return false;
+      const ts = new Date(h.created_at ?? h.event_ts ?? 0).getTime();
+      if (Number.isFinite(ts) && (ts < fromTs || ts > toTs)) return false;
+      return true;
+    }
+    function inScopePair(p: PairRow): boolean {
+      const dept = p.department ?? "";
+      if (depSet.size && !depSet.has(dept)) return false;
+      if (zoneSet.size && !zoneSet.has(p.zone ?? "")) return false;
+      if (!matchProject(p.project ?? "", dept)) return false;
+      if (mtSet.size && !mtSet.has(p.media_type ?? "")) return false;
+      if (!matchPmCategory(p.pm_category, "PM")) return false;
+      if (assetCodeQ && (p.asset_old_code ?? "").toLowerCase() !== assetCodeQ) return false;
+      return true;
+    }
+    function inFilterPair(p: PairRow): boolean {
+      if (!inScopePair(p)) return false;
+      const ts = new Date(p.pm_end_ts).getTime();
       if (Number.isFinite(ts) && (ts < fromTs || ts > toTs)) return false;
       return true;
     }
 
-    // For filter dropdowns
+    // ---- Filter dropdown options ----
     const allDepts = new Set<string>();
     const allZones = new Set<string>();
     const allProjects = new Set<string>();
     const allMediaTypes = new Set<string>();
     for (const a of assetMap.values()) {
       if (a.department) allDepts.add(a.department);
-      if (a.mediaType) allMediaTypes.add(a.mediaType);
+      if (a.asset_media_type) allMediaTypes.add(a.asset_media_type);
     }
-    for (const h of allHist) {
-      if (h.bkkUpc) allZones.add(h.bkkUpc);
+    for (const h of hist) {
+      if (h.bkk_upc) allZones.add(h.bkk_upc);
       if (h.project) allProjects.add(h.project);
-      if (h.mediaType) allMediaTypes.add(h.mediaType);
+      if (h.media_type) allMediaTypes.add(h.media_type);
     }
 
-    const filtered: Hist[] = allHist.filter(inFilter);
+    const filteredHist = hist.filter(inFilterHist);
 
-    // ---- KPIs (4 cards) ----
+    // ---- KPIs ----
     const pmAllAssets = new Set<string>();
     const pmMediaAssets = new Set<string>();
     const pmNonMediaAssets = new Set<string>();
-    for (const h of filtered) {
+    for (const h of filteredHist) {
       if (h.type !== "PM" || !h.asset_old_code) continue;
       pmAllAssets.add(h.asset_old_code);
       if (h.category === "PM (Media)") pmMediaAssets.add(h.asset_old_code);
       if (h.category === "PM (non Media)") pmNonMediaAssets.add(h.asset_old_code);
     }
-    // Asset count uses the same scope filters (no date)
     let assetCount = 0;
     for (const a of assetMap.values()) {
       if (depSet.size && !depSet.has(a.department ?? "")) continue;
       if (projSet.size && !(a.department && projDeptSet.has(a.department))) continue;
-      if (mtSet.size && !mtSet.has(a.mediaType ?? "")) continue;
+      if (mtSet.size && !mtSet.has(a.asset_media_type ?? "")) continue;
       if (assetCodeQ && a.old_code.toLowerCase() !== assetCodeQ) continue;
       assetCount++;
     }
@@ -253,20 +224,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       pmNonMedia: pmNonMediaAssets.size,
     };
 
-    // ---- Pair PM → next Claim per asset ----
-    type HistN = Hist & { _ts: number; _inFilter: boolean };
-    const byAsset = new Map<string, HistN[]>();
-    for (const h of allHist) {
-      const code = h.asset_old_code ?? "";
-      if (!code) continue;
-      const ts = new Date(h.createdDate).getTime();
-      if (!Number.isFinite(ts)) continue;
-      const item: HistN = { ...h, _ts: ts, _inFilter: inFilter(h) };
-      const list = byAsset.get(code) ?? [];
-      list.push(item);
-      byAsset.set(code, list);
-    }
-
+    // ---- Pairs (from MV) ----
     type Pair = {
       assetCode: string;
       department: string;
@@ -284,52 +242,36 @@ export const getPmInsights = createServerFn({ method: "POST" })
       solutionCategory: string;
       solutionDetail: string;
     };
-
     const pairs: Pair[] = [];
-    for (const [code, list] of byAsset) {
-      list.sort((a, b) => a._ts - b._ts);
-      for (let i = 0; i < list.length; i++) {
-        const h = list[i];
-        if (h.type !== "PM") continue;
-        if (h.assetStatus !== "Pass") continue;
-        if (!h._inFilter) continue;
-        const pmEnd = new Date(h.updatedDate || h.createdDate).getTime();
-        if (!Number.isFinite(pmEnd)) continue;
-        for (let j = i + 1; j < list.length; j++) {
-          const c = list[j];
-          if (c.type !== "Claim") continue;
-          const cStart = new Date(c.createdDate).getTime();
-          if (!Number.isFinite(cStart) || cStart < pmEnd) continue;
-          const days = Math.max(1, Math.round((cStart - pmEnd) / 86400_000));
-          pairs.push({
-            assetCode: code,
-            department: assetMap.get(code)?.department ?? "",
-            mediaType: h.mediaType || assetMap.get(code)?.mediaType || "(ไม่ระบุ)",
-            zone: h.bkkUpc || c.bkkUpc || "",
-            project: h.project || c.project || "",
-            pmDate: new Date(pmEnd).toISOString().slice(0, 10),
-            claimDate: new Date(cStart).toISOString().slice(0, 10),
-            pmTicket: h.ticket_code || "",
-            claimTicket: c.ticket_code || "",
-            days,
-            problemCategory: c.problemCategory || "(ไม่ระบุ)",
-            problemDetail: c.problemDetail || "(ไม่ระบุ)",
-            problemEquipment: c.problemEquipment || "(ไม่ระบุ)",
-            solutionCategory: c.solutionCategory || "(ไม่ระบุ)",
-            solutionDetail: c.solutionDetail || "(ไม่ระบุ)",
-          });
-          break;
-        }
-      }
+    for (const p of pairsAll) {
+      if (p.days == null || !p.claim_ts) continue;
+      if (!inFilterPair(p)) continue;
+      pairs.push({
+        assetCode: p.asset_old_code,
+        department: p.department ?? "",
+        mediaType: p.media_type || "(ไม่ระบุ)",
+        zone: p.zone ?? "",
+        project: p.project ?? "",
+        pmDate: p.pm_end_ts.slice(0, 10),
+        claimDate: p.claim_ts.slice(0, 10),
+        pmTicket: p.pm_ref,
+        claimTicket: p.claim_ref ?? "",
+        days: p.days,
+        problemCategory: p.problem_category || "(ไม่ระบุ)",
+        problemDetail: p.problem_detail || "(ไม่ระบุ)",
+        problemEquipment: p.problem_equipment || "(ไม่ระบุ)",
+        solutionCategory: p.solution_category || "(ไม่ระบุ)",
+        solutionDetail: p.solution_detail || "(ไม่ระบุ)",
+      });
     }
 
-    // Monthly PM vs Claim (current year, ignores date filter for full-year view)
+    // ---- Monthly PM vs Claim (current year, ignores date filter) ----
     const year = new Date().getFullYear();
     const monthlyMap = new Map<number, { pm: number; claim: number }>();
     for (let m = 0; m < 12; m++) monthlyMap.set(m, { pm: 0, claim: 0 });
-    for (const h of allHist) {
-      if (!inScopeFilter(h)) continue;
-      const d = new Date(h.createdDate);
+    for (const h of hist) {
+      if (!inScopeHist(h)) continue;
+      const d = new Date(h.created_at ?? h.event_ts ?? 0);
       if (!Number.isFinite(d.getTime()) || d.getFullYear() !== year) continue;
       const row = monthlyMap.get(d.getMonth())!;
       if (h.type === "PM") row.pm++;
@@ -342,13 +284,13 @@ export const getPmInsights = createServerFn({ method: "POST" })
       claim: monthlyMap.get(i)!.claim,
     }));
 
-    // Aging histogram
+    // ---- Aging ----
     const agingMap = new Map<string, number>();
     for (const b of BUCKETS) agingMap.set(b.key, 0);
     for (const p of pairs) agingMap.set(bucketOf(p.days), (agingMap.get(bucketOf(p.days)) ?? 0) + 1);
     const aging = BUCKETS.map((b) => ({ bucket: b.key, count: agingMap.get(b.key) ?? 0 }));
 
-    // Top defect donuts (pairs <= 30 days)
+    // ---- Top defect donuts (pairs <= 30 days) ----
     function topN(arr: string[], n: number) {
       const m = new Map<string, number>();
       for (const v of arr) m.set(v, (m.get(v) ?? 0) + 1);
@@ -366,7 +308,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       solutionDetail: topN(earlyFails.map((p) => p.solutionDetail), 8),
     };
 
-    // Monthly score per department
+    // ---- Monthly score per department ----
     type MonthRow = {
       month: string;
       department: string;
@@ -376,12 +318,11 @@ export const getPmInsights = createServerFn({ method: "POST" })
     };
     const scoreMap = new Map<string, { sum: number; n: number; pm: number; claim: number }>();
     const deptSet = new Set<string>();
-    for (const h of filtered) {
-      if (h.type !== "PM" || h.assetStatus !== "Pass") continue;
-      const code = h.asset_old_code ?? "";
-      const dept = (assetMap.get(code)?.department || "").trim() || "(ไม่มีสังกัดแผนก)";
+    for (const h of filteredHist) {
+      if (h.type !== "PM" || h.asset_status !== "Pass") continue;
+      const dept = (h.asset_department || "").trim() || "(ไม่มีสังกัดแผนก)";
       deptSet.add(dept);
-      const date = h.updatedDate || h.createdDate;
+      const date = h.updated_at || h.created_at;
       if (!date) continue;
       const m = date.slice(0, 7);
       const key = `${m}|${dept}`;
@@ -403,7 +344,6 @@ export const getPmInsights = createServerFn({ method: "POST" })
     }
     const scoreYear = new Date().getFullYear();
     const scoreRows: MonthRow[] = [];
-    // Determine which depts have any PM activity at all this year — drop the rest
     const deptsWithPm = new Set<string>();
     for (const [k, v] of scoreMap) {
       if (v.pm > 0) deptsWithPm.add(k.split("|")[1]);
@@ -430,7 +370,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       }
     }
 
-    // Frequency per asset
+    // ---- Frequency per asset ----
     const now = new Date();
     const yearStart = `${now.getFullYear()}-01-01`;
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
@@ -444,33 +384,38 @@ export const getPmInsights = createServerFn({ method: "POST" })
       avgGapDays: number | null;
       claimsAfterPM: number;
     };
-    const freqMap = new Map<string, FreqRow>();
+
+    const byAsset = new Map<string, HistRow[]>();
+    for (const h of hist) {
+      if (!h.asset_old_code) continue;
+      if (!inScopeHist(h)) continue;
+      const list = byAsset.get(h.asset_old_code) ?? [];
+      list.push(h);
+      byAsset.set(h.asset_old_code, list);
+    }
+    const claimsPerAsset = new Map<string, number>();
+    for (const p of pairs) claimsPerAsset.set(p.assetCode, (claimsPerAsset.get(p.assetCode) ?? 0) + 1);
+
+    const frequency: FreqRow[] = [];
     for (const [code, list] of byAsset) {
       const asset = assetMap.get(code);
-      const sampleH = list[0];
-      if (sampleH && !inScopeFilter(sampleH)) continue;
-      if (!sampleH) {
-        const dept = asset?.department ?? "";
-        if (depSet.size && !depSet.has(dept)) continue;
-        if (mtSet.size && !mtSet.has(asset?.mediaType ?? "")) continue;
-      }
       const dept = asset?.department ?? "";
-      const zone = list.find((h) => h.bkkUpc)?.bkkUpc ?? "";
+      const zone = list.find((h) => h.bkk_upc)?.bkk_upc ?? "";
       const pms = list
-        .filter((h) => h.type === "PM" && h.assetStatus === "Pass")
-        .map((h) => ({
-          date: h.updatedDate || h.createdDate,
-          ts: h._ts,
-        }))
-        .filter((x) => x.date)
+        .filter((h) => h.type === "PM" && h.asset_status === "Pass")
+        .map((h) => {
+          const date = h.updated_at || h.created_at || "";
+          return { date, ts: new Date(date).getTime() };
+        })
+        .filter((x) => x.date && Number.isFinite(x.ts))
         .sort((a, b) => a.ts - b.ts);
       const gaps: number[] = [];
       for (let i = 1; i < pms.length; i++) gaps.push((pms[i].ts - pms[i - 1].ts) / 86400_000);
-      const claimsAfter = pairs.filter((p) => p.assetCode === code).length;
-      freqMap.set(code, {
+      const claimsAfter = claimsPerAsset.get(code) ?? 0;
+      frequency.push({
         assetCode: code,
         department: dept,
-        mediaType: list.find((h) => h.mediaType)?.mediaType || asset?.mediaType || "(ไม่ระบุ)",
+        mediaType: list.find((h) => h.media_type)?.media_type || asset?.asset_media_type || "(ไม่ระบุ)",
         zone,
         pmYear: pms.filter((p) => p.date >= yearStart).length,
         pmMonth: pms.filter((p) => p.date >= monthStart).length,
@@ -478,14 +423,14 @@ export const getPmInsights = createServerFn({ method: "POST" })
         claimsAfterPM: claimsAfter,
       });
     }
-    const frequency = Array.from(freqMap.values())
+    const frequencyTop = frequency
       .filter((r) => r.pmYear > 0 || r.claimsAfterPM > 0)
       .sort((a, b) => b.pmYear - a.pmYear)
       .slice(0, 500);
 
     function aggBy(key: "mediaType" | "department" | "zone") {
       const m = new Map<string, { pm: number; claim: number; assets: number }>();
-      for (const r of frequency) {
+      for (const r of frequencyTop) {
         const k = (r[key] || "(ไม่ระบุ)") as string;
         const v = m.get(k) ?? { pm: 0, claim: 0, assets: 0 };
         v.pm += r.pmYear;
@@ -511,7 +456,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       aging,
       donuts,
       scoreRows,
-      frequency,
+      frequency: frequencyTop,
       freqAgg,
       pairs: pairs.slice(0, 2000),
       filters: {
@@ -523,40 +468,17 @@ export const getPmInsights = createServerFn({ method: "POST" })
     };
   });
 
-// Lightweight server fn — returns only filter dropdown options + asset codes.
-// Used so the filter UI populates quickly on mount, without waiting for
-// the heavy PM-pair / aging / score computation.
+// Lightweight server fn — returns only filter dropdown options.
 export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
-    async function fetchAll<T>(
-      build: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
-      pageSize = 1000,
-    ): Promise<T[]> {
-      const out: T[] = [];
-      for (let page = 0; page < 500; page++) {
-        const from = page * pageSize;
-        const to = from + pageSize - 1;
-        const res = await build(from, to);
-        if (res.error) throw new Error(res.error.message);
-        const rows = (res.data as T[] | null) ?? [];
-        out.push(...rows);
-        if (rows.length < pageSize) break;
-      }
-      return out;
-    }
-
-    type AssetLite = { old_code: string; department: string | null; payload: Record<string, unknown> | null };
-    const assets = await fetchAll<AssetLite>((from, to) =>
+    type AssetLiteP = { old_code: string; department: string | null; payload: Record<string, unknown> | null };
+    const assets = await fetchAll<AssetLiteP>((from, to) =>
       supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
     );
-    type HistLite = { project: string | null; payload: Record<string, unknown> | null };
+    type HistLite = { project: string | null; bkk_upc: string | null; media_type: string | null };
     const hist = await fetchAll<HistLite>((from, to) =>
-      supabaseAdmin
-        .from("mssql_asset_history")
-        .select("project, payload")
-        .in("payload->>Category", ["PM (Media)", "PM (non Media)", "Claim"])
-        .range(from, to),
+      (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_history").select("project, bkk_upc, media_type").range(from, to),
     );
 
     const deps = new Set<string>();
@@ -572,13 +494,9 @@ export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
       if (typeof mt === "string" && mt) mediaTypes.add(mt);
     }
     for (const h of hist) {
-      const p = (h.payload ?? {}) as Record<string, unknown>;
-      const proj = (typeof p?.Project === "string" && p.Project) || h.project || "";
-      if (proj) projects.add(proj);
-      const bkk = p?.BKKUPC;
-      if (typeof bkk === "string" && bkk) zones.add(bkk);
-      const mt = p?.MediaType;
-      if (typeof mt === "string" && mt) mediaTypes.add(mt);
+      if (h.project) projects.add(h.project);
+      if (h.bkk_upc) zones.add(h.bkk_upc);
+      if (h.media_type) mediaTypes.add(h.media_type);
     }
     return {
       departments: Array.from(deps).sort(),
@@ -587,4 +505,13 @@ export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
       mediaTypes: Array.from(mediaTypes).sort(),
       assetCodes: Array.from(assetCodes).sort(),
     };
+  });
+
+// Manual refresh of PM materialized views (callable from settings UI).
+export const refreshPmViews = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { error } = await (supabaseAdmin as unknown as { rpc: (n: string) => Promise<{ error: { message: string } | null }> }).rpc("refresh_pm_views");
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });

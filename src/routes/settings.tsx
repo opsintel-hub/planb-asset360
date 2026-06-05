@@ -867,6 +867,9 @@ function AssetHistoryScheduleControl({
 }) {
   const [selected, setSelected] = useState<"off" | "every_3h" | "daytime_3h" | "daily_0530">(mode);
   const [batchLimit, setBatchLimit] = useState<number>(limit);
+  // Re-sync when settings query loads after first paint
+  useEffect(() => { setSelected(mode); }, [mode]);
+  useEffect(() => { setBatchLimit(limit); }, [limit]);
   const syncFn = useServerFn(syncAssetHistoryBatchNow);
   const qc = useQueryClient();
   const runMutation = useMutation({

@@ -843,9 +843,7 @@ function AgingReport({
                   <TableHead>รหัสป้าย</TableHead>
                   <TableHead>Media Type</TableHead>
                   <TableHead>แผนก</TableHead>
-                  <TableHead>ตั๋ว PM</TableHead>
                   <TableHead>วัน PM</TableHead>
-                  <TableHead>ตั๋ว Claim</TableHead>
                   <TableHead>วัน Claim</TableHead>
                   <TableHead className="text-right">ห่าง (วัน)</TableHead>
                   <TableHead>หมวดอาการ</TableHead>
@@ -858,7 +856,7 @@ function AgingReport({
               <TableBody>
                 {visible.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                       ไม่พบข้อมูลตามเงื่อนไข
                     </TableCell>
                   </TableRow>
@@ -868,9 +866,7 @@ function AgingReport({
                       <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
                       <TableCell className="text-xs">{p.mediaType}</TableCell>
                       <TableCell className="text-xs">{p.department}</TableCell>
-                      <TableCell className="font-mono text-xs">{p.pmTicket || "—"}</TableCell>
                       <TableCell className="text-xs">{p.pmDate}</TableCell>
-                      <TableCell className="font-mono text-xs">{p.claimTicket || "—"}</TableCell>
                       <TableCell className="text-xs">{p.claimDate}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {p.days <= 7 ? (

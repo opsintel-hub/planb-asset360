@@ -475,6 +475,7 @@ function AssetDbForm({
   defaults,
   syncDays,
   syncTimes,
+  tablesEnabled,
   onSave,
   onSaveDays,
   onSaveTimes,
@@ -496,6 +497,7 @@ function AssetDbForm({
   };
   syncDays: number[];
   syncTimes: string[];
+  tablesEnabled: TablesEnabled;
   onSave: (v: {
     server: string;
     port: number;

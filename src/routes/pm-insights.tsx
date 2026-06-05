@@ -649,7 +649,7 @@ function AgingReport({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>รายงาน 1 · PM Effectiveness & Aging</CardTitle>
+        <CardTitle>PM Effectiveness & Aging</CardTitle>
         <p className="text-sm text-muted-foreground mt-1">
           จับคู่ PM (assetStatus = Pass) กับ Claim ครั้งถัดไปของป้ายเดียวกัน แล้วนับจำนวน "คู่" ตามช่วงวันที่ห่างกัน
           · รวม <span className="font-semibold text-foreground">{totalPairs}</span> คู่ ·

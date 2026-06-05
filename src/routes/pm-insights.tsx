@@ -78,15 +78,26 @@ function MultiSelect({
   onChange: (v: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const summary =
+    value.length === 0
+      ? "ทั้งหมด"
+      : value.length <= 3
+        ? value.join(", ")
+        : `${value.slice(0, 2).join(", ")} +${value.length - 2}`;
   return (
     <div className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        title={value.length ? value.join(", ") : "ทั้งหมด"}
         className="w-full inline-flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-sm hover:bg-accent"
       >
-        <span className="truncate">
-          {label}: {value.length === 0 ? "ทั้งหมด" : `${value.length} รายการ`}
+        <span className="truncate text-left">
+          <span className="text-muted-foreground">{label}:</span>{" "}
+          <span className="font-medium">{summary}</span>
+          {value.length > 0 && (
+            <span className="text-muted-foreground"> ({value.length})</span>
+          )}
         </span>
       </button>
       {open && (
@@ -832,9 +843,7 @@ function AgingReport({
                   <TableHead>รหัสป้าย</TableHead>
                   <TableHead>Media Type</TableHead>
                   <TableHead>แผนก</TableHead>
-                  <TableHead>ตั๋ว PM</TableHead>
                   <TableHead>วัน PM</TableHead>
-                  <TableHead>ตั๋ว Claim</TableHead>
                   <TableHead>วัน Claim</TableHead>
                   <TableHead className="text-right">ห่าง (วัน)</TableHead>
                   <TableHead>หมวดอาการ</TableHead>
@@ -847,7 +856,7 @@ function AgingReport({
               <TableBody>
                 {visible.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                       ไม่พบข้อมูลตามเงื่อนไข
                     </TableCell>
                   </TableRow>
@@ -857,9 +866,7 @@ function AgingReport({
                       <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
                       <TableCell className="text-xs">{p.mediaType}</TableCell>
                       <TableCell className="text-xs">{p.department}</TableCell>
-                      <TableCell className="font-mono text-xs">{p.pmTicket || "—"}</TableCell>
                       <TableCell className="text-xs">{p.pmDate}</TableCell>
-                      <TableCell className="font-mono text-xs">{p.claimTicket || "—"}</TableCell>
                       <TableCell className="text-xs">{p.claimDate}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {p.days <= 7 ? (

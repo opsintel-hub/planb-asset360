@@ -155,14 +155,18 @@ function MainSettings() {
 
   const syncHistoryFn = useServerFn(syncMssqlAssetHistoryNow);
   const historySyncMutation = useMutation({
-    mutationFn: () => syncHistoryFn({ data: { days: 90 } }),
-    onSuccess: (r) => {
+    mutationFn: (vars: { reset: boolean }) => syncHistoryFn({ data: { reset: vars.reset } }),
+    onSuccess: (r, vars) => {
       if (!r.ok) {
         toast.error(`ดึงข้อมูล Asset History ล้มเหลว: ${r.error ?? "ไม่สำเร็จ"}`);
         qc.invalidateQueries({ queryKey: ["sync-logs"] });
         return;
       }
-      toast.success("เริ่มดึง Asset History แล้ว (ทำงานเบื้องหลัง) — ดูผลที่ Sync Logs ด้านล่าง");
+      toast.success(
+        vars.reset
+          ? "เริ่ม Full Reset Asset History — ล้างตารางและดึงใหม่ทั้งหมด (ทำงานเบื้องหลัง)"
+          : "เริ่ม Incremental Sync — ดึงเฉพาะแถวใหม่/แก้ไขตั้งแต่ครั้งล่าสุด (ทำงานเบื้องหลัง)",
+      );
       qc.invalidateQueries({ queryKey: ["sync-logs"] });
     },
     onError: (e: Error) => toast.error(`ดึงข้อมูลล้มเหลว: ${e.message}`),

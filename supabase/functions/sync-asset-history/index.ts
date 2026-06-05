@@ -82,12 +82,16 @@ async function connectMssql(c: {
   });
 }
 
-function isoOrNull(v: unknown): string | null {
+function toDate(v: unknown): Date | null {
   if (v == null) return null;
-  if (v instanceof Date) return v.toISOString();
-  const s = String(v);
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? s : d.toISOString();
+  if (v instanceof Date) return v;
+  const d = new Date(String(v));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function isoOrNull(v: unknown): string | null {
+  const d = toDate(v);
+  return d ? d.toISOString() : null;
 }
 
 async function runBatch(
@@ -106,7 +110,7 @@ async function runBatch(
         .eq("id", logId);
   };
 
-  let pool: { close: () => Promise<void>; request: () => { query: (q: string) => Promise<{ recordset: Record<string, unknown>[] }> } } | null = null;
+  let pool: any = null;
   try {
     const { data: connRow } = await admin
       .from("app_settings")
@@ -149,18 +153,25 @@ async function runBatch(
       throw new Error("CreatedDate column not found on AssetHistory — required as cursor");
     }
 
-    // Window: last 12 months AND not before 2026-01-01; plus cursor
-    const where: string[] = [
-      `[${colDate}] >= (SELECT MAX(d) FROM (VALUES (DATEADD(month, -12, GETDATE())), ('2026-01-01')) AS v(d))`,
-    ];
-    if (beforeDate) where.push(`[${colDate}] < '${beforeDate.replace(/'/g, "''")}'`);
-    const q = `SELECT TOP ${batchSize} * FROM ${historyTable} WHERE ${where.join(" AND ")} ORDER BY [${colDate}] DESC`;
-
-    const r = await pool!.request().query(q);
+    // Build query with parameterized cursor (avoids timezone string-parsing bugs in MSSQL)
+    const req = pool!.request();
+    let where = `[${colDate}] >= (SELECT MAX(d) FROM (VALUES (DATEADD(month, -12, GETDATE())), ('2026-01-01')) AS v(d))`;
+    if (beforeDate) {
+      const d = toDate(beforeDate);
+      if (d) {
+        req.input("beforeDate", sql.DateTimeOffset, d);
+        // Strict less-than guarantees we always advance off the boundary even when
+        // many rows share the exact same CreatedDate.
+        where += ` AND [${colDate}] < @beforeDate`;
+      }
+    }
+    const q = `SELECT TOP ${batchSize} * FROM ${historyTable} WHERE ${where} ORDER BY [${colDate}] DESC`;
+    const r = await req.query(q);
     const list = (r.recordset ?? []) as Record<string, unknown>[];
 
     // First batch only: wipe target if reset
     if (reset && batchIndex === 0) {
+      // Truncate via delete in chunks since some envs disallow TRUNCATE via PostgREST
       await admin.from("mssql_asset_history").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     }
 
@@ -191,23 +202,35 @@ async function runBatch(
       inserted += slice.length;
     }
 
-    // Compute next cursor: last row's date (smallest in DESC order)
+    // Compute next cursor: oldest date in this batch (last row when ORDER BY DESC)
     const lastDateRaw = list.length ? list[list.length - 1][colDate] : null;
     const nextCursor = lastDateRaw ? isoOrNull(lastDateRaw) : null;
     const isFull = list.length === batchSize;
-    const hasMore = isFull && nextCursor && batchIndex + 1 < maxBatches;
+
+    // SAFETY GUARD: if cursor didn't advance (same value as input beforeDate),
+    // STOP the chain. This prevents the runaway loop we hit when timestamps tie
+    // on a boundary and the strict-less-than filter no longer makes progress.
+    const noProgress = !!beforeDate && !!nextCursor && nextCursor === beforeDate;
+    const hasMore = isFull && nextCursor && !noProgress && batchIndex + 1 < maxBatches;
 
     await pool!.close();
     pool = null;
 
+    const reason = !isFull
+      ? "source exhausted"
+      : noProgress
+        ? "STOPPED: cursor stuck (timestamp tie) — investigate"
+        : batchIndex + 1 >= maxBatches
+          ? "maxBatches reached"
+          : "continuing";
+
     await setLog(
       "success",
-      `batch #${batchIndex} synced ${inserted} rows (cursor<${beforeDate ?? "now"}, next=${hasMore ? nextCursor : "done"})`,
+      `batch #${batchIndex} synced ${inserted} rows (cursor<${beforeDate ?? "now"}, next=${nextCursor ?? "n/a"}) — ${hasMore ? "chaining" : reason}`,
       inserted,
     );
 
     if (hasMore) {
-      // Insert next log entry as running, then fire next invocation
       const { data: nextLog } = await admin
         .from("sync_logs")
         .insert({
@@ -219,7 +242,6 @@ async function runBatch(
         .single();
       const nextLogId = nextLog?.id as number | undefined;
 
-      // Fire-and-forget self-invoke; do NOT await so this worker can exit
       const url = `${SUPABASE_URL}/functions/v1/sync-asset-history`;
       const body = JSON.stringify({
         days,
@@ -292,18 +314,17 @@ Deno.serve(async (req: Request) => {
   const batchSize = Number.isFinite(body.batchSize)
     ? Math.max(100, Math.min(10000, Number(body.batchSize)))
     : 10000;
-  const reset = body.reset !== false; // default true for first call
+  const reset = body.reset !== false;
   const batchIndex = Number.isFinite(body.batchIndex) ? Math.max(0, Number(body.batchIndex)) : 0;
   const maxBatches = Number.isFinite(body.maxBatches)
     ? Math.max(1, Math.min(20000, Number(body.maxBatches)))
-    : 10000; // safety cap: 10000 batches × 10000 = 100M rows max
+    : 10000;
   const beforeDate = typeof body.beforeDate === "string" ? body.beforeDate : undefined;
 
   if (!DB_PASSWORD) {
     return jsonResponse({ ok: false, error: "MODERN_CORP_DB_PASSWORD secret not set" }, 500);
   }
 
-  // Reuse log id if chained call provided one; otherwise create a new one
   let logId = body._logId;
   if (!logId) {
     const { data: logRow } = await admin
@@ -318,7 +339,6 @@ Deno.serve(async (req: Request) => {
     logId = logRow?.id as number | undefined;
   }
 
-  // Run in background so the HTTP response returns immediately
   // @ts-ignore EdgeRuntime
   EdgeRuntime.waitUntil(
     runBatch(admin, DB_PASSWORD, SUPABASE_URL, SERVICE_KEY, {

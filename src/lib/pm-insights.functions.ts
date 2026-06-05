@@ -375,7 +375,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     }
     for (const p of pairs) {
       const m = p.pmDate.slice(0, 7);
-      const dept = p.department || "(ไม่ระบุ)";
+      const dept = (p.department || "").trim() || "(ไม่มีสังกัดแผนก)";
       deptSet.add(dept);
       const key = `${m}|${dept}`;
       const v = scoreMap.get(key) ?? { sum: 0, n: 0, pm: 0, claim: 0 };

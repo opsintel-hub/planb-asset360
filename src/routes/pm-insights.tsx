@@ -956,7 +956,7 @@ function ScoreReport({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>รายงาน 3 · PM Score รายเดือนต่อแผนก</CardTitle>
+        <CardTitle>PM Score รายเดือน</CardTitle>
         <div className="text-sm text-muted-foreground mt-2 space-y-1">
           <p><strong>นิยาม:</strong> วัดคุณภาพการ PM ของแต่ละแผนกต่อเดือน — คะแนนสูง = หลัง PM แล้วป้ายไม่เสีย หรือเสียช้า, คะแนนต่ำ = เสียเร็วหลัง PM</p>
           <p><strong>ขอบเขตข้อมูล:</strong> นับเฉพาะ PM ที่ <code>assetStatus = Pass</code> ในช่วง filter, จับคู่กับ Claim ตัวถัดไปของป้ายเดียวกัน (ไม่จำกัดวันที่ Claim)</p>

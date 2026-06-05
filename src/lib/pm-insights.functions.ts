@@ -363,7 +363,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     for (const h of filtered) {
       if (h.type !== "PM" || h.assetStatus !== "Pass") continue;
       const code = h.asset_old_code ?? "";
-      const dept = assetMap.get(code)?.department ?? "(ไม่ระบุ)";
+      const dept = (assetMap.get(code)?.department || "").trim() || "(ไม่มีสังกัดแผนก)";
       deptSet.add(dept);
       const date = h.updatedDate || h.createdDate;
       if (!date) continue;

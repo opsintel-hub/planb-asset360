@@ -451,6 +451,8 @@ function EditableField({
   onSave: (v: string) => void;
 }) {
   const [value, setValue] = useState(defaultValue);
+  // Sync when upstream value changes (e.g. settings query finishes loading after first paint)
+  useEffect(() => { setValue(defaultValue); }, [defaultValue]);
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>

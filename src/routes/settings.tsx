@@ -19,6 +19,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { DiagramMappingsSection } from "@/components/diagram-mappings-section";
 import { MappingImportExport } from "@/components/mapping-import-export";
+import { MssqlTableControls, type TablesEnabled } from "@/components/mssql-table-controls";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -114,6 +115,8 @@ function MainSettings() {
   const assetDbHistoryTable = assetDb.historyTable ?? "AssetHistory";
   const assetSyncDays: number[] = Array.isArray(settings.asset_sync_days) ? settings.asset_sync_days : [];
   const assetSyncTimes: string[] = Array.isArray(settings.asset_sync_times) ? settings.asset_sync_times : ["04:00"];
+  const tablesEnabled = (settings.asset_sync_tables_enabled ?? {}) as TablesEnabled;
+  const isOn = (k: keyof TablesEnabled) => tablesEnabled[k] !== false; // default ON
 
   const saveMutation = useMutation({
     mutationFn: (vars: { key: string; value: unknown }) => updateFn({ data: vars }),
@@ -200,16 +203,27 @@ function MainSettings() {
           }}
           syncDays={assetSyncDays}
           syncTimes={assetSyncTimes}
+          tablesEnabled={tablesEnabled}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
           onSaveDays={(days) => saveMutation.mutate({ key: "asset_sync_days", value: days })}
           onSaveTimes={(times) => saveMutation.mutate({ key: "asset_sync_times", value: times })}
-          onTest={() => assetSyncMutation.mutate()}
+          onTest={() => {
+            if (!isOn("asset")) { toast.error("ปิดการ Sync ตาราง Asset ไว้ — เปิดก่อนถึงจะทดสอบได้"); return; }
+            assetSyncMutation.mutate();
+          }}
           testing={assetSyncMutation.isPending}
-          onTestHistory={() => historySyncMutation.mutate()}
+          onTestHistory={() => {
+            if (!isOn("assetHistory")) { toast.error("ปิดการ Sync ตาราง AssetHistory ไว้ — เปิดก่อนถึงจะทดสอบได้"); return; }
+            historySyncMutation.mutate();
+          }}
           testingHistory={historySyncMutation.isPending}
-          onTestPm={() => pmSyncMutation.mutate()}
+          onTestPm={() => {
+            if (!isOn("pmSchedule")) { toast.error("ปิดการ Sync ตาราง PM Schedule ไว้ — เปิดก่อนถึงจะทดสอบได้"); return; }
+            pmSyncMutation.mutate();
+          }}
           testingPm={pmSyncMutation.isPending}
         />
+
       </Section>
 
       <SchemaAlertSection />
@@ -461,6 +475,7 @@ function AssetDbForm({
   defaults,
   syncDays,
   syncTimes,
+  tablesEnabled,
   onSave,
   onSaveDays,
   onSaveTimes,
@@ -482,6 +497,7 @@ function AssetDbForm({
   };
   syncDays: number[];
   syncTimes: string[];
+  tablesEnabled: TablesEnabled;
   onSave: (v: {
     server: string;
     port: number;
@@ -556,6 +572,15 @@ function AssetDbForm({
         <Field label="Table (PM Schedule)" value={pmScheduleTable} onChange={setPmScheduleTable} />
         <Field label="Table (Asset History)" value={historyTable} onChange={setHistoryTable} />
       </div>
+
+      <MssqlTableControls
+        assetTable={table}
+        pmTable={pmScheduleTable}
+        historyTable={historyTable}
+        enabled={tablesEnabled}
+      />
+
+
 
       <div className="space-y-2 rounded-lg border bg-background/50 p-3">
         <div className="flex items-center justify-between">

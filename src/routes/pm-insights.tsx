@@ -153,6 +153,7 @@ function PmInsightsPage() {
   const [zones, setZones] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
+  const [pmCategory, setPmCategory] = useState<"all" | "media" | "non-media">("all");
   const [fromDate, setFromDate] = useState(default90.toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(today.toISOString().slice(0, 10));
   const [assetSearchDraft, setAssetSearchDraft] = useState("");

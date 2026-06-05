@@ -103,10 +103,10 @@ export const getPmInsights = createServerFn({ method: "POST" })
     // Pull pre-aggregated MV rows (already deduped + joined with assets)
     const [hist, pairsAll, assetsLite] = await Promise.all([
       fetchAll<HistRow>((from, to) =>
-        supabaseAdmin.from("mv_pm_history").select("*").range(from, to),
+        (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_history").select("*").range(from, to),
       ),
       fetchAll<PairRow>((from, to) =>
-        supabaseAdmin.from("mv_pm_claim_pairs").select("*").range(from, to),
+        (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_claim_pairs").select("*").range(from, to),
       ),
       fetchAll<{ old_code: string; department: string | null; payload: Record<string, unknown> | null }>(
         (from, to) => supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
@@ -478,7 +478,7 @@ export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
     );
     type HistLite = { project: string | null; bkk_upc: string | null; media_type: string | null };
     const hist = await fetchAll<HistLite>((from, to) =>
-      supabaseAdmin.from("mv_pm_history").select("project, bkk_upc, media_type").range(from, to),
+      (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_history").select("project, bkk_upc, media_type").range(from, to),
     );
 
     const deps = new Set<string>();
@@ -511,7 +511,7 @@ export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
 export const refreshPmViews = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
-    const { error } = await supabaseAdmin.rpc("refresh_pm_views");
+    const { error } = await (supabaseAdmin as unknown as { rpc: (n: string) => Promise<{ error: { message: string } | null }> }).rpc("refresh_pm_views");
     if (error) throw new Error(error.message);
     return { ok: true };
   });

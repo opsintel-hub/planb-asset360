@@ -136,6 +136,7 @@ type AppliedFilters = {
   zones: string[];
   projects: string[];
   mediaTypes: string[];
+  pmCategory: "all" | "media" | "non-media";
   fromDate: string;
   toDate: string;
   assetSearch: string;

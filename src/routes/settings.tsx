@@ -216,9 +216,9 @@ function MainSettings() {
             assetSyncMutation.mutate();
           }}
           testing={assetSyncMutation.isPending}
-          onTestHistory={() => {
+          onTestHistory={(reset) => {
             if (!isOn("assetHistory")) { toast.error("ปิดการ Sync ตาราง AssetHistory ไว้ — เปิดก่อนถึงจะทดสอบได้"); return; }
-            historySyncMutation.mutate();
+            historySyncMutation.mutate({ reset });
           }}
           testingHistory={historySyncMutation.isPending}
           onTestPm={() => {

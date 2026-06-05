@@ -203,16 +203,27 @@ function MainSettings() {
           }}
           syncDays={assetSyncDays}
           syncTimes={assetSyncTimes}
+          tablesEnabled={tablesEnabled}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
           onSaveDays={(days) => saveMutation.mutate({ key: "asset_sync_days", value: days })}
           onSaveTimes={(times) => saveMutation.mutate({ key: "asset_sync_times", value: times })}
-          onTest={() => assetSyncMutation.mutate()}
+          onTest={() => {
+            if (!isOn("asset")) { toast.error("ปิดการ Sync ตาราง Asset ไว้ — เปิดก่อนถึงจะทดสอบได้"); return; }
+            assetSyncMutation.mutate();
+          }}
           testing={assetSyncMutation.isPending}
-          onTestHistory={() => historySyncMutation.mutate()}
+          onTestHistory={() => {
+            if (!isOn("assetHistory")) { toast.error("ปิดการ Sync ตาราง AssetHistory ไว้ — เปิดก่อนถึงจะทดสอบได้"); return; }
+            historySyncMutation.mutate();
+          }}
           testingHistory={historySyncMutation.isPending}
-          onTestPm={() => pmSyncMutation.mutate()}
+          onTestPm={() => {
+            if (!isOn("pmSchedule")) { toast.error("ปิดการ Sync ตาราง PM Schedule ไว้ — เปิดก่อนถึงจะทดสอบได้"); return; }
+            pmSyncMutation.mutate();
+          }}
           testingPm={pmSyncMutation.isPending}
         />
+
       </Section>
 
       <SchemaAlertSection />

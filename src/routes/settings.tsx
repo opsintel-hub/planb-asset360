@@ -573,6 +573,15 @@ function AssetDbForm({
         <Field label="Table (Asset History)" value={historyTable} onChange={setHistoryTable} />
       </div>
 
+      <MssqlTableControls
+        assetTable={table}
+        pmTable={pmScheduleTable}
+        historyTable={historyTable}
+        enabled={tablesEnabled}
+      />
+
+
+
       <div className="space-y-2 rounded-lg border bg-background/50 p-3">
         <div className="flex items-center justify-between">
           <div>

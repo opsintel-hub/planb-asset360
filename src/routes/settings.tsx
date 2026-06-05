@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Database, RefreshCw, CheckCircle2, Server, AlertTriangle, Tag, FileSpreadsheet } from "lucide-react";
@@ -451,6 +451,8 @@ function EditableField({
   onSave: (v: string) => void;
 }) {
   const [value, setValue] = useState(defaultValue);
+  // Sync when upstream value changes (e.g. settings query finishes loading after first paint)
+  useEffect(() => { setValue(defaultValue); }, [defaultValue]);
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
@@ -865,6 +867,9 @@ function AssetHistoryScheduleControl({
 }) {
   const [selected, setSelected] = useState<"off" | "every_3h" | "daytime_3h" | "daily_0530">(mode);
   const [batchLimit, setBatchLimit] = useState<number>(limit);
+  // Re-sync when settings query loads after first paint
+  useEffect(() => { setSelected(mode); }, [mode]);
+  useEffect(() => { setBatchLimit(limit); }, [limit]);
   const syncFn = useServerFn(syncAssetHistoryBatchNow);
   const qc = useQueryClient();
   const runMutation = useMutation({

@@ -232,6 +232,7 @@ function PmInsightsPage() {
     setZones([]);
     setProjects([]);
     setMediaTypes([]);
+    setPmCategory("all");
     setFromDate(default90.toISOString().slice(0, 10));
     setToDate(today.toISOString().slice(0, 10));
     setAssetSearchDraft("");

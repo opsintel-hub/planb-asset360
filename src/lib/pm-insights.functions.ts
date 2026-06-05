@@ -387,7 +387,13 @@ export const getPmInsights = createServerFn({ method: "POST" })
     }
     const scoreYear = new Date().getFullYear();
     const scoreRows: MonthRow[] = [];
+    // Determine which depts have any PM activity at all this year — drop the rest
+    const deptsWithPm = new Set<string>();
+    for (const [k, v] of scoreMap) {
+      if (v.pm > 0) deptsWithPm.add(k.split("|")[1]);
+    }
     for (const dept of Array.from(deptSet).sort()) {
+      if (!deptsWithPm.has(dept)) continue;
       for (let mi = 0; mi < 12; mi++) {
         const month = `${scoreYear}-${String(mi + 1).padStart(2, "0")}`;
         const v = scoreMap.get(`${month}|${dept}`);

@@ -2,3 +2,12 @@ project_id = "rmedzljblzngrlsalfsd"
 
 [functions.sync-assets]
 verify_jwt = false
+
+[functions.sync-asset-history]
+verify_jwt = false
+
+[functions.sync-pm-schedules]
+verify_jwt = false
+
+[functions.mssql-explore]
+verify_jwt = false

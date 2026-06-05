@@ -416,9 +416,10 @@ function PmInsightsPage() {
           <AgingReport
             aging={data.aging}
             pairs={data.pairs}
-            bucketFilter={bucketFilter}
-            onBucketFilter={setBucketFilter}
+            bucketSel={bucketSel}
+            onBucketSel={setBucketSel}
           />
+
 
           {/* Report 3: Score */}
           <ScoreReport scoreRows={data.scoreRows} />

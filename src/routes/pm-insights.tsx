@@ -547,13 +547,13 @@ const DONUT_DEFS: { key: DonutKey; title: string }[] = [
 function AgingReport({
   aging,
   pairs,
-  bucketFilter,
-  onBucketFilter,
+  bucketSel,
+  onBucketSel,
 }: {
   aging: { bucket: string; count: number }[];
   pairs: AgingPair[];
-  bucketFilter: string | null;
-  onBucketFilter: (b: string | null) => void;
+  bucketSel: string[];
+  onBucketSel: (b: string[]) => void;
 }) {
   const [sel, setSel] = useState<Record<DonutKey, string | null>>({
     problemCategory: null,
@@ -566,13 +566,20 @@ function AgingReport({
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
 
-  const early = useMemo(() => {
-    if (bucketFilter) {
-      const r = BUCKET_RANGES[bucketFilter];
-      if (r) return pairs.filter((p) => p.days >= r[0] && p.days <= r[1]);
+  const inSelectedBuckets = (days: number): boolean => {
+    if (bucketSel.length === 0) return false;
+    for (const b of bucketSel) {
+      const r = BUCKET_RANGES[b];
+      if (r && days >= r[0] && days <= r[1]) return true;
     }
+    return false;
+  };
+
+  const early = useMemo(() => {
+    if (bucketSel.length > 0) return pairs.filter((p) => inSelectedBuckets(p.days));
     return pairs.filter((p) => p.days <= 30);
-  }, [pairs, bucketFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairs, bucketSel]);
   const totalPairs = aging.reduce((s, b) => s + b.count, 0);
 
   // For each donut, filter by OTHER selections (slicer behavior)
@@ -609,10 +616,7 @@ function AgingReport({
   const tablePairs = useMemo(() => {
     const q = search.trim().toLowerCase();
     return pairs.filter((p) => {
-      if (bucketFilter) {
-        const r = BUCKET_RANGES[bucketFilter];
-        if (!r || p.days < r[0] || p.days > r[1]) return false;
-      }
+      if (bucketSel.length > 0 && !inSelectedBuckets(p.days)) return false;
       for (const d of DONUT_DEFS) {
         if (sel[d.key] && p[d.key] !== sel[d.key]) return false;
       }
@@ -629,12 +633,21 @@ function AgingReport({
         return false;
       return true;
     });
-  }, [pairs, bucketFilter, sel, search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairs, bucketSel, sel, search]);
 
   const totalPages = Math.max(1, Math.ceil(tablePairs.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * pageSize;
   const visible = tablePairs.slice(start, start + pageSize);
+
+  const toggleBucket = (b: string) => {
+    if (bucketSel.includes(b)) onBucketSel(bucketSel.filter((x) => x !== b));
+    else onBucketSel([...bucketSel, b]);
+    setPage(1);
+  };
+
+  const bucketLabel = bucketSel.length === 0 ? null : bucketSel.join(", ");
 
   return (
     <Card>
@@ -644,7 +657,7 @@ function AgingReport({
           จับคู่ PM (assetStatus = Pass) กับ Claim ครั้งถัดไปของป้ายเดียวกัน แล้วนับจำนวน "คู่" ตามช่วงวันที่ห่างกัน
           · รวม <span className="font-semibold text-foreground">{totalPairs}</span> คู่ ·
           แท่ง 1–3, 4–7 วัน = Critical (PM แล้วเสียซ้ำเร็ว) ·
-          <b> คลิกแท่งกราฟเพื่อเปิดรายการคู่ในช่วงนั้น</b>
+          <b> คลิกแท่งกราฟ หรือชิปด้านล่าง เพื่อเลือกได้หลายช่วง</b>
         </p>
       </CardHeader>
       <CardContent>
@@ -661,18 +674,17 @@ function AgingReport({
                 cursor="pointer"
                 onClick={(d: { bucket?: string }) => {
                   if (!d?.bucket) return;
-                  onBucketFilter(bucketFilter === d.bucket ? null : d.bucket);
-                  setPage(1);
+                  toggleBucket(d.bucket);
                 }}
               >
                 {aging.map((entry, i) => {
-                  const isSelected = bucketFilter === entry.bucket;
+                  const isSelected = bucketSel.includes(entry.bucket);
                   const isCritical = entry.bucket === "1-3" || entry.bucket === "4-7";
                   return (
                     <Cell
                       key={i}
                       fill={isCritical ? "oklch(0.6 0.2 25)" : "oklch(0.66 0.18 250)"}
-                      opacity={!bucketFilter || isSelected ? 1 : 0.35}
+                      opacity={bucketSel.length === 0 || isSelected ? 1 : 0.35}
                     />
                   );
                 })}
@@ -681,16 +693,47 @@ function AgingReport({
           </ResponsiveContainer>
         </div>
 
+        {/* Bucket multi-select chips */}
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <span className="text-xs text-muted-foreground">เลือกช่วง (กดได้หลายช่วง):</span>
+          {aging.map((a) => {
+            const active = bucketSel.includes(a.bucket);
+            return (
+              <button
+                key={a.bucket}
+                type="button"
+                onClick={() => toggleBucket(a.bucket)}
+                className={
+                  "text-[11px] px-2 py-1 rounded border transition " +
+                  (active
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background hover:bg-accent text-foreground border-border")
+                }
+              >
+                {a.bucket} วัน ({a.count})
+              </button>
+            );
+          })}
+          {bucketSel.length > 0 && (
+            <button
+              onClick={() => onBucketSel([])}
+              className="text-[11px] text-muted-foreground hover:text-foreground underline ml-1"
+            >
+              ล้างช่วง
+            </button>
+          )}
+        </div>
+
         <div className="mt-6">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
             <div>
               <h4 className="font-semibold text-sm">
-                อาการ/วิธีแก้ที่พบบ่อย {bucketFilter ? `(ช่วง ${bucketFilter} วัน)` : "(เฉพาะ Claim ภายใน 30 วันหลัง PM)"}
+                อาการ/วิธีแก้ที่พบบ่อย {bucketLabel ? `(ช่วง ${bucketLabel} วัน)` : "(เฉพาะ Claim ภายใน 30 วันหลัง PM)"}
               </h4>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                {bucketFilter
-                  ? `นับเฉพาะคู่ PM→Claim ที่ห่างกัน ${bucketFilter} วัน (${early.length} คู่) · คลิกแท่งกราฟด้านบนเพื่อเปลี่ยนช่วง`
-                  : `นับจำนวนคู่ PM→Claim ที่ห่างกัน ≤ 30 วัน (${early.length} คู่) · คลิกแท่งกราฟด้านบนเพื่อโฟกัสช่วงอื่น`}
+                {bucketLabel
+                  ? `นับเฉพาะคู่ PM→Claim ที่อยู่ในช่วง ${bucketLabel} วัน (${early.length} คู่) · คลิกชิป/แท่งกราฟเพื่อเพิ่มหรือเอาช่วงออก`
+                  : `นับจำนวนคู่ PM→Claim ที่ห่างกัน ≤ 30 วัน (${early.length} คู่) · คลิกชิปด้านบนเพื่อโฟกัสช่วงอื่น (เลือกได้หลายช่วง)`}
                  · คลิกชิ้นโดนัทเพื่อกรองตารางและ chart อื่น
               </p>
             </div>
@@ -744,12 +787,12 @@ function AgingReport({
               <h4 className="font-semibold text-base">รายละเอียดคู่ PM → Claim</h4>
               <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                 <span>เรียงห่างน้อย→มาก · รวม <b>{tablePairs.length.toLocaleString()}</b> คู่</span>
-                {bucketFilter && (
+                {bucketSel.length > 0 && (
                   <button
-                    onClick={() => onBucketFilter(null)}
+                    onClick={() => onBucketSel([])}
                     className="text-[11px] px-2 py-1 rounded bg-destructive/10 text-destructive hover:bg-destructive/20"
                   >
-                    ช่วง {bucketFilter} วัน ✕
+                    ช่วง {bucketSel.join(", ")} วัน ✕
                   </button>
                 )}
               </p>

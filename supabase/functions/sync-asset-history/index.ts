@@ -135,26 +135,26 @@ async function runBatch(
     const probe = await pool!.request().query(`SELECT TOP 1 * FROM ${historyTable}`);
     const sample = (probe.recordset?.[0] ?? {}) as Record<string, unknown>;
     const availableCols = new Set(Object.keys(sample));
-    const pickCol = (cands: string[]) => cands.find((c) => availableCols.has(c));
+    const has = (c: string) => availableCols.has(c);
 
-    const colOld = pickCol(["OldCode", "oldCode", "AssetCode", "Code"]);
-    const colRef = pickCol(["RefNumber", "refNumber", "Ref", "DocNo"]);
-    const colDate = pickCol(["ActionDate", "actionDate", "CreatedDate", "TransactionDate", "Date"]);
-    const colAction = pickCol(["Action", "ActionType", "Type", "Operation", "Event"]);
-    const colStatus = pickCol(["Status", "status"]);
-    const colProject = pickCol(["Project", "project"]);
+    // Fixed mapping per spec: cursor=CreatedDate, action=Status
+    const colDate = "CreatedDate";
+    const colAction = "Status";
+    const colOld = has("OldCode") ? "OldCode" : has("AssetCode") ? "AssetCode" : null;
+    const colRef = has("RefNumber") ? "RefNumber" : has("DocNo") ? "DocNo" : null;
+    const colStatus = has("Status") ? "Status" : null;
+    const colProject = has("Project") ? "Project" : null;
 
-    if (!colDate) throw new Error("No date column found on AssetHistory — cursor pagination requires a date column");
+    if (!has(colDate)) {
+      throw new Error("CreatedDate column not found on AssetHistory — required as cursor");
+    }
 
-    const selectCols = [colOld, colRef, colDate, colAction, colStatus, colProject]
-      .filter(Boolean)
-      .map((c) => `[${c}]`)
-      .join(",");
-
-    // Build WHERE: in-window + before cursor
-    const where: string[] = [`[${colDate}] >= DATEADD(day, -${days}, GETDATE())`];
+    // Window: last 12 months AND not before 2026-01-01; plus cursor
+    const where: string[] = [
+      `[${colDate}] >= (SELECT MAX(d) FROM (VALUES (DATEADD(month, -12, GETDATE())), ('2026-01-01')) AS v(d))`,
+    ];
     if (beforeDate) where.push(`[${colDate}] < '${beforeDate.replace(/'/g, "''")}'`);
-    const q = `SELECT TOP ${batchSize} ${selectCols} FROM ${historyTable} WHERE ${where.join(" AND ")} ORDER BY [${colDate}] DESC`;
+    const q = `SELECT TOP ${batchSize} * FROM ${historyTable} WHERE ${where.join(" AND ")} ORDER BY [${colDate}] DESC`;
 
     const r = await pool!.request().query(q);
     const list = (r.recordset ?? []) as Record<string, unknown>[];
@@ -165,16 +165,22 @@ async function runBatch(
     }
 
     const nowIso = new Date().toISOString();
-    const rows = list.map((item) => ({
-      asset_old_code: colOld ? pickStr(item, [colOld]) : null,
-      ref_number: colRef ? pickStr(item, [colRef]) : null,
-      action_date: colDate ? isoOrNull(item[colDate]) : null,
-      action: colAction ? pickStr(item, [colAction]) : null,
-      status: colStatus ? pickStr(item, [colStatus]) : null,
-      project: colProject ? pickStr(item, [colProject]) : null,
-      payload: {},
-      synced_at: nowIso,
-    }));
+    const rows = list.map((item) => {
+      const payload: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(item)) {
+        payload[k] = v instanceof Date ? v.toISOString() : v;
+      }
+      return {
+        asset_old_code: colOld ? pickStr(item, [colOld]) : null,
+        ref_number: colRef ? pickStr(item, [colRef]) : null,
+        action_date: isoOrNull(item[colDate]),
+        action: pickStr(item, [colAction]),
+        status: colStatus ? pickStr(item, [colStatus]) : null,
+        project: colProject ? pickStr(item, [colProject]) : null,
+        payload,
+        synced_at: nowIso,
+      };
+    });
 
     let inserted = 0;
     const chunk = 500;

@@ -500,3 +500,69 @@ export const getPmInsights = createServerFn({ method: "POST" })
       },
     };
   });
+
+// Lightweight server fn — returns only filter dropdown options + asset codes.
+// Used so the filter UI populates quickly on mount, without waiting for
+// the heavy PM-pair / aging / score computation.
+export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    async function fetchAll<T>(
+      build: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+      pageSize = 1000,
+    ): Promise<T[]> {
+      const out: T[] = [];
+      for (let page = 0; page < 500; page++) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        const res = await build(from, to);
+        if (res.error) throw new Error(res.error.message);
+        const rows = (res.data as T[] | null) ?? [];
+        out.push(...rows);
+        if (rows.length < pageSize) break;
+      }
+      return out;
+    }
+
+    type AssetLite = { old_code: string; department: string | null; payload: Record<string, unknown> | null };
+    const assets = await fetchAll<AssetLite>((from, to) =>
+      supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
+    );
+    type HistLite = { project: string | null; payload: Record<string, unknown> | null };
+    const hist = await fetchAll<HistLite>((from, to) =>
+      supabaseAdmin
+        .from("mssql_asset_history")
+        .select("project, payload")
+        .in("payload->>Category", ["PM (Media)", "PM (non Media)", "Claim"])
+        .range(from, to),
+    );
+
+    const deps = new Set<string>();
+    const zones = new Set<string>();
+    const projects = new Set<string>();
+    const mediaTypes = new Set<string>();
+    const assetCodes = new Set<string>();
+    for (const a of assets) {
+      if (a.department) deps.add(a.department);
+      assetCodes.add(a.old_code);
+      const p = (a.payload ?? {}) as Record<string, unknown>;
+      const mt = p?.MediaType;
+      if (typeof mt === "string" && mt) mediaTypes.add(mt);
+    }
+    for (const h of hist) {
+      const p = (h.payload ?? {}) as Record<string, unknown>;
+      const proj = (typeof p?.Project === "string" && p.Project) || h.project || "";
+      if (proj) projects.add(proj);
+      const bkk = p?.BKKUPC;
+      if (typeof bkk === "string" && bkk) zones.add(bkk);
+      const mt = p?.MediaType;
+      if (typeof mt === "string" && mt) mediaTypes.add(mt);
+    }
+    return {
+      departments: Array.from(deps).sort(),
+      zones: Array.from(zones).sort(),
+      projects: Array.from(projects).sort(),
+      mediaTypes: Array.from(mediaTypes).sort(),
+      assetCodes: Array.from(assetCodes).sort(),
+    };
+  });

@@ -652,12 +652,36 @@ function AssetDbForm({
         <div className="text-sm font-medium">เชื่อมต่อ MSSQL โดยตรง (Lovable Cloud Function)</div>
         <p className="text-xs text-muted-foreground">
           ระบบเชื่อมต่อ MS SQL Server ตรงด้วย Server Name, Database, Username, Port และ Password จาก Secret Store
-          โดยไม่ต้องมี HTTP gateway คั่นกลาง — ใช้ทั้งการกด "ทดสอบ" และ Auto-Sync เวลา 04:00 น.
+          โดยไม่ต้องมี HTTP gateway คั่นกลาง — ใช้ทั้งการกด "ทดสอบ" และ Auto-Sync ตามตารางเวลาที่ตั้งไว้ด้านบน
         </p>
         <p className="text-xs text-muted-foreground">
           หาก timeout ที่พอร์ต 1433 ให้ตรวจ firewall/allowlist ของ Modern Corporate Server เพื่อเปิดทางเชื่อมต่อจาก
           Lovable Cloud
         </p>
+
+        <div className="rounded-md border border-amber-400/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+          <div className="font-semibold">⚠️ พฤติกรรมการ Sync — โปรดอ่านก่อนกด</div>
+          <ul className="list-disc pl-5 space-y-0.5">
+            <li>
+              ทุกครั้งที่กดปุ่ม "ทดสอบดึง..." ระบบจะ <b>ล้างข้อมูลในตารางทิ้งทั้งหมด แล้วดึงใหม่หมด (Full Refresh)</b> —
+              ไม่ใช่ update เฉพาะแถวที่เปลี่ยน
+            </li>
+            <li>
+              Auto-Sync ตามตารางเวลาก็ทำงานแบบ Full Refresh เช่นเดียวกัน เพื่อให้ข้อมูลตรงกับต้นทาง 100%
+            </li>
+            <li>
+              <b>Asset History</b>: ดึงเฉพาะ <b>12 เดือนล่าสุด</b> และ <b>ไม่เก่ากว่า 1 ม.ค. 2026</b> (กันข้อมูลเยอะเกิน) —
+              cursor = <code>CreatedDate</code> DESC, batch ละ 10,000 แถว, chain ต่อกันอัตโนมัติจนกว่าจะหมด
+            </li>
+            <li>
+              อย่ากดซ้ำขณะที่ยังมี chain <code>running</code> ค้างอยู่ใน Sync Logs — จะทำให้ดึงซ้อนกัน 2 รอบและเกิดข้อมูลซ้ำ
+            </li>
+            <li>
+              หากต้องการเปลี่ยนเป็น Incremental Sync (อัปเดตเฉพาะส่วนที่เปลี่ยน) ต้องเพิ่ม unique key + upsert logic — แจ้งทีม dev
+            </li>
+          </ul>
+        </div>
+
         <div className="flex flex-wrap gap-2">
           <button
             onClick={onTest}
@@ -665,7 +689,7 @@ function AssetDbForm({
             className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
           >
             <RefreshCw className={cn("size-4", testing && "animate-spin")} />
-            {testing ? "กำลังดึงข้อมูล..." : "ทดสอบดึง Asset"}
+            {testing ? "กำลังดึงข้อมูล..." : "ทดสอบดึง Asset (Full Refresh)"}
           </button>
           <button
             onClick={onTestPm}
@@ -673,7 +697,7 @@ function AssetDbForm({
             className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-card text-primary px-4 py-2 text-sm font-medium hover:bg-primary/10 disabled:opacity-50"
           >
             <RefreshCw className={cn("size-4", testingPm && "animate-spin")} />
-            {testingPm ? "กำลังดึงข้อมูล..." : "ทดสอบดึง PM Schedule"}
+            {testingPm ? "กำลังดึงข้อมูล..." : "ทดสอบดึง PM Schedule (Full Refresh)"}
           </button>
           <button
             onClick={onTestHistory}
@@ -681,13 +705,16 @@ function AssetDbForm({
             className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-card text-primary px-4 py-2 text-sm font-medium hover:bg-primary/10 disabled:opacity-50"
           >
             <RefreshCw className={cn("size-4", testingHistory && "animate-spin")} />
-            {testingHistory ? "กำลังดึงข้อมูล..." : "ทดสอบดึง Asset History (90 วันล่าสุด)"}
+            {testingHistory
+              ? "กำลังดึงข้อมูล..."
+              : "ทดสอบดึง Asset History (12 เดือนล่าสุด, ตั้งแต่ 1 ม.ค. 2026)"}
           </button>
         </div>
         <p className="text-xs text-muted-foreground">
           แต่ละตาราง Sync แยกกันเป็น Edge Function ต่างหาก เพื่อหลีกเลี่ยง CPU limit ของ Cloudflare Worker
         </p>
       </div>
+
 
       <div className="flex flex-wrap gap-2 pt-2 border-t">
         <button

@@ -663,25 +663,26 @@ function AssetDbForm({
           Lovable Cloud
         </p>
 
-        <div className="rounded-md border border-amber-400/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-900 dark:text-amber-200 space-y-1">
-          <div className="font-semibold">⚠️ พฤติกรรมการ Sync — โปรดอ่านก่อนกด</div>
+        <div className="rounded-md border border-emerald-400/40 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-2 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
+          <div className="font-semibold">✅ พฤติกรรมการ Sync — โปรดอ่านก่อนกด</div>
           <ul className="list-disc pl-5 space-y-0.5">
             <li>
-              ทุกครั้งที่กดปุ่ม "ทดสอบดึง..." ระบบจะ <b>ล้างข้อมูลในตารางทิ้งทั้งหมด แล้วดึงใหม่หมด (Full Refresh)</b> —
-              ไม่ใช่ update เฉพาะแถวที่เปลี่ยน
+              <b>Asset / PM Schedule</b>: กดปุ่ม "ทดสอบดึง..." จะ <b>ล้างตารางทิ้งและดึงใหม่หมด (Full Refresh)</b> ทุกครั้ง
             </li>
             <li>
-              Auto-Sync ตามตารางเวลาก็ทำงานแบบ Full Refresh เช่นเดียวกัน เพื่อให้ข้อมูลตรงกับต้นทาง 100%
+              <b>Asset History</b> ใช้ <b>Incremental Sync</b> — ดึงเฉพาะแถวใหม่หรือแถวที่ <code>UpdatedDate</code> ใหม่กว่า cursor ครั้งล่าสุด แล้ว <b>upsert</b> ทับด้วย unique key <code>(OldCode + CreatedDate + Status)</code>
             </li>
             <li>
-              <b>Asset History</b>: ดึงเฉพาะ <b>12 เดือนล่าสุด</b> และ <b>ไม่เก่ากว่า 1 ม.ค. 2026</b> (กันข้อมูลเยอะเกิน) —
-              cursor = <code>CreatedDate</code> DESC, batch ละ 10,000 แถว, chain ต่อกันอัตโนมัติจนกว่าจะหมด
+              cursor ใช้ <code>GREATEST(CreatedDate, UpdatedDate)</code> เก็บไว้ใน <code>app_settings.mssql_asset_history_cursor</code> — รอบถัดไปจะดึงต่อจากจุดเดิมโดยอัตโนมัติ
             </li>
             <li>
-              อย่ากดซ้ำขณะที่ยังมี chain <code>running</code> ค้างอยู่ใน Sync Logs — จะทำให้ดึงซ้อนกัน 2 รอบและเกิดข้อมูลซ้ำ
+              ขอบเขตข้อมูล: <b>12 เดือนล่าสุด</b> และ <b>ไม่เก่ากว่า 1 ม.ค. 2026</b> — batch ละ 5,000 แถว chain ต่อกันจนหมด
             </li>
             <li>
-              หากต้องการเปลี่ยนเป็น Incremental Sync (อัปเดตเฉพาะส่วนที่เปลี่ยน) ต้องเพิ่ม unique key + upsert logic — แจ้งทีม dev
+              ปุ่ม <b>"Full Reset"</b> สีแดง = ล้างตารางทิ้ง + รีเซ็ต cursor + ดึงใหม่ทั้งหมด (ใช้กรณีต้องการให้ข้อมูลตรงต้นทาง 100% เท่านั้น)
+            </li>
+            <li>
+              อย่ากดซ้ำขณะที่ยังมี chain <code>running</code> ค้างอยู่ใน Sync Logs
             </li>
           </ul>
         </div>
@@ -704,14 +705,23 @@ function AssetDbForm({
             {testingPm ? "กำลังดึงข้อมูล..." : "ทดสอบดึง PM Schedule (Full Refresh)"}
           </button>
           <button
-            onClick={onTestHistory}
+            onClick={() => onTestHistory(false)}
             disabled={testingHistory}
             className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-card text-primary px-4 py-2 text-sm font-medium hover:bg-primary/10 disabled:opacity-50"
           >
             <RefreshCw className={cn("size-4", testingHistory && "animate-spin")} />
-            {testingHistory
-              ? "กำลังดึงข้อมูล..."
-              : "ทดสอบดึง Asset History (12 เดือนล่าสุด, ตั้งแต่ 1 ม.ค. 2026)"}
+            {testingHistory ? "กำลังดึงข้อมูล..." : "Sync Asset History (Incremental)"}
+          </button>
+          <button
+            onClick={() => {
+              if (!confirm("Full Reset จะล้างตาราง mssql_asset_history ทั้งหมดและดึงใหม่จากต้นทาง — ใช้เวลานาน ต้องการดำเนินการต่อหรือไม่?")) return;
+              onTestHistory(true);
+            }}
+            disabled={testingHistory}
+            className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 text-destructive px-4 py-2 text-sm font-medium hover:bg-destructive/20 disabled:opacity-50"
+          >
+            <RefreshCw className={cn("size-4", testingHistory && "animate-spin")} />
+            Asset History — Full Reset
           </button>
         </div>
         <p className="text-xs text-muted-foreground">

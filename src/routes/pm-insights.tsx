@@ -203,7 +203,7 @@ function PmInsightsPage() {
   }, [optionsData, data]);
 
   const handleApply = () => {
-    setBucketFilter(null);
+    setBucketSel([]);
     setApplied({
       departments,
       zones,
@@ -225,7 +225,7 @@ function PmInsightsPage() {
     setFromDate(default90.toISOString().slice(0, 10));
     setToDate(today.toISOString().slice(0, 10));
     setAssetSearchDraft("");
-    setBucketFilter(null);
+    setBucketSel([]);
     setApplied(null);
   };
 

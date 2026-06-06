@@ -298,14 +298,41 @@ export const getPmInsights = createServerFn({ method: "POST" })
     // ---- Monthly PM vs Claim (current year, ignores date filter) ----
     const year = new Date().getFullYear();
     const monthlyMap = new Map<number, { pm: number; claim: number }>();
-    for (let m = 0; m < 12; m++) monthlyMap.set(m, { pm: 0, claim: 0 });
+    type MonthTicket = {
+      ticket: string;
+      assetCode: string;
+      date: string;
+      status: string;
+      category: string;
+      department: string;
+    };
+    const monthlyDetailsMap = new Map<number, { pm: MonthTicket[]; claim: MonthTicket[] }>();
+    for (let m = 0; m < 12; m++) {
+      monthlyMap.set(m, { pm: 0, claim: 0 });
+      monthlyDetailsMap.set(m, { pm: [], claim: [] });
+    }
     for (const h of hist) {
       if (!inScopeHist(h)) continue;
       const d = new Date(h.created_at ?? h.event_ts ?? 0);
       if (!Number.isFinite(d.getTime()) || d.getFullYear() !== year) continue;
-      const row = monthlyMap.get(d.getMonth())!;
-      if (h.type === "PM") row.pm++;
-      else row.claim++;
+      const mi = d.getMonth();
+      const row = monthlyMap.get(mi)!;
+      const det = monthlyDetailsMap.get(mi)!;
+      const item: MonthTicket = {
+        ticket: h.ref_number ?? "",
+        assetCode: h.asset_old_code ?? "",
+        date: (h.created_at ?? h.event_ts ?? "").slice(0, 10),
+        status: h.status ?? "",
+        category: h.category ?? "",
+        department: h.asset_department ?? "",
+      };
+      if (h.type === "PM") {
+        row.pm++;
+        det.pm.push(item);
+      } else {
+        row.claim++;
+        det.claim.push(item);
+      }
     }
     const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const monthly = MONTH_LABELS.map((label, i) => ({
@@ -313,6 +340,12 @@ export const getPmInsights = createServerFn({ method: "POST" })
       pm: monthlyMap.get(i)!.pm,
       claim: monthlyMap.get(i)!.claim,
     }));
+    const monthlyDetails = MONTH_LABELS.map((label, i) => ({
+      month: label,
+      pm: monthlyDetailsMap.get(i)!.pm,
+      claim: monthlyDetailsMap.get(i)!.claim,
+    }));
+
 
     // ---- Aging ----
     const agingMap = new Map<string, number>();

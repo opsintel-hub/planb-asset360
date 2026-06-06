@@ -92,7 +92,9 @@ type PairRow = {
 
 type AssetLite = {
   old_code: string;
+  name: string | null;
   department: string | null;
+  area: string | null;
   asset_media_type: string | null;
 };
 
@@ -108,21 +110,30 @@ export const getPmInsights = createServerFn({ method: "POST" })
       fetchAll<PairRow>((from, to) =>
         (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_claim_pairs").select("*").range(from, to),
       ),
-      fetchAll<{ old_code: string; department: string | null; payload: Record<string, unknown> | null }>(
-        (from, to) => supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
+      fetchAll<{ old_code: string; name: string | null; department: string | null; area: string | null; payload: Record<string, unknown> | null }>(
+        (from, to) => supabaseAdmin.from("assets").select("old_code, name, department, area, payload").range(from, to),
       ).then((rows) =>
-        rows.map<AssetLite>((r) => ({
-          old_code: r.old_code,
-          department: r.department,
-          asset_media_type:
-            r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
-              ? typeof (r.payload as Record<string, unknown>).MediaType === "string"
-                ? ((r.payload as Record<string, unknown>).MediaType as string)
-                : null
-              : null,
-        })),
+        rows
+          .filter((r) => {
+            const p = r.payload as Record<string, unknown> | null;
+            const del = p && typeof p === "object" ? (p as Record<string, unknown>).IsDeleted : null;
+            return del !== true && del !== "true";
+          })
+          .map<AssetLite>((r) => ({
+            old_code: r.old_code,
+            name: r.name,
+            department: r.department,
+            area: r.area,
+            asset_media_type:
+              r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
+                ? typeof (r.payload as Record<string, unknown>).MediaType === "string"
+                  ? ((r.payload as Record<string, unknown>).MediaType as string)
+                  : null
+                : null,
+          })),
       ),
     ]);
+
 
     const assetMap = new Map<string, AssetLite>();
     for (const a of assetsLite) assetMap.set(a.old_code, a);

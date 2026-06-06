@@ -381,11 +381,12 @@ function PmInsightsPage() {
           </CardContent>
         </Card>
       ) : isLoading ? (
-        <div className="grid grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          {[1, 2, 3, 4, 5].map((i) => (
             <Skeleton key={i} className="h-24" />
           ))}
         </div>
+
       ) : data ? (
         <>
           {/* KPI Cards — 5 boxes */}

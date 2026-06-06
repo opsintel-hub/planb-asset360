@@ -553,12 +553,15 @@ export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
     const mediaTypes = new Set<string>();
     const assetCodes = new Set<string>();
     for (const a of assets) {
+      const p = (a.payload ?? {}) as Record<string, unknown>;
+      const del = p?.IsDeleted;
+      if (del === true || del === "true") continue;
       if (a.department) deps.add(a.department);
       assetCodes.add(a.old_code);
-      const p = (a.payload ?? {}) as Record<string, unknown>;
       const mt = p?.MediaType;
       if (typeof mt === "string" && mt) mediaTypes.add(mt);
     }
+
     for (const h of hist) {
       if (h.project) projects.add(h.project);
       if (h.bkk_upc) zones.add(h.bkk_upc);

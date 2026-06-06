@@ -388,14 +388,14 @@ function PmInsightsPage() {
         </div>
       ) : data ? (
         <>
-          {/* KPI Cards — 4 boxes */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* KPI Cards — 5 boxes */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <KpiCard
               icon={Building2}
               label="จำนวนป้ายทั้งหมด"
               value={data.kpi.assets}
               color="text-blue-500"
-              description="นับ distinct asset_old_code จากตาราง assets (ไม่ขึ้นกับ filter วันที่)"
+              description="นับ distinct asset_old_code จากตาราง assets (ไม่นับป้ายที่ IsDeleted=true)"
             />
             <KpiCard
               icon={Wrench}
@@ -418,10 +418,21 @@ function PmInsightsPage() {
               color="text-orange-500"
               description="นับเฉพาะ payload.Category = 'PM (non Media)'"
             />
+            <KpiCard
+              icon={AlertCircle}
+              label="ป้ายที่ยังไม่ได้เปิดตั๋ว PM"
+              value={data.kpi.pmNone}
+              color="text-rose-500"
+              description="จำนวนป้ายทั้งหมด - ป้ายที่มี PM (Media)+PM (non Media)"
+            />
           </div>
 
+          {/* No-PM asset list (collapsible) */}
+          <NoPmAssetList rows={data.noPmAssets} />
+
           {/* Monthly PM vs Claim (current year) */}
-          <MonthlyChart data={data.monthly} />
+          <MonthlyChart data={data.monthly} details={data.monthlyDetails} />
+
 
           {/* Report 1: Aging chart + donuts + pairs table (merged) */}
           <AgingReport

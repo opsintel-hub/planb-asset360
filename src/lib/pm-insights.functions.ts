@@ -112,27 +112,29 @@ export const getPmInsights = createServerFn({ method: "POST" })
       ),
       fetchAll<{ old_code: string; name: string | null; department: string | null; area: string | null; payload: Record<string, unknown> | null }>(
         (from, to) => supabaseAdmin.from("assets").select("old_code, name, department, area, payload").range(from, to),
-      ).then((rows) =>
-        rows
-          .filter((r) => {
-            const p = r.payload as Record<string, unknown> | null;
-            const del = p && typeof p === "object" ? (p as Record<string, unknown>).IsDeleted : null;
-            return del !== true && del !== "true";
-          })
-          .map<AssetLite>((r) => ({
-            old_code: r.old_code,
-            name: r.name,
-            department: r.department,
-            area: r.area,
-            asset_media_type:
-              r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
-                ? typeof (r.payload as Record<string, unknown>).MediaType === "string"
-                  ? ((r.payload as Record<string, unknown>).MediaType as string)
-                  : null
-                : null,
-          })),
       ),
     ]);
+    const deletedSet = new Set<string>();
+    const assetsLite: AssetLite[] = [];
+    for (const r of assetsRaw) {
+      const p = r.payload as Record<string, unknown> | null;
+      const del = p && typeof p === "object" ? (p as Record<string, unknown>).IsDeleted : null;
+      if (del === true || del === "true") {
+        deletedSet.add(r.old_code);
+        continue;
+      }
+      assetsLite.push({
+        old_code: r.old_code,
+        name: r.name,
+        department: r.department,
+        area: r.area,
+        asset_media_type:
+          p && typeof p === "object" && typeof (p as Record<string, unknown>).MediaType === "string"
+            ? ((p as Record<string, unknown>).MediaType as string)
+            : null,
+      });
+    }
+
 
 
     const assetMap = new Map<string, AssetLite>();

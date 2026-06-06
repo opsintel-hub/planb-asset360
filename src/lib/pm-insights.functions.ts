@@ -162,6 +162,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       return false;
     }
     function inScopeHist(h: HistRow): boolean {
+      if (h.asset_old_code && deletedSet.has(h.asset_old_code)) return false;
       const dept = h.asset_department ?? "";
       if (depSet.size && !depSet.has(dept)) return false;
       if (zoneSet.size && !zoneSet.has(h.bkk_upc ?? "")) return false;
@@ -172,6 +173,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       if (assetCodeQ && (h.asset_old_code ?? "").toLowerCase() !== assetCodeQ) return false;
       return true;
     }
+
     function inFilterHist(h: HistRow): boolean {
       if (!inScopeHist(h)) return false;
       const ts = new Date(h.created_at ?? h.event_ts ?? 0).getTime();

@@ -516,8 +516,25 @@ const BUCKET_RANGES: Record<string, [number, number]> = {
   ">90": [91, 9e9],
 };
 
-function MonthlyChart({ data }: { data: { month: string; pm: number; claim: number }[] }) {
+type MonthTicket = {
+  ticket: string;
+  assetCode: string;
+  date: string;
+  status: string;
+  category: string;
+  department: string;
+};
+
+function MonthlyChart({
+  data,
+  details,
+}: {
+  data: { month: string; pm: number; claim: number }[];
+  details: { month: string; pm: MonthTicket[]; claim: MonthTicket[] }[];
+}) {
   const year = new Date().getFullYear();
+  const [selected, setSelected] = useState<string | null>(null);
+  const selDetail = useMemo(() => details.find((d) => d.month === selected), [details, selected]);
   return (
     <Card>
       <CardHeader>
@@ -529,27 +546,162 @@ function MonthlyChart({ data }: { data: { month: string; pm: number; claim: numb
             <li><b>แท่งแดง (Claim)</b> = จำนวนตั๋ว Claim ทั้งหมดที่ถูกเปิดในเดือนนั้น (ทุกสถานะ ทั้งปิดแล้วและยังค้าง)</li>
           </ul>
           <p>* กราฟนี้แสดงทั้งปี <b>โดยไม่สนใจช่วงวันที่ใน Filter ด้านบน</b> (แต่ยังกรองตาม แผนก / โซน / โปรเจกต์) เพื่อให้เห็นภาพรวมรายเดือนของทั้งปี</p>
+          <p className="text-xs">💡 <b>คลิกที่แท่งกราฟ</b> เพื่อดูรายการป้ายของเดือนนั้น</p>
         </div>
       </CardHeader>
 
       <CardContent>
         <div className="h-72">
           <ResponsiveContainer>
-            <BarChart data={data}>
+            <BarChart
+              data={data}
+              onClick={(s: { activeLabel?: string } | null) => {
+                const lbl = s?.activeLabel;
+                if (!lbl) return;
+                setSelected((cur) => (cur === lbl ? null : lbl));
+              }}
+            >
               <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
               <XAxis dataKey="month" />
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="pm" name="PM" fill="oklch(0.7 0.14 160)" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="claim" name="Claim" fill="oklch(0.6 0.2 25)" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="pm" name="PM" fill="oklch(0.7 0.14 160)" radius={[6, 6, 0, 0]} style={{ cursor: "pointer" }} />
+              <Bar dataKey="claim" name="Claim" fill="oklch(0.6 0.2 25)" radius={[6, 6, 0, 0]} style={{ cursor: "pointer" }} />
             </BarChart>
           </ResponsiveContainer>
         </div>
+        {selDetail && (
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold">
+                รายการตั๋วของเดือน {selDetail.month} {year} (PM: {selDetail.pm.length} · Claim: {selDetail.claim.length})
+              </h4>
+              <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>
+                <ChevronUp className="size-4" /> ซ่อน
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <MonthTicketTable title="PM" color="text-green-600" rows={selDetail.pm} />
+              <MonthTicketTable title="Claim" color="text-rose-600" rows={selDetail.claim} />
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
+
+function MonthTicketTable({ title, color, rows }: { title: string; color: string; rows: MonthTicket[] }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const cur = Math.min(page, totalPages);
+  const slice = rows.slice((cur - 1) * pageSize, cur * pageSize);
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className={`text-sm ${color}`}>{title} ({rows.length.toLocaleString()})</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>วันที่</TableHead>
+                <TableHead>รหัสป้าย</TableHead>
+                <TableHead>หมวด</TableHead>
+                <TableHead>สถานะ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {slice.length === 0 ? (
+                <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-4">ไม่มีข้อมูล</TableCell></TableRow>
+              ) : slice.map((r, i) => (
+                <TableRow key={`${r.ticket}-${i}`}>
+                  <TableCell className="whitespace-nowrap">{r.date}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.assetCode}</TableCell>
+                  <TableCell className="text-xs">{r.category}</TableCell>
+                  <TableCell className="text-xs">{r.status}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-2 text-xs">
+            <span className="text-muted-foreground">หน้า {cur} / {totalPages}</span>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>ก่อน</Button>
+              <Button size="sm" variant="outline" disabled={cur >= totalPages} onClick={() => setPage(cur + 1)}>ถัดไป</Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function NoPmAssetList({ rows }: { rows: { assetCode: string; name: string; department: string; area: string; mediaType: string }[] }) {
+  const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const cur = Math.min(page, totalPages);
+  const slice = rows.slice((cur - 1) * pageSize, cur * pageSize);
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">รายการป้ายที่ยังไม่ได้เปิดตั๋ว PM ({rows.length.toLocaleString()})</CardTitle>
+          <Button variant="ghost" size="sm" onClick={() => setOpen((o) => !o)}>
+            {open ? <><ChevronUp className="size-4" /> ซ่อน</> : <><ChevronDown className="size-4" /> แสดงรายการ</>}
+          </Button>
+        </div>
+      </CardHeader>
+      {open && (
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>รหัสป้าย</TableHead>
+                  <TableHead>ชื่อ</TableHead>
+                  <TableHead>แผนก</TableHead>
+                  <TableHead>พื้นที่</TableHead>
+                  <TableHead>Media Type</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {slice.length === 0 ? (
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-4">ไม่มีข้อมูล</TableCell></TableRow>
+                ) : slice.map((r) => (
+                  <TableRow key={r.assetCode}>
+                    <TableCell className="font-mono text-xs">{r.assetCode}</TableCell>
+                    <TableCell className="text-xs">{r.name}</TableCell>
+                    <TableCell className="text-xs">{r.department}</TableCell>
+                    <TableCell className="text-xs">{r.area}</TableCell>
+                    <TableCell className="text-xs">{r.mediaType}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-2 text-xs">
+              <span className="text-muted-foreground">หน้า {cur} / {totalPages} · {rows.length.toLocaleString()} รายการ</span>
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>ก่อน</Button>
+                <Button size="sm" variant="outline" disabled={cur >= totalPages} onClick={() => setPage(cur + 1)}>ถัดไป</Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 
 type DonutKey =
   | "problemCategory"

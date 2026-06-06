@@ -103,7 +103,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
   .inputValidator((i) => filtersSchema.parse(i ?? {}))
   .handler(async ({ data: f }) => {
     // Pull pre-aggregated MV rows (already deduped + joined with assets)
-    const [hist, pairsAll, assetsLite] = await Promise.all([
+    const [hist, pairsAll, assetsRaw] = await Promise.all([
       fetchAll<HistRow>((from, to) =>
         (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_history").select("*").range(from, to),
       ),

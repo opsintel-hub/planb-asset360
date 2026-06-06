@@ -516,6 +516,9 @@ export const getPmInsights = createServerFn({ method: "POST" })
     return {
       kpi,
       monthly,
+      monthlyDetails,
+      noPmAssets,
+
       aging,
       donuts,
       scoreRows,

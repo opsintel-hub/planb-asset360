@@ -181,6 +181,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       return true;
     }
     function inScopePair(p: PairRow): boolean {
+      if (p.asset_old_code && deletedSet.has(p.asset_old_code)) return false;
       const dept = p.department ?? "";
       if (depSet.size && !depSet.has(dept)) return false;
       if (zoneSet.size && !zoneSet.has(p.zone ?? "")) return false;
@@ -190,6 +191,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       if (assetCodeQ && (p.asset_old_code ?? "").toLowerCase() !== assetCodeQ) return false;
       return true;
     }
+
     function inFilterPair(p: PairRow): boolean {
       if (!inScopePair(p)) return false;
       const ts = new Date(p.pm_end_ts).getTime();

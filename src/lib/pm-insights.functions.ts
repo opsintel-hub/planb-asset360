@@ -227,19 +227,32 @@ export const getPmInsights = createServerFn({ method: "POST" })
       if (h.category === "PM (non Media)") pmNonMediaAssets.add(h.asset_old_code);
     }
     let assetCount = 0;
+    const noPmAssets: { assetCode: string; name: string; department: string; area: string; mediaType: string }[] = [];
     for (const a of assetMap.values()) {
       if (depSet.size && !depSet.has(a.department ?? "")) continue;
       if (projSet.size && !(a.department && projDeptSet.has(a.department))) continue;
       if (mtSet.size && !mtSet.has(a.asset_media_type ?? "")) continue;
       if (assetCodeQ && a.old_code.toLowerCase() !== assetCodeQ) continue;
       assetCount++;
+      if (!pmAllAssets.has(a.old_code)) {
+        noPmAssets.push({
+          assetCode: a.old_code,
+          name: a.name ?? "",
+          department: a.department ?? "",
+          area: a.area ?? "",
+          mediaType: a.asset_media_type ?? "",
+        });
+      }
     }
+    noPmAssets.sort((a, b) => a.assetCode.localeCompare(b.assetCode));
     const kpi = {
       assets: assetCount,
       pmAll: pmAllAssets.size,
       pmMedia: pmMediaAssets.size,
       pmNonMedia: pmNonMediaAssets.size,
+      pmNone: noPmAssets.length,
     };
+
 
     // ---- Pairs (from MV) ----
     type Pair = {

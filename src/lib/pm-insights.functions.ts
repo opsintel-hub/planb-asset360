@@ -92,7 +92,9 @@ type PairRow = {
 
 type AssetLite = {
   old_code: string;
+  name: string | null;
   department: string | null;
+  area: string | null;
   asset_media_type: string | null;
 };
 
@@ -101,28 +103,39 @@ export const getPmInsights = createServerFn({ method: "POST" })
   .inputValidator((i) => filtersSchema.parse(i ?? {}))
   .handler(async ({ data: f }) => {
     // Pull pre-aggregated MV rows (already deduped + joined with assets)
-    const [hist, pairsAll, assetsLite] = await Promise.all([
+    const [hist, pairsAll, assetsRaw] = await Promise.all([
       fetchAll<HistRow>((from, to) =>
         (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_history").select("*").range(from, to),
       ),
       fetchAll<PairRow>((from, to) =>
         (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_claim_pairs").select("*").range(from, to),
       ),
-      fetchAll<{ old_code: string; department: string | null; payload: Record<string, unknown> | null }>(
-        (from, to) => supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
-      ).then((rows) =>
-        rows.map<AssetLite>((r) => ({
-          old_code: r.old_code,
-          department: r.department,
-          asset_media_type:
-            r.payload && typeof r.payload === "object" && !Array.isArray(r.payload)
-              ? typeof (r.payload as Record<string, unknown>).MediaType === "string"
-                ? ((r.payload as Record<string, unknown>).MediaType as string)
-                : null
-              : null,
-        })),
+      fetchAll<{ old_code: string; name: string | null; department: string | null; area: string | null; payload: Record<string, unknown> | null }>(
+        (from, to) => supabaseAdmin.from("assets").select("old_code, name, department, area, payload").range(from, to),
       ),
     ]);
+    const deletedSet = new Set<string>();
+    const assetsLite: AssetLite[] = [];
+    for (const r of assetsRaw) {
+      const p = r.payload as Record<string, unknown> | null;
+      const del = p && typeof p === "object" ? (p as Record<string, unknown>).IsDeleted : null;
+      if (del === true || del === "true") {
+        deletedSet.add(r.old_code);
+        continue;
+      }
+      assetsLite.push({
+        old_code: r.old_code,
+        name: r.name,
+        department: r.department,
+        area: r.area,
+        asset_media_type:
+          p && typeof p === "object" && typeof (p as Record<string, unknown>).MediaType === "string"
+            ? ((p as Record<string, unknown>).MediaType as string)
+            : null,
+      });
+    }
+
+
 
     const assetMap = new Map<string, AssetLite>();
     for (const a of assetsLite) assetMap.set(a.old_code, a);
@@ -149,6 +162,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       return false;
     }
     function inScopeHist(h: HistRow): boolean {
+      if (h.asset_old_code && deletedSet.has(h.asset_old_code)) return false;
       const dept = h.asset_department ?? "";
       if (depSet.size && !depSet.has(dept)) return false;
       if (zoneSet.size && !zoneSet.has(h.bkk_upc ?? "")) return false;
@@ -159,6 +173,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       if (assetCodeQ && (h.asset_old_code ?? "").toLowerCase() !== assetCodeQ) return false;
       return true;
     }
+
     function inFilterHist(h: HistRow): boolean {
       if (!inScopeHist(h)) return false;
       const ts = new Date(h.created_at ?? h.event_ts ?? 0).getTime();
@@ -166,6 +181,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       return true;
     }
     function inScopePair(p: PairRow): boolean {
+      if (p.asset_old_code && deletedSet.has(p.asset_old_code)) return false;
       const dept = p.department ?? "";
       if (depSet.size && !depSet.has(dept)) return false;
       if (zoneSet.size && !zoneSet.has(p.zone ?? "")) return false;
@@ -175,6 +191,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       if (assetCodeQ && (p.asset_old_code ?? "").toLowerCase() !== assetCodeQ) return false;
       return true;
     }
+
     function inFilterPair(p: PairRow): boolean {
       if (!inScopePair(p)) return false;
       const ts = new Date(p.pm_end_ts).getTime();
@@ -210,19 +227,32 @@ export const getPmInsights = createServerFn({ method: "POST" })
       if (h.category === "PM (non Media)") pmNonMediaAssets.add(h.asset_old_code);
     }
     let assetCount = 0;
+    const noPmAssets: { assetCode: string; name: string; department: string; area: string; mediaType: string }[] = [];
     for (const a of assetMap.values()) {
       if (depSet.size && !depSet.has(a.department ?? "")) continue;
       if (projSet.size && !(a.department && projDeptSet.has(a.department))) continue;
       if (mtSet.size && !mtSet.has(a.asset_media_type ?? "")) continue;
       if (assetCodeQ && a.old_code.toLowerCase() !== assetCodeQ) continue;
       assetCount++;
+      if (!pmAllAssets.has(a.old_code)) {
+        noPmAssets.push({
+          assetCode: a.old_code,
+          name: a.name ?? "",
+          department: a.department ?? "",
+          area: a.area ?? "",
+          mediaType: a.asset_media_type ?? "",
+        });
+      }
     }
+    noPmAssets.sort((a, b) => a.assetCode.localeCompare(b.assetCode));
     const kpi = {
       assets: assetCount,
       pmAll: pmAllAssets.size,
       pmMedia: pmMediaAssets.size,
       pmNonMedia: pmNonMediaAssets.size,
+      pmNone: noPmAssets.length,
     };
+
 
     // ---- Pairs (from MV) ----
     type Pair = {
@@ -268,14 +298,41 @@ export const getPmInsights = createServerFn({ method: "POST" })
     // ---- Monthly PM vs Claim (current year, ignores date filter) ----
     const year = new Date().getFullYear();
     const monthlyMap = new Map<number, { pm: number; claim: number }>();
-    for (let m = 0; m < 12; m++) monthlyMap.set(m, { pm: 0, claim: 0 });
+    type MonthTicket = {
+      ticket: string;
+      assetCode: string;
+      date: string;
+      status: string;
+      category: string;
+      department: string;
+    };
+    const monthlyDetailsMap = new Map<number, { pm: MonthTicket[]; claim: MonthTicket[] }>();
+    for (let m = 0; m < 12; m++) {
+      monthlyMap.set(m, { pm: 0, claim: 0 });
+      monthlyDetailsMap.set(m, { pm: [], claim: [] });
+    }
     for (const h of hist) {
       if (!inScopeHist(h)) continue;
       const d = new Date(h.created_at ?? h.event_ts ?? 0);
       if (!Number.isFinite(d.getTime()) || d.getFullYear() !== year) continue;
-      const row = monthlyMap.get(d.getMonth())!;
-      if (h.type === "PM") row.pm++;
-      else row.claim++;
+      const mi = d.getMonth();
+      const row = monthlyMap.get(mi)!;
+      const det = monthlyDetailsMap.get(mi)!;
+      const item: MonthTicket = {
+        ticket: h.ref_number ?? "",
+        assetCode: h.asset_old_code ?? "",
+        date: (h.created_at ?? h.event_ts ?? "").slice(0, 10),
+        status: h.status ?? "",
+        category: h.category ?? "",
+        department: h.asset_department ?? "",
+      };
+      if (h.type === "PM") {
+        row.pm++;
+        det.pm.push(item);
+      } else {
+        row.claim++;
+        det.claim.push(item);
+      }
     }
     const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const monthly = MONTH_LABELS.map((label, i) => ({
@@ -283,6 +340,12 @@ export const getPmInsights = createServerFn({ method: "POST" })
       pm: monthlyMap.get(i)!.pm,
       claim: monthlyMap.get(i)!.claim,
     }));
+    const monthlyDetails = MONTH_LABELS.map((label, i) => ({
+      month: label,
+      pm: monthlyDetailsMap.get(i)!.pm,
+      claim: monthlyDetailsMap.get(i)!.claim,
+    }));
+
 
     // ---- Aging ----
     const agingMap = new Map<string, number>();
@@ -453,6 +516,9 @@ export const getPmInsights = createServerFn({ method: "POST" })
     return {
       kpi,
       monthly,
+      monthlyDetails,
+      noPmAssets,
+
       aging,
       donuts,
       scoreRows,
@@ -487,12 +553,15 @@ export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
     const mediaTypes = new Set<string>();
     const assetCodes = new Set<string>();
     for (const a of assets) {
+      const p = (a.payload ?? {}) as Record<string, unknown>;
+      const del = p?.IsDeleted;
+      if (del === true || del === "true") continue;
       if (a.department) deps.add(a.department);
       assetCodes.add(a.old_code);
-      const p = (a.payload ?? {}) as Record<string, unknown>;
       const mt = p?.MediaType;
       if (typeof mt === "string" && mt) mediaTypes.add(mt);
     }
+
     for (const h of hist) {
       if (h.project) projects.add(h.project);
       if (h.bkk_upc) zones.add(h.bkk_upc);

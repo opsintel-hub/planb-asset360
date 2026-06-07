@@ -113,16 +113,22 @@ export const getPmInsights = createServerFn({ method: "POST" })
         (from, to) => supabaseAdmin.from("assets").select("old_code, name, department, area, payload").range(from, to),
       ),
     ]);
-    const deletedSet = new Set<string>();
-    const assetsLite: AssetLite[] = [];
+    // Two-pass: a code is "active" if ANY row for that code is not deleted.
+    // This avoids double-counting when assets has both deleted + active rows for the same old_code.
+    const activeCodes = new Set<string>();
     for (const r of assetsRaw) {
       const p = r.payload as Record<string, unknown> | null;
       const del = p && typeof p === "object" ? (p as Record<string, unknown>).IsDeleted : null;
-      if (del === true || del === "true") {
-        deletedSet.add(r.old_code);
-        continue;
-      }
-      assetsLite.push({
+      if (del !== true && del !== "true") activeCodes.add(r.old_code);
+    }
+    const assetMap = new Map<string, AssetLite>();
+    for (const r of assetsRaw) {
+      if (!activeCodes.has(r.old_code)) continue;
+      if (assetMap.has(r.old_code)) continue; // first active row wins
+      const p = r.payload as Record<string, unknown> | null;
+      const del = p && typeof p === "object" ? (p as Record<string, unknown>).IsDeleted : null;
+      if (del === true || del === "true") continue;
+      assetMap.set(r.old_code, {
         old_code: r.old_code,
         name: r.name,
         department: r.department,
@@ -133,11 +139,8 @@ export const getPmInsights = createServerFn({ method: "POST" })
             : null,
       });
     }
-
-
-
-    const assetMap = new Map<string, AssetLite>();
-    for (const a of assetsLite) assetMap.set(a.old_code, a);
+    // For history filtering: exclude only when the code has NO active asset row at all.
+    const deletedSet = new Set<string>();
 
     const fromTs = f.fromDate ? new Date(f.fromDate).getTime() : -Infinity;
     const toTs = f.toDate ? new Date(f.toDate).getTime() + 86400_000 : Infinity;

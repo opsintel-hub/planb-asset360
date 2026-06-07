@@ -26,9 +26,9 @@ const BUCKETS: { key: string; min: number; max: number }[] = [
   { key: "61-90", min: 61, max: 90 },
 ];
 
-function bucketOf(d: number): string {
+function bucketOf(d: number): string | null {
   for (const b of BUCKETS) if (d >= b.min && d <= b.max) return b.key;
-  return ">90";
+  return null;
 }
 
 async function fetchAll<T>(

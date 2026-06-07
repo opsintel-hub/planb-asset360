@@ -1209,7 +1209,7 @@ function ScoreReport({
           <p><strong>Score ของเดือน</strong> = ค่าเฉลี่ยคะแนนของ PM ทุกตัวในเดือนนั้น (ปัดเป็นจำนวนเต็ม)</p>
           <p><strong>เดือนที่ไม่มี PM</strong> → แสดงเป็น "—" (ไม่มีข้อมูล) ไม่นับ 0 และไม่ลากเส้นกราฟ</p>
           <p><strong>เกณฑ์สี:</strong> <Badge tone="success">≥ 70 ดี</Badge> <Badge tone="warning">40–69 เฝ้าระวัง</Badge> <Badge tone="danger">&lt; 40 ต้องแก้ไข</Badge></p>
-          <p className="text-amber-600 dark:text-amber-400"><strong>หมายเหตุ:</strong> หากเห็นแผนก <code>(ไม่มีสังกัดแผนก)</code> หมายถึง <b>ป้ายต้นทาง</b> ในตาราง <code>assets</code> ยังไม่ได้ระบุ <code>department</code> — แก้ที่ข้อมูลป้ายเพื่อให้คะแนนถูกจัดเข้าแผนกที่ถูกต้อง</p>
+          <p className="text-muted-foreground"><strong>หมายเหตุ:</strong> คอลัมน์ "แผนก" ในตารางนี้อ้างอิงจาก field <code>Project</code> ของตั๋ว (เช่น Static, Digital, Airport, Billboard, 7-Eleven)</p>
         </div>
       </CardHeader>
       <CardContent>

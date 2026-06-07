@@ -355,7 +355,10 @@ export const getPmInsights = createServerFn({ method: "POST" })
     // ---- Aging ----
     const agingMap = new Map<string, number>();
     for (const b of BUCKETS) agingMap.set(b.key, 0);
-    for (const p of pairs) agingMap.set(bucketOf(p.days), (agingMap.get(bucketOf(p.days)) ?? 0) + 1);
+    for (const p of pairs) {
+      const k = bucketOf(p.days);
+      if (k) agingMap.set(k, (agingMap.get(k) ?? 0) + 1);
+    }
     const aging = BUCKETS.map((b) => ({ bucket: b.key, count: agingMap.get(b.key) ?? 0 }));
 
     // ---- Top defect donuts (pairs <= 30 days) ----

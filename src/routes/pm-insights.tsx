@@ -158,7 +158,7 @@ function PmInsightsPage() {
   const optsFn = useServerFn(getPmInsightsFilterOptions);
   const qc = useQueryClient();
   const today = new Date();
-  const default90 = new Date(today.getTime() - 90 * 86400_000);
+  const yearStartDefault = new Date(today.getFullYear(), 0, 1);
 
   // Draft filter state (not applied until user clicks the button)
   const [departments, setDepartments] = useState<string[]>([]);
@@ -166,7 +166,7 @@ function PmInsightsPage() {
   const [projects, setProjects] = useState<string[]>([]);
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
   const [pmCategory, setPmCategory] = useState<"all" | "media" | "non-media">("all");
-  const [fromDate, setFromDate] = useState(default90.toISOString().slice(0, 10));
+  const [fromDate, setFromDate] = useState(yearStartDefault.toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(today.toISOString().slice(0, 10));
   const [assetSearchDraft, setAssetSearchDraft] = useState("");
 

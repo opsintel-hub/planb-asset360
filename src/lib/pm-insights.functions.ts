@@ -141,6 +141,9 @@ export const getPmInsights = createServerFn({ method: "POST" })
     }
     // For history filtering: exclude only when the code has NO active asset row at all.
     const deletedSet = new Set<string>();
+    for (const r of assetsRaw) {
+      if (!activeCodes.has(r.old_code)) deletedSet.add(r.old_code);
+    }
 
     const fromTs = f.fromDate ? new Date(f.fromDate).getTime() : -Infinity;
     const toTs = f.toDate ? new Date(f.toDate).getTime() + 86400_000 : Infinity;

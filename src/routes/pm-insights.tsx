@@ -514,7 +514,6 @@ const BUCKET_RANGES: Record<string, [number, number]> = {
   "16-30": [16, 30],
   "31-60": [31, 60],
   "61-90": [61, 90],
-  ">90": [91, 9e9],
 };
 
 type MonthTicket = {

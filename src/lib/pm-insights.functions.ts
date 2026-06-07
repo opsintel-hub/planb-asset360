@@ -391,7 +391,8 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const deptSet = new Set<string>();
     for (const h of filteredHist) {
       if (h.type !== "PM" || h.asset_status !== "Pass") continue;
-      const dept = (h.asset_department || "").trim() || "(ไม่มีสังกัดแผนก)";
+      // Per user: Project field is the "department" dimension for PM Score.
+      const dept = (h.project || "").trim() || "(ไม่ระบุ)";
       deptSet.add(dept);
       const date = h.updated_at || h.created_at;
       if (!date) continue;
@@ -403,7 +404,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     }
     for (const p of pairs) {
       const m = p.pmDate.slice(0, 7);
-      const dept = (p.department || "").trim() || "(ไม่มีสังกัดแผนก)";
+      const dept = (p.project || "").trim() || "(ไม่ระบุ)";
       deptSet.add(dept);
       const key = `${m}|${dept}`;
       const v = scoreMap.get(key) ?? { sum: 0, n: 0, pm: 0, claim: 0 };

@@ -24,7 +24,6 @@ const BUCKETS: { key: string; min: number; max: number }[] = [
   { key: "16-30", min: 16, max: 30 },
   { key: "31-60", min: 31, max: 60 },
   { key: "61-90", min: 61, max: 90 },
-  { key: ">90", min: 91, max: 9e9 },
 ];
 
 function bucketOf(d: number): string {

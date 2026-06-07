@@ -514,7 +514,6 @@ const BUCKET_RANGES: Record<string, [number, number]> = {
   "16-30": [16, 30],
   "31-60": [31, 60],
   "61-90": [61, 90],
-  ">90": [91, 9e9],
 };
 
 type MonthTicket = {
@@ -646,18 +645,40 @@ function MonthTicketTable({ title, color, rows }: { title: string; color: string
 function NoPmAssetList({ rows }: { rows: { assetCode: string; name: string; department: string; area: string; mediaType: string }[] }) {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const pageSize = 50;
+  const [pageSize, setPageSize] = useState<20 | 50 | 100>(50);
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const cur = Math.min(page, totalPages);
   const slice = rows.slice((cur - 1) * pageSize, cur * pageSize);
+
+  const exportCsv = () => {
+    const header = ["รหัสป้าย", "ชื่อ", "แผนก", "พื้นที่", "Media Type"];
+    const esc = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
+    const csv = [
+      header.join(","),
+      ...rows.map((r) => [r.assetCode, r.name, r.department, r.area, r.mediaType].map(esc).join(",")),
+    ].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `assets-no-pm-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-base">รายการป้ายที่ยังไม่ได้เปิดตั๋ว PM ({rows.length.toLocaleString()})</CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => setOpen((o) => !o)}>
-            {open ? <><ChevronUp className="size-4" /> ซ่อน</> : <><ChevronDown className="size-4" /> แสดงรายการ</>}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={rows.length === 0}>
+              Export CSV
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setOpen((o) => !o)}>
+              {open ? <><ChevronUp className="size-4" /> ซ่อน</> : <><ChevronDown className="size-4" /> แสดงรายการ</>}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       {open && (
@@ -688,15 +709,31 @@ function NoPmAssetList({ rows }: { rows: { assetCode: string; name: string; depa
               </TableBody>
             </Table>
           </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-2 text-xs">
-              <span className="text-muted-foreground">หน้า {cur} / {totalPages} · {rows.length.toLocaleString()} รายการ</span>
-              <div className="flex gap-1">
-                <Button size="sm" variant="outline" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>ก่อน</Button>
-                <Button size="sm" variant="outline" disabled={cur >= totalPages} onClick={() => setPage(cur + 1)}>ถัดไป</Button>
-              </div>
+          <div className="flex items-center justify-between mt-2 text-xs flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">แสดงต่อหน้า:</span>
+              {[20, 50, 100].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => { setPageSize(n as 20 | 50 | 100); setPage(1); }}
+                  className={
+                    "px-2 py-1 rounded border transition " +
+                    (pageSize === n
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background hover:bg-accent border-border")
+                  }
+                >
+                  {n}
+                </button>
+              ))}
             </div>
-          )}
+            <span className="text-muted-foreground">หน้า {cur} / {totalPages} · {rows.length.toLocaleString()} รายการ</span>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>ก่อน</Button>
+              <Button size="sm" variant="outline" disabled={cur >= totalPages} onClick={() => setPage(cur + 1)}>ถัดไป</Button>
+            </div>
+          </div>
         </CardContent>
       )}
     </Card>
@@ -1172,7 +1209,7 @@ function ScoreReport({
           <p><strong>Score ของเดือน</strong> = ค่าเฉลี่ยคะแนนของ PM ทุกตัวในเดือนนั้น (ปัดเป็นจำนวนเต็ม)</p>
           <p><strong>เดือนที่ไม่มี PM</strong> → แสดงเป็น "—" (ไม่มีข้อมูล) ไม่นับ 0 และไม่ลากเส้นกราฟ</p>
           <p><strong>เกณฑ์สี:</strong> <Badge tone="success">≥ 70 ดี</Badge> <Badge tone="warning">40–69 เฝ้าระวัง</Badge> <Badge tone="danger">&lt; 40 ต้องแก้ไข</Badge></p>
-          <p className="text-amber-600 dark:text-amber-400"><strong>หมายเหตุ:</strong> หากเห็นแผนก <code>(ไม่มีสังกัดแผนก)</code> หมายถึง <b>ป้ายต้นทาง</b> ในตาราง <code>assets</code> ยังไม่ได้ระบุ <code>department</code> — แก้ที่ข้อมูลป้ายเพื่อให้คะแนนถูกจัดเข้าแผนกที่ถูกต้อง</p>
+          <p className="text-muted-foreground"><strong>หมายเหตุ:</strong> คอลัมน์ "แผนก" ในตารางนี้อ้างอิงจาก field <code>Project</code> ของตั๋ว (เช่น Static, Digital, Airport, Billboard, 7-Eleven)</p>
         </div>
       </CardHeader>
       <CardContent>

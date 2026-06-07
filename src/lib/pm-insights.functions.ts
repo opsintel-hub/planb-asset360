@@ -24,12 +24,11 @@ const BUCKETS: { key: string; min: number; max: number }[] = [
   { key: "16-30", min: 16, max: 30 },
   { key: "31-60", min: 31, max: 60 },
   { key: "61-90", min: 61, max: 90 },
-  { key: ">90", min: 91, max: 9e9 },
 ];
 
-function bucketOf(d: number): string {
+function bucketOf(d: number): string | null {
   for (const b of BUCKETS) if (d >= b.min && d <= b.max) return b.key;
-  return ">90";
+  return null;
 }
 
 async function fetchAll<T>(
@@ -217,15 +216,20 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const filteredHist = hist.filter(inFilterHist);
 
     // ---- KPIs ----
+    // Only count PM assets that exist in non-deleted assetMap, so KPI math balances:
+    //   total assets = pmAll + noPm  AND  total = pmMedia + pmNonMedia + noPm (disjoint).
     const pmAllAssets = new Set<string>();
     const pmMediaAssets = new Set<string>();
     const pmNonMediaAssets = new Set<string>();
     for (const h of filteredHist) {
       if (h.type !== "PM" || !h.asset_old_code) continue;
+      if (!assetMap.has(h.asset_old_code)) continue;
       pmAllAssets.add(h.asset_old_code);
       if (h.category === "PM (Media)") pmMediaAssets.add(h.asset_old_code);
-      if (h.category === "PM (non Media)") pmNonMediaAssets.add(h.asset_old_code);
+      else if (h.category === "PM (non Media)") pmNonMediaAssets.add(h.asset_old_code);
     }
+    // Make Media / non-Media disjoint — an asset with both is bucketed as Media.
+    for (const code of pmMediaAssets) pmNonMediaAssets.delete(code);
     let assetCount = 0;
     const noPmAssets: { assetCode: string; name: string; department: string; area: string; mediaType: string }[] = [];
     for (const a of assetMap.values()) {
@@ -275,6 +279,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const pairs: Pair[] = [];
     for (const p of pairsAll) {
       if (p.days == null || !p.claim_ts) continue;
+      if (p.days < 1 || p.days > 90) continue; // ignore >90 — not "claim caused by PM"
       if (!inFilterPair(p)) continue;
       pairs.push({
         assetCode: p.asset_old_code,
@@ -350,7 +355,10 @@ export const getPmInsights = createServerFn({ method: "POST" })
     // ---- Aging ----
     const agingMap = new Map<string, number>();
     for (const b of BUCKETS) agingMap.set(b.key, 0);
-    for (const p of pairs) agingMap.set(bucketOf(p.days), (agingMap.get(bucketOf(p.days)) ?? 0) + 1);
+    for (const p of pairs) {
+      const k = bucketOf(p.days);
+      if (k) agingMap.set(k, (agingMap.get(k) ?? 0) + 1);
+    }
     const aging = BUCKETS.map((b) => ({ bucket: b.key, count: agingMap.get(b.key) ?? 0 }));
 
     // ---- Top defect donuts (pairs <= 30 days) ----
@@ -383,7 +391,8 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const deptSet = new Set<string>();
     for (const h of filteredHist) {
       if (h.type !== "PM" || h.asset_status !== "Pass") continue;
-      const dept = (h.asset_department || "").trim() || "(ไม่มีสังกัดแผนก)";
+      // Per user: Project field is the "department" dimension for PM Score.
+      const dept = (h.project || "").trim() || "(ไม่ระบุ)";
       deptSet.add(dept);
       const date = h.updated_at || h.created_at;
       if (!date) continue;
@@ -395,7 +404,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     }
     for (const p of pairs) {
       const m = p.pmDate.slice(0, 7);
-      const dept = (p.department || "").trim() || "(ไม่มีสังกัดแผนก)";
+      const dept = (p.project || "").trim() || "(ไม่ระบุ)";
       deptSet.add(dept);
       const key = `${m}|${dept}`;
       const v = scoreMap.get(key) ?? { sum: 0, n: 0, pm: 0, claim: 0 };

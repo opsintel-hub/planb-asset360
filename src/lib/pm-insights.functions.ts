@@ -279,6 +279,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const pairs: Pair[] = [];
     for (const p of pairsAll) {
       if (p.days == null || !p.claim_ts) continue;
+      if (p.days < 1 || p.days > 90) continue; // ignore >90 — not "claim caused by PM"
       if (!inFilterPair(p)) continue;
       pairs.push({
         assetCode: p.asset_old_code,

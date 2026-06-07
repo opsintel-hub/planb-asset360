@@ -66,7 +66,7 @@ const PIE_COLORS = [
   "oklch(0.7 0.12 30)",
 ];
 
-function MultiSelect({
+const MultiSelect = memo(function MultiSelect({
   label,
   options,
   value,

@@ -216,15 +216,20 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const filteredHist = hist.filter(inFilterHist);
 
     // ---- KPIs ----
+    // Only count PM assets that exist in non-deleted assetMap, so KPI math balances:
+    //   total assets = pmAll + noPm  AND  total = pmMedia + pmNonMedia + noPm (disjoint).
     const pmAllAssets = new Set<string>();
     const pmMediaAssets = new Set<string>();
     const pmNonMediaAssets = new Set<string>();
     for (const h of filteredHist) {
       if (h.type !== "PM" || !h.asset_old_code) continue;
+      if (!assetMap.has(h.asset_old_code)) continue;
       pmAllAssets.add(h.asset_old_code);
       if (h.category === "PM (Media)") pmMediaAssets.add(h.asset_old_code);
-      if (h.category === "PM (non Media)") pmNonMediaAssets.add(h.asset_old_code);
+      else if (h.category === "PM (non Media)") pmNonMediaAssets.add(h.asset_old_code);
     }
+    // Make Media / non-Media disjoint — an asset with both is bucketed as Media.
+    for (const code of pmMediaAssets) pmNonMediaAssets.delete(code);
     let assetCount = 0;
     const noPmAssets: { assetCode: string; name: string; department: string; area: string; mediaType: string }[] = [];
     for (const a of assetMap.values()) {

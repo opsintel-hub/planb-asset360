@@ -140,7 +140,7 @@ const MultiSelect = memo(function MultiSelect({
       )}
     </div>
   );
-}
+});
 
 type AppliedFilters = {
   departments: string[];

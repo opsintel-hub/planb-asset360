@@ -63,13 +63,46 @@ export async function runClaimSync() {
     if (!url) throw new Error("ยังไม่ได้ตั้งค่า claim_api_url");
     const raw = await fetchPlanB(url);
     const list = Array.isArray(raw) ? raw : ((raw as { data?: unknown[] })?.data ?? []);
-    let n = 0;
+
+    // Build snapshot rows for claim_tickets (1 ticket = 1 row) and append rows for claims (audit log)
+    const syncedAt = new Date().toISOString();
+    type SnapshotRow = {
+      ref_number: string;
+      asset_old_code: string | null;
+      location: string | null;
+      informed_detail: string | null;
+      title: string | null;
+      status: string | null;
+      severity: string | null;
+      opened_at: string | null;
+      age_hours: number | null;
+      sla_status: string | null;
+      payload: never;
+      synced_at: string;
+    };
+    type AuditRow = {
+      ticket_code: string;
+      asset_old_code: string | null;
+      title: string | null;
+      opened_at: string | null;
+      age_hours: number | null;
+      sla_status: string | null;
+      severity: string | null;
+      payload: never;
+      synced_at: string;
+    };
+    const snapshotRows: SnapshotRow[] = [];
+    const auditRows: AuditRow[] = [];
+    const seen = new Set<string>();
+
     for (const item of list as Record<string, unknown>[]) {
-      const ticketCode = String(
+      const refNumber = String(
         item.refNumber ?? item.RefNumber ?? item.ref_number ??
         item.ticketCode ?? item.TicketCode ?? item.ticket_code ?? item.id ?? "",
       );
-      if (!ticketCode) continue;
+      if (!refNumber || seen.has(refNumber)) continue;
+      seen.add(refNumber);
+
       const openedAt = (item.openedAt ?? item.OpenedAt ?? item.createdAt ?? null) as string | null;
       const totalTimeHours = typeof item.totalTime === "number" ? item.totalTime : Number(item.totalTime ?? NaN);
       const ageHours = openedAt
@@ -77,24 +110,76 @@ export async function runClaimSync() {
         : Number.isFinite(totalTimeHours) ? totalTimeHours : null;
       const sla = ageHours == null ? null : ageHours < 24 ? "ontrack" : ageHours < 72 ? "atrisk" : "breached";
       const oldCode = (item.oldCode ?? item.assetCode ?? item.AssetCode ?? null) as string | null;
-      const title = (item.informDetail ?? item.title ?? item.subject ?? item.description ?? item.location ?? null) as string | null;
-      await supabaseAdmin.from("claims").upsert(
-        {
-          ticket_code: ticketCode,
-          asset_old_code: oldCode,
-          title,
-          opened_at: openedAt,
-          age_hours: ageHours,
-          sla_status: sla,
-          severity: (item.severity ?? item.status ?? null) as string | null,
-          payload: item as never,
-          synced_at: new Date().toISOString(),
-        },
-        { onConflict: "ticket_code" },
-      );
-      n++;
+      const location = (item.location ?? item.Location ?? null) as string | null;
+      const informedDetail = (item.informDetail ?? item.informedDetail ?? item.InformedDetail ?? null) as string | null;
+      const title = informedDetail ?? (item.title ?? item.subject ?? item.description ?? location ?? null) as string | null;
+      const severity = (item.severity ?? item.status ?? null) as string | null;
+      const status = (item.status ?? item.Status ?? null) as string | null;
+
+      snapshotRows.push({
+        ref_number: refNumber,
+        asset_old_code: oldCode,
+        location,
+        informed_detail: informedDetail,
+        title,
+        status,
+        severity,
+        opened_at: openedAt,
+        age_hours: ageHours,
+        sla_status: sla,
+        payload: item as never,
+        synced_at: syncedAt,
+      });
+      auditRows.push({
+        ticket_code: refNumber,
+        asset_old_code: oldCode,
+        title,
+        opened_at: openedAt,
+        age_hours: ageHours,
+        sla_status: sla,
+        severity,
+        payload: item as never,
+        synced_at: syncedAt,
+      });
     }
-    await logFinish(id, "success", `synced ${n} claims`, n);
+
+    // Snapshot: upsert all current tickets, then delete anything not in the current API response.
+    if (snapshotRows.length) {
+      const { error: upErr } = await supabaseAdmin
+        .from("claim_tickets")
+        .upsert(snapshotRows, { onConflict: "ref_number" });
+      if (upErr) throw upErr;
+    }
+    const currentRefs = Array.from(seen);
+    if (currentRefs.length) {
+      // Delete stale rows by computing the diff against existing snapshot.
+      const { data: existing } = await supabaseAdmin
+        .from("claim_tickets")
+        .select("ref_number");
+      const currentSet = new Set(currentRefs);
+      const stale = (existing ?? [])
+        .map((r) => r.ref_number as string)
+        .filter((r) => !currentSet.has(r));
+      if (stale.length) {
+        const { error: delErr } = await supabaseAdmin
+          .from("claim_tickets")
+          .delete()
+          .in("ref_number", stale);
+        if (delErr) throw delErr;
+      }
+    } else {
+      // API returned zero tickets — clear snapshot entirely.
+      await supabaseAdmin.from("claim_tickets").delete().neq("ref_number", "");
+    }
+
+    // Audit log: append every observation to `claims` (history/audit trail).
+    if (auditRows.length) {
+      const { error: auErr } = await supabaseAdmin.from("claims").insert(auditRows);
+      if (auErr) throw auErr;
+    }
+
+    const n = snapshotRows.length;
+    await logFinish(id, "success", `snapshot ${n} claim tickets, +${auditRows.length} audit rows`, n);
     return { ok: true, rows: n };
   } catch (e) {
     await logFinish(id, "error", (e as Error).message, 0);

@@ -11,7 +11,7 @@ export const getDashboardOverview = createServerFn({ method: "GET" })
 
     const [assetsRes, claimsRes, monitorRes, historyRes] = await Promise.all([
       supabase.from("assets").select("id, department, status", { count: "exact" }),
-      supabase.from("claims").select("id, sla_status, age_hours", { count: "exact" }),
+      supabase.from("claim_tickets").select("ref_number, sla_status, age_hours", { count: "exact" }),
       supabase.from("monitoring_status").select("online, error_code"),
       supabase
         .from("asset_history")
@@ -411,19 +411,18 @@ export const listClaims = createServerFn({ method: "POST" })
     z.object({ sla: z.enum(["all", "ontrack", "atrisk", "breached"]).optional().default("all") }).parse(i),
   )
   .handler(async ({ data, context }) => {
+    // Drive Claim Aging UI from the live snapshot table (1 ticket = 1 row).
     let q = context.supabase
-      .from("claims")
+      .from("claim_tickets")
       .select("*")
-      .order("ticket_code", { ascending: true })
-      .order("age_hours", { ascending: false })
-      .limit(500);
+      .order("opened_at", { ascending: false })
+      .limit(2000);
     if (data.sla !== "all") q = q.eq("sla_status", data.sla);
     const { data: rows } = await q;
-    const claims = rows ?? [];
+    const tickets = rows ?? [];
 
-    // Join department from assets via asset_old_code
     const codes = Array.from(
-      new Set(claims.map((c) => c.asset_old_code).filter(Boolean) as string[]),
+      new Set(tickets.map((c) => c.asset_old_code).filter(Boolean) as string[]),
     );
     const deptMap = new Map<string, string | null>();
     if (codes.length) {
@@ -433,13 +432,18 @@ export const listClaims = createServerFn({ method: "POST" })
         .in("old_code", codes);
       for (const a of assets ?? []) deptMap.set(a.old_code, a.department ?? null);
     }
-    const enriched = claims.map((c) => ({
-      ...c,
+    const enriched = tickets.map((c) => ({
+      id: c.ref_number,
+      ticket_code: c.ref_number,
+      asset_old_code: c.asset_old_code,
+      title: c.title ?? c.informed_detail ?? c.location ?? null,
+      opened_at: c.opened_at,
+      age_hours: c.age_hours,
+      sla_status: c.sla_status,
+      severity: c.severity,
       department: c.asset_old_code ? deptMap.get(c.asset_old_code) ?? null : null,
-      status:
-        ((c.payload as Record<string, unknown> | null)?.status as string | undefined) ??
-        ((c.payload as Record<string, unknown> | null)?.Status as string | undefined) ??
-        null,
+      status: c.status,
+      payload: c.payload,
     }));
     const departments = Array.from(
       new Set(enriched.map((c) => c.department).filter(Boolean) as string[]),
@@ -546,7 +550,7 @@ export const getAssetProfile = createServerFn({ method: "POST" })
         .select("id, old_code, name, department, area, status, latitude, longitude, payload")
         .in("old_code", data.oldCodes),
       supabase
-        .from("claims")
+        .from("claim_tickets")
         .select("asset_old_code, severity, sla_status, title, opened_at, payload")
         .in("asset_old_code", data.oldCodes)
         .order("opened_at", { ascending: false }),

@@ -214,6 +214,51 @@ export type Database = {
         }
         Relationships: []
       }
+      claim_tickets: {
+        Row: {
+          age_hours: number | null
+          asset_old_code: string | null
+          informed_detail: string | null
+          location: string | null
+          opened_at: string | null
+          payload: Json
+          ref_number: string
+          severity: string | null
+          sla_status: string | null
+          status: string | null
+          synced_at: string
+          title: string | null
+        }
+        Insert: {
+          age_hours?: number | null
+          asset_old_code?: string | null
+          informed_detail?: string | null
+          location?: string | null
+          opened_at?: string | null
+          payload?: Json
+          ref_number: string
+          severity?: string | null
+          sla_status?: string | null
+          status?: string | null
+          synced_at?: string
+          title?: string | null
+        }
+        Update: {
+          age_hours?: number | null
+          asset_old_code?: string | null
+          informed_detail?: string | null
+          location?: string | null
+          opened_at?: string | null
+          payload?: Json
+          ref_number?: string
+          severity?: string | null
+          sla_status?: string | null
+          status?: string | null
+          synced_at?: string
+          title?: string | null
+        }
+        Relationships: []
+      }
       claims: {
         Row: {
           age_hours: number | null

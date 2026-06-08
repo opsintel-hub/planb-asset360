@@ -158,7 +158,9 @@ function PmInsightsPage() {
   const optsFn = useServerFn(getPmInsightsFilterOptions);
   const qc = useQueryClient();
   const today = new Date();
-  const yearStartDefault = new Date(today.getFullYear(), 0, 1);
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+  const yearStartStr = `${today.getFullYear()}-01-01`;
 
   // Draft filter state (not applied until user clicks the button)
   const [departments, setDepartments] = useState<string[]>([]);
@@ -166,8 +168,8 @@ function PmInsightsPage() {
   const [projects, setProjects] = useState<string[]>([]);
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
   const [pmCategory, setPmCategory] = useState<"all" | "media" | "non-media">("all");
-  const [fromDate, setFromDate] = useState(yearStartDefault.toISOString().slice(0, 10));
-  const [toDate, setToDate] = useState(today.toISOString().slice(0, 10));
+  const [fromDate, setFromDate] = useState(yearStartStr);
+  const [toDate, setToDate] = useState(todayStr);
   const [assetSearchDraft, setAssetSearchDraft] = useState("");
 
   // Applied filter state — query only runs / page only renders when this is set
@@ -233,8 +235,8 @@ function PmInsightsPage() {
     setProjects([]);
     setMediaTypes([]);
     setPmCategory("all");
-    setFromDate(yearStartDefault.toISOString().slice(0, 10));
-    setToDate(today.toISOString().slice(0, 10));
+    setFromDate(yearStartStr);
+    setToDate(todayStr);
     setAssetSearchDraft("");
     setBucketSel([]);
     setApplied(null);
@@ -1319,6 +1321,12 @@ function FrequencyReport({
             <CardTitle>ความถี่ของการ PM</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
               ป้ายไหนทำ PM กี่ครั้งต่อปี/เดือน · ห่างกันเฉลี่ยกี่วัน (นับจาก PM ครั้งก่อนหน้า) · มี Claim ตามมาภายหลังกี่ครั้ง · กรองตาม filter ด้านบน
+            </p>
+            <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+              <b>วิธีนับ "Claim ตามมาภายหลัง":</b> นับจำนวนคู่ (PM → Claim) ของป้ายเดียวกัน
+              โดย Claim ต้องเปิดหลัง PM ปิดงาน และ <u>ภายใน 1–90 วัน</u> เท่านั้น (เกิน 90 วันถือว่าไม่เกี่ยวข้องกับ PM ครั้งนั้น)
+              ตัวเลขในคอลัมน์นี้ <b>สัมพันธ์โดยตรง</b> กับรายงานด้านบน:
+              ผลรวมของทุกแถว = ผลรวมแท่ง Aging 1–3 ถึง 61–90 วัน = จำนวนแถวในตาราง "PM → Claim ที่จับคู่ได้"
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">

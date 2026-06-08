@@ -1322,6 +1322,12 @@ function FrequencyReport({
             <p className="text-sm text-muted-foreground mt-1">
               ป้ายไหนทำ PM กี่ครั้งต่อปี/เดือน · ห่างกันเฉลี่ยกี่วัน (นับจาก PM ครั้งก่อนหน้า) · มี Claim ตามมาภายหลังกี่ครั้ง · กรองตาม filter ด้านบน
             </p>
+            <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+              <b>วิธีนับ "Claim ตามมาภายหลัง":</b> นับจำนวนคู่ (PM → Claim) ของป้ายเดียวกัน
+              โดย Claim ต้องเปิดหลัง PM ปิดงาน และ <u>ภายใน 1–90 วัน</u> เท่านั้น (เกิน 90 วันถือว่าไม่เกี่ยวข้องกับ PM ครั้งนั้น)
+              ตัวเลขในคอลัมน์นี้ <b>สัมพันธ์โดยตรง</b> กับรายงานด้านบน:
+              ผลรวมของทุกแถว = ผลรวมแท่ง Aging 1–3 ถึง 61–90 วัน = จำนวนแถวในตาราง "PM → Claim ที่จับคู่ได้"
+            </p>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Input

@@ -235,8 +235,8 @@ function PmInsightsPage() {
     setProjects([]);
     setMediaTypes([]);
     setPmCategory("all");
-    setFromDate(yearStartDefault.toISOString().slice(0, 10));
-    setToDate(today.toISOString().slice(0, 10));
+    setFromDate(yearStartStr);
+    setToDate(todayStr);
     setAssetSearchDraft("");
     setBucketSel([]);
     setApplied(null);

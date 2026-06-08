@@ -158,7 +158,9 @@ function PmInsightsPage() {
   const optsFn = useServerFn(getPmInsightsFilterOptions);
   const qc = useQueryClient();
   const today = new Date();
-  const yearStartDefault = new Date(today.getFullYear(), 0, 1);
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+  const yearStartStr = `${today.getFullYear()}-01-01`;
 
   // Draft filter state (not applied until user clicks the button)
   const [departments, setDepartments] = useState<string[]>([]);
@@ -166,8 +168,8 @@ function PmInsightsPage() {
   const [projects, setProjects] = useState<string[]>([]);
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
   const [pmCategory, setPmCategory] = useState<"all" | "media" | "non-media">("all");
-  const [fromDate, setFromDate] = useState(yearStartDefault.toISOString().slice(0, 10));
-  const [toDate, setToDate] = useState(today.toISOString().slice(0, 10));
+  const [fromDate, setFromDate] = useState(yearStartStr);
+  const [toDate, setToDate] = useState(todayStr);
   const [assetSearchDraft, setAssetSearchDraft] = useState("");
 
   // Applied filter state — query only runs / page only renders when this is set

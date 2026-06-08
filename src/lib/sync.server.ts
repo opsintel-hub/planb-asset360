@@ -152,11 +152,21 @@ export async function runClaimSync() {
     }
     const currentRefs = Array.from(seen);
     if (currentRefs.length) {
-      const { error: delErr } = await supabaseAdmin
+      // Delete stale rows by computing the diff against existing snapshot.
+      const { data: existing } = await supabaseAdmin
         .from("claim_tickets")
-        .delete()
-        .not("ref_number", "in", `(${currentRefs.map((r) => `"${r.replace(/"/g, '""')}"`).join(",")})`);
-      if (delErr) throw delErr;
+        .select("ref_number");
+      const currentSet = new Set(currentRefs);
+      const stale = (existing ?? [])
+        .map((r) => r.ref_number as string)
+        .filter((r) => !currentSet.has(r));
+      if (stale.length) {
+        const { error: delErr } = await supabaseAdmin
+          .from("claim_tickets")
+          .delete()
+          .in("ref_number", stale);
+        if (delErr) throw delErr;
+      }
     } else {
       // API returned zero tickets — clear snapshot entirely.
       await supabaseAdmin.from("claim_tickets").delete().neq("ref_number", "");

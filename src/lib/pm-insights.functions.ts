@@ -222,37 +222,40 @@ export const getPmInsights = createServerFn({ method: "POST" })
     const filteredHist = hist.filter(inFilterHist);
 
     // ---- KPIs ----
-    // Only count PM assets that exist in non-deleted assetMap, so KPI math balances:
-    //   total assets = pmAll + noPm  AND  total = pmMedia + pmNonMedia + noPm (disjoint).
+    // Build the set of assets in scope (passing asset-side filters: dept/project/mediaType/assetCode).
+    // KPI invariant: total = pmMedia + pmNonMedia + noPm   AND   total = pmAll + noPm.
+    const matchedAssetCodes = new Set<string>();
+    for (const a of assetMap.values()) {
+      if (depSet.size && !depSet.has(a.department ?? "")) continue;
+      if (projSet.size && !(a.department && projDeptSet.has(a.department))) continue;
+      if (mtSet.size && !mtSet.has(a.asset_media_type ?? "")) continue;
+      if (assetCodeQ && a.old_code.toLowerCase() !== assetCodeQ) continue;
+      matchedAssetCodes.add(a.old_code);
+    }
     const pmAllAssets = new Set<string>();
     const pmMediaAssets = new Set<string>();
     const pmNonMediaAssets = new Set<string>();
     for (const h of filteredHist) {
       if (h.type !== "PM" || !h.asset_old_code) continue;
-      if (!assetMap.has(h.asset_old_code)) continue;
+      if (!matchedAssetCodes.has(h.asset_old_code)) continue;
       pmAllAssets.add(h.asset_old_code);
       if (h.category === "PM (Media)") pmMediaAssets.add(h.asset_old_code);
       else if (h.category === "PM (non Media)") pmNonMediaAssets.add(h.asset_old_code);
     }
     // Make Media / non-Media disjoint — an asset with both is bucketed as Media.
     for (const code of pmMediaAssets) pmNonMediaAssets.delete(code);
-    let assetCount = 0;
+    const assetCount = matchedAssetCodes.size;
     const noPmAssets: { assetCode: string; name: string; department: string; area: string; mediaType: string }[] = [];
-    for (const a of assetMap.values()) {
-      if (depSet.size && !depSet.has(a.department ?? "")) continue;
-      if (projSet.size && !(a.department && projDeptSet.has(a.department))) continue;
-      if (mtSet.size && !mtSet.has(a.asset_media_type ?? "")) continue;
-      if (assetCodeQ && a.old_code.toLowerCase() !== assetCodeQ) continue;
-      assetCount++;
-      if (!pmAllAssets.has(a.old_code)) {
-        noPmAssets.push({
-          assetCode: a.old_code,
-          name: a.name ?? "",
-          department: a.department ?? "",
-          area: a.area ?? "",
-          mediaType: a.asset_media_type ?? "",
-        });
-      }
+    for (const code of matchedAssetCodes) {
+      if (pmAllAssets.has(code)) continue;
+      const a = assetMap.get(code)!;
+      noPmAssets.push({
+        assetCode: a.old_code,
+        name: a.name ?? "",
+        department: a.department ?? "",
+        area: a.area ?? "",
+        mediaType: a.asset_media_type ?? "",
+      });
     }
     noPmAssets.sort((a, b) => a.assetCode.localeCompare(b.assetCode));
     const kpi = {

@@ -17,6 +17,7 @@ import { Route as MonitoringRouteImport } from './routes/monitoring'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ClaimsRouteImport } from './routes/claims'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicHooksSyncClaimsRouteImport } from './routes/api/public/hooks/sync-claims'
 import { Route as ApiPublicHooksSyncAssetHistoryRouteImport } from './routes/api/public/hooks/sync-asset-history'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -59,6 +60,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksSyncClaimsRoute =
+  ApiPublicHooksSyncClaimsRouteImport.update({
+    id: '/api/public/hooks/sync-claims',
+    path: '/api/public/hooks/sync-claims',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksSyncAssetHistoryRoute =
   ApiPublicHooksSyncAssetHistoryRouteImport.update({
     id: '/api/public/hooks/sync-asset-history',
@@ -76,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
+  '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -87,6 +95,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
+  '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -99,6 +108,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
+  '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -112,6 +122,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/api/public/hooks/sync-asset-history'
+    | '/api/public/hooks/sync-claims'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -123,6 +134,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/api/public/hooks/sync-asset-history'
+    | '/api/public/hooks/sync-claims'
   id:
     | '__root__'
     | '/'
@@ -134,6 +146,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/api/public/hooks/sync-asset-history'
+    | '/api/public/hooks/sync-claims'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -146,6 +159,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   ApiPublicHooksSyncAssetHistoryRoute: typeof ApiPublicHooksSyncAssetHistoryRoute
+  ApiPublicHooksSyncClaimsRoute: typeof ApiPublicHooksSyncClaimsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -206,6 +220,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/sync-claims': {
+      id: '/api/public/hooks/sync-claims'
+      path: '/api/public/hooks/sync-claims'
+      fullPath: '/api/public/hooks/sync-claims'
+      preLoaderRoute: typeof ApiPublicHooksSyncClaimsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/sync-asset-history': {
       id: '/api/public/hooks/sync-asset-history'
       path: '/api/public/hooks/sync-asset-history'
@@ -226,7 +247,18 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   ApiPublicHooksSyncAssetHistoryRoute: ApiPublicHooksSyncAssetHistoryRoute,
+  ApiPublicHooksSyncClaimsRoute: ApiPublicHooksSyncClaimsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

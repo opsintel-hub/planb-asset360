@@ -74,7 +74,7 @@ function ClaimsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Claim Aging" subtitle="ติดตามอายุงานเคลม (Type = Claim) Auto-Sync ทุก 15 นาที" />
+      <PageHeader title="Claim Aging" subtitle="Snapshot ตั๋วเคลมที่ยังเปิดอยู่ (1 Ticket = 1 แถว) Auto-Sync ทุก 15 นาที จาก /Ticket/RemainingClaimTickets" />
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <StatCard label="Claim ทั้งหมด" value={String(claims.length)} tone="warning" icon={<Wrench className="size-5" />} />

@@ -550,7 +550,7 @@ export const getAssetProfile = createServerFn({ method: "POST" })
         .select("id, old_code, name, department, area, status, latitude, longitude, payload")
         .in("old_code", data.oldCodes),
       supabase
-        .from("claims")
+        .from("claim_tickets")
         .select("asset_old_code, severity, sla_status, title, opened_at, payload")
         .in("asset_old_code", data.oldCodes)
         .order("opened_at", { ascending: false }),

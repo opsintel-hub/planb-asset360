@@ -11,7 +11,7 @@ export const getDashboardOverview = createServerFn({ method: "GET" })
 
     const [assetsRes, claimsRes, monitorRes, historyRes] = await Promise.all([
       supabase.from("assets").select("id, department, status", { count: "exact" }),
-      supabase.from("claims").select("id, sla_status, age_hours", { count: "exact" }),
+      supabase.from("claim_tickets").select("ref_number, sla_status, age_hours", { count: "exact" }),
       supabase.from("monitoring_status").select("online, error_code"),
       supabase
         .from("asset_history")

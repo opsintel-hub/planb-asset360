@@ -432,19 +432,24 @@ export const listClaims = createServerFn({ method: "POST" })
         .in("old_code", codes);
       for (const a of assets ?? []) deptMap.set(a.old_code, a.department ?? null);
     }
-    const enriched = tickets.map((c) => ({
-      id: c.ref_number,
-      ticket_code: c.ref_number,
-      asset_old_code: c.asset_old_code,
-      title: c.title ?? c.informed_detail ?? c.location ?? null,
-      opened_at: c.opened_at,
-      age_hours: c.age_hours,
-      sla_status: c.sla_status,
-      severity: c.severity,
-      department: c.asset_old_code ? deptMap.get(c.asset_old_code) ?? null : null,
-      status: c.status,
-      payload: c.payload,
-    }));
+    const enriched = tickets.map((c) => {
+      const p = (c.payload ?? {}) as Record<string, unknown>;
+      const assetStatus = (p.assetStatus ?? p.AssetStatus ?? null) as string | null;
+      return {
+        id: c.ref_number,
+        ticket_code: c.ref_number,
+        asset_old_code: c.asset_old_code,
+        title: c.title ?? c.informed_detail ?? c.location ?? null,
+        opened_at: c.opened_at,
+        age_hours: c.age_hours,
+        sla_status: c.sla_status,
+        severity: c.severity,
+        department: c.asset_old_code ? deptMap.get(c.asset_old_code) ?? null : null,
+        status: c.status,
+        asset_status: assetStatus,
+        payload: c.payload,
+      };
+    });
     const departments = Array.from(
       new Set(enriched.map((c) => c.department).filter(Boolean) as string[]),
     ).sort();

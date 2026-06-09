@@ -88,10 +88,10 @@ function ClaimsPage() {
           onChange={setFSla}
           options={["ontrack", "atrisk", "breached"]}
         />
-        <FilterSelect label="สถานะการซ่อม (Severity)" value={fSev} onChange={setFSev} options={severities} />
-        {(fDept !== "all" || fSla !== "all" || fSev !== "all") && (
+        <FilterSelect label="Old Code" value={fOldCode} onChange={setFOldCode} options={oldCodes} />
+        {(fDept !== "all" || fSla !== "all" || fOldCode !== "all") && (
           <button
-            onClick={() => { setFDept("all"); setFSla("all"); setFSev("all"); }}
+            onClick={() => { setFDept("all"); setFSla("all"); setFOldCode("all"); }}
             className="text-xs px-3 py-2 rounded-md border hover:bg-accent"
           >
             ล้างตัวกรอง

@@ -33,20 +33,17 @@ function ClaimsPage() {
 
   const [fDept, setFDept] = useState<string>("all");
   const [fSla, setFSla] = useState<string>("all");
-  const [fSev, setFSev] = useState<string>("all");
+  const [fOldCode, setFOldCode] = useState<string>("all");
 
   const allClaims = data?.claims ?? [];
   const departments = data?.departments ?? [];
-  const severities = useMemo(
-    () => Array.from(new Set(allClaims.map((c) => c.severity).filter(Boolean) as string[])).sort(),
-    [allClaims],
-  );
+  const oldCodes = data?.oldCodes ?? [];
 
   const claims = useMemo(() => {
     const filtered = allClaims.filter((c) => {
       if (fDept !== "all" && (c.department ?? "") !== fDept) return false;
       if (fSla !== "all" && (c.sla_status ?? "") !== fSla) return false;
-      if (fSev !== "all" && (c.severity ?? "") !== fSev) return false;
+      if (fOldCode !== "all" && (c.asset_old_code ?? "") !== fOldCode) return false;
       return true;
     });
     // Count by ticket_code to detect duplicates
@@ -67,7 +64,7 @@ function ClaimsPage() {
         if (tA !== tB) return tA.localeCompare(tB);
         return (Number(b.age_hours) || 0) - (Number(a.age_hours) || 0);
       });
-  }, [allClaims, fDept, fSla, fSev]);
+  }, [allClaims, fDept, fSla, fOldCode]);
 
   const breached = claims.filter((c) => c.sla_status === "breached").length;
   const avgAge = claims.length ? claims.reduce((s, c) => s + (Number(c.age_hours) || 0), 0) / claims.length : 0;

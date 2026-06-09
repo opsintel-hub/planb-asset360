@@ -435,6 +435,8 @@ export const listClaims = createServerFn({ method: "POST" })
     const enriched = tickets.map((c) => {
       const p = (c.payload ?? {}) as Record<string, unknown>;
       const assetStatus = (p.assetStatus ?? p.AssetStatus ?? null) as string | null;
+      const totalTimeRaw = (p.totalTime ?? p.TotalTime ?? null) as number | string | null;
+      const totalTime = totalTimeRaw === null || totalTimeRaw === "" ? null : Number(totalTimeRaw);
       return {
         id: c.ref_number,
         ticket_code: c.ref_number,
@@ -442,6 +444,7 @@ export const listClaims = createServerFn({ method: "POST" })
         title: c.title ?? c.informed_detail ?? c.location ?? null,
         opened_at: c.opened_at,
         age_hours: c.age_hours,
+        total_time: Number.isFinite(totalTime as number) ? (totalTime as number) : null,
         sla_status: c.sla_status,
         severity: c.severity,
         department: c.asset_old_code ? deptMap.get(c.asset_old_code) ?? null : null,
@@ -453,7 +456,10 @@ export const listClaims = createServerFn({ method: "POST" })
     const departments = Array.from(
       new Set(enriched.map((c) => c.department).filter(Boolean) as string[]),
     ).sort();
-    return { claims: enriched, departments };
+    const oldCodes = Array.from(
+      new Set(enriched.map((c) => c.asset_old_code).filter(Boolean) as string[]),
+    ).sort();
+    return { claims: enriched, departments, oldCodes };
   });
 
 // ---------- Monitoring ----------

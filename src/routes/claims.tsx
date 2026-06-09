@@ -142,6 +142,7 @@ function ClaimsPage() {
                       <td className="px-4 py-3 font-mono text-xs">{c.asset_old_code ?? "—"}</td>
                       <td className="px-4 py-3">{c.department ?? "—"}</td>
                       <td className="px-4 py-3">{c.title ?? "—"}</td>
+                      <td className="px-4 py-3">{c.asset_status ?? "—"}</td>
                       <td className="px-4 py-3">{c.status ?? "—"}</td>
                       <td className="px-4 py-3">{c.severity ?? "—"}</td>
                       <td className="px-4 py-3">{c.age_hours ? `${(Number(c.age_hours) / 24).toFixed(1)} วัน` : "—"}</td>

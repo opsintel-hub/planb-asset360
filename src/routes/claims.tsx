@@ -116,7 +116,8 @@ function ClaimsPage() {
                   <th className="text-left px-4 py-3">Old Code</th>
                   <th className="text-left px-4 py-3">Department</th>
                   <th className="text-left px-4 py-3">อาการ</th>
-                  <th className="text-left px-4 py-3">สถานะ</th>
+                  <th className="text-left px-4 py-3">สถานะงานที่ป้าย</th>
+                  <th className="text-left px-4 py-3">สถานะตั๋ว</th>
                   <th className="text-left px-4 py-3">Severity</th>
                   <th className="text-left px-4 py-3">อายุงาน</th>
                   <th className="text-left px-4 py-3">SLA</th>
@@ -141,6 +142,7 @@ function ClaimsPage() {
                       <td className="px-4 py-3 font-mono text-xs">{c.asset_old_code ?? "—"}</td>
                       <td className="px-4 py-3">{c.department ?? "—"}</td>
                       <td className="px-4 py-3">{c.title ?? "—"}</td>
+                      <td className="px-4 py-3">{c.asset_status ?? "—"}</td>
                       <td className="px-4 py-3">{c.status ?? "—"}</td>
                       <td className="px-4 py-3">{c.severity ?? "—"}</td>
                       <td className="px-4 py-3">{c.age_hours ? `${(Number(c.age_hours) / 24).toFixed(1)} วัน` : "—"}</td>

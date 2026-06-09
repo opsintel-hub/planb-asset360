@@ -106,27 +106,31 @@ function ClaimsPage() {
           <div className="p-10 text-center text-sm text-muted-foreground">ยังไม่มี Claim ตามตัวกรองที่เลือก</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-auto">
               <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="text-left px-4 py-3">Ticket</th>
-                  <th className="text-left px-4 py-3">Old Code</th>
-                  <th className="text-left px-4 py-3">Department</th>
+                  <th className="text-left px-4 py-3 whitespace-nowrap">Ticket</th>
+                  <th className="text-left px-4 py-3 whitespace-nowrap">Old Code</th>
+                  <th className="text-left px-4 py-3 whitespace-nowrap">Department</th>
                   <th className="text-left px-4 py-3">อาการ</th>
-                  <th className="text-left px-4 py-3">สถานะงานที่ป้าย</th>
-                  <th className="text-left px-4 py-3">สถานะตั๋ว</th>
-                  <th className="text-left px-4 py-3">Severity</th>
-                  <th className="text-left px-4 py-3">อายุงาน</th>
-                  <th className="text-left px-4 py-3">SLA</th>
+                  <th className="text-left px-4 py-3 whitespace-nowrap">สถานะงานที่ป้าย</th>
+                  <th className="text-left px-4 py-3 whitespace-nowrap">สถานะตั๋ว</th>
+                  <th className="text-right px-4 py-3 whitespace-nowrap">อายุงาน</th>
+                  <th className="text-left px-4 py-3 whitespace-nowrap">SLA</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {claims.map((c) => {
                   const tone = c.sla_status === "breached" ? "danger" : c.sla_status === "atrisk" ? "warning" : "success";
                   const isDup = c._dupCount > 1;
+                  const ageDays = c.total_time != null
+                    ? Number(c.total_time)
+                    : c.age_hours != null
+                      ? Number(c.age_hours) / 24
+                      : null;
                   return (
                     <tr key={c.id} className={isDup ? "bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100/70 dark:hover:bg-amber-950/50" : "hover:bg-accent/30"}>
-                      <td className="px-4 py-3 font-mono text-xs">
+                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span>{c.ticket_code}</span>
                           {isDup && (
@@ -136,14 +140,13 @@ function ClaimsPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs">{c.asset_old_code ?? "—"}</td>
-                      <td className="px-4 py-3">{c.department ?? "—"}</td>
+                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{c.asset_old_code ?? "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{c.department ?? "—"}</td>
                       <td className="px-4 py-3">{c.title ?? "—"}</td>
-                      <td className="px-4 py-3">{c.asset_status ?? "—"}</td>
-                      <td className="px-4 py-3">{c.status ?? "—"}</td>
-                      <td className="px-4 py-3">{c.severity ?? "—"}</td>
-                      <td className="px-4 py-3">{c.age_hours ? `${(Number(c.age_hours) / 24).toFixed(1)} วัน` : "—"}</td>
-                      <td className="px-4 py-3"><Badge tone={tone}>{c.sla_status ?? "—"}</Badge></td>
+                      <td className="px-4 py-3 whitespace-nowrap">{c.asset_status ?? "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{c.status ?? "—"}</td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">{ageDays != null ? `${ageDays} วัน` : "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap"><Badge tone={tone}>{c.sla_status ?? "—"}</Badge></td>
                     </tr>
                   );
                 })}

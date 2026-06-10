@@ -26,7 +26,7 @@ export const Route = createFileRoute("/permissions")({
   component: PermissionsPage,
 });
 
-const ROLES = ["admin", "manager", "technician", "sale"] as const;
+const ROLES = ["admin", "manager", "technician", "sale", "crm", "production"] as const;
 type Role = (typeof ROLES)[number];
 
 const MENU_LABELS: Record<string, string> = {

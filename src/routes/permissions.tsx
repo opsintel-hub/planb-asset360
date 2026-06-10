@@ -162,7 +162,7 @@ function PermissionsPage() {
                       <td key={m} className="px-4 py-3 text-xs text-muted-foreground">✓ ทุกเมนู</td>
                     ))}
                   </tr>
-                  {(["manager", "technician", "sale"] as const).map((role) => (
+                  {(["manager", "technician", "sale", "crm", "production"] as const).map((role) => (
                     <tr key={role}>
                       <td className="px-4 py-3 font-medium capitalize">{role}</td>
                       {menus.map((m) => {

@@ -34,53 +34,112 @@ function ClaimsPage() {
   const [fDept, setFDept] = useState<string>("all");
   const [fSla, setFSla] = useState<string>("all");
   const [fOldCode, setFOldCode] = useState<string>("all");
+  const [qTicket, setQTicket] = useState<string>("");
 
   const allClaims = data?.claims ?? [];
   const departments = data?.departments ?? [];
   const oldCodes = data?.oldCodes ?? [];
 
+  // Count claims per department across ALL open tickets (independent of filters)
+  const deptCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of allClaims) {
+      const k = c.department ?? "ไม่ระบุ";
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+  }, [allClaims]);
+
   const claims = useMemo(() => {
+    const q = qTicket.trim().toLowerCase();
     const filtered = allClaims.filter((c) => {
       if (fDept !== "all" && (c.department ?? "") !== fDept) return false;
       if (fSla !== "all" && (c.sla_status ?? "") !== fSla) return false;
       if (fOldCode !== "all" && (c.asset_old_code ?? "") !== fOldCode) return false;
+      if (q && !(c.ticket_code ?? "").toLowerCase().includes(q)) return false;
       return true;
     });
-    // Count by ticket_code to detect duplicates
+    // Count by asset_old_code to detect duplicate tickets on the same asset
     const counts = new Map<string, number>();
     for (const c of filtered) {
-      const k = c.ticket_code ?? "";
+      const k = c.asset_old_code ?? "";
+      if (!k) continue;
       counts.set(k, (counts.get(k) ?? 0) + 1);
     }
-    // Sort: duplicates first (by count desc), then by ticket_code asc, then age_hours desc
+    const ageOf = (c: typeof filtered[number]) =>
+      c.total_time != null
+        ? Number(c.total_time)
+        : c.age_hours != null
+          ? Number(c.age_hours) / 24
+          : 0;
+    // Sort: duplicate-old-code first, then age desc
     return [...filtered]
-      .map((c) => ({ ...c, _dupCount: counts.get(c.ticket_code ?? "") ?? 1 }))
+      .map((c) => ({ ...c, _dupCount: counts.get(c.asset_old_code ?? "") ?? 1 }))
       .sort((a, b) => {
         const dupA = a._dupCount > 1 ? 1 : 0;
         const dupB = b._dupCount > 1 ? 1 : 0;
         if (dupA !== dupB) return dupB - dupA;
-        const tA = a.ticket_code ?? "";
-        const tB = b.ticket_code ?? "";
-        if (tA !== tB) return tA.localeCompare(tB);
-        return (Number(b.age_hours) || 0) - (Number(a.age_hours) || 0);
+        if (dupA === 1) {
+          // keep duplicates of the same old_code grouped together
+          const oa = a.asset_old_code ?? "";
+          const ob = b.asset_old_code ?? "";
+          if (oa !== ob) return oa.localeCompare(ob);
+        }
+        return ageOf(b) - ageOf(a);
       });
-  }, [allClaims, fDept, fSla, fOldCode]);
+  }, [allClaims, fDept, fSla, fOldCode, qTicket]);
 
   const breached = claims.filter((c) => c.sla_status === "breached").length;
-  const avgAge = claims.length ? claims.reduce((s, c) => s + (Number(c.age_hours) || 0), 0) / claims.length : 0;
+  const onTrack = claims.filter((c) => c.sla_status === "ontrack").length;
 
   return (
     <div className="space-y-6">
       <PageHeader title="Claim Aging" subtitle="Snapshot ตั๋วเคลมที่ยังเปิดอยู่ (1 Ticket = 1 แถว) Auto-Sync ทุก 15 นาที จาก /Ticket/RemainingClaimTickets" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <StatCard label="Claim ทั้งหมด" value={String(claims.length)} tone="warning" icon={<Wrench className="size-5" />} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard label="Claim ทั้งหมด" value={String(allClaims.length)} tone="warning" icon={<Wrench className="size-5" />} />
         <StatCard label="เกิน SLA" value={String(breached)} tone="danger" icon={<AlertCircle className="size-5" />} />
-        <StatCard label="อายุงานเฉลี่ย" value={`${(avgAge / 24).toFixed(1)} วัน`} tone="default" icon={<Clock className="size-5" />} />
-        <StatCard label="On Track" value={String(claims.filter((c) => c.sla_status === "ontrack").length)} tone="success" icon={<Clock className="size-5" />} />
+        <StatCard label="On Track" value={String(onTrack)} tone="success" icon={<CheckCircle2 className="size-5" />} />
       </div>
 
+      {deptCounts.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {deptCounts.map(([dept, count]) => {
+            const active = fDept === dept;
+            return (
+              <button
+                key={dept}
+                onClick={() => setFDept(active ? "all" : dept)}
+                className={
+                  "text-left rounded-xl border bg-card p-4 shadow-[var(--shadow-card)] transition hover:border-primary/50 " +
+                  (active ? "border-primary ring-1 ring-primary" : "")
+                }
+              >
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Building2 className="size-3.5" />
+                  <span className="truncate">{dept}</span>
+                </div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums">{count}</div>
+                <div className="text-[11px] text-muted-foreground">ตั๋วที่ยังไม่ปิด</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3 items-end rounded-xl border bg-card p-4">
+        <div className="flex flex-col gap-1 min-w-[220px] flex-1">
+          <label className="text-xs text-muted-foreground">ค้นหา Ticket Number</label>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <input
+              value={qTicket}
+              onChange={(e) => setQTicket(e.target.value)}
+              placeholder="เช่น BB202606000290"
+              className="h-9 w-full rounded-md border bg-background pl-8 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+        </div>
         <FilterSelect label="Department" value={fDept} onChange={setFDept} options={departments} />
         <FilterSelect
           label="SLA Status"
@@ -89,9 +148,9 @@ function ClaimsPage() {
           options={["ontrack", "atrisk", "breached"]}
         />
         <FilterSelect label="Old Code" value={fOldCode} onChange={setFOldCode} options={oldCodes} />
-        {(fDept !== "all" || fSla !== "all" || fOldCode !== "all") && (
+        {(fDept !== "all" || fSla !== "all" || fOldCode !== "all" || qTicket !== "") && (
           <button
-            onClick={() => { setFDept("all"); setFSla("all"); setFOldCode("all"); }}
+            onClick={() => { setFDept("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); }}
             className="text-xs px-3 py-2 rounded-md border hover:bg-accent"
           >
             ล้างตัวกรอง

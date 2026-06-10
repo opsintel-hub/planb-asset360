@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
-import { Wrench, Clock, AlertCircle } from "lucide-react";
+import { Wrench, AlertCircle, CheckCircle2, Search, Building2 } from "lucide-react";
 import { listClaims } from "@/lib/data.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import {

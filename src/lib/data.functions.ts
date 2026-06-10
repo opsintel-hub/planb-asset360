@@ -339,6 +339,48 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
       history = h ?? [];
     }
 
+    // Merge OPEN claim tickets (still in progress; not yet in asset_history) so
+    // ค้นหาประวัติป้าย shows in-flight statuses like "Working On" / "Pending".
+    if ((data.tab === "Claim" || data.tab === "AssetHealth") && finalAssets.length) {
+      const codes = finalAssets.map((a) => a.old_code).filter(Boolean) as string[];
+      if (codes.length) {
+        let cq = supabase
+          .from("claim_tickets")
+          .select("ref_number, asset_old_code, title, status, opened_at, age_hours, sla_status, payload")
+          .in("asset_old_code", codes);
+        if (data.from) cq = cq.gte("opened_at", data.from);
+        if (data.to) cq = cq.lte("opened_at", data.to);
+        const { data: openTix } = await cq;
+        const existingRefs = new Set(history.map((h) => h.ticket_code).filter(Boolean));
+        const assetByCode = new Map(finalAssets.map((a) => [a.old_code, a]));
+        const extras = (openTix ?? [])
+          .filter((t) => !existingRefs.has(t.ref_number))
+          .map((t) => {
+            const a = assetByCode.get(t.asset_old_code ?? "");
+            return {
+              id: `open-${t.ref_number}`,
+              asset_id: a?.id ?? null,
+              asset_old_code: t.asset_old_code,
+              ticket_code: t.ref_number,
+              type: "Claim",
+              title: t.title,
+              status: t.status,
+              opened_at: t.opened_at,
+              closed_at: null,
+              sla_hours: t.age_hours,
+              payload: t.payload,
+            };
+          });
+        if (extras.length) {
+          history = [...extras, ...history].sort((x, y) => {
+            const dx = x.opened_at ? new Date(x.opened_at).getTime() : 0;
+            const dy = y.opened_at ? new Date(y.opened_at).getTime() : 0;
+            return dy - dx;
+          });
+        }
+      }
+    }
+
     // slicer filter (in-memory; reads asset's department/area/payload.mediaType)
     const filtered = finalAssets.filter((a) => {
       if (data.department && (a.department ?? "") !== data.department) return false;

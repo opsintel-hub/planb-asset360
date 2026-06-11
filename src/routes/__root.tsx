@@ -89,14 +89,15 @@ function RootComponent() {
 }
 
 function AuthGate() {
-  const { user, loading } = useAuth();
+  const { user, session, loading } = useAuth();
   const { pathname } = useLocation();
   const nav = useNavigate();
   const isLogin = pathname === "/login";
+  const isAuthed = !!user && !!session?.access_token;
 
   useEffect(() => {
-    if (!loading && !user && !isLogin) nav({ to: "/login" });
-  }, [loading, user, isLogin, nav]);
+    if (!loading && !isAuthed && !isLogin) nav({ to: "/login" });
+  }, [loading, isAuthed, isLogin, nav]);
 
   if (loading) {
     return (
@@ -106,6 +107,6 @@ function AuthGate() {
     );
   }
   if (isLogin) return <Outlet />;
-  if (!user) return null;
+  if (!isAuthed) return null;
   return <AppShell><Outlet /></AppShell>;
 }

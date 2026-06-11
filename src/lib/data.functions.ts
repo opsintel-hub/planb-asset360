@@ -344,15 +344,15 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
     if ((data.tab === "Claim" || data.tab === "AssetHealth") && finalAssets.length) {
       const codes = finalAssets.map((a) => a.old_code).filter(Boolean) as string[];
       if (codes.length) {
-        let cq = supabase
+        // Fetch ALL open claim tickets for these assets regardless of from/to —
+        // open tickets often have NULL opened_at and should always be visible.
+        const { data: openTix } = await supabase
           .from("claim_tickets")
           .select("ref_number, asset_old_code, title, status, opened_at, age_hours, sla_status, payload")
           .in("asset_old_code", codes);
-        if (data.from) cq = cq.gte("opened_at", data.from);
-        if (data.to) cq = cq.lte("opened_at", data.to);
-        const { data: openTix } = await cq;
         const existingRefs = new Set(history.map((h) => h.ticket_code).filter(Boolean));
         const assetByCode = new Map(finalAssets.map((a) => [a.old_code, a]));
+        const nowIso = new Date().toISOString();
         const extras = (openTix ?? [])
           .filter((t) => !existingRefs.has(t.ref_number))
           .map((t) => {
@@ -365,7 +365,7 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
               type: "Claim",
               title: t.title,
               status: t.status,
-              opened_at: t.opened_at,
+              opened_at: t.opened_at ?? nowIso,
               closed_at: null,
               sla_hours: t.age_hours,
               payload: t.payload,

@@ -21,19 +21,19 @@ export function StatCard({
   }[tone];
 
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elegant)] transition-all">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+    <div className="rounded-xl border bg-card p-4 sm:p-5 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elegant)] transition-all">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] sm:text-xs uppercase tracking-wider text-muted-foreground font-medium truncate">
             {label}
           </div>
-          <div className="mt-2 text-3xl font-bold tracking-tight">{value}</div>
+          <div className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight tabular-nums">{value}</div>
           {delta && (
-            <div className="mt-1 text-xs text-muted-foreground">{delta}</div>
+            <div className="mt-1 text-xs text-muted-foreground truncate">{delta}</div>
           )}
         </div>
         {icon && (
-          <div className={cn("size-10 rounded-lg grid place-items-center", toneClass)}>
+          <div className={cn("size-9 sm:size-10 shrink-0 rounded-lg grid place-items-center", toneClass)}>
             {icon}
           </div>
         )}
@@ -52,16 +52,16 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
-      <div>
-        <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground">
+    <div className="flex flex-wrap items-end justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
+      <div className="min-w-0 flex-1">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-foreground">
           {title}
         </h1>
         {subtitle && (
-          <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+          <p className="mt-1 text-xs sm:text-sm text-muted-foreground">{subtitle}</p>
         )}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
     </div>
   );
 }

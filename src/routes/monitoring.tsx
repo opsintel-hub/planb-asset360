@@ -599,7 +599,7 @@ function TicketsTab({ rows }: { rows: MonitoringData["ticketRows"] }) {
                     <Badge tone={r.status === "Finished" || r.status === "Closed" || r.status === "Approved" ? "success" : r.status === "Working On" ? "default" : "warning"}>
                       {r.status || "—"}
                     </Badge>
-                    {r.pending && <Badge tone="warning" className="ml-1">Pending</Badge>}
+                    {r.pending && <span className="ml-1"><Badge tone="warning">Pending</Badge></span>}
                   </TableCell>
                   <TableCell className="text-xs">{r.lastInspectStatus}</TableCell>
                 </TableRow>

@@ -7,6 +7,7 @@ import {
   Bell,
   ChevronDown,
   BarChart3,
+  Activity,
   Menu,
   X,
 } from "lucide-react";
@@ -20,6 +21,7 @@ const NAV_ALL = [
   { to: "/search", label: "ค้นหาประวัติป้าย", icon: Search },
   { to: "/claims", label: "Claim Aging", icon: Wrench },
   { to: "/pm-insights", label: "PM Insights", icon: BarChart3 },
+  { to: "/monitoring", label: "Monitoring", icon: Activity },
   { to: "/settings", label: "ตั้งค่าระบบ", icon: Settings },
   { to: "/permissions", label: "จัดการสิทธิ์", icon: Users },
 ] as const;

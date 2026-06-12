@@ -136,7 +136,7 @@ export const getMyRoles = createServerFn({ method: "GET" })
   });
 
 // ---------- Menu access ----------
-const ALL_MENUS = ["/search", "/claims", "/pm-insights", "/settings", "/permissions"];
+const ALL_MENUS = ["/search", "/claims", "/pm-insights", "/monitoring", "/settings", "/permissions"];
 
 export const getMyMenuAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

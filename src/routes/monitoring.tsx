@@ -256,11 +256,12 @@ function MonitoringPage() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard icon={Building2} label="ป้ายทั้งหมด (ใน scope)" value={data.kpi.totalAssets} color="text-blue-500" />
-            <KpiCard icon={AlertCircle} label="ยังไม่เคยตรวจ PM" value={data.kpi.neverPm} color="text-orange-500" />
+            <KpiCard icon={Building2} label="ป้ายทั้งหมด" value={data.kpi.totalAssets} color="text-blue-500" />
+            <KpiCard icon={AlertCircle} label="12 เดือนย้อนหลังยังไม่เคยตรวจ" value={data.kpi.neverPm} color="text-orange-500" />
             <KpiCard icon={AlertTriangle} label="ตรวจแล้วเสียภายใน 7 วัน" value={data.kpi.earlyFail7} color="text-rose-500" />
-            <KpiCard icon={CalendarClock} label="ตั๋วยังไม่ได้แตะ (Pending)" value={data.kpi.pendingTickets} color="text-amber-500" />
+            <KpiCard icon={CalendarClock} label="ตั๋วเปิดแล้วรอตรวจ (Pending)" value={data.kpi.pendingTickets} color="text-amber-500" />
           </div>
+
 
           <Tabs defaultValue="overview" className="space-y-4">
             <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:w-auto">

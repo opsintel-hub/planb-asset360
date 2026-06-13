@@ -61,7 +61,7 @@ const PIE_COLORS = [
 ];
 
 type AppliedFilters = {
-  departments: string[];
+  oldCode: string;
   zones: string[];
   projects: string[];
   mediaTypes: string[];
@@ -128,14 +128,14 @@ function MonitoringPage() {
   const today = new Date();
   const pad2 = (n: number) => String(n).padStart(2, "0");
   const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
-  const ninetyAgo = new Date(today.getTime() - 90 * 86_400_000);
-  const ninetyStr = `${ninetyAgo.getFullYear()}-${pad2(ninetyAgo.getMonth() + 1)}-${pad2(ninetyAgo.getDate())}`;
+  // Default start = 2026-01-01 (TZ-safe: plain YYYY-MM-DD)
+  const defaultFromStr = "2026-01-01";
 
-  const [departments, setDepartments] = useState<string[]>([]);
+  const [oldCode, setOldCode] = useState("");
   const [zones, setZones] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
-  const [fromDate, setFromDate] = useState(ninetyStr);
+  const [fromDate, setFromDate] = useState(defaultFromStr);
   const [toDate, setToDate] = useState(todayStr);
 
   const [applied, setApplied] = useState<AppliedFilters | null>(null);
@@ -145,7 +145,7 @@ function MonitoringPage() {
     queryFn: () =>
       fn({
         data: {
-          departments: applied!.departments,
+          oldCode: applied!.oldCode,
           zones: applied!.zones,
           projects: applied!.projects,
           mediaTypes: applied!.mediaTypes,
@@ -160,13 +160,14 @@ function MonitoringPage() {
   const filterOptions = data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
 
   const handleApply = () => {
-    setApplied({ departments, zones, projects, mediaTypes, fromDate, toDate });
+    setApplied({ oldCode, zones, projects, mediaTypes, fromDate, toDate });
   };
   const handleReset = () => {
-    setDepartments([]); setZones([]); setProjects([]); setMediaTypes([]);
-    setFromDate(ninetyStr); setToDate(todayStr);
+    setOldCode(""); setZones([]); setProjects([]); setMediaTypes([]);
+    setFromDate(defaultFromStr); setToDate(todayStr);
     setApplied(null);
   };
+
 
   return (
     <div className="space-y-6">

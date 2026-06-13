@@ -61,7 +61,7 @@ const PIE_COLORS = [
 ];
 
 type AppliedFilters = {
-  departments: string[];
+  oldCode: string;
   zones: string[];
   projects: string[];
   mediaTypes: string[];
@@ -128,14 +128,14 @@ function MonitoringPage() {
   const today = new Date();
   const pad2 = (n: number) => String(n).padStart(2, "0");
   const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
-  const ninetyAgo = new Date(today.getTime() - 90 * 86_400_000);
-  const ninetyStr = `${ninetyAgo.getFullYear()}-${pad2(ninetyAgo.getMonth() + 1)}-${pad2(ninetyAgo.getDate())}`;
+  // Default start = 2026-01-01 (TZ-safe: plain YYYY-MM-DD)
+  const defaultFromStr = "2026-01-01";
 
-  const [departments, setDepartments] = useState<string[]>([]);
+  const [oldCode, setOldCode] = useState("");
   const [zones, setZones] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
-  const [fromDate, setFromDate] = useState(ninetyStr);
+  const [fromDate, setFromDate] = useState(defaultFromStr);
   const [toDate, setToDate] = useState(todayStr);
 
   const [applied, setApplied] = useState<AppliedFilters | null>(null);
@@ -145,7 +145,7 @@ function MonitoringPage() {
     queryFn: () =>
       fn({
         data: {
-          departments: applied!.departments,
+          oldCode: applied!.oldCode,
           zones: applied!.zones,
           projects: applied!.projects,
           mediaTypes: applied!.mediaTypes,
@@ -160,13 +160,14 @@ function MonitoringPage() {
   const filterOptions = data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
 
   const handleApply = () => {
-    setApplied({ departments, zones, projects, mediaTypes, fromDate, toDate });
+    setApplied({ oldCode, zones, projects, mediaTypes, fromDate, toDate });
   };
   const handleReset = () => {
-    setDepartments([]); setZones([]); setProjects([]); setMediaTypes([]);
-    setFromDate(ninetyStr); setToDate(todayStr);
+    setOldCode(""); setZones([]); setProjects([]); setMediaTypes([]);
+    setFromDate(defaultFromStr); setToDate(todayStr);
     setApplied(null);
   };
+
 
   return (
     <div className="space-y-6">
@@ -195,9 +196,13 @@ function MonitoringPage() {
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground">แผนก (Department)</label>
-              <MultiSelect label="แผนก" options={filterOptions.departments} value={departments} onChange={setDepartments} />
+              <label className="text-xs text-muted-foreground">ค้นหารหัสป้าย (Old Code)</label>
+              <div className="relative">
+                <SearchIcon className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input placeholder="เช่น DP911" value={oldCode} onChange={(e) => setOldCode(e.target.value)} className="pl-8" />
+              </div>
             </div>
+
             <div>
               <label className="text-xs text-muted-foreground">กลุ่มสื่อ (Project)</label>
               <MultiSelect label="กลุ่มสื่อ" options={filterOptions.projects} value={projects} onChange={setProjects} />
@@ -251,11 +256,12 @@ function MonitoringPage() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard icon={Building2} label="ป้ายทั้งหมด (ใน scope)" value={data.kpi.totalAssets} color="text-blue-500" />
-            <KpiCard icon={AlertCircle} label="ยังไม่เคยตรวจ PM" value={data.kpi.neverPm} color="text-orange-500" />
+            <KpiCard icon={Building2} label="ป้ายทั้งหมด" value={data.kpi.totalAssets} color="text-blue-500" />
+            <KpiCard icon={AlertCircle} label="12 เดือนย้อนหลังยังไม่เคยตรวจ" value={data.kpi.neverPm} color="text-orange-500" />
             <KpiCard icon={AlertTriangle} label="ตรวจแล้วเสียภายใน 7 วัน" value={data.kpi.earlyFail7} color="text-rose-500" />
-            <KpiCard icon={CalendarClock} label="ตั๋วยังไม่ได้แตะ (Pending)" value={data.kpi.pendingTickets} color="text-amber-500" />
+            <KpiCard icon={CalendarClock} label="ตั๋วเปิดแล้วรอตรวจ (Pending)" value={data.kpi.pendingTickets} color="text-amber-500" />
           </div>
+
 
           <Tabs defaultValue="overview" className="space-y-4">
             <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:w-auto">
@@ -329,9 +335,11 @@ function OverviewTab({ data }: { data: MonitoringData }) {
               <YAxis type="category" dataKey="dept" width={140} tick={{ fontSize: 11 }} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="pass" stackId="a" fill={PIE_COLORS[0]} name="ตรวจผ่าน" />
-              <Bar dataKey="fail" stackId="a" fill={PIE_COLORS[1]} name="ตรวจไม่ผ่าน/รอ" />
-              <Bar dataKey="never" stackId="a" fill={PIE_COLORS[2]} name="ยังไม่เคยตรวจ" />
+              <Bar dataKey="Pending" stackId="a" fill={PIE_COLORS[1]} name="ยังไม่ได้ตรวจ" />
+              <Bar dataKey="Pass" stackId="a" fill={PIE_COLORS[0]} name="ตรวจผ่าน" />
+              <Bar dataKey="Fail" stackId="a" fill={PIE_COLORS[2]} name="ตรวจไม่ผ่าน" />
+              <Bar dataKey="Skip" stackId="a" fill={PIE_COLORS[3]} name="ยกเลิกการตรวจ" />
+
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -359,30 +367,44 @@ function OverviewTab({ data }: { data: MonitoringData }) {
 }
 
 function InspectionTab({ rows }: { rows: MonitoringData["inspectionRows"] }) {
-  const [filter, setFilter] = useState<"all" | "never" | "stale">("all");
+  const [filter, setFilter] = useState<"all" | "Pending" | "Pass" | "Fail" | "Skip">("all");
   const [q, setQ] = useState("");
+  const counts = useMemo(() => {
+    const c = { Pending: 0, Pass: 0, Fail: 0, Skip: 0 };
+    for (const r of rows) c[r.lastStatus as keyof typeof c]++;
+    return c;
+  }, [rows]);
   const filtered = useMemo(() => {
     return rows.filter((r) => {
-      if (filter === "never" && r.pmCount !== 0) return false;
-      if (filter === "stale" && !(r.daysSinceLastPm != null && r.daysSinceLastPm > 60)) return false;
+      if (filter !== "all" && r.lastStatus !== filter) return false;
       if (q && !r.assetCode.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     });
   }, [rows, filter, q]);
+  const BTN: { key: typeof filter; label: string }[] = [
+    { key: "all", label: `ทั้งหมด (${rows.length})` },
+    { key: "Pending", label: `ยังไม่ได้ตรวจ (${counts.Pending})` },
+    { key: "Pass", label: `ตรวจผ่าน (${counts.Pass})` },
+    { key: "Fail", label: `ตรวจไม่ผ่าน (${counts.Fail})` },
+    { key: "Skip", label: `ยกเลิกการตรวจ (${counts.Skip})` },
+  ];
   return (
     <Card>
       <CardContent className="pt-6 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5">
-            <Button size="sm" variant={filter === "all" ? "default" : "outline"} onClick={() => setFilter("all")}>ทั้งหมด ({rows.length})</Button>
-            <Button size="sm" variant={filter === "never" ? "default" : "outline"} onClick={() => setFilter("never")}>ยังไม่เคยตรวจ ({rows.filter((r) => r.pmCount === 0).length})</Button>
-            <Button size="sm" variant={filter === "stale" ? "default" : "outline"} onClick={() => setFilter("stale")}>ตรวจห่าง &gt; 60 วัน</Button>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {BTN.map((b) => (
+              <Button key={b.key} size="sm" variant={filter === b.key ? "default" : "outline"} onClick={() => setFilter(b.key)}>
+                {b.label}
+              </Button>
+            ))}
           </div>
           <div className="relative w-full sm:w-64">
             <SearchIcon className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="ค้นหา Old Code..." value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" />
           </div>
         </div>
+
         <div className="overflow-auto rounded-md border">
           <Table>
             <TableHeader>
@@ -411,12 +433,12 @@ function InspectionTab({ rows }: { rows: MonitoringData["inspectionRows"] }) {
                     <TableCell className="text-right tabular-nums">{r.daysSinceLastPm ?? "—"}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.avgIntervalDays ?? "—"}</TableCell>
                     <TableCell>
-                      {r.pmCount === 0
-                        ? <Badge tone="danger">ยังไม่เคยตรวจ</Badge>
-                        : r.lastStatus === "Pass"
-                          ? <Badge tone="success">Pass</Badge>
-                          : <Badge tone="warning">{r.lastStatus}</Badge>}
+                      {r.lastStatus === "Pass" ? <Badge tone="success">Pass</Badge>
+                        : r.lastStatus === "Fail" ? <Badge tone="danger">Fail</Badge>
+                        : r.lastStatus === "Skip" ? <Badge tone="default">Skip</Badge>
+                        : <Badge tone="warning">Pending</Badge>}
                     </TableCell>
+
                   </TableRow>
                 );
               })}

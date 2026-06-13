@@ -335,9 +335,11 @@ function OverviewTab({ data }: { data: MonitoringData }) {
               <YAxis type="category" dataKey="dept" width={140} tick={{ fontSize: 11 }} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="pass" stackId="a" fill={PIE_COLORS[0]} name="ตรวจผ่าน" />
-              <Bar dataKey="fail" stackId="a" fill={PIE_COLORS[1]} name="ตรวจไม่ผ่าน/รอ" />
-              <Bar dataKey="never" stackId="a" fill={PIE_COLORS[2]} name="ยังไม่เคยตรวจ" />
+              <Bar dataKey="Pending" stackId="a" fill={PIE_COLORS[1]} name="ยังไม่ได้ตรวจ" />
+              <Bar dataKey="Pass" stackId="a" fill={PIE_COLORS[0]} name="ตรวจผ่าน" />
+              <Bar dataKey="Fail" stackId="a" fill={PIE_COLORS[2]} name="ตรวจไม่ผ่าน" />
+              <Bar dataKey="Skip" stackId="a" fill={PIE_COLORS[3]} name="ยกเลิกการตรวจ" />
+
             </BarChart>
           </ResponsiveContainer>
         </CardContent>

@@ -196,9 +196,13 @@ function MonitoringPage() {
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground">แผนก (Department)</label>
-              <MultiSelect label="แผนก" options={filterOptions.departments} value={departments} onChange={setDepartments} />
+              <label className="text-xs text-muted-foreground">ค้นหารหัสป้าย (Old Code)</label>
+              <div className="relative">
+                <SearchIcon className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input placeholder="เช่น DP911" value={oldCode} onChange={(e) => setOldCode(e.target.value)} className="pl-8" />
+              </div>
             </div>
+
             <div>
               <label className="text-xs text-muted-foreground">กลุ่มสื่อ (Project)</label>
               <MultiSelect label="กลุ่มสื่อ" options={filterOptions.projects} value={projects} onChange={setProjects} />

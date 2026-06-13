@@ -367,30 +367,44 @@ function OverviewTab({ data }: { data: MonitoringData }) {
 }
 
 function InspectionTab({ rows }: { rows: MonitoringData["inspectionRows"] }) {
-  const [filter, setFilter] = useState<"all" | "never" | "stale">("all");
+  const [filter, setFilter] = useState<"all" | "Pending" | "Pass" | "Fail" | "Skip">("all");
   const [q, setQ] = useState("");
+  const counts = useMemo(() => {
+    const c = { Pending: 0, Pass: 0, Fail: 0, Skip: 0 };
+    for (const r of rows) c[r.lastStatus as keyof typeof c]++;
+    return c;
+  }, [rows]);
   const filtered = useMemo(() => {
     return rows.filter((r) => {
-      if (filter === "never" && r.pmCount !== 0) return false;
-      if (filter === "stale" && !(r.daysSinceLastPm != null && r.daysSinceLastPm > 60)) return false;
+      if (filter !== "all" && r.lastStatus !== filter) return false;
       if (q && !r.assetCode.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     });
   }, [rows, filter, q]);
+  const BTN: { key: typeof filter; label: string }[] = [
+    { key: "all", label: `ทั้งหมด (${rows.length})` },
+    { key: "Pending", label: `ยังไม่ได้ตรวจ (${counts.Pending})` },
+    { key: "Pass", label: `ตรวจผ่าน (${counts.Pass})` },
+    { key: "Fail", label: `ตรวจไม่ผ่าน (${counts.Fail})` },
+    { key: "Skip", label: `ยกเลิกการตรวจ (${counts.Skip})` },
+  ];
   return (
     <Card>
       <CardContent className="pt-6 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5">
-            <Button size="sm" variant={filter === "all" ? "default" : "outline"} onClick={() => setFilter("all")}>ทั้งหมด ({rows.length})</Button>
-            <Button size="sm" variant={filter === "never" ? "default" : "outline"} onClick={() => setFilter("never")}>ยังไม่เคยตรวจ ({rows.filter((r) => r.pmCount === 0).length})</Button>
-            <Button size="sm" variant={filter === "stale" ? "default" : "outline"} onClick={() => setFilter("stale")}>ตรวจห่าง &gt; 60 วัน</Button>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {BTN.map((b) => (
+              <Button key={b.key} size="sm" variant={filter === b.key ? "default" : "outline"} onClick={() => setFilter(b.key)}>
+                {b.label}
+              </Button>
+            ))}
           </div>
           <div className="relative w-full sm:w-64">
             <SearchIcon className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="ค้นหา Old Code..." value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" />
           </div>
         </div>
+
         <div className="overflow-auto rounded-md border">
           <Table>
             <TableHeader>

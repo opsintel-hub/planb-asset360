@@ -433,12 +433,12 @@ function InspectionTab({ rows }: { rows: MonitoringData["inspectionRows"] }) {
                     <TableCell className="text-right tabular-nums">{r.daysSinceLastPm ?? "—"}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.avgIntervalDays ?? "—"}</TableCell>
                     <TableCell>
-                      {r.pmCount === 0
-                        ? <Badge tone="danger">ยังไม่เคยตรวจ</Badge>
-                        : r.lastStatus === "Pass"
-                          ? <Badge tone="success">Pass</Badge>
-                          : <Badge tone="warning">{r.lastStatus}</Badge>}
+                      {r.lastStatus === "Pass" ? <Badge tone="success">Pass</Badge>
+                        : r.lastStatus === "Fail" ? <Badge tone="danger">Fail</Badge>
+                        : r.lastStatus === "Skip" ? <Badge tone="default">Skip</Badge>
+                        : <Badge tone="warning">Pending</Badge>}
                     </TableCell>
+
                   </TableRow>
                 );
               })}

@@ -129,16 +129,24 @@ function MonitoringPage() {
   const qc = useQueryClient();
   const today = new Date();
   const pad2 = (n: number) => String(n).padStart(2, "0");
-  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
-  // Default start = 2026-01-01 (TZ-safe: plain YYYY-MM-DD)
-  const defaultFromStr = "2026-01-01";
+  // Helpers: month string "YYYY-MM" ↔ day boundaries (TZ-safe, plain string)
+  const monthFirstDay = (ym: string) => `${ym}-01`;
+  const monthLastDay = (ym: string) => {
+    const [y, m] = ym.split("-").map(Number);
+    // Day 0 of next month = last day of current month
+    const d = new Date(Date.UTC(y, m, 0));
+    return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+  };
+  const currentMonth = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`;
+  // Default = Jan 2026 → current month
+  const defaultFromMonth = "2026-01";
 
   const [oldCode, setOldCode] = useState("");
   const [zones, setZones] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
-  const [fromDate, setFromDate] = useState(defaultFromStr);
-  const [toDate, setToDate] = useState(todayStr);
+  const [fromMonth, setFromMonth] = useState(defaultFromMonth);
+  const [toMonth, setToMonth] = useState(currentMonth);
 
   const [applied, setApplied] = useState<AppliedFilters | null>(null);
 
@@ -168,13 +176,21 @@ function MonitoringPage() {
   const filterOptions = optsData ?? data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
 
   const handleApply = () => {
-    setApplied({ oldCode, zones, projects, mediaTypes, fromDate, toDate });
+    setApplied({
+      oldCode,
+      zones,
+      projects,
+      mediaTypes,
+      fromDate: monthFirstDay(fromMonth),
+      toDate: monthLastDay(toMonth),
+    });
   };
   const handleReset = () => {
     setOldCode(""); setZones([]); setProjects([]); setMediaTypes([]);
-    setFromDate(defaultFromStr); setToDate(todayStr);
+    setFromMonth(defaultFromMonth); setToMonth(currentMonth);
     setApplied(null);
   };
+
 
 
   return (

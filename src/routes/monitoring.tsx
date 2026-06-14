@@ -36,6 +36,7 @@ import {
   Building2,
   CalendarClock,
   Download,
+  Info,
   RefreshCw,
   Search as SearchIcon,
 } from "lucide-react";

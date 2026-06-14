@@ -16,7 +16,7 @@ const filtersSchema = z.object({
 export type MonitoringFilters = z.infer<typeof filtersSchema>;
 
 const BUCKETS = [
-  { key: "1-3", min: 1, max: 3 },
+  { key: "0-3", min: 0, max: 3 },
   { key: "4-7", min: 4, max: 7 },
   { key: "8-15", min: 8, max: 15 },
   { key: "16-30", min: 16, max: 30 },

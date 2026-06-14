@@ -36,6 +36,7 @@ import {
   Building2,
   CalendarClock,
   Download,
+  Info,
   RefreshCw,
   Search as SearchIcon,
 } from "lucide-react";
@@ -128,16 +129,24 @@ function MonitoringPage() {
   const qc = useQueryClient();
   const today = new Date();
   const pad2 = (n: number) => String(n).padStart(2, "0");
-  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
-  // Default start = 2026-01-01 (TZ-safe: plain YYYY-MM-DD)
-  const defaultFromStr = "2026-01-01";
+  // Helpers: month string "YYYY-MM" ↔ day boundaries (TZ-safe, plain string)
+  const monthFirstDay = (ym: string) => `${ym}-01`;
+  const monthLastDay = (ym: string) => {
+    const [y, m] = ym.split("-").map(Number);
+    // Day 0 of next month = last day of current month
+    const d = new Date(Date.UTC(y, m, 0));
+    return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+  };
+  const currentMonth = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`;
+  // Default = Jan 2026 → current month
+  const defaultFromMonth = "2026-01";
 
   const [oldCode, setOldCode] = useState("");
   const [zones, setZones] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
-  const [fromDate, setFromDate] = useState(defaultFromStr);
-  const [toDate, setToDate] = useState(todayStr);
+  const [fromMonth, setFromMonth] = useState(defaultFromMonth);
+  const [toMonth, setToMonth] = useState(currentMonth);
 
   const [applied, setApplied] = useState<AppliedFilters | null>(null);
 
@@ -167,13 +176,21 @@ function MonitoringPage() {
   const filterOptions = optsData ?? data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
 
   const handleApply = () => {
-    setApplied({ oldCode, zones, projects, mediaTypes, fromDate, toDate });
+    setApplied({
+      oldCode,
+      zones,
+      projects,
+      mediaTypes,
+      fromDate: monthFirstDay(fromMonth),
+      toDate: monthLastDay(toMonth),
+    });
   };
   const handleReset = () => {
     setOldCode(""); setZones([]); setProjects([]); setMediaTypes([]);
-    setFromDate(defaultFromStr); setToDate(todayStr);
+    setFromMonth(defaultFromMonth); setToMonth(currentMonth);
     setApplied(null);
   };
+
 
 
   return (
@@ -223,12 +240,12 @@ function MonitoringPage() {
               <MultiSelect label="Media Type" options={filterOptions.mediaTypes} value={mediaTypes} onChange={setMediaTypes} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">วันที่เริ่ม</label>
-              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+              <label className="text-xs text-muted-foreground">เดือนเริ่ม</label>
+              <Input type="month" value={fromMonth} onChange={(e) => setFromMonth(e.target.value)} max={toMonth} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">ถึงวันที่</label>
-              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+              <label className="text-xs text-muted-foreground">ถึงเดือน</label>
+              <Input type="month" value={toMonth} onChange={(e) => setToMonth(e.target.value)} min={fromMonth} />
             </div>
           </div>
           <div className="flex items-center justify-between gap-3 mt-4 flex-wrap">
@@ -263,11 +280,36 @@ function MonitoringPage() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard icon={Building2} label="ป้ายทั้งหมด" value={data.kpi.totalAssets} color="text-blue-500" />
-            <KpiCard icon={AlertCircle} label="12 เดือนย้อนหลังยังไม่เคยตรวจ" value={data.kpi.neverPm} color="text-orange-500" />
-            <KpiCard icon={AlertTriangle} label="ตรวจแล้วเสียภายใน 7 วัน" value={data.kpi.earlyFail7} color="text-rose-500" />
-            <KpiCard icon={CalendarClock} label="ตั๋วเปิดแล้วรอตรวจ (Pending)" value={data.kpi.pendingTickets} color="text-amber-500" />
+            <KpiCard
+              icon={Building2}
+              label="ป้ายทั้งหมด"
+              value={data.kpi.totalAssets}
+              color="text-blue-500"
+              info="ที่มา: ตาราง assets (นับเฉพาะป้ายที่ payload.IsDeleted ≠ true) หลังกรองด้วย Old Code/Project/พื้นที่/Media Type"
+            />
+            <KpiCard
+              icon={AlertCircle}
+              label="12 เดือนย้อนหลังยังไม่เคยตรวจ"
+              value={data.kpi.neverPm}
+              color="text-orange-500"
+              info="ที่มา: asset_history (type=Monitor) ของป้ายที่อยู่ในขอบเขต — นับป้ายที่ไม่มีการตรวจสถานะ Pass เลยภายใน 365 วันล่าสุด"
+            />
+            <KpiCard
+              icon={AlertTriangle}
+              label="ตรวจแล้วเสียภายใน 7 วัน"
+              value={data.kpi.earlyFail7}
+              color="text-rose-500"
+              info="ที่มา: คู่ Monitor.closed_at → Claim.opened_at ของ Old Code เดียวกัน (ช่วง 0–7 วัน) เฉพาะที่ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
+            />
+            <KpiCard
+              icon={CalendarClock}
+              label="ตั๋วเปิดแล้วรอตรวจ (Pending)"
+              value={data.kpi.pendingTickets}
+              color="text-amber-500"
+              info="ที่มา: asset_history (type=Monitor) — นับป้ายที่สถานะตรวจล่าสุด (payload.assetStatus) ยังไม่ใช่ Pass/Fail/Skip"
+            />
           </div>
+
 
 
           <Tabs defaultValue="overview" className="space-y-4">
@@ -297,13 +339,20 @@ function MonitoringPage() {
   );
 }
 
-function KpiCard({ icon: Icon, label, value, color }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number; color: string }) {
+function KpiCard({ icon: Icon, label, value, color, info }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number; color: string; info?: string }) {
   return (
     <Card>
       <CardContent className="pt-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground truncate">{label}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs text-muted-foreground truncate">{label}</p>
+              {info && (
+                <span title={info} className="text-muted-foreground/70 cursor-help">
+                  <Info className="size-3.5" />
+                </span>
+              )}
+            </div>
             <p className="text-2xl font-bold mt-1 tabular-nums">{value.toLocaleString()}</p>
           </div>
           <Icon className={`size-8 shrink-0 ${color}`} />
@@ -313,6 +362,21 @@ function KpiCard({ icon: Icon, label, value, color }: { icon: React.ComponentTyp
   );
 }
 
+function SectionTitle({ title, info }: { title: string; info: string }) {
+  return (
+    <div className="flex items-center gap-1.5 mb-1">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <span title={info} className="text-muted-foreground/70 cursor-help">
+        <Info className="size-3.5" />
+      </span>
+    </div>
+  );
+}
+
+function FormulaNote({ children }: { children: React.ReactNode }) {
+  return <p className="text-[11px] text-muted-foreground mb-3 leading-relaxed">{children}</p>;
+}
+
 type MonitoringData = NonNullable<ReturnType<typeof useQuery<Awaited<ReturnType<typeof getMonitoringData>>>>["data"]>;
 
 function OverviewTab({ data }: { data: MonitoringData }) {
@@ -320,7 +384,13 @@ function OverviewTab({ data }: { data: MonitoringData }) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card>
         <CardContent className="pt-6">
-          <h3 className="text-sm font-semibold mb-3">สัดส่วนสถานะการตรวจล่าสุด</h3>
+          <SectionTitle
+            title="สัดส่วนสถานะการตรวจล่าสุด"
+            info="ที่มา: asset_history (type=Monitor) — ใช้ payload.assetStatus ของการตรวจครั้งล่าสุดของแต่ละ Old Code; ป้ายที่ยังไม่เคยตรวจถูกนับเป็น Pending"
+          />
+          <FormulaNote>
+            สูตร: สำหรับแต่ละ Old Code ในขอบเขต → หา Monitor record ล่าสุด (ตาม opened_at) → map payload.assetStatus เป็น 1 ใน 4 สถานะ (Pending/Pass/Fail/Skip). รวม 4 ค่านี้ = จำนวนป้ายทั้งหมด
+          </FormulaNote>
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
               <Pie data={data.statusPie} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} label>
@@ -334,7 +404,13 @@ function OverviewTab({ data }: { data: MonitoringData }) {
       </Card>
       <Card>
         <CardContent className="pt-6">
-          <h3 className="text-sm font-semibold mb-3">จำนวนป้ายตามสถานะตรวจ แยกรายแผนก</h3>
+          <SectionTitle
+            title="จำนวนป้ายตามสถานะตรวจ แยกรายแผนก"
+            info="ที่มา: รวมข้อมูลเดียวกับ Pie ด้านซ้าย — จัดกลุ่มตาม assets.department"
+          />
+          <FormulaNote>
+            สูตร: group by assets.department แล้วนับ Old Code ตาม 4 สถานะ (จาก Monitor ครั้งล่าสุด). แท่งเรียงตามจำนวนป้ายมาก→น้อย
+          </FormulaNote>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={data.byDepartment} layout="vertical" margin={{ left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -346,14 +422,20 @@ function OverviewTab({ data }: { data: MonitoringData }) {
               <Bar dataKey="Pass" stackId="a" fill={PIE_COLORS[0]} name="ตรวจผ่าน" />
               <Bar dataKey="Fail" stackId="a" fill={PIE_COLORS[2]} name="ตรวจไม่ผ่าน" />
               <Bar dataKey="Skip" stackId="a" fill={PIE_COLORS[3]} name="ยกเลิกการตรวจ" />
-
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
       <Card className="lg:col-span-2">
         <CardContent className="pt-6">
-          <h3 className="text-sm font-semibold mb-3">Top 10 อาการที่พบบ่อย (จากตั๋ว Claim ในช่วง)</h3>
+          <SectionTitle
+            title="Top 10 อาการที่พบบ่อย (เสียภายใน 7 วันหลังตรวจ)"
+            info="ที่มา: จับคู่ Monitor.closed_at กับ Claim.opened_at ใน asset_history (Old Code เดียวกัน) — เฉพาะคู่ที่ห่างกัน ≤ 7 วัน และ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
+          />
+          <FormulaNote>
+            สูตร: สำหรับแต่ละ Monitor → หา Claim ถัดไปของป้ายเดียวกัน → ถ้า (Claim.opened_at − Monitor.closed_at) ระหว่าง 0–7 วัน → นับ payload.informDetail (หรือ problemDetail ถ้าว่าง). แสดง 10 อาการที่พบบ่อยที่สุด — ตัวเลขนี้ต้องสอดคล้องกับ KPI "ตรวจแล้วเสียภายใน 7 วัน"
+          </FormulaNote>
+
           {data.topSymptoms.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">ไม่มีข้อมูล</p>
           ) : (
@@ -398,6 +480,15 @@ function InspectionTab({ rows }: { rows: MonitoringData["inspectionRows"] }) {
   return (
     <Card>
       <CardContent className="pt-6 space-y-3">
+        <div className="space-y-1">
+          <SectionTitle
+            title="สถานะการตรวจรายป้าย"
+            info="ที่มา: assets (ป้ายในขอบเขต) + asset_history.type='Monitor' — แต่ละแถวสรุปจำนวนครั้งที่ตรวจ, วันที่ตรวจล่าสุด, ค่าเฉลี่ยห่างระหว่างการตรวจ, และสถานะล่าสุด"
+          />
+          <FormulaNote>
+            สูตร: pmCount = จำนวน Monitor ของป้าย · lastPmDate = opened_at ล่าสุด · daysSinceLastPm = วันนี้ − lastPmDate · avgIntervalDays = ค่าเฉลี่ยช่วงห่างระหว่างคู่ Monitor ที่อยู่ติดกัน · สถานะ = payload.assetStatus ของ Monitor ล่าสุด (ว่าง = Pending). จำนวนตามปุ่มกรองรวมกัน = จำนวนป้ายทั้งหมด
+          </FormulaNote>
+        </div>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 flex-wrap">
             {BTN.map((b) => (
@@ -463,7 +554,7 @@ function AgingTab({ aging, pairs, earlySymptoms }: { aging: MonitoringData["agin
   const filtered = useMemo(() => {
     if (!bucket) return pairs.slice(0, 500);
     return pairs.filter((p) => {
-      if (bucket === "1-3") return p.days >= 1 && p.days <= 3;
+      if (bucket === "0-3") return p.days >= 0 && p.days <= 3;
       if (bucket === "4-7") return p.days >= 4 && p.days <= 7;
       if (bucket === "8-15") return p.days >= 8 && p.days <= 15;
       if (bucket === "16-30") return p.days >= 16 && p.days <= 30;
@@ -479,7 +570,13 @@ function AgingTab({ aging, pairs, earlySymptoms }: { aging: MonitoringData["agin
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <h3 className="text-sm font-semibold mb-3">ตรวจเสร็จ → เปิด Claim (ช่วงเวลา)</h3>
+            <SectionTitle
+              title="ตรวจเสร็จ → เปิด Claim (ช่วงเวลา)"
+              info="ที่มา: คู่ Monitor.closed_at → Claim.opened_at ของ Old Code เดียวกัน (จาก asset_history) เฉพาะที่ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
+            />
+            <FormulaNote>
+              สูตร: gap = floor((Claim.opened_at − Monitor.closed_at)/24h) แล้วจัดกลุ่มเป็น 0–3, 4–7, 8–15, 16–30, 31–60, 61–90, &gt;90 วัน. ผลรวมของ 0–3 + 4–7 ต้องเท่ากับ KPI "ตรวจแล้วเสียภายใน 7 วัน"
+            </FormulaNote>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={aging}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -494,7 +591,13 @@ function AgingTab({ aging, pairs, earlySymptoms }: { aging: MonitoringData["agin
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <h3 className="text-sm font-semibold mb-3">อาการที่เกิดเร็ว (ภายใน 7 วันหลังตรวจ)</h3>
+            <SectionTitle
+              title="อาการที่เกิดเร็ว (ภายใน 7 วันหลังตรวจ)"
+              info="ที่มา: payload.informDetail (หรือ problemDetail) ของ Claim ที่เปิดภายใน 7 วันหลัง Monitor ปิด — กลุ่มเดียวกับ Top 10 ในแท็บภาพรวม"
+            />
+            <FormulaNote>
+              สูตร: filter คู่ที่ gap ≤ 7 วัน → group by อาการ → แสดงเป็นสัดส่วน
+            </FormulaNote>
             {earlySymptoms.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">ไม่มี — ไม่มีป้ายที่เสียภายใน 7 วันหลังตรวจ</p>
             ) : (
@@ -514,7 +617,11 @@ function AgingTab({ aging, pairs, earlySymptoms }: { aging: MonitoringData["agin
 
       <Card>
         <CardContent className="pt-6">
-          <h3 className="text-sm font-semibold mb-3">รายละเอียดคู่ ตรวจ→Claim {bucket && <span className="text-xs text-muted-foreground">(กรอง: {bucket} วัน)</span>}</h3>
+          <SectionTitle
+            title={`รายละเอียดคู่ ตรวจ→Claim${bucket ? ` (กรอง: ${bucket} วัน)` : ""}`}
+            info="ที่มา: คู่ Monitor → Claim ที่ใช้สร้างกราฟด้านบน — เรียงตามวันที่ตรวจ"
+          />
+
           <div className="overflow-auto rounded-md border">
             <Table>
               <TableHeader>
@@ -584,6 +691,15 @@ function TicketsTab({ rows }: { rows: MonitoringData["ticketRows"] }) {
   return (
     <Card>
       <CardContent className="pt-6 space-y-3">
+        <div className="space-y-1">
+          <SectionTitle
+            title="รายการตั๋ว Claim ในช่วง"
+            info="ที่มา: claim_tickets ที่เปิดอยู่ในช่วงเดือนที่เลือก (payload.createdDate หรือ opened_at)"
+          />
+          <FormulaNote>
+            สูตร: Created = payload.createdDate · Updated = payload.updatedDate · Closed = Updated เมื่อ status ∈ Finished/Closed/Approved · Pending = ตั๋วที่ Created = Updated (ยังไม่ขยับ) · การตรวจล่าสุด = สถานะ Monitor ล่าสุดของป้ายเดียวกัน
+          </FormulaNote>
+        </div>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <div className="relative w-full sm:w-72">

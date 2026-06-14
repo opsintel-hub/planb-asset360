@@ -554,7 +554,7 @@ function AgingTab({ aging, pairs, earlySymptoms }: { aging: MonitoringData["agin
   const filtered = useMemo(() => {
     if (!bucket) return pairs.slice(0, 500);
     return pairs.filter((p) => {
-      if (bucket === "1-3") return p.days >= 1 && p.days <= 3;
+      if (bucket === "0-3") return p.days >= 0 && p.days <= 3;
       if (bucket === "4-7") return p.days >= 4 && p.days <= 7;
       if (bucket === "8-15") return p.days >= 8 && p.days <= 15;
       if (bucket === "16-30") return p.days >= 16 && p.days <= 30;
@@ -570,7 +570,13 @@ function AgingTab({ aging, pairs, earlySymptoms }: { aging: MonitoringData["agin
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <h3 className="text-sm font-semibold mb-3">ตรวจเสร็จ → เปิด Claim (ช่วงเวลา)</h3>
+            <SectionTitle
+              title="ตรวจเสร็จ → เปิด Claim (ช่วงเวลา)"
+              info="ที่มา: คู่ Monitor.closed_at → Claim.opened_at ของ Old Code เดียวกัน (จาก asset_history) เฉพาะที่ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
+            />
+            <FormulaNote>
+              สูตร: gap = floor((Claim.opened_at − Monitor.closed_at)/24h) แล้วจัดกลุ่มเป็น 0–3, 4–7, 8–15, 16–30, 31–60, 61–90, &gt;90 วัน. ผลรวมของ 0–3 + 4–7 ต้องเท่ากับ KPI "ตรวจแล้วเสียภายใน 7 วัน"
+            </FormulaNote>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={aging}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -585,7 +591,13 @@ function AgingTab({ aging, pairs, earlySymptoms }: { aging: MonitoringData["agin
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <h3 className="text-sm font-semibold mb-3">อาการที่เกิดเร็ว (ภายใน 7 วันหลังตรวจ)</h3>
+            <SectionTitle
+              title="อาการที่เกิดเร็ว (ภายใน 7 วันหลังตรวจ)"
+              info="ที่มา: payload.informDetail (หรือ problemDetail) ของ Claim ที่เปิดภายใน 7 วันหลัง Monitor ปิด — กลุ่มเดียวกับ Top 10 ในแท็บภาพรวม"
+            />
+            <FormulaNote>
+              สูตร: filter คู่ที่ gap ≤ 7 วัน → group by อาการ → แสดงเป็นสัดส่วน
+            </FormulaNote>
             {earlySymptoms.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">ไม่มี — ไม่มีป้ายที่เสียภายใน 7 วันหลังตรวจ</p>
             ) : (
@@ -605,7 +617,11 @@ function AgingTab({ aging, pairs, earlySymptoms }: { aging: MonitoringData["agin
 
       <Card>
         <CardContent className="pt-6">
-          <h3 className="text-sm font-semibold mb-3">รายละเอียดคู่ ตรวจ→Claim {bucket && <span className="text-xs text-muted-foreground">(กรอง: {bucket} วัน)</span>}</h3>
+          <SectionTitle
+            title={`รายละเอียดคู่ ตรวจ→Claim${bucket ? ` (กรอง: ${bucket} วัน)` : ""}`}
+            info="ที่มา: คู่ Monitor → Claim ที่ใช้สร้างกราฟด้านบน — เรียงตามวันที่ตรวจ"
+          />
+
           <div className="overflow-auto rounded-md border">
             <Table>
               <TableHeader>

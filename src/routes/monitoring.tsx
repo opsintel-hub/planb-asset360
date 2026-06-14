@@ -39,7 +39,7 @@ import {
   RefreshCw,
   Search as SearchIcon,
 } from "lucide-react";
-import { getMonitoringData } from "@/lib/monitoring.functions";
+import { getMonitoringData, getMonitoringFilterOptions } from "@/lib/monitoring.functions";
 
 export const Route = createFileRoute("/monitoring")({
   head: () => ({

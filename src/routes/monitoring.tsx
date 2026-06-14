@@ -240,12 +240,12 @@ function MonitoringPage() {
               <MultiSelect label="Media Type" options={filterOptions.mediaTypes} value={mediaTypes} onChange={setMediaTypes} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">วันที่เริ่ม</label>
-              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+              <label className="text-xs text-muted-foreground">เดือนเริ่ม</label>
+              <Input type="month" value={fromMonth} onChange={(e) => setFromMonth(e.target.value)} max={toMonth} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">ถึงวันที่</label>
-              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+              <label className="text-xs text-muted-foreground">ถึงเดือน</label>
+              <Input type="month" value={toMonth} onChange={(e) => setToMonth(e.target.value)} min={fromMonth} />
             </div>
           </div>
           <div className="flex items-center justify-between gap-3 mt-4 flex-wrap">

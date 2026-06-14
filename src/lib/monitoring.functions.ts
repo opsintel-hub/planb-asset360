@@ -432,3 +432,27 @@ export const getMonitoringData = createServerFn({ method: "POST" })
       statusCounts,
     };
   });
+
+// Fast filter-options endpoint (assets-only, small payload, cached)
+export const getMonitoringFilterOptions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const rows = await fetchAll<{ payload: Record<string, unknown> | null }>((from, to) =>
+      supabaseAdmin.from("assets").select("payload").range(from, to),
+    );
+    const zones = new Set<string>();
+    const mediaTypes = new Set<string>();
+    for (const r of rows) {
+      const p = r.payload ?? {};
+      if (p.IsDeleted === true || p.IsDeleted === "true") continue;
+      const z = (p.BKKUPC ?? p.BkkUpc) as unknown;
+      if (typeof z === "string" && z) zones.add(z);
+      const m = p.MediaType as unknown;
+      if (typeof m === "string" && m) mediaTypes.add(m);
+    }
+    return {
+      zones: Array.from(zones).sort(),
+      projects: Object.keys(PROJECT_TO_DEPARTMENTS).sort(),
+      mediaTypes: Array.from(mediaTypes).sort(),
+    };
+  });

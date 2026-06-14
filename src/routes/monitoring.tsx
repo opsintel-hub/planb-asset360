@@ -384,7 +384,13 @@ function OverviewTab({ data }: { data: MonitoringData }) {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card>
         <CardContent className="pt-6">
-          <h3 className="text-sm font-semibold mb-3">สัดส่วนสถานะการตรวจล่าสุด</h3>
+          <SectionTitle
+            title="สัดส่วนสถานะการตรวจล่าสุด"
+            info="ที่มา: asset_history (type=Monitor) — ใช้ payload.assetStatus ของการตรวจครั้งล่าสุดของแต่ละ Old Code; ป้ายที่ยังไม่เคยตรวจถูกนับเป็น Pending"
+          />
+          <FormulaNote>
+            สูตร: สำหรับแต่ละ Old Code ในขอบเขต → หา Monitor record ล่าสุด (ตาม opened_at) → map payload.assetStatus เป็น 1 ใน 4 สถานะ (Pending/Pass/Fail/Skip). รวม 4 ค่านี้ = จำนวนป้ายทั้งหมด
+          </FormulaNote>
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
               <Pie data={data.statusPie} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} label>
@@ -398,7 +404,13 @@ function OverviewTab({ data }: { data: MonitoringData }) {
       </Card>
       <Card>
         <CardContent className="pt-6">
-          <h3 className="text-sm font-semibold mb-3">จำนวนป้ายตามสถานะตรวจ แยกรายแผนก</h3>
+          <SectionTitle
+            title="จำนวนป้ายตามสถานะตรวจ แยกรายแผนก"
+            info="ที่มา: รวมข้อมูลเดียวกับ Pie ด้านซ้าย — จัดกลุ่มตาม assets.department"
+          />
+          <FormulaNote>
+            สูตร: group by assets.department แล้วนับ Old Code ตาม 4 สถานะ (จาก Monitor ครั้งล่าสุด). แท่งเรียงตามจำนวนป้ายมาก→น้อย
+          </FormulaNote>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={data.byDepartment} layout="vertical" margin={{ left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -410,14 +422,20 @@ function OverviewTab({ data }: { data: MonitoringData }) {
               <Bar dataKey="Pass" stackId="a" fill={PIE_COLORS[0]} name="ตรวจผ่าน" />
               <Bar dataKey="Fail" stackId="a" fill={PIE_COLORS[2]} name="ตรวจไม่ผ่าน" />
               <Bar dataKey="Skip" stackId="a" fill={PIE_COLORS[3]} name="ยกเลิกการตรวจ" />
-
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
       <Card className="lg:col-span-2">
         <CardContent className="pt-6">
-          <h3 className="text-sm font-semibold mb-3">Top 10 อาการที่พบบ่อย (จากตั๋ว Claim ในช่วง)</h3>
+          <SectionTitle
+            title="Top 10 อาการที่พบบ่อย (เสียภายใน 7 วันหลังตรวจ)"
+            info="ที่มา: จับคู่ Monitor.closed_at กับ Claim.opened_at ใน asset_history (Old Code เดียวกัน) — เฉพาะคู่ที่ห่างกัน ≤ 7 วัน และ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
+          />
+          <FormulaNote>
+            สูตร: สำหรับแต่ละ Monitor → หา Claim ถัดไปของป้ายเดียวกัน → ถ้า (Claim.opened_at − Monitor.closed_at) ระหว่าง 0–7 วัน → นับ payload.informDetail (หรือ problemDetail ถ้าว่าง). แสดง 10 อาการที่พบบ่อยที่สุด — ตัวเลขนี้ต้องสอดคล้องกับ KPI "ตรวจแล้วเสียภายใน 7 วัน"
+          </FormulaNote>
+
           {data.topSymptoms.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">ไม่มีข้อมูล</p>
           ) : (

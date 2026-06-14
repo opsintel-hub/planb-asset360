@@ -39,7 +39,7 @@ import {
   RefreshCw,
   Search as SearchIcon,
 } from "lucide-react";
-import { getMonitoringData } from "@/lib/monitoring.functions";
+import { getMonitoringData, getMonitoringFilterOptions } from "@/lib/monitoring.functions";
 
 export const Route = createFileRoute("/monitoring")({
   head: () => ({
@@ -124,6 +124,7 @@ const MultiSelect = memo(function MultiSelect({
 
 function MonitoringPage() {
   const fn = useServerFn(getMonitoringData);
+  const optsFn = useServerFn(getMonitoringFilterOptions);
   const qc = useQueryClient();
   const today = new Date();
   const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -139,6 +140,12 @@ function MonitoringPage() {
   const [toDate, setToDate] = useState(todayStr);
 
   const [applied, setApplied] = useState<AppliedFilters | null>(null);
+
+  const { data: optsData } = useQuery({
+    queryKey: ["monitoring-filter-options"],
+    queryFn: () => optsFn(),
+    staleTime: 30 * 60_000,
+  });
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["monitoring", applied],
@@ -157,7 +164,7 @@ function MonitoringPage() {
     staleTime: 5 * 60_000,
   });
 
-  const filterOptions = data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
+  const filterOptions = optsData ?? data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
 
   const handleApply = () => {
     setApplied({ oldCode, zones, projects, mediaTypes, fromDate, toDate });

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { departmentsForProjects } from "@/lib/project-department-map";
+import { departmentsForProjects, PROJECT_TO_DEPARTMENTS } from "@/lib/project-department-map";
 
 const filtersSchema = z.object({
   oldCode: z.string().optional().default(""),
@@ -140,8 +140,8 @@ export const getMonitoringData = createServerFn({ method: "POST" })
         department: r.department ?? "",
         area: r.area ?? "",
         mediaType: typeof p.MediaType === "string" ? (p.MediaType as string) : "",
-        project: typeof p.Project === "string" ? (p.Project as string) : "",
-        zone: typeof p.BkkUpc === "string" ? (p.BkkUpc as string) : "",
+        project: "",
+        zone: typeof p.BKKUPC === "string" ? (p.BKKUPC as string) : (typeof p.BkkUpc === "string" ? (p.BkkUpc as string) : ""),
       });
     }
 
@@ -406,17 +406,15 @@ export const getMonitoringData = createServerFn({ method: "POST" })
 
     // ---------- Filter options ----------
     const optZone = new Set<string>();
-    const optProject = new Set<string>();
     const optMedia = new Set<string>();
     for (const a of assetMap.values()) {
       if (a.zone) optZone.add(a.zone);
-      if (a.project) optProject.add(a.project);
       if (a.mediaType) optMedia.add(a.mediaType);
     }
     const filters = {
       departments: [] as string[],
       zones: Array.from(optZone).sort(),
-      projects: Array.from(optProject).sort(),
+      projects: Object.keys(PROJECT_TO_DEPARTMENTS).sort(),
       mediaTypes: Array.from(optMedia).sort(),
     };
 
@@ -432,5 +430,29 @@ export const getMonitoringData = createServerFn({ method: "POST" })
       earlySymptoms,
       ticketRows,
       statusCounts,
+    };
+  });
+
+// Fast filter-options endpoint (assets-only, small payload, cached)
+export const getMonitoringFilterOptions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const rows = await fetchAll<{ payload: Record<string, unknown> | null }>((from, to) =>
+      supabaseAdmin.from("assets").select("payload").range(from, to),
+    );
+    const zones = new Set<string>();
+    const mediaTypes = new Set<string>();
+    for (const r of rows) {
+      const p = r.payload ?? {};
+      if (p.IsDeleted === true || p.IsDeleted === "true") continue;
+      const z = (p.BKKUPC ?? p.BkkUpc) as unknown;
+      if (typeof z === "string" && z) zones.add(z);
+      const m = p.MediaType as unknown;
+      if (typeof m === "string" && m) mediaTypes.add(m);
+    }
+    return {
+      zones: Array.from(zones).sort(),
+      projects: Object.keys(PROJECT_TO_DEPARTMENTS).sort(),
+      mediaTypes: Array.from(mediaTypes).sort(),
     };
   });

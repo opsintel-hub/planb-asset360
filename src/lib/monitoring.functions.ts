@@ -140,8 +140,8 @@ export const getMonitoringData = createServerFn({ method: "POST" })
         department: r.department ?? "",
         area: r.area ?? "",
         mediaType: typeof p.MediaType === "string" ? (p.MediaType as string) : "",
-        project: typeof p.Project === "string" ? (p.Project as string) : "",
-        zone: typeof p.BkkUpc === "string" ? (p.BkkUpc as string) : "",
+        project: "",
+        zone: typeof p.BKKUPC === "string" ? (p.BKKUPC as string) : (typeof p.BkkUpc === "string" ? (p.BkkUpc as string) : ""),
       });
     }
 

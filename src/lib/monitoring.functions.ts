@@ -406,17 +406,15 @@ export const getMonitoringData = createServerFn({ method: "POST" })
 
     // ---------- Filter options ----------
     const optZone = new Set<string>();
-    const optProject = new Set<string>();
     const optMedia = new Set<string>();
     for (const a of assetMap.values()) {
       if (a.zone) optZone.add(a.zone);
-      if (a.project) optProject.add(a.project);
       if (a.mediaType) optMedia.add(a.mediaType);
     }
     const filters = {
       departments: [] as string[],
       zones: Array.from(optZone).sort(),
-      projects: Array.from(optProject).sort(),
+      projects: Object.keys(PROJECT_TO_DEPARTMENTS).sort(),
       mediaTypes: Array.from(optMedia).sort(),
     };
 

@@ -280,11 +280,36 @@ function MonitoringPage() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard icon={Building2} label="ป้ายทั้งหมด" value={data.kpi.totalAssets} color="text-blue-500" />
-            <KpiCard icon={AlertCircle} label="12 เดือนย้อนหลังยังไม่เคยตรวจ" value={data.kpi.neverPm} color="text-orange-500" />
-            <KpiCard icon={AlertTriangle} label="ตรวจแล้วเสียภายใน 7 วัน" value={data.kpi.earlyFail7} color="text-rose-500" />
-            <KpiCard icon={CalendarClock} label="ตั๋วเปิดแล้วรอตรวจ (Pending)" value={data.kpi.pendingTickets} color="text-amber-500" />
+            <KpiCard
+              icon={Building2}
+              label="ป้ายทั้งหมด"
+              value={data.kpi.totalAssets}
+              color="text-blue-500"
+              info="ที่มา: ตาราง assets (นับเฉพาะป้ายที่ payload.IsDeleted ≠ true) หลังกรองด้วย Old Code/Project/พื้นที่/Media Type"
+            />
+            <KpiCard
+              icon={AlertCircle}
+              label="12 เดือนย้อนหลังยังไม่เคยตรวจ"
+              value={data.kpi.neverPm}
+              color="text-orange-500"
+              info="ที่มา: asset_history (type=Monitor) ของป้ายที่อยู่ในขอบเขต — นับป้ายที่ไม่มีการตรวจสถานะ Pass เลยภายใน 365 วันล่าสุด"
+            />
+            <KpiCard
+              icon={AlertTriangle}
+              label="ตรวจแล้วเสียภายใน 7 วัน"
+              value={data.kpi.earlyFail7}
+              color="text-rose-500"
+              info="ที่มา: คู่ Monitor.closed_at → Claim.opened_at ของ Old Code เดียวกัน (ช่วง 0–7 วัน) เฉพาะที่ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
+            />
+            <KpiCard
+              icon={CalendarClock}
+              label="ตั๋วเปิดแล้วรอตรวจ (Pending)"
+              value={data.kpi.pendingTickets}
+              color="text-amber-500"
+              info="ที่มา: asset_history (type=Monitor) — นับป้ายที่สถานะตรวจล่าสุด (payload.assetStatus) ยังไม่ใช่ Pass/Fail/Skip"
+            />
           </div>
+
 
 
           <Tabs defaultValue="overview" className="space-y-4">

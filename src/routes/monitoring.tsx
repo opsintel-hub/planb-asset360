@@ -339,13 +339,20 @@ function MonitoringPage() {
   );
 }
 
-function KpiCard({ icon: Icon, label, value, color }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number; color: string }) {
+function KpiCard({ icon: Icon, label, value, color, info }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number; color: string; info?: string }) {
   return (
     <Card>
       <CardContent className="pt-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground truncate">{label}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs text-muted-foreground truncate">{label}</p>
+              {info && (
+                <span title={info} className="text-muted-foreground/70 cursor-help">
+                  <Info className="size-3.5" />
+                </span>
+              )}
+            </div>
             <p className="text-2xl font-bold mt-1 tabular-nums">{value.toLocaleString()}</p>
           </div>
           <Icon className={`size-8 shrink-0 ${color}`} />
@@ -353,6 +360,21 @@ function KpiCard({ icon: Icon, label, value, color }: { icon: React.ComponentTyp
       </CardContent>
     </Card>
   );
+}
+
+function SectionTitle({ title, info }: { title: string; info: string }) {
+  return (
+    <div className="flex items-center gap-1.5 mb-1">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <span title={info} className="text-muted-foreground/70 cursor-help">
+        <Info className="size-3.5" />
+      </span>
+    </div>
+  );
+}
+
+function FormulaNote({ children }: { children: React.ReactNode }) {
+  return <p className="text-[11px] text-muted-foreground mb-3 leading-relaxed">{children}</p>;
 }
 
 type MonitoringData = NonNullable<ReturnType<typeof useQuery<Awaited<ReturnType<typeof getMonitoringData>>>>["data"]>;

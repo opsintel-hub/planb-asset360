@@ -691,6 +691,15 @@ function TicketsTab({ rows }: { rows: MonitoringData["ticketRows"] }) {
   return (
     <Card>
       <CardContent className="pt-6 space-y-3">
+        <div className="space-y-1">
+          <SectionTitle
+            title="รายการตั๋ว Claim ในช่วง"
+            info="ที่มา: claim_tickets ที่เปิดอยู่ในช่วงเดือนที่เลือก (payload.createdDate หรือ opened_at)"
+          />
+          <FormulaNote>
+            สูตร: Created = payload.createdDate · Updated = payload.updatedDate · Closed = Updated เมื่อ status ∈ Finished/Closed/Approved · Pending = ตั๋วที่ Created = Updated (ยังไม่ขยับ) · การตรวจล่าสุด = สถานะ Monitor ล่าสุดของป้ายเดียวกัน
+          </FormulaNote>
+        </div>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <div className="relative w-full sm:w-72">

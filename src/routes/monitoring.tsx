@@ -480,6 +480,15 @@ function InspectionTab({ rows }: { rows: MonitoringData["inspectionRows"] }) {
   return (
     <Card>
       <CardContent className="pt-6 space-y-3">
+        <div className="space-y-1">
+          <SectionTitle
+            title="สถานะการตรวจรายป้าย"
+            info="ที่มา: assets (ป้ายในขอบเขต) + asset_history.type='Monitor' — แต่ละแถวสรุปจำนวนครั้งที่ตรวจ, วันที่ตรวจล่าสุด, ค่าเฉลี่ยห่างระหว่างการตรวจ, และสถานะล่าสุด"
+          />
+          <FormulaNote>
+            สูตร: pmCount = จำนวน Monitor ของป้าย · lastPmDate = opened_at ล่าสุด · daysSinceLastPm = วันนี้ − lastPmDate · avgIntervalDays = ค่าเฉลี่ยช่วงห่างระหว่างคู่ Monitor ที่อยู่ติดกัน · สถานะ = payload.assetStatus ของ Monitor ล่าสุด (ว่าง = Pending). จำนวนตามปุ่มกรองรวมกัน = จำนวนป้ายทั้งหมด
+          </FormulaNote>
+        </div>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 flex-wrap">
             {BTN.map((b) => (

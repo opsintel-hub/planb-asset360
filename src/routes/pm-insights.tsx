@@ -373,42 +373,28 @@ function PmInsightsPage() {
 
       ) : data ? (
         <>
-          {/* KPI Cards — 5 boxes */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* KPI Cards — 3 boxes */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <KpiCard
               icon={Building2}
               label="จำนวนป้ายทั้งหมด"
               value={data.kpi.assets}
               color="text-blue-500"
-              description="นับ distinct asset_old_code จากตาราง assets (ไม่นับป้ายที่ IsDeleted=true)"
+              description="นับ distinct asset_old_code จากตาราง assets (ไม่นับ IsDeleted=true) — ไม่ขึ้นกับช่วงวันที่; ตอบสนองตัวกรอง Project / Zone / Media Type / Old Code"
             />
             <KpiCard
               icon={Wrench}
               label="ป้ายที่เปิดตั๋ว PM ทั้งหมด"
               value={data.kpi.pmAll}
               color="text-green-500"
-              description="นับ distinct asset_old_code ที่มี PM (Media) หรือ PM (non Media) ทุกสถานะในช่วง filter"
-            />
-            <KpiCard
-              icon={Monitor}
-              label="ป้ายที่เปิดตั๋ว PM (Media)"
-              value={data.kpi.pmMedia}
-              color="text-purple-500"
-              description="นับเฉพาะ payload.Category = 'PM (Media)'"
-            />
-            <KpiCard
-              icon={PackageOpen}
-              label="ป้ายที่เปิดตั๋ว PM (non Media)"
-              value={data.kpi.pmNonMedia}
-              color="text-orange-500"
-              description="นับเฉพาะ payload.Category = 'PM (non Media)'"
+              description="นับ distinct asset_old_code จาก mssql_asset_history ที่ payload.Category ∈ {PM (Media), PM (non Media)} และ opened_at อยู่ในช่วงวันที่เริ่ม–ถึงวันที่ และผ่านตัวกรอง Project / Zone / Media Type / Old Code"
             />
             <KpiCard
               icon={AlertCircle}
               label="ป้ายที่ยังไม่ได้เปิดตั๋ว PM"
               value={data.kpi.pmNone}
               color="text-rose-500"
-              description="จำนวนป้ายทั้งหมด - ป้ายที่มี PM (Media)+PM (non Media)"
+              description="= จำนวนป้ายทั้งหมด − ป้ายที่เปิดตั๋ว PM ทั้งหมด (ป้ายที่ไม่มีตั๋ว PM ใด ๆ ในช่วงและตัวกรองที่เลือก)"
             />
           </div>
 

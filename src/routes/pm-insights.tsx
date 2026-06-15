@@ -271,24 +271,6 @@ function PmInsightsPage() {
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground" title="กรองตาม payload.Category ของ mssql_asset_history">
-                ประเภท PM
-              </label>
-              <Select
-                value={pmCategory}
-                onValueChange={(v) => setPmCategory(v as "all" | "media" | "non-media")}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">ทั้งหมด (Media + non Media)</SelectItem>
-                  <SelectItem value="media">PM (Media)</SelectItem>
-                  <SelectItem value="non-media">PM (non Media)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
               <label className="text-xs text-muted-foreground" title="กลุ่มสื่อจาก mssql_asset_history.payload.Project">
                 กลุ่มสื่อ (Project)
               </label>

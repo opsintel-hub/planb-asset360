@@ -405,11 +405,11 @@ function OverviewTab({ data }: { data: MonitoringData }) {
       <Card>
         <CardContent className="pt-6">
           <SectionTitle
-            title="จำนวนป้ายตามสถานะตรวจ แยกรายแผนก"
+            title="จำนวนการตรวจตามสถานะ แยกรายแผนก"
             info="ที่มา: รวมข้อมูลเดียวกับ Pie ด้านซ้าย — จัดกลุ่มตาม assets.department"
           />
           <FormulaNote>
-            สูตร: group by assets.department แล้วนับ Old Code ตาม 4 สถานะ (จาก Monitor ครั้งล่าสุด). แท่งเรียงตามจำนวนป้ายมาก→น้อย
+            สูตร: group by assets.department แล้วนับ Monitor event ในช่วงเดือนที่เลือก จำแนกเป็น 4 สถานะ — แท่งเรียงตามจำนวนเหตุการณ์มาก→น้อย
           </FormulaNote>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={data.byDepartment} layout="vertical" margin={{ left: 20 }}>

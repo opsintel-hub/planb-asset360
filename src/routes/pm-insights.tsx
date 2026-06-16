@@ -581,7 +581,7 @@ function MonthTicketTable({ title, color, rows }: { title: string; color: string
                 <TableHead>วันที่</TableHead>
                 <TableHead>รหัสป้าย</TableHead>
                 <TableHead>หมวด</TableHead>
-                <TableHead>สถานะ</TableHead>
+                <TableHead>สถานะ(TICKET)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1022,12 +1022,15 @@ function AgingReport({
                   <TableHead>อุปกรณ์</TableHead>
                   <TableHead>วิธีแก้ (หมวด)</TableHead>
                   <TableHead>วิธีแก้</TableHead>
+                  <TableHead>สถานะ(TICKET)</TableHead>
+                  <TableHead>ระยะเวลาแก้ปัญหาและตรวจสอบ(TICKET)</TableHead>
+                  <TableHead>ASSET STATUS</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visible.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={14} className="text-center text-muted-foreground py-8">
                       ไม่พบข้อมูลตามเงื่อนไข
                     </TableCell>
                   </TableRow>
@@ -1051,6 +1054,9 @@ function AgingReport({
                       <TableCell className="text-xs max-w-[160px] truncate" title={p.problemEquipment}>{p.problemEquipment}</TableCell>
                       <TableCell className="text-xs max-w-[140px] truncate" title={p.solutionCategory}>{p.solutionCategory}</TableCell>
                       <TableCell className="text-xs max-w-[200px] truncate" title={p.solutionDetail}>{p.solutionDetail}</TableCell>
+                      <TableCell className="text-xs">{(p as any).status}</TableCell>
+                      <TableCell className="text-xs text-right tabular-nums">{Math.round((p as any).days * 24)} ชม.</TableCell>
+                      <TableCell className="text-xs">{(p as any).assetStatus}</TableCell>
                     </TableRow>
                   ))
                 )}

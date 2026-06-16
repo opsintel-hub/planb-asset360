@@ -172,8 +172,8 @@ function ClaimsPage() {
                   <th className="text-left px-4 py-3 whitespace-nowrap">Old Code</th>
                   <th className="text-left px-4 py-3 whitespace-nowrap">Department</th>
                   <th className="text-left px-4 py-3">อาการ</th>
-                  <th className="text-left px-4 py-3 whitespace-nowrap">สถานะงานที่ป้าย</th>
-                  <th className="text-left px-4 py-3 whitespace-nowrap">สถานะตั๋ว</th>
+                  <th className="text-left px-4 py-3 whitespace-nowrap">ASSET STATUS</th>
+                  <th className="text-left px-4 py-3 whitespace-nowrap">สถานะ(TICKET)</th>
                   <th className="text-right px-4 py-3 whitespace-nowrap">อายุงาน</th>
                   <th className="text-left px-4 py-3 whitespace-nowrap">SLA</th>
                 </tr>

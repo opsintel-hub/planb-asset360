@@ -87,6 +87,8 @@ type PairRow = {
   problem_equipment: string | null;
   solution_category: string | null;
   solution_detail: string | null;
+  status: string | null;
+  asset_status: string | null;
 };
 
 type AssetLite = {
@@ -107,7 +109,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
         (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_history").select("*").range(from, to),
       ),
       fetchAll<PairRow>((from, to) =>
-        (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_claim_pairs").select("*").range(from, to),
+        (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_claim_pairs").select("*, status, asset_status").range(from, to),
       ),
       fetchAll<{ old_code: string; name: string | null; department: string | null; area: string | null; payload: Record<string, unknown> | null }>(
         (from, to) => supabaseAdmin.from("assets").select("old_code, name, department, area, payload").range(from, to),
@@ -284,6 +286,8 @@ export const getPmInsights = createServerFn({ method: "POST" })
       problemEquipment: string;
       solutionCategory: string;
       solutionDetail: string;
+      status: string;
+      assetStatus: string;
     };
     const pairs: Pair[] = [];
     for (const p of pairsAll) {
@@ -306,6 +310,8 @@ export const getPmInsights = createServerFn({ method: "POST" })
         problemEquipment: p.problem_equipment || "(ไม่ระบุ)",
         solutionCategory: p.solution_category || "(ไม่ระบุ)",
         solutionDetail: p.solution_detail || "(ไม่ระบุ)",
+        status: p.status || "",
+        assetStatus: p.asset_status || "",
       });
     }
 

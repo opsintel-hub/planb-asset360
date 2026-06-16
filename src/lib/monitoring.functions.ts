@@ -296,6 +296,8 @@ export const getMonitoringData = createServerFn({ method: "POST" })
       problemCategory: string;
       problemDetail: string;
       informDetail: string;
+      status: string;
+      assetStatus: string;
     };
     const pairs: PairRow[] = [];
     const earlyFailSymptoms: string[] = [];
@@ -322,6 +324,8 @@ export const getMonitoringData = createServerFn({ method: "POST" })
           problemCategory: next.problemCategory || "(ไม่ระบุ)",
           problemDetail: next.problemDetail || "(ไม่ระบุ)",
           informDetail: next.informDetail || "(ไม่ระบุ)",
+          status: next.status || "",
+          assetStatus: m.assetStatus || "",
         });
         if (days <= 7) {
           const sym = next.informDetail || next.problemDetail || "";

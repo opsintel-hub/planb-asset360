@@ -61,7 +61,7 @@ export async function runClaimSync() {
   try {
     const url = (await readSetting("claim_api_url")) as string | undefined;
     if (!url) throw new Error("ยังไม่ได้ตั้งค่า claim_api_url");
-    const raw = await fetchPlanB(url);
+    const raw = await fetchPlanB(url, 25000);
     const list = Array.isArray(raw) ? raw : ((raw as { data?: unknown[] })?.data ?? []);
 
     // Build snapshot rows for claim_tickets (1 ticket = 1 row) and append rows for claims (audit log)
@@ -103,8 +103,15 @@ export async function runClaimSync() {
       if (!refNumber || seen.has(refNumber)) continue;
       seen.add(refNumber);
 
-      const openedAt = (item.openedAt ?? item.OpenedAt ?? item.createdAt ?? null) as string | null;
+      const rawOpenedAt = (item.openedAt ?? item.OpenedAt ?? item.createdAt ?? item.createdDate ?? item.CreatedDate ?? null) as string | null;
       const totalTimeHours = typeof item.totalTime === "number" ? item.totalTime : Number(item.totalTime ?? NaN);
+      // For "Working On" tickets the upstream API often omits openedAt but still
+      // exposes totalTime (hours since open). Derive opened_at so the UI shows the
+      // real open date instead of "today".
+      const openedAt = rawOpenedAt
+        ?? (Number.isFinite(totalTimeHours)
+              ? new Date(Date.now() - totalTimeHours * 3_600_000).toISOString()
+              : null);
       const ageHours = openedAt
         ? (Date.now() - new Date(openedAt).getTime()) / 3_600_000
         : Number.isFinite(totalTimeHours) ? totalTimeHours : null;

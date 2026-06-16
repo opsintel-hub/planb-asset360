@@ -1030,7 +1030,7 @@ function AgingReport({
               <TableBody>
                 {visible.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={14} className="text-center text-muted-foreground py-8">
                       ไม่พบข้อมูลตามเงื่อนไข
                     </TableCell>
                   </TableRow>

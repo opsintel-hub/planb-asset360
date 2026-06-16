@@ -631,6 +631,9 @@ function AgingTab({ aging, pairs, earlySymptoms }: { aging: MonitoringData["agin
                   <TableHead>วันที่ตรวจ</TableHead>
                   <TableHead>วันที่ Claim</TableHead>
                   <TableHead className="text-right">ห่าง (วัน)</TableHead>
+                  <TableHead>สถานะ(TICKET)</TableHead>
+                  <TableHead className="text-right">ระยะเวลาแก้ปัญหาและตรวจสอบ(TICKET)</TableHead>
+                  <TableHead>ASSET STATUS</TableHead>
                   <TableHead>อาการ (informDetail)</TableHead>
                   <TableHead>Ticket</TableHead>
                 </TableRow>
@@ -647,6 +650,9 @@ function AgingTab({ aging, pairs, earlySymptoms }: { aging: MonitoringData["agin
                     <TableCell className="text-right tabular-nums">
                       {p.days <= 7 ? <Badge tone="danger">{p.days}</Badge> : p.days}
                     </TableCell>
+                    <TableCell className="text-xs">{(p as any).status}</TableCell>
+                    <TableCell className="text-xs text-right tabular-nums">{Math.round((p as any).days * 24)} ชม.</TableCell>
+                    <TableCell className="text-xs">{(p as any).assetStatus}</TableCell>
                     <TableCell className="text-xs max-w-xs truncate" title={p.informDetail}>{p.informDetail}</TableCell>
                     <TableCell className="text-xs font-mono">{p.claimRef}</TableCell>
                   </TableRow>

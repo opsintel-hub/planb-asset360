@@ -352,11 +352,19 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
           .in("asset_old_code", codes);
         const existingRefs = new Set(history.map((h) => h.ticket_code).filter(Boolean));
         const assetByCode = new Map(finalAssets.map((a) => [a.old_code, a]));
-        const nowIso = new Date().toISOString();
+        const nowMs = Date.now();
         const extras = (openTix ?? [])
           .filter((t) => !existingRefs.has(t.ref_number))
           .map((t) => {
             const a = assetByCode.get(t.asset_old_code ?? "");
+            // Fallback chain for "Working On" tickets that may lack opened_at:
+            //   1) opened_at from claim_tickets (already derived from totalTime in sync)
+            //   2) compute from age_hours (now − age)
+            //   3) null (don't substitute with current time)
+            const ageH = typeof t.age_hours === "number" ? t.age_hours : Number(t.age_hours ?? NaN);
+            const derived =
+              t.opened_at ??
+              (Number.isFinite(ageH) ? new Date(nowMs - ageH * 3_600_000).toISOString() : null);
             return {
               id: `open-${t.ref_number}`,
               asset_id: a?.id ?? null,
@@ -365,7 +373,7 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
               type: "Claim",
               title: t.title,
               status: t.status,
-              opened_at: t.opened_at ?? nowIso,
+              opened_at: derived,
               closed_at: null,
               sla_hours: t.age_hours,
               payload: t.payload,

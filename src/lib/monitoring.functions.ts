@@ -405,8 +405,8 @@ export const getMonitoringData = createServerFn({ method: "POST" })
     const totalAssets = inScopeAssets.size;
     const neverPm12m = inspectionRows.filter((r) => !r.passedInLastYear).length;
     const earlyFail7 = pairs.filter((p) => p.days >= 0 && p.days <= 7).length;
-    // ตั๋วเปิดแล้วรอตรวจ: latest Monitor.assetStatus = Pending
-    const pendingInspect = inspectionRows.filter((r) => r.lastStatus === "Pending").length;
+    // ตั๋วเปิดแล้วรอตรวจ: Monitor events ในช่วง ที่ assetStatus = Pending
+    const pendingInspect = statusCounts.Pending;
 
     const kpi = {
       totalAssets,

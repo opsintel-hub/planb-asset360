@@ -1022,6 +1022,9 @@ function AgingReport({
                   <TableHead>อุปกรณ์</TableHead>
                   <TableHead>วิธีแก้ (หมวด)</TableHead>
                   <TableHead>วิธีแก้</TableHead>
+                  <TableHead>สถานะ(TICKET)</TableHead>
+                  <TableHead>ระยะเวลาแก้ปัญหาและตรวจสอบ(TICKET)</TableHead>
+                  <TableHead>ASSET STATUS</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

@@ -581,7 +581,7 @@ function MonthTicketTable({ title, color, rows }: { title: string; color: string
                 <TableHead>วันที่</TableHead>
                 <TableHead>รหัสป้าย</TableHead>
                 <TableHead>หมวด</TableHead>
-                <TableHead>สถานะ</TableHead>
+                <TableHead>สถานะ(TICKET)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

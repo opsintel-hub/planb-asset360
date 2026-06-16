@@ -513,7 +513,7 @@ function InspectionTab({ rows }: { rows: MonitoringData["inspectionRows"] }) {
                 <TableHead>ตรวจครั้งล่าสุด</TableHead>
                 <TableHead className="text-right">วันที่ผ่านมา</TableHead>
                 <TableHead className="text-right">ค่าเฉลี่ยห่าง</TableHead>
-                <TableHead>สถานะ</TableHead>
+                <TableHead>สถานะ(TICKET)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -725,7 +725,7 @@ function TicketsTab({ rows }: { rows: MonitoringData["ticketRows"] }) {
                 <TableHead>Created</TableHead>
                 <TableHead>Updated</TableHead>
                 <TableHead>Closed</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>สถานะ(TICKET)</TableHead>
                 <TableHead>การตรวจล่าสุด</TableHead>
               </TableRow>
             </TableHeader>

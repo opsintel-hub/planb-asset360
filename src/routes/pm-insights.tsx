@@ -1054,6 +1054,9 @@ function AgingReport({
                       <TableCell className="text-xs max-w-[160px] truncate" title={p.problemEquipment}>{p.problemEquipment}</TableCell>
                       <TableCell className="text-xs max-w-[140px] truncate" title={p.solutionCategory}>{p.solutionCategory}</TableCell>
                       <TableCell className="text-xs max-w-[200px] truncate" title={p.solutionDetail}>{p.solutionDetail}</TableCell>
+                      <TableCell className="text-xs">{(p as any).status}</TableCell>
+                      <TableCell className="text-xs text-right tabular-nums">{Math.round((p as any).days * 24)} ชม.</TableCell>
+                      <TableCell className="text-xs">{(p as any).assetStatus}</TableCell>
                     </TableRow>
                   ))
                 )}

@@ -385,11 +385,11 @@ function OverviewTab({ data }: { data: MonitoringData }) {
       <Card>
         <CardContent className="pt-6">
           <SectionTitle
-            title="สัดส่วนสถานะการตรวจล่าสุด"
-            info="ที่มา: asset_history (type=Monitor) — ใช้ payload.assetStatus ของการตรวจครั้งล่าสุดของแต่ละ Old Code; ป้ายที่ยังไม่เคยตรวจถูกนับเป็น Pending"
+            title="สัดส่วนสถานะการตรวจ (ในช่วงที่เลือก)"
+            info="ที่มา: asset_history (type=Monitor) — นับทุก Monitor event ที่ opened_at อยู่ในช่วงเดือนที่เลือก จำแนกตาม payload.assetStatus"
           />
           <FormulaNote>
-            สูตร: สำหรับแต่ละ Old Code ในขอบเขต → หา Monitor record ล่าสุด (ตาม opened_at) → map payload.assetStatus เป็น 1 ใน 4 สถานะ (Pending/Pass/Fail/Skip). รวม 4 ค่านี้ = จำนวนป้ายทั้งหมด
+            สูตร: นับ Monitor event ทุกครั้งของป้ายในขอบเขต ที่ opened_at อยู่ระหว่างเดือนเริ่ม–ถึงเดือน → map payload.assetStatus เป็น Pending/Pass/Fail/Skip → รวมจำนวนเหตุการณ์ในแต่ละสถานะ (ไม่ใช่นับป้าย)
           </FormulaNote>
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>

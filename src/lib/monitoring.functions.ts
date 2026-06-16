@@ -260,9 +260,24 @@ export const getMonitoringData = createServerFn({ method: "POST" })
       });
     }
 
-    // ---------- Status counts (4 buckets) ----------
+    // ---------- Status counts (event-based, within selected period) ----------
+    // นับ "เหตุการณ์ตรวจ" (Monitor events) ที่ opened_at อยู่ในช่วงตัวกรอง
+    // แล้วจำแนกตาม payload.assetStatus → Pending/Pass/Fail/Skip
     const statusCounts: Record<StatusKey, number> = { Pending: 0, Pass: 0, Fail: 0, Skip: 0 };
-    for (const r of inspectionRows) statusCounts[r.lastStatus]++;
+    const deptAgg = new Map<string, { dept: string; Pending: number; Pass: number; Fail: number; Skip: number }>();
+    for (const [code, mons] of monByAsset) {
+      const a = inScopeAssets.get(code);
+      if (!a) continue;
+      const d = a.department || "(ไม่ระบุ)";
+      const v = deptAgg.get(d) ?? { dept: d, Pending: 0, Pass: 0, Fail: 0, Skip: 0 };
+      for (const m of mons) {
+        if (!Number.isFinite(m.dateMs)) continue;
+        if (m.dateMs < fromDay || m.dateMs > toDay) continue;
+        statusCounts[m.assetStatus]++;
+        v[m.assetStatus]++;
+      }
+      deptAgg.set(d, v);
+    }
     const statusPie = STATUSES.map((s) => ({
       name:
         s === "Pending" ? "ยังไม่ได้ตรวจ (Pending)"
@@ -273,14 +288,6 @@ export const getMonitoringData = createServerFn({ method: "POST" })
       value: statusCounts[s],
     }));
 
-    // ---------- Stacked bar by department ----------
-    const deptAgg = new Map<string, { dept: string; Pending: number; Pass: number; Fail: number; Skip: number }>();
-    for (const r of inspectionRows) {
-      const d = r.department || "(ไม่ระบุ)";
-      const v = deptAgg.get(d) ?? { dept: d, Pending: 0, Pass: 0, Fail: 0, Skip: 0 };
-      v[r.lastStatus]++;
-      deptAgg.set(d, v);
-    }
     const byDepartment = Array.from(deptAgg.values()).sort(
       (a, b) => b.Pending + b.Pass + b.Fail + b.Skip - (a.Pending + a.Pass + a.Fail + a.Skip),
     );
@@ -398,8 +405,8 @@ export const getMonitoringData = createServerFn({ method: "POST" })
     const totalAssets = inScopeAssets.size;
     const neverPm12m = inspectionRows.filter((r) => !r.passedInLastYear).length;
     const earlyFail7 = pairs.filter((p) => p.days >= 0 && p.days <= 7).length;
-    // ตั๋วเปิดแล้วรอตรวจ: latest Monitor.assetStatus = Pending
-    const pendingInspect = inspectionRows.filter((r) => r.lastStatus === "Pending").length;
+    // ตั๋วเปิดแล้วรอตรวจ: Monitor events ในช่วง ที่ assetStatus = Pending
+    const pendingInspect = statusCounts.Pending;
 
     const kpi = {
       totalAssets,

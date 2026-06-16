@@ -61,7 +61,7 @@ export async function runClaimSync() {
   try {
     const url = (await readSetting("claim_api_url")) as string | undefined;
     if (!url) throw new Error("ยังไม่ได้ตั้งค่า claim_api_url");
-    const raw = await fetchPlanB(url);
+    const raw = await fetchPlanB(url, 25000);
     const list = Array.isArray(raw) ? raw : ((raw as { data?: unknown[] })?.data ?? []);
 
     // Build snapshot rows for claim_tickets (1 ticket = 1 row) and append rows for claims (audit log)

@@ -197,11 +197,22 @@ async function runBatch(
       };
     });
 
+    // Dedupe by natural key BEFORE upsert — the source can return multiple
+    // rows with the same (OldCode, CreatedDate, Status) in one batch, which
+    // PostgreSQL rejects with "ON CONFLICT DO UPDATE command cannot affect
+    // row a second time". Keep the last occurrence (latest in ORDER BY).
+    const deduped = new Map<string, typeof rows[number]>();
+    for (const r of rows) {
+      const key = `${r.asset_old_code ?? ""}|${r.action_date ?? ""}|${r.status ?? ""}`;
+      deduped.set(key, r);
+    }
+    const uniqueRows = Array.from(deduped.values());
+
     // Upsert in chunks using the unique natural-key index
     let upserted = 0;
     const chunk = 500;
-    for (let i = 0; i < rows.length; i += chunk) {
-      const slice = rows.slice(i, i + chunk);
+    for (let i = 0; i < uniqueRows.length; i += chunk) {
+      const slice = uniqueRows.slice(i, i + chunk);
       const { error } = await admin
         .from("mssql_asset_history")
         .upsert(slice, { onConflict: "asset_old_code,action_date,status", ignoreDuplicates: false });

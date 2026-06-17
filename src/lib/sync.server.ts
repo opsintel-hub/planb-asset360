@@ -95,6 +95,17 @@ export async function runClaimSync() {
     const auditRows: AuditRow[] = [];
     const seen = new Set<string>();
 
+    // Preload existing opened_at so we don't "drift" the open date each sync.
+    // Upstream Claim API doesn't send a real openedAt — only `totalTime`
+    // (hours since open). We derive opened_at = now − totalTime on FIRST sight,
+    // then preserve that value on subsequent syncs.
+    const { data: existingTickets } = await supabaseAdmin
+      .from("claim_tickets")
+      .select("ref_number, opened_at");
+    const existingOpenedAt = new Map<string, string | null>(
+      (existingTickets ?? []).map((r) => [r.ref_number as string, r.opened_at as string | null]),
+    );
+
     for (const item of list as Record<string, unknown>[]) {
       const refNumber = String(
         item.refNumber ?? item.RefNumber ?? item.ref_number ??
@@ -105,10 +116,10 @@ export async function runClaimSync() {
 
       const rawOpenedAt = (item.openedAt ?? item.OpenedAt ?? item.createdAt ?? item.createdDate ?? item.CreatedDate ?? null) as string | null;
       const totalTimeHours = typeof item.totalTime === "number" ? item.totalTime : Number(item.totalTime ?? NaN);
-      // For "Working On" tickets the upstream API often omits openedAt but still
-      // exposes totalTime (hours since open). Derive opened_at so the UI shows the
-      // real open date instead of "today".
-      const openedAt = rawOpenedAt
+      // Preserve first-seen opened_at; only compute when we've never seen this ticket.
+      const prevOpenedAt = existingOpenedAt.get(refNumber) ?? null;
+      const openedAt = prevOpenedAt
+        ?? rawOpenedAt
         ?? (Number.isFinite(totalTimeHours)
               ? new Date(Date.now() - totalTimeHours * 3_600_000).toISOString()
               : null);

@@ -40,6 +40,7 @@ import {
   Info,
   RefreshCw,
   Search as SearchIcon,
+  X,
 } from "lucide-react";
 import { getMonitoringData, getMonitoringFilterOptions } from "@/lib/monitoring.functions";
 

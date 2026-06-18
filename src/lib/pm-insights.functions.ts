@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { departmentsForProjects } from "@/lib/project-department-map";
+import { departmentsForProjects, projectForDepartment } from "@/lib/project-department-map";
 
 const filtersSchema = z.object({
   departments: z.array(z.string()).optional().default([]),

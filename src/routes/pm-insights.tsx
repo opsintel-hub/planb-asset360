@@ -42,8 +42,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { getPmInsights, getPmInsightsFilterOptions } from "@/lib/pm-insights.functions";
-import { BarChart3, Building2, Wrench, Monitor, PackageOpen, RefreshCw, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { BarChart3, Building2, Wrench, Monitor, PackageOpen, RefreshCw, AlertCircle, ChevronDown, ChevronUp, X } from "lucide-react";
 
 export const Route = createFileRoute("/pm-insights")({
   head: () => ({
@@ -142,6 +143,90 @@ const MultiSelect = memo(function MultiSelect({
   );
 });
 
+const AssetCodeCombobox = memo(function AssetCodeCombobox({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const q = value.trim().toLowerCase();
+  const suggestions = useMemo(() => {
+    if (!options.length) return [] as string[];
+    if (!q) return options.slice(0, 20);
+    const starts: string[] = [];
+    const contains: string[] = [];
+    for (const o of options) {
+      const lo = o.toLowerCase();
+      if (lo === q) continue;
+      if (lo.startsWith(q)) starts.push(o);
+      else if (lo.includes(q)) contains.push(o);
+      if (starts.length + contains.length >= 40) break;
+    }
+    return [...starts, ...contains].slice(0, 20);
+  }, [q, options]);
+
+  const showPanel = (focused || open) && suggestions.length > 0;
+
+  return (
+    <Popover open={showPanel} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <div className="relative">
+          <Input
+            placeholder="พิมพ์รหัสป้ายเพื่อค้นหา..."
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
+          />
+          {value && (
+            <button
+              type="button"
+              aria-label="ล้างคำค้น"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => onChange("")}
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+      </PopoverAnchor>
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        className="w-[--radix-popover-trigger-width] p-1 max-h-72 overflow-auto"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        {suggestions.map((c) => (
+          <button
+            key={c}
+            type="button"
+            className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onChange(c);
+              setOpen(false);
+              setFocused(false);
+            }}
+          >
+            {c}
+          </button>
+        ))}
+        {options.length === 0 && (
+          <div className="px-2 py-2 text-xs text-muted-foreground">ไม่มีรหัสป้ายที่ตรงกับตัวกรอง</div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+});
+
 type AppliedFilters = {
   departments: string[];
   zones: string[];
@@ -204,16 +289,89 @@ function PmInsightsPage() {
     staleTime: 10 * 60_000,
   });
 
-  const filterOptions =
+  const filterOptionsRaw =
     optionsData ??
     data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
+  const assetMeta = optionsData?.assetMeta ?? [];
+
+  // Filter-interlock: each dropdown shows only options compatible with the
+  // currently-selected values of the OTHER filters. Asset codes are
+  // narrowed by ALL filters so suggestions match the active scope.
+  const matchesAsset = (
+    a: { project: string | null; mediaType: string | null; zones: string[]; projects: string[] },
+    skip: "projects" | "zones" | "mediaTypes" | null,
+  ): boolean => {
+    if (skip !== "projects" && projects.length) {
+      const ok = projects.some((p) => a.project === p || a.projects.includes(p));
+      if (!ok) return false;
+    }
+    if (skip !== "zones" && zones.length) {
+      const ok = zones.some((z) => a.zones.includes(z));
+      if (!ok) return false;
+    }
+    if (skip !== "mediaTypes" && mediaTypes.length) {
+      const ok = mediaTypes.some((m) => a.mediaType === m);
+      if (!ok) return false;
+    }
+    return true;
+  };
+
+  const availableProjects = useMemo(() => {
+    if (!assetMeta.length) return filterOptionsRaw.projects;
+    const s = new Set<string>();
+    for (const a of assetMeta) {
+      if (!matchesAsset(a, "projects")) continue;
+      if (a.project) s.add(a.project);
+      for (const p of a.projects) s.add(p);
+    }
+    return Array.from(s).sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetMeta, zones, mediaTypes]);
+
+  const availableZones = useMemo(() => {
+    if (!assetMeta.length) return filterOptionsRaw.zones;
+    const s = new Set<string>();
+    for (const a of assetMeta) {
+      if (!matchesAsset(a, "zones")) continue;
+      for (const z of a.zones) s.add(z);
+    }
+    return Array.from(s).sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetMeta, projects, mediaTypes]);
+
+  const availableMediaTypes = useMemo(() => {
+    if (!assetMeta.length) return filterOptionsRaw.mediaTypes;
+    const s = new Set<string>();
+    for (const a of assetMeta) {
+      if (!matchesAsset(a, "mediaTypes")) continue;
+      if (a.mediaType) s.add(a.mediaType);
+    }
+    return Array.from(s).sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetMeta, projects, zones]);
+
   const assetCodeOptions = useMemo(() => {
+    if (assetMeta.length) {
+      const out: string[] = [];
+      for (const a of assetMeta) {
+        if (matchesAsset(a, null)) out.push(a.code);
+      }
+      return out;
+    }
     if (optionsData?.assetCodes) return optionsData.assetCodes;
     const set = new Set<string>();
     for (const r of data?.frequency ?? []) set.add(r.assetCode);
     for (const p of data?.pairs ?? []) set.add(p.assetCode);
     return Array.from(set).sort();
-  }, [optionsData, data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetMeta, optionsData, data, projects, zones, mediaTypes]);
+
+  const filterOptions = {
+    departments: filterOptionsRaw.departments,
+    projects: availableProjects,
+    zones: availableZones,
+    mediaTypes: availableMediaTypes,
+  };
 
   const handleApply = () => {
     setBucketSel([]);
@@ -300,23 +458,17 @@ function PmInsightsPage() {
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">ค้นหารหัสป้าย (Old Code)</label>
-              <Input
-                list="pm-asset-codes"
-                placeholder="พิมพ์เพื่อค้นหา..."
+              <label className="text-xs text-muted-foreground">
+                ค้นหารหัสป้าย (Old Code)
+                {assetCodeOptions.length > 0 && (
+                  <span className="ml-1 text-[10px]">({assetCodeOptions.length.toLocaleString()} รายการ)</span>
+                )}
+              </label>
+              <AssetCodeCombobox
                 value={assetSearchDraft}
-                onChange={(e) => setAssetSearchDraft(e.target.value)}
+                onChange={setAssetSearchDraft}
+                options={assetCodeOptions}
               />
-              <datalist id="pm-asset-codes">
-                {assetCodeOptions
-                  .filter((c) =>
-                    assetSearchDraft ? c.toLowerCase().includes(assetSearchDraft.toLowerCase()) : true,
-                  )
-                  .slice(0, 50)
-                  .map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-              </datalist>
             </div>
             <div>
               <label className="text-xs text-muted-foreground">วันที่เริ่ม</label>

@@ -155,7 +155,7 @@ export const getMonitoringData = createServerFn({ method: "POST" })
     const toDay = f.toDate ? parseDay(f.toDate) + 86_400_000 - 1 : Infinity;
 
     function matchAsset(a: { department: string; project: string; zone: string; mediaType: string; code: string }): boolean {
-      if (codeQ && !a.code.toLowerCase().includes(codeQ)) return false;
+      if (codeQ && a.code.toLowerCase() !== codeQ) return false;
       if (projSet.size && !(projSet.has(a.project) || projDeptSet.has(a.department))) return false;
       if (zoneSet.size && !zoneSet.has(a.zone)) return false;
       if (mtSet.size && !mtSet.has(a.mediaType)) return false;

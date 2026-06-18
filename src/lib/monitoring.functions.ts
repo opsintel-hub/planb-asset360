@@ -238,7 +238,9 @@ export const getMonitoringData = createServerFn({ method: "POST" })
     };
     const inspectionRows: InspectionRow[] = [];
     for (const a of inScopeAssets.values()) {
-      const mons = monByAsset.get(a.code) ?? [];
+      const allMons = monByAsset.get(a.code) ?? [];
+      // ผูกตัวกรองวันที่: นับเฉพาะ Monitor event ที่ตกในช่วงที่เลือก
+      const mons = allMons.filter((m) => Number.isFinite(m.dateMs) && m.dateMs >= fromDay && m.dateMs <= toDay);
       let avg: number | null = null;
       if (mons.length >= 2) {
         let sum = 0;
@@ -246,7 +248,8 @@ export const getMonitoringData = createServerFn({ method: "POST" })
         avg = Math.round(sum / (mons.length - 1));
       }
       const last = mons[mons.length - 1];
-      const passedInLastYear = mons.some((m) => m.assetStatus === "Pass" && m.dateMs >= yearAgoMs);
+      // "ผ่านในรอบปี" ยังคงดูจาก lifetime เพื่อใช้กับ KPI 12 เดือนย้อนหลัง
+      const passedInLastYear = allMons.some((m) => m.assetStatus === "Pass" && m.dateMs >= yearAgoMs);
       inspectionRows.push({
         assetCode: a.code,
         department: a.department,

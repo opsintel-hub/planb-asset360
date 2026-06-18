@@ -193,8 +193,15 @@ function MainSettings() {
   return (
     <div className="space-y-6">
       <Section
+        title="ตั้งเวลาดึงข้อมูล MSSQL อัตโนมัติ (รายวัน)"
+        desc="ตัวกำหนดเวลาหลักสำหรับงาน Sync จาก Modern Corporate Server — แก้เวลาได้ตามที่ทีมต้นทางพร้อมส่งข้อมูล"
+      >
+        <MssqlCronScheduleEditor />
+      </Section>
+
+      <Section
         title="Modern Corporate Server (Asset Database)"
-        desc="ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset ของระบบ PlanB โดยรหัสผ่านเก็บแยกใน Secret Store"
+        desc="ค่าการเชื่อมต่อ MSSQL — Server, Database, ชื่อตาราง และปุ่มทดสอบดึงข้อมูล (รหัสผ่านเก็บใน Secret Store)"
       >
         <AssetDbForm
           defaults={{
@@ -206,12 +213,8 @@ function MainSettings() {
             pmScheduleTable: assetDbPmTable,
             historyTable: assetDbHistoryTable,
           }}
-          syncDays={assetSyncDays}
-          syncTimes={assetSyncTimes}
           tablesEnabled={tablesEnabled}
           onSave={(payload) => saveMutation.mutate({ key: "asset_db_connection", value: payload })}
-          onSaveDays={(days) => saveMutation.mutate({ key: "asset_sync_days", value: days })}
-          onSaveTimes={(times) => saveMutation.mutate({ key: "asset_sync_times", value: times })}
           onTest={() => {
             if (!isOn("asset")) { toast.error("ปิดการ Sync ตาราง Asset ไว้ — เปิดก่อนถึงจะทดสอบได้"); return; }
             assetSyncMutation.mutate();
@@ -230,6 +233,7 @@ function MainSettings() {
         />
 
       </Section>
+
 
       <SchemaAlertSection />
 

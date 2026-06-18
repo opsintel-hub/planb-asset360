@@ -87,8 +87,6 @@ type PairRow = {
   problem_equipment: string | null;
   solution_category: string | null;
   solution_detail: string | null;
-  status: string | null;
-  asset_status: string | null;
 };
 
 type AssetLite = {
@@ -310,8 +308,8 @@ export const getPmInsights = createServerFn({ method: "POST" })
         problemEquipment: p.problem_equipment || "(ไม่ระบุ)",
         solutionCategory: p.solution_category || "(ไม่ระบุ)",
         solutionDetail: p.solution_detail || "(ไม่ระบุ)",
-        status: p.status || "",
-        assetStatus: p.asset_status || "",
+        status: "",
+        assetStatus: "",
       });
     }
 

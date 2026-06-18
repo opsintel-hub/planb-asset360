@@ -109,7 +109,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
         (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_history").select("*").range(from, to),
       ),
       fetchAll<PairRow>((from, to) =>
-        (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_claim_pairs").select("*, status, asset_status").range(from, to),
+        (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_claim_pairs").select("*").range(from, to),
       ),
       fetchAll<{ old_code: string; name: string | null; department: string | null; area: string | null; payload: Record<string, unknown> | null }>(
         (from, to) => supabaseAdmin.from("assets").select("old_code, name, department, area, payload").range(from, to),

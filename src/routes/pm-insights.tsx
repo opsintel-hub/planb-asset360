@@ -162,7 +162,6 @@ const AssetCodeCombobox = memo(function AssetCodeCombobox({
     const contains: string[] = [];
     for (const o of options) {
       const lo = o.toLowerCase();
-      if (lo === q) continue;
       if (lo.startsWith(q)) starts.push(o);
       else if (lo.includes(q)) contains.push(o);
       if (starts.length + contains.length >= 40) break;

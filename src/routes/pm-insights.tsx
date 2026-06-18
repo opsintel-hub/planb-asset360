@@ -205,16 +205,89 @@ function PmInsightsPage() {
     staleTime: 10 * 60_000,
   });
 
-  const filterOptions =
+  const filterOptionsRaw =
     optionsData ??
     data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
+  const assetMeta = optionsData?.assetMeta ?? [];
+
+  // Filter-interlock: each dropdown shows only options compatible with the
+  // currently-selected values of the OTHER filters. Asset codes are
+  // narrowed by ALL filters so suggestions match the active scope.
+  const matchesAsset = (
+    a: { project: string | null; mediaType: string | null; zones: string[]; projects: string[] },
+    skip: "projects" | "zones" | "mediaTypes" | null,
+  ): boolean => {
+    if (skip !== "projects" && projects.length) {
+      const ok = projects.some((p) => a.project === p || a.projects.includes(p));
+      if (!ok) return false;
+    }
+    if (skip !== "zones" && zones.length) {
+      const ok = zones.some((z) => a.zones.includes(z));
+      if (!ok) return false;
+    }
+    if (skip !== "mediaTypes" && mediaTypes.length) {
+      const ok = mediaTypes.some((m) => a.mediaType === m);
+      if (!ok) return false;
+    }
+    return true;
+  };
+
+  const availableProjects = useMemo(() => {
+    if (!assetMeta.length) return filterOptionsRaw.projects;
+    const s = new Set<string>();
+    for (const a of assetMeta) {
+      if (!matchesAsset(a, "projects")) continue;
+      if (a.project) s.add(a.project);
+      for (const p of a.projects) s.add(p);
+    }
+    return Array.from(s).sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetMeta, zones, mediaTypes]);
+
+  const availableZones = useMemo(() => {
+    if (!assetMeta.length) return filterOptionsRaw.zones;
+    const s = new Set<string>();
+    for (const a of assetMeta) {
+      if (!matchesAsset(a, "zones")) continue;
+      for (const z of a.zones) s.add(z);
+    }
+    return Array.from(s).sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetMeta, projects, mediaTypes]);
+
+  const availableMediaTypes = useMemo(() => {
+    if (!assetMeta.length) return filterOptionsRaw.mediaTypes;
+    const s = new Set<string>();
+    for (const a of assetMeta) {
+      if (!matchesAsset(a, "mediaTypes")) continue;
+      if (a.mediaType) s.add(a.mediaType);
+    }
+    return Array.from(s).sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetMeta, projects, zones]);
+
   const assetCodeOptions = useMemo(() => {
+    if (assetMeta.length) {
+      const out: string[] = [];
+      for (const a of assetMeta) {
+        if (matchesAsset(a, null)) out.push(a.code);
+      }
+      return out;
+    }
     if (optionsData?.assetCodes) return optionsData.assetCodes;
     const set = new Set<string>();
     for (const r of data?.frequency ?? []) set.add(r.assetCode);
     for (const p of data?.pairs ?? []) set.add(p.assetCode);
     return Array.from(set).sort();
-  }, [optionsData, data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetMeta, optionsData, data, projects, zones, mediaTypes]);
+
+  const filterOptions = {
+    departments: filterOptionsRaw.departments,
+    projects: availableProjects,
+    zones: availableZones,
+    mediaTypes: availableMediaTypes,
+  };
 
   const handleApply = () => {
     setBucketSel([]);

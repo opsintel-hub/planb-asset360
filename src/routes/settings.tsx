@@ -484,12 +484,8 @@ function EditableField({
 
 function AssetDbForm({
   defaults,
-  syncDays,
-  syncTimes,
   tablesEnabled,
   onSave,
-  onSaveDays,
-  onSaveTimes,
   onTest,
   testing,
   onTestHistory,
@@ -506,8 +502,6 @@ function AssetDbForm({
     pmScheduleTable: string;
     historyTable: string;
   };
-  syncDays: number[];
-  syncTimes: string[];
   tablesEnabled: TablesEnabled;
   onSave: (v: {
     server: string;
@@ -518,8 +512,6 @@ function AssetDbForm({
     pmScheduleTable: string;
     historyTable: string;
   }) => void;
-  onSaveDays: (days: number[]) => void;
-  onSaveTimes: (times: string[]) => void;
   onTest: () => void;
   testing: boolean;
   onTestHistory: (reset: boolean) => void;
@@ -534,31 +526,6 @@ function AssetDbForm({
   const [table, setTable] = useState(defaults.table);
   const [pmScheduleTable, setPmScheduleTable] = useState(defaults.pmScheduleTable);
   const [historyTable, setHistoryTable] = useState(defaults.historyTable);
-  const [days, setDays] = useState<number[]>(syncDays);
-  const [times, setTimes] = useState<string[]>(syncTimes);
-
-  const HOURS = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}:00`);
-  const toggleTime = (t: string) => {
-    setTimes((prev) => {
-      if (prev.includes(t)) return prev.filter((x) => x !== t);
-      if (prev.length >= 12) {
-        toast.error("เลือกได้สูงสุด 12 ช่วงเวลา/วัน");
-        return prev;
-      }
-      return [...prev, t].sort();
-    });
-  };
-
-  const toggleDay = (d: number) => {
-    setDays((prev) => {
-      if (prev.includes(d)) return prev.filter((x) => x !== d);
-      if (prev.length >= 4) {
-        toast.error("เลือกได้สูงสุด 4 วันต่อเดือน");
-        return prev;
-      }
-      return [...prev, d].sort((a, b) => a - b);
-    });
-  };
 
   return (
     <div className="space-y-4">
@@ -591,104 +558,22 @@ function AssetDbForm({
         enabled={tablesEnabled}
       />
 
-
-
-      <div className="space-y-2 rounded-lg border bg-background/50 p-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-medium">Auto-Sync — วันในเดือน</div>
-            <div className="text-xs text-muted-foreground">เลือกได้สูงสุด 4 วัน/เดือน</div>
-          </div>
-          <Badge tone={days.length > 0 ? "success" : "warning"}>{days.length}/4 วัน</Badge>
+      <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+        <div>
+          <div className="text-sm font-medium">ทดสอบดึงข้อมูลด้วยตนเอง (Manual Sync)</div>
+          <p className="text-xs text-muted-foreground">
+            ใช้สำหรับทดสอบการเชื่อมต่อหรือดึงข้อมูลทันทีโดยไม่ต้องรอ Cron — เวลาดึงอัตโนมัติรายวันตั้งได้ที่ส่วน
+            "ตั้งเวลาดึงข้อมูล MSSQL อัตโนมัติ" ด้านบน
+          </p>
         </div>
-        <div className="grid grid-cols-7 sm:grid-cols-10 md:grid-cols-16 gap-1.5">
-          {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
-            const active = days.includes(d);
-            return (
-              <button
-                key={d}
-                type="button"
-                onClick={() => toggleDay(d)}
-                className={cn(
-                  "h-9 rounded-md text-xs font-medium border transition",
-                  active
-                    ? "bg-primary text-primary-foreground border-primary shadow"
-                    : "bg-card hover:bg-accent border-border",
-                )}
-              >
-                {d}
-              </button>
-            );
-          })}
-        </div>
-        {days.length > 0 && <div className="text-xs text-muted-foreground">วันที่ {days.join(", ")} ของทุกเดือน</div>}
-      </div>
-
-      <div className="space-y-2 rounded-lg border bg-background/50 p-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-medium">Auto-Sync — เวลาที่รัน</div>
-            <div className="text-xs text-muted-foreground">เลือกได้สูงสุด 12 ช่วงเวลา/วัน</div>
-          </div>
-          <Badge tone={times.length > 0 ? "success" : "warning"}>{times.length}/12 ช่วง</Badge>
-        </div>
-        <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 gap-1.5">
-          {HOURS.map((t) => {
-            const active = times.includes(t);
-            return (
-              <button
-                key={t}
-                type="button"
-                onClick={() => toggleTime(t)}
-                className={cn(
-                  "h-9 rounded-md text-xs font-medium border transition tabular-nums",
-                  active
-                    ? "bg-primary text-primary-foreground border-primary shadow"
-                    : "bg-card hover:bg-accent border-border",
-                )}
-              >
-                {t}
-              </button>
-            );
-          })}
-        </div>
-        {times.length > 0 && (
-          <div className="text-xs text-muted-foreground">รันเวลา {times.join(", ")} น. ของวันที่เลือก</div>
-        )}
-      </div>
-
-      <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
-        <div className="text-sm font-medium">เชื่อมต่อ MSSQL โดยตรง (Lovable Cloud Function)</div>
-        <p className="text-xs text-muted-foreground">
-          ระบบเชื่อมต่อ MS SQL Server ตรงด้วย Server Name, Database, Username, Port และ Password จาก Secret Store
-          โดยไม่ต้องมี HTTP gateway คั่นกลาง — ใช้ทั้งการกด "ทดสอบ" และ Auto-Sync ตามตารางเวลาที่ตั้งไว้ด้านบน
-        </p>
-        <p className="text-xs text-muted-foreground">
-          หาก timeout ที่พอร์ต 1433 ให้ตรวจ firewall/allowlist ของ Modern Corporate Server เพื่อเปิดทางเชื่อมต่อจาก
-          Lovable Cloud
-        </p>
 
         <div className="rounded-md border border-emerald-400/40 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-2 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
-          <div className="font-semibold">✅ พฤติกรรมการ Sync — โปรดอ่านก่อนกด</div>
+          <div className="font-semibold">พฤติกรรมการ Sync</div>
           <ul className="list-disc pl-5 space-y-0.5">
-            <li>
-              <b>Asset / PM Schedule</b>: กดปุ่ม "ทดสอบดึง..." จะ <b>ล้างตารางทิ้งและดึงใหม่หมด (Full Refresh)</b> ทุกครั้ง
-            </li>
-            <li>
-              <b>Asset History</b> ใช้ <b>Incremental Sync</b> — ดึงเฉพาะแถวใหม่หรือแถวที่ <code>UpdatedDate</code> ใหม่กว่า cursor ครั้งล่าสุด แล้ว <b>upsert</b> ทับด้วย unique key <code>(OldCode + CreatedDate + Status)</code>
-            </li>
-            <li>
-              cursor ใช้ <code>GREATEST(CreatedDate, UpdatedDate)</code> เก็บไว้ใน <code>app_settings.mssql_asset_history_cursor</code> — รอบถัดไปจะดึงต่อจากจุดเดิมโดยอัตโนมัติ
-            </li>
-            <li>
-              ขอบเขตข้อมูล: <b>12 เดือนล่าสุด</b> และ <b>ไม่เก่ากว่า 1 ม.ค. 2026</b> — batch ละ 5,000 แถว chain ต่อกันจนหมด
-            </li>
-            <li>
-              ปุ่ม <b>"Full Reset"</b> สีแดง = ล้างตารางทิ้ง + รีเซ็ต cursor + ดึงใหม่ทั้งหมด (ใช้กรณีต้องการให้ข้อมูลตรงต้นทาง 100% เท่านั้น)
-            </li>
-            <li>
-              อย่ากดซ้ำขณะที่ยังมี chain <code>running</code> ค้างอยู่ใน Sync Logs
-            </li>
+            <li><b>Asset / PM Schedule</b> = Full Refresh (ล้างตารางและดึงใหม่ทั้งหมด)</li>
+            <li><b>Asset History</b> = Incremental — ดึงเฉพาะแถวใหม่/แก้ไขตั้งแต่ cursor ครั้งล่าสุด (12 เดือนล่าสุด, batch 5,000 แถว, chain ต่อเนื่อง)</li>
+            <li><b>Full Reset</b> สีแดง = ล้างตารางและ cursor แล้วดึงใหม่ทั้งหมด (ใช้เมื่อข้อมูลเพี้ยนเท่านั้น)</li>
+            <li>อย่ากดซ้ำขณะที่ Sync Logs ยังเป็นสถานะ <code>running</code></li>
           </ul>
         </div>
 
@@ -699,7 +584,7 @@ function AssetDbForm({
             className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
           >
             <RefreshCw className={cn("size-4", testing && "animate-spin")} />
-            {testing ? "กำลังดึงข้อมูล..." : "ทดสอบดึง Asset (Full Refresh)"}
+            {testing ? "กำลังดึงข้อมูล..." : "ดึง Asset (Full Refresh)"}
           </button>
           <button
             onClick={onTestPm}
@@ -707,7 +592,7 @@ function AssetDbForm({
             className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-card text-primary px-4 py-2 text-sm font-medium hover:bg-primary/10 disabled:opacity-50"
           >
             <RefreshCw className={cn("size-4", testingPm && "animate-spin")} />
-            {testingPm ? "กำลังดึงข้อมูล..." : "ทดสอบดึง PM Schedule (Full Refresh)"}
+            {testingPm ? "กำลังดึงข้อมูล..." : "ดึง PM Schedule (Full Refresh)"}
           </button>
           <button
             onClick={() => onTestHistory(false)}
@@ -729,15 +614,10 @@ function AssetDbForm({
             Asset History — Full Reset
           </button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          แต่ละตาราง Sync แยกกันเป็น Edge Function ต่างหาก เพื่อหลีกเลี่ยง CPU limit ของ Cloudflare Worker
+        <p className="text-[11px] text-muted-foreground">
+          หาก timeout ที่พอร์ต 1433 ให้ตรวจ firewall / allowlist ของ Modern Corporate Server เพื่อเปิดทางเชื่อมต่อจาก Lovable Cloud
         </p>
       </div>
-
-      <MssqlCronScheduleEditor />
-
-
-
 
       <div className="flex flex-wrap gap-2 pt-2 border-t">
         <button
@@ -766,22 +646,11 @@ function AssetDbForm({
         >
           บันทึกการเชื่อมต่อ
         </button>
-        <button
-          onClick={() => onSaveDays(days)}
-          className="rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
-        >
-          บันทึกวันที่
-        </button>
-        <button
-          onClick={() => onSaveTimes(times)}
-          className="rounded-lg border bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
-        >
-          บันทึกเวลา
-        </button>
       </div>
     </div>
   );
 }
+
 
 function SchemaAlertSection() {
   const fn = useServerFn(getSchemaStatus);

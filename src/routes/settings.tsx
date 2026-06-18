@@ -729,6 +729,10 @@ function AssetDbForm({
         </p>
       </div>
 
+      <MssqlCronScheduleEditor />
+
+
+
 
       <div className="flex flex-wrap gap-2 pt-2 border-t">
         <button

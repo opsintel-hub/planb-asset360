@@ -238,9 +238,10 @@ function MainSettings() {
       <SchemaAlertSection />
 
       <Section
-        title="API ค้นหาประวัติ Asset"
-        desc="ใช้สำหรับดึงประวัติทรัพย์สินจากระบบ PlanB (PM / Claim / Monitoring)"
+        title="API ค้นหาประวัติ Asset (รายป้าย — HTTP fallback)"
+        desc="ดึงประวัติทีละป้ายจาก HTTP API ของระบบ PlanB — ใช้เสริมจาก MSSQL bulk sync ด้านบน เหมาะกับการเติมข้อมูลที่ขาดเฉพาะป้าย"
       >
+
         <EditableField
           label="API Endpoint"
           defaultValue={assetHistoryEndpoint}

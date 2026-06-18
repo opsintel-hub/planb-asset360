@@ -134,58 +134,61 @@ function PermissionsPage() {
             <div className="px-5 py-4 border-b">
               <h3 className="font-semibold">สิทธิ์เข้าเมนูของแต่ละบทบาท</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Admin เห็นทุกเมนูเสมอ · เลือก/ยกเลิกเมนูให้ role อื่นได้ตามต้องการ
+                แถว = เมนู · คอลัมน์ = บทบาท · ติ๊ก = บทบาทนั้นเห็นเมนูนี้ · Admin เห็นทุกเมนูเสมอ
               </p>
             </div>
             {permsQ.isLoading ? (
               <div className="p-4 space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => (
+                {Array.from({ length: 5 }).map((_, i) => (
                   <Skeleton key={i} className="h-10" />
                 ))}
               </div>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
-                  <tr>
-                    <th className="text-left px-4 py-3">บทบาท</th>
-                    {menus.map((m) => (
-                      <th key={m} className="text-left px-4 py-3">{MENU_LABELS[m] ?? m}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  <tr className="bg-primary/5">
-                    <td className="px-4 py-3 font-medium">
-                      <Badge tone="info"><Shield className="inline size-3 mr-1" /> admin</Badge>
-                    </td>
-                    {menus.map((m) => (
-                      <td key={m} className="px-4 py-3 text-xs text-muted-foreground">✓ ทุกเมนู</td>
-                    ))}
-                  </tr>
-                  {(["manager", "technician", "sale", "crm", "production"] as const).map((role) => (
-                    <tr key={role}>
-                      <td className="px-4 py-3 font-medium capitalize">{role}</td>
-                      {menus.map((m) => {
-                        const has = (perms[role] ?? []).includes(m);
-                        return (
-                          <td key={m} className="px-4 py-3">
-                            <label className="inline-flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={has}
-                                disabled={setPermsMutation.isPending}
-                                onChange={() => togglePerm(role, m)}
-                                className="size-4"
-                              />
-                              <span className="text-xs">{has ? "เห็น" : "ซ่อน"}</span>
-                            </label>
-                          </td>
-                        );
-                      })}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th className="text-left px-4 py-3 sticky left-0 bg-muted/50 z-10">เมนู</th>
+                      <th className="text-center px-3 py-3">
+                        <span className="inline-flex items-center gap-1 text-primary">
+                          <Shield className="size-3" /> admin
+                        </span>
+                      </th>
+                      {(["manager", "technician", "sale", "crm", "production"] as const).map((role) => (
+                        <th key={role} className="text-center px-3 py-3 capitalize">{role}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y">
+                    {menus.map((menu) => (
+                      <tr key={menu} className="hover:bg-accent/30">
+                        <td className="px-4 py-3 font-medium sticky left-0 bg-card z-10">
+                          {MENU_LABELS[menu] ?? menu}
+                          <div className="text-[11px] text-muted-foreground font-normal mt-0.5">{menu}</div>
+                        </td>
+                        <td className="px-3 py-3 text-center text-xs text-muted-foreground">✓</td>
+                        {(["manager", "technician", "sale", "crm", "production"] as const).map((role) => {
+                          const has = (perms[role] ?? []).includes(menu);
+                          return (
+                            <td key={role} className="px-3 py-3 text-center">
+                              <label className="inline-flex items-center justify-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={has}
+                                  disabled={setPermsMutation.isPending}
+                                  onChange={() => togglePerm(role, menu)}
+                                  className="size-4"
+                                  aria-label={`${role} เห็น ${MENU_LABELS[menu] ?? menu}`}
+                                />
+                              </label>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 

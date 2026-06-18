@@ -201,14 +201,14 @@ const AssetCodeCombobox = memo(function AssetCodeCombobox({
       <PopoverContent
         align="start"
         sideOffset={4}
-        className="w-[--radix-popover-trigger-width] p-1 max-h-72 overflow-auto"
+        className="w-[--radix-popover-trigger-width] p-1 max-h-60 overflow-auto"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {suggestions.map((c) => (
           <button
             key={c}
             type="button"
-            className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent"
+            className="w-full text-left px-2 py-1 text-xs rounded hover:bg-accent font-mono"
             onMouseDown={(e) => {
               e.preventDefault();
               onChange(c);

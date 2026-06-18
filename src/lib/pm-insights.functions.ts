@@ -308,8 +308,8 @@ export const getPmInsights = createServerFn({ method: "POST" })
         problemEquipment: p.problem_equipment || "(ไม่ระบุ)",
         solutionCategory: p.solution_category || "(ไม่ระบุ)",
         solutionDetail: p.solution_detail || "(ไม่ระบุ)",
-        status: p.status || "",
-        assetStatus: p.asset_status || "",
+        status: "",
+        assetStatus: "",
       });
     }
 

@@ -374,23 +374,17 @@ function PmInsightsPage() {
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">ค้นหารหัสป้าย (Old Code)</label>
-              <Input
-                list="pm-asset-codes"
-                placeholder="พิมพ์เพื่อค้นหา..."
+              <label className="text-xs text-muted-foreground">
+                ค้นหารหัสป้าย (Old Code)
+                {assetCodeOptions.length > 0 && (
+                  <span className="ml-1 text-[10px]">({assetCodeOptions.length.toLocaleString()} รายการ)</span>
+                )}
+              </label>
+              <AssetCodeCombobox
                 value={assetSearchDraft}
-                onChange={(e) => setAssetSearchDraft(e.target.value)}
+                onChange={setAssetSearchDraft}
+                options={assetCodeOptions}
               />
-              <datalist id="pm-asset-codes">
-                {assetCodeOptions
-                  .filter((c) =>
-                    assetSearchDraft ? c.toLowerCase().includes(assetSearchDraft.toLowerCase()) : true,
-                  )
-                  .slice(0, 50)
-                  .map((c) => (
-                    <option key={c} value={c} />
-                  ))}
-              </datalist>
             </div>
             <div>
               <label className="text-xs text-muted-foreground">วันที่เริ่ม</label>

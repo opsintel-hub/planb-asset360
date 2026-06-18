@@ -445,25 +445,61 @@ export const getMonitoringData = createServerFn({ method: "POST" })
   });
 
 // Fast filter-options endpoint (assets-only, small payload, cached)
+// Returns dropdown lists + per-asset metadata for filter interlock and
+// asset-code typeahead on the Monitoring page.
 export const getMonitoringFilterOptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
-    const rows = await fetchAll<{ payload: Record<string, unknown> | null }>((from, to) =>
-      supabaseAdmin.from("assets").select("payload").range(from, to),
+    type Row = { old_code: string; department: string | null; payload: Record<string, unknown> | null };
+    const rows = await fetchAll<Row>((from, to) =>
+      supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
     );
     const zones = new Set<string>();
     const mediaTypes = new Set<string>();
+    const projects = new Set<string>();
+    const assetMeta: Array<{
+      code: string;
+      department: string | null;
+      project: string | null;
+      mediaType: string | null;
+      zones: string[];
+      projects: string[];
+    }> = [];
+    const seen = new Set<string>();
     for (const r of rows) {
       const p = r.payload ?? {};
       if (p.IsDeleted === true || p.IsDeleted === "true") continue;
+      if (seen.has(r.old_code)) continue;
+      seen.add(r.old_code);
       const z = (p.BKKUPC ?? p.BkkUpc) as unknown;
-      if (typeof z === "string" && z) zones.add(z);
+      const zoneRaw = typeof z === "string" && z ? z : null;
+      if (zoneRaw) zones.add(zoneRaw);
       const m = p.MediaType as unknown;
-      if (typeof m === "string" && m) mediaTypes.add(m);
+      const mt = typeof m === "string" && m ? m : null;
+      if (mt) mediaTypes.add(mt);
+      const proj = ((): string | null => {
+        for (const [pj, depts] of Object.entries(PROJECT_TO_DEPARTMENTS)) {
+          if (r.department && depts.includes(r.department)) return pj;
+        }
+        return null;
+      })();
+      if (proj) projects.add(proj);
+      assetMeta.push({
+        code: r.old_code,
+        department: r.department,
+        project: proj,
+        mediaType: mt,
+        zones: zoneRaw ? [zoneRaw] : [],
+        projects: proj ? [proj] : [],
+      });
     }
+    assetMeta.sort((a, b) => a.code.localeCompare(b.code));
     return {
+      departments: [] as string[],
       zones: Array.from(zones).sort(),
-      projects: Object.keys(PROJECT_TO_DEPARTMENTS).sort(),
+      projects: Array.from(projects).sort(),
       mediaTypes: Array.from(mediaTypes).sort(),
+      assetCodes: assetMeta.map((a) => a.code),
+      assetMeta,
     };
   });

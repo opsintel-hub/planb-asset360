@@ -589,6 +589,13 @@ export type Database = {
       }
     }
     Functions: {
+      get_mssql_cron_schedules: {
+        Args: never
+        Returns: {
+          job_name: string
+          schedule: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -597,6 +604,10 @@ export type Database = {
         Returns: boolean
       }
       refresh_pm_views: { Args: never; Returns: undefined }
+      set_mssql_cron_schedule: {
+        Args: { p_hour_utc: number; p_job: string; p_minute_utc: number }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role:

@@ -15,7 +15,10 @@ import {
   syncAssetHistoryBatchNow,
   syncMssqlAssetHistoryNow,
   syncPmSchedulesNow,
+  getMssqlCronSchedules,
+  updateMssqlCronSchedule,
 } from "@/lib/admin.functions";
+
 import { Skeleton } from "@/components/ui/skeleton";
 import { DiagramMappingsSection } from "@/components/diagram-mappings-section";
 import { MappingImportExport } from "@/components/mapping-import-export";
@@ -729,6 +732,10 @@ function AssetDbForm({
         </p>
       </div>
 
+      <MssqlCronScheduleEditor />
+
+
+
 
       <div className="flex flex-wrap gap-2 pt-2 border-t">
         <button
@@ -1003,6 +1010,171 @@ function AssetHistoryScheduleControl({
       <p className="text-[11px] text-muted-foreground">
         ทุกครั้งที่ Sync (อัตโนมัติหรือ Manual) จะถูกบันทึกใน Sync Logs ด้านล่าง
       </p>
+    </div>
+  );
+}
+
+// ============================================================
+// MSSQL Daily Cron Schedule Editor (Thai timezone, +07:00)
+// ============================================================
+const MSSQL_JOB_LABELS: Record<string, { title: string; desc: string }> = {
+  "mssql-sync-assets-daily": {
+    title: "Asset (รายการป้าย)",
+    desc: "Full refresh ตาราง mssql_asset ทุกวัน",
+  },
+  "mssql-sync-pm-schedules-daily": {
+    title: "PM Schedule",
+    desc: "Full refresh ตาราง mssql_asset_pm_schedule ทุกวัน",
+  },
+  "mssql-sync-asset-history-daily": {
+    title: "Asset History (Incremental)",
+    desc: "Sync ส่วนที่ใหม่กว่า cursor ครั้งล่าสุด + auto-chain batches",
+  },
+};
+
+function utcToThai(hUtc: number, mUtc: number): { h: number; m: number } {
+  const total = hUtc * 60 + mUtc + 7 * 60;
+  const wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+  return { h: Math.floor(wrapped / 60), m: wrapped % 60 };
+}
+function thaiToUtc(hThai: number, mThai: number): { h: number; m: number } {
+  const total = hThai * 60 + mThai - 7 * 60;
+  const wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+  return { h: Math.floor(wrapped / 60), m: wrapped % 60 };
+}
+function fmt(n: number) {
+  return n.toString().padStart(2, "0");
+}
+
+function MssqlCronScheduleEditor() {
+  const qc = useQueryClient();
+  const getFn = useServerFn(getMssqlCronSchedules);
+  const setFn = useServerFn(updateMssqlCronSchedule);
+  const { data, isLoading } = useQuery({
+    queryKey: ["mssql-cron-schedules"],
+    queryFn: () => getFn({}),
+  });
+
+  const mut = useMutation({
+    mutationFn: (vars: { job: string; hourUtc: number; minuteUtc: number }) =>
+      setFn({
+        data: {
+          job: vars.job as
+            | "mssql-sync-assets-daily"
+            | "mssql-sync-pm-schedules-daily"
+            | "mssql-sync-asset-history-daily",
+          hourUtc: vars.hourUtc,
+          minuteUtc: vars.minuteUtc,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("บันทึกเวลา Sync เรียบร้อย");
+      qc.invalidateQueries({ queryKey: ["mssql-cron-schedules"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <div className="text-sm font-medium">ตั้งเวลาดึงข้อมูล MSSQL อัตโนมัติ (รายวัน)</div>
+          <div className="text-xs text-muted-foreground">
+            เวลาแสดงตามโซนเวลาไทย (UTC+07:00) — ระบบจะรันทุกวันตามเวลาที่ตั้งไว้
+          </div>
+        </div>
+        {isLoading && <span className="text-xs text-muted-foreground">กำลังโหลด...</span>}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {(data ?? []).map((row) => (
+          <CronJobCard
+            key={row.job}
+            job={row.job}
+            hourUtc={row.hourUtc}
+            minuteUtc={row.minuteUtc}
+            saving={mut.isPending}
+            onSave={(hUtc, mUtc) => mut.mutate({ job: row.job, hourUtc: hUtc, minuteUtc: mUtc })}
+          />
+        ))}
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        การเปลี่ยนเวลาจะมีผลทันที — รอบ Sync ถัดไปจะรันตามเวลาใหม่ที่บันทึก
+      </p>
+    </div>
+  );
+}
+
+function CronJobCard({
+  job,
+  hourUtc,
+  minuteUtc,
+  saving,
+  onSave,
+}: {
+  job: string;
+  hourUtc: number | null;
+  minuteUtc: number | null;
+  saving: boolean;
+  onSave: (hUtc: number, mUtc: number) => void;
+}) {
+  const initial =
+    hourUtc != null && minuteUtc != null ? utcToThai(hourUtc, minuteUtc) : { h: 2, m: 0 };
+  const [val, setVal] = useState<string>(`${fmt(initial.h)}:${fmt(initial.m)}`);
+  useEffect(() => {
+    if (hourUtc != null && minuteUtc != null) {
+      const t = utcToThai(hourUtc, minuteUtc);
+      setVal(`${fmt(t.h)}:${fmt(t.m)}`);
+    }
+  }, [hourUtc, minuteUtc]);
+
+  const label = MSSQL_JOB_LABELS[job] ?? { title: job, desc: "" };
+  const currentThai =
+    hourUtc != null && minuteUtc != null ? utcToThai(hourUtc, minuteUtc) : null;
+
+  return (
+    <div className="rounded-lg border bg-card p-3 space-y-2">
+      <div>
+        <div className="text-sm font-medium">{label.title}</div>
+        <div className="text-[11px] text-muted-foreground">{label.desc}</div>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="time"
+          value={val}
+          step={60}
+          onChange={(e) => setVal(e.target.value)}
+          className="h-9 w-32 rounded-md border bg-background px-2 text-sm tabular-nums"
+        />
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => {
+            const m = /^(\d{2}):(\d{2})$/.exec(val);
+            if (!m) {
+              toast.error("รูปแบบเวลาไม่ถูกต้อง (HH:MM)");
+              return;
+            }
+            const hThai = Number(m[1]);
+            const mThai = Number(m[2]);
+            if (hThai > 23 || mThai > 59) {
+              toast.error("เวลาไม่ถูกต้อง");
+              return;
+            }
+            const utc = thaiToUtc(hThai, mThai);
+            onSave(utc.h, utc.m);
+          }}
+          className="h-9 rounded-md bg-primary text-primary-foreground px-3 text-xs font-medium hover:opacity-90 disabled:opacity-50"
+        >
+          บันทึก
+        </button>
+      </div>
+      <div className="text-[11px] text-muted-foreground tabular-nums">
+        ปัจจุบัน:{" "}
+        {currentThai
+          ? `${fmt(currentThai.h)}:${fmt(currentThai.m)} น. (ไทย) · ${fmt(hourUtc!)}:${fmt(minuteUtc!)} UTC`
+          : "ยังไม่ได้ตั้งค่า"}
+      </div>
     </div>
   );
 }

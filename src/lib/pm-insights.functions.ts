@@ -87,8 +87,6 @@ type PairRow = {
   problem_equipment: string | null;
   solution_category: string | null;
   solution_detail: string | null;
-  status: string | null;
-  asset_status: string | null;
 };
 
 type AssetLite = {

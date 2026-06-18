@@ -42,8 +42,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { getPmInsights, getPmInsightsFilterOptions } from "@/lib/pm-insights.functions";
-import { BarChart3, Building2, Wrench, Monitor, PackageOpen, RefreshCw, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { BarChart3, Building2, Wrench, Monitor, PackageOpen, RefreshCw, AlertCircle, ChevronDown, ChevronUp, X } from "lucide-react";
 
 export const Route = createFileRoute("/pm-insights")({
   head: () => ({

@@ -83,10 +83,12 @@ function PermissionsPage() {
     mutationFn: (perms: Record<string, string[]>) => setPermsFn({ data: { permissions: perms } }),
     onSuccess: () => {
       toast.success("บันทึกสิทธิ์เมนูเรียบร้อย");
-      qc.invalidateQueries({ queryKey: ["role-menu-perms"] });
       qc.invalidateQueries({ queryKey: ["my-menu-access"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      toast.error(e.message);
+      qc.invalidateQueries({ queryKey: ["role-menu-perms"] });
+    },
   });
 
   const resetPwMutation = useMutation({
@@ -99,10 +101,18 @@ function PermissionsPage() {
   const perms = permsQ.data?.permissions ?? {};
 
   const togglePerm = (role: string, menu: string) => {
-    const cur = new Set(perms[role] ?? []);
+    // Read latest from cache (avoids stale closure when toggling rapidly).
+    const latest =
+      qc.getQueryData<{ permissions: Record<string, string[]>; menus: string[] }>(["role-menu-perms"])?.permissions ?? perms;
+    const cur = new Set(latest[role] ?? []);
     if (cur.has(menu)) cur.delete(menu);
     else cur.add(menu);
-    setPermsMutation.mutate({ ...perms, [role]: Array.from(cur) });
+    const next = { ...latest, [role]: Array.from(cur) };
+    // Optimistic: update cache so the checkbox reflects intent immediately.
+    qc.setQueryData(["role-menu-perms"], (prev: { permissions: Record<string, string[]>; menus: string[] } | undefined) =>
+      prev ? { ...prev, permissions: next } : prev,
+    );
+    setPermsMutation.mutate(next);
   };
 
   return (

@@ -125,6 +125,84 @@ const MultiSelect = memo(function MultiSelect({
   );
 });
 
+const AssetCodeCombobox = memo(function AssetCodeCombobox({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const q = value.trim().toLowerCase();
+  const suggestions = useMemo(() => {
+    if (!options.length) return [] as string[];
+    if (!q) return options.slice(0, 20);
+    const starts: string[] = [];
+    const contains: string[] = [];
+    for (const o of options) {
+      const lo = o.toLowerCase();
+      if (lo === q) continue;
+      if (lo.startsWith(q)) starts.push(o);
+      else if (lo.includes(q)) contains.push(o);
+      if (starts.length + contains.length >= 40) break;
+    }
+    return [...starts, ...contains].slice(0, 20);
+  }, [q, options]);
+
+  const showPanel = (focused || open) && suggestions.length > 0;
+
+  return (
+    <Popover open={showPanel} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <div className="relative">
+          <SearchIcon className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="พิมพ์รหัสป้ายเพื่อค้นหา..."
+            value={value}
+            onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
+            className="pl-8 pr-7"
+          />
+          {value && (
+            <button
+              type="button"
+              aria-label="ล้างคำค้น"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => onChange("")}
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+      </PopoverAnchor>
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        className="w-[--radix-popover-trigger-width] p-1 max-h-60 overflow-auto"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        {suggestions.map((c) => (
+          <button
+            key={c}
+            type="button"
+            className="w-full text-left px-2 py-1 text-xs rounded hover:bg-accent font-mono"
+            onMouseDown={(e) => { e.preventDefault(); onChange(c); setOpen(false); setFocused(false); }}
+          >
+            {c}
+          </button>
+        ))}
+        {options.length === 0 && (
+          <div className="px-2 py-2 text-xs text-muted-foreground">ไม่มีรหัสป้ายที่ตรงกับตัวกรอง</div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+});
+
 function MonitoringPage() {
   const fn = useServerFn(getMonitoringData);
   const optsFn = useServerFn(getMonitoringFilterOptions);

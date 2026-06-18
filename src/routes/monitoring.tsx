@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { memo, useMemo, useState } from "react";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import {
   BarChart,
   Bar,
@@ -39,6 +40,7 @@ import {
   Info,
   RefreshCw,
   Search as SearchIcon,
+  X,
 } from "lucide-react";
 import { getMonitoringData, getMonitoringFilterOptions } from "@/lib/monitoring.functions";
 
@@ -123,6 +125,84 @@ const MultiSelect = memo(function MultiSelect({
   );
 });
 
+const AssetCodeCombobox = memo(function AssetCodeCombobox({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const q = value.trim().toLowerCase();
+  const suggestions = useMemo(() => {
+    if (!options.length) return [] as string[];
+    if (!q) return options.slice(0, 20);
+    const starts: string[] = [];
+    const contains: string[] = [];
+    for (const o of options) {
+      const lo = o.toLowerCase();
+      if (lo === q) continue;
+      if (lo.startsWith(q)) starts.push(o);
+      else if (lo.includes(q)) contains.push(o);
+      if (starts.length + contains.length >= 40) break;
+    }
+    return [...starts, ...contains].slice(0, 20);
+  }, [q, options]);
+
+  const showPanel = (focused || open) && suggestions.length > 0;
+
+  return (
+    <Popover open={showPanel} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <div className="relative">
+          <SearchIcon className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="พิมพ์รหัสป้ายเพื่อค้นหา..."
+            value={value}
+            onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
+            className="pl-8 pr-7"
+          />
+          {value && (
+            <button
+              type="button"
+              aria-label="ล้างคำค้น"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => onChange("")}
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+      </PopoverAnchor>
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        className="w-[--radix-popover-trigger-width] p-1 max-h-60 overflow-auto"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        {suggestions.map((c) => (
+          <button
+            key={c}
+            type="button"
+            className="w-full text-left px-2 py-1 text-xs rounded hover:bg-accent font-mono"
+            onMouseDown={(e) => { e.preventDefault(); onChange(c); setOpen(false); setFocused(false); }}
+          >
+            {c}
+          </button>
+        ))}
+        {options.length === 0 && (
+          <div className="px-2 py-2 text-xs text-muted-foreground">ไม่มีรหัสป้ายที่ตรงกับตัวกรอง</div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+});
+
 function MonitoringPage() {
   const fn = useServerFn(getMonitoringData);
   const optsFn = useServerFn(getMonitoringFilterOptions);
@@ -173,7 +253,76 @@ function MonitoringPage() {
     staleTime: 5 * 60_000,
   });
 
-  const filterOptions = optsData ?? data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
+  const filterOptionsRaw = optsData ?? data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
+  const assetMeta = (optsData as { assetMeta?: Array<{ code: string; project: string | null; mediaType: string | null; zones: string[]; projects: string[] }> } | undefined)?.assetMeta ?? [];
+
+  const matchesAsset = (
+    a: { project: string | null; mediaType: string | null; zones: string[]; projects: string[] },
+    skip: "projects" | "zones" | "mediaTypes" | null,
+  ): boolean => {
+    if (skip !== "projects" && projects.length) {
+      const ok = projects.some((p) => a.project === p || a.projects.includes(p));
+      if (!ok) return false;
+    }
+    if (skip !== "zones" && zones.length) {
+      const ok = zones.some((z) => a.zones.includes(z));
+      if (!ok) return false;
+    }
+    if (skip !== "mediaTypes" && mediaTypes.length) {
+      const ok = mediaTypes.some((m) => a.mediaType === m);
+      if (!ok) return false;
+    }
+    return true;
+  };
+
+  const availableProjects = useMemo(() => {
+    if (!assetMeta.length) return filterOptionsRaw.projects;
+    const s = new Set<string>();
+    for (const a of assetMeta) {
+      if (!matchesAsset(a, "projects")) continue;
+      if (a.project) s.add(a.project);
+      for (const p of a.projects) s.add(p);
+    }
+    return Array.from(s).sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetMeta, zones, mediaTypes]);
+
+  const availableZones = useMemo(() => {
+    if (!assetMeta.length) return filterOptionsRaw.zones;
+    const s = new Set<string>();
+    for (const a of assetMeta) {
+      if (!matchesAsset(a, "zones")) continue;
+      for (const z of a.zones) s.add(z);
+    }
+    return Array.from(s).sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetMeta, projects, mediaTypes]);
+
+  const availableMediaTypes = useMemo(() => {
+    if (!assetMeta.length) return filterOptionsRaw.mediaTypes;
+    const s = new Set<string>();
+    for (const a of assetMeta) {
+      if (!matchesAsset(a, "mediaTypes")) continue;
+      if (a.mediaType) s.add(a.mediaType);
+    }
+    return Array.from(s).sort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetMeta, projects, zones]);
+
+  const assetCodeOptions = useMemo(() => {
+    if (!assetMeta.length) return [] as string[];
+    const out: string[] = [];
+    for (const a of assetMeta) if (matchesAsset(a, null)) out.push(a.code);
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetMeta, projects, zones, mediaTypes]);
+
+  const filterOptions = {
+    departments: filterOptionsRaw.departments,
+    projects: availableProjects,
+    zones: availableZones,
+    mediaTypes: availableMediaTypes,
+  };
 
   const handleApply = () => {
     setApplied({
@@ -220,15 +369,9 @@ function MonitoringPage() {
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground">ค้นหารหัสป้าย (Old Code)</label>
-              <div className="relative">
-                <SearchIcon className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="เช่น DP911" value={oldCode} onChange={(e) => setOldCode(e.target.value)} className="pl-8" />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs text-muted-foreground">กลุ่มสื่อ (Project)</label>
+              <label className="text-xs text-muted-foreground">
+                กลุ่มสื่อ (Project)
+              </label>
               <MultiSelect label="กลุ่มสื่อ" options={filterOptions.projects} value={projects} onChange={setProjects} />
             </div>
             <div>
@@ -238,6 +381,15 @@ function MonitoringPage() {
             <div>
               <label className="text-xs text-muted-foreground">Media Type</label>
               <MultiSelect label="Media Type" options={filterOptions.mediaTypes} value={mediaTypes} onChange={setMediaTypes} />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">
+                ค้นหารหัสป้าย (Old Code)
+                {assetCodeOptions.length > 0 && (
+                  <span className="ml-1 text-[10px]">({assetCodeOptions.length.toLocaleString()} รายการ)</span>
+                )}
+              </label>
+              <AssetCodeCombobox value={oldCode} onChange={setOldCode} options={assetCodeOptions} />
             </div>
             <div>
               <label className="text-xs text-muted-foreground">เดือนเริ่ม</label>

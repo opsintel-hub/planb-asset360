@@ -329,9 +329,64 @@ export const mssqlPreviewTable = createServerFn({ method: "POST" })
     return { ok: true, columns: r.columns ?? [], rows };
   });
 
+// ---------- MSSQL Daily Cron Schedule (UTC stored, Thai displayed in UI) ----------
+const MSSQL_CRON_JOBS = [
+  "mssql-sync-assets-daily",
+  "mssql-sync-pm-schedules-daily",
+  "mssql-sync-asset-history-daily",
+] as const;
 
+function parseDailyCron(schedule: string): { hour: number; minute: number } | null {
+  const parts = schedule.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+  const m = Number(parts[0]);
+  const h = Number(parts[1]);
+  if (!Number.isInteger(m) || !Number.isInteger(h)) return null;
+  if (m < 0 || m > 59 || h < 0 || h > 23) return null;
+  return { hour: h, minute: m };
+}
 
+export const getMssqlCronSchedules = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    const { data, error } = await supabaseAdmin.rpc("get_mssql_cron_schedules");
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as Array<{ job_name: string; schedule: string }>;
+    const map = new Map(rows.map((r) => [r.job_name, r.schedule]));
+    return MSSQL_CRON_JOBS.map((job) => {
+      const sched = map.get(job) ?? null;
+      const parsed = sched ? parseDailyCron(sched) : null;
+      return {
+        job,
+        scheduleUtc: sched,
+        hourUtc: parsed?.hour ?? null,
+        minuteUtc: parsed?.minute ?? null,
+      };
+    });
+  });
 
+export const updateMssqlCronSchedule = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        job: z.enum(MSSQL_CRON_JOBS),
+        hourUtc: z.number().int().min(0).max(23),
+        minuteUtc: z.number().int().min(0).max(59),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.userId);
+    const { error } = await supabaseAdmin.rpc("set_mssql_cron_schedule", {
+      p_job: data.job,
+      p_hour_utc: data.hourUtc,
+      p_minute_utc: data.minuteUtc,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
 
 
 // ---------- Diagram Mappings writes ----------

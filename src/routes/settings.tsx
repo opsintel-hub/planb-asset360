@@ -116,8 +116,6 @@ function MainSettings() {
   const assetDbTable = assetDb.table ?? "Asset";
   const assetDbPmTable = assetDb.pmScheduleTable ?? "Asset_PM_Schedule";
   const assetDbHistoryTable = assetDb.historyTable ?? "AssetHistory";
-  const assetSyncDays: number[] = Array.isArray(settings.asset_sync_days) ? settings.asset_sync_days : [];
-  const assetSyncTimes: string[] = Array.isArray(settings.asset_sync_times) ? settings.asset_sync_times : ["04:00"];
   const tablesEnabled = (settings.asset_sync_tables_enabled ?? {}) as TablesEnabled;
   const isOn = (k: keyof TablesEnabled) => tablesEnabled[k] !== false; // default ON
 

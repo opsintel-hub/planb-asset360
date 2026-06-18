@@ -557,8 +557,11 @@ export const getPmInsights = createServerFn({ method: "POST" })
   });
 
 // Lightweight server fn — returns filter dropdown options + per-asset metadata
-// so the client can interlock filters (e.g. selecting project "Static" should
-// only show Static asset codes / zones / media types in the other filters).
+// so the client can interlock filters (project Static → only Static codes/zones/
+// media types in other filters). PERF: derive every dimension from the assets
+// table alone (zone = payload.BKKUPC, project = department→project map,
+// mediaType = payload.MediaType). The previous version paginated the full
+// mv_pm_history (slow first load, 8–10s).
 export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
@@ -566,37 +569,6 @@ export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
     const assets = await fetchAll<AssetLiteP>((from, to) =>
       supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
     );
-    type HistLite = { asset_old_code: string | null; project: string | null; bkk_upc: string | null; media_type: string | null };
-    const hist = await fetchAll<HistLite>((from, to) =>
-      (supabaseAdmin as unknown as { from: (t: string) => any })
-        .from("mv_pm_history")
-        .select("asset_old_code, project, bkk_upc, media_type")
-        .range(from, to),
-    );
-
-    // Per-asset zone/project sets from history (zone/project live on history rows, not on the asset).
-    const zonesByCode = new Map<string, Set<string>>();
-    const projectsByCode = new Map<string, Set<string>>();
-    const histMediaByCode = new Map<string, Set<string>>();
-    for (const h of hist) {
-      const code = h.asset_old_code ?? "";
-      if (!code) continue;
-      if (h.bkk_upc) {
-        const s = zonesByCode.get(code) ?? new Set<string>();
-        s.add(h.bkk_upc);
-        zonesByCode.set(code, s);
-      }
-      if (h.project) {
-        const s = projectsByCode.get(code) ?? new Set<string>();
-        s.add(h.project);
-        projectsByCode.set(code, s);
-      }
-      if (h.media_type) {
-        const s = histMediaByCode.get(code) ?? new Set<string>();
-        s.add(h.media_type);
-        histMediaByCode.set(code, s);
-      }
-    }
 
     const deps = new Set<string>();
     const zones = new Set<string>();
@@ -605,38 +577,39 @@ export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
     const assetMeta: Array<{
       code: string;
       department: string | null;
-      project: string | null; // derived from department, or null
+      project: string | null;
       mediaType: string | null;
       zones: string[];
-      projects: string[]; // additional projects observed in history
+      projects: string[];
     }> = [];
 
+    const seen = new Set<string>();
     for (const a of assets) {
       const p = (a.payload ?? {}) as Record<string, unknown>;
       const del = p?.IsDeleted;
       if (del === true || del === "true") continue;
+      if (seen.has(a.old_code)) continue;
+      seen.add(a.old_code);
+
       if (a.department) deps.add(a.department);
       const mt = typeof p?.MediaType === "string" ? (p.MediaType as string) : null;
       if (mt) mediaTypes.add(mt);
+      const zoneRaw =
+        typeof p?.BKKUPC === "string" ? (p.BKKUPC as string)
+          : typeof p?.BkkUpc === "string" ? (p.BkkUpc as string)
+            : null;
+      if (zoneRaw) zones.add(zoneRaw);
       const projFromDept = projectForDepartment(a.department);
-      const histProjects = Array.from(projectsByCode.get(a.old_code) ?? []);
-      const histZones = Array.from(zonesByCode.get(a.old_code) ?? []);
-      const allProjects = new Set<string>(histProjects);
-      if (projFromDept) allProjects.add(projFromDept);
+      if (projFromDept) projects.add(projFromDept);
+
       assetMeta.push({
         code: a.old_code,
         department: a.department,
         project: projFromDept,
         mediaType: mt,
-        zones: histZones,
-        projects: Array.from(allProjects),
+        zones: zoneRaw ? [zoneRaw] : [],
+        projects: projFromDept ? [projFromDept] : [],
       });
-    }
-
-    for (const h of hist) {
-      if (h.project) projects.add(h.project);
-      if (h.bkk_upc) zones.add(h.bkk_upc);
-      if (h.media_type) mediaTypes.add(h.media_type);
     }
     assetMeta.sort((a, b) => a.code.localeCompare(b.code));
     return {

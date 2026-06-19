@@ -57,6 +57,26 @@ async function fetchAll<T>(
   return out;
 }
 
+// Keyset pagination on `id` (works for numeric or uuid). Avoids OFFSET scans
+// that hit the Postgres statement_timeout on large tables.
+async function fetchAllByKeyset<T extends { id: string | number }>(
+  build: (lastId: string | null, limit: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+  pageSize = 5000,
+): Promise<T[]> {
+  const out: T[] = [];
+  let lastId: string | null = null;
+  for (let page = 0; page < 500; page++) {
+    const res = await build(lastId, pageSize);
+    if (res.error) throw new Error(res.error.message);
+    const rows = (res.data as T[] | null) ?? [];
+    if (rows.length === 0) break;
+    out.push(...rows);
+    lastId = String(rows[rows.length - 1].id);
+    if (rows.length < pageSize) break;
+  }
+  return out;
+}
+
 type AssetRow = {
   old_code: string;
   name: string | null;
@@ -65,6 +85,7 @@ type AssetRow = {
   payload: Record<string, unknown> | null;
 };
 type HistRow = {
+  id: string;
   old_code: string | null;
   category: string | null;
   created_date: string | null;
@@ -110,13 +131,16 @@ export const getMonitoringData = createServerFn({ method: "POST" })
       fetchAll<AssetRow>((from, to) =>
         supabaseAdmin.from("assets").select("old_code, name, department, area, payload").range(from, to),
       ),
-      fetchAll<HistRow>((from, to) =>
-        supabaseAdmin
+      fetchAllByKeyset<HistRow>((lastId, limit) => {
+        let q = supabaseAdmin
           .from("mssql_asset_history")
-          .select("old_code, category, created_date, updated_date, status, asset_status, inform_detail, problem_category, problem_detail")
+          .select("id, old_code, category, created_date, updated_date, status, asset_status, inform_detail, problem_category, problem_detail")
           .in("category", ["Monitoring", "Claim"])
-          .range(from, to),
-      ),
+          .order("id", { ascending: true })
+          .limit(limit);
+        if (lastId !== null) q = q.gt("id", lastId);
+        return q;
+      }),
       fetchAll<ClaimTicketRow>((from, to) =>
         supabaseAdmin
           .from("claim_tickets")

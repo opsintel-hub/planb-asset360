@@ -85,6 +85,7 @@ type AssetRow = {
   payload: Record<string, unknown> | null;
 };
 type HistRow = {
+  id: string;
   old_code: string | null;
   category: string | null;
   created_date: string | null;

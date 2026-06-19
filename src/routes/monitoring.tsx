@@ -1,8 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { memo, useMemo, useState } from "react";
-
 import {
   BarChart,
   Bar,
@@ -15,12 +14,13 @@ import {
   Pie,
   Cell,
   Legend,
+  LineChart,
+  Line,
 } from "recharts";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -29,26 +29,35 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Activity,
-  AlertTriangle,
+  CheckCircle2,
   AlertCircle,
-  Building2,
-  CalendarClock,
-  Download,
-  Info,
+  PackageOpen,
+  Clock,
   RefreshCw,
-  Search as SearchIcon,
+  ChevronDown,
+  ChevronUp,
   X,
 } from "lucide-react";
-import { getMonitoringData, getMonitoringFilterOptions } from "@/lib/monitoring.functions";
+import {
+  getMonitoringInsights,
+  getMonitoringInsightsFilterOptions,
+} from "@/lib/monitoring-insights.functions";
 
 export const Route = createFileRoute("/monitoring")({
   head: () => ({
     meta: [
-      { title: "Monitoring — สุขภาพป้ายและการตรวจ PM" },
-      { name: "description", content: "ติดตามสถานะการตรวจ PM และอาการเสียที่เกิดหลังตรวจของป้ายทุกแผนก" },
+      { title: "Monitoring Insights — แดชบอร์ดการตรวจสอบป้าย" },
+      { name: "description", content: "วิเคราะห์ผลการตรวจสอบ Monitoring และ Claim ภาพรวมทุกป้าย" },
     ],
   }),
   component: MonitoringPage,
@@ -61,16 +70,12 @@ const PIE_COLORS = [
   "oklch(0.66 0.18 250)",
   "oklch(0.7 0.18 320)",
   "oklch(0.75 0.14 100)",
+  "oklch(0.65 0.15 200)",
+  "oklch(0.7 0.12 30)",
 ];
 
-type AppliedFilters = {
-  oldCode: string;
-  zones: string[];
-  projects: string[];
-  mediaTypes: string[];
-  fromDate: string;
-  toDate: string;
-};
+const PASS_COLOR = "oklch(0.65 0.18 150)"; // green
+const FAIL_COLOR = "oklch(0.6 0.22 25)"; // red
 
 const MultiSelect = memo(function MultiSelect({
   label,
@@ -87,7 +92,7 @@ const MultiSelect = memo(function MultiSelect({
   const summary =
     value.length === 0
       ? "ทั้งหมด"
-      : value.length <= 2
+      : value.length <= 3
         ? value.join(", ")
         : `${value.slice(0, 2).join(", ")} +${value.length - 2}`;
   return (
@@ -95,16 +100,24 @@ const MultiSelect = memo(function MultiSelect({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
+        title={value.length ? value.join(", ") : "ทั้งหมด"}
         className="w-full inline-flex items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-sm hover:bg-accent"
       >
         <span className="truncate text-left">
-          <span className="text-muted-foreground">{label}:</span> <span className="font-medium">{summary}</span>
+          <span className="text-muted-foreground">{label}:</span>{" "}
+          <span className="font-medium">{summary}</span>
+          {value.length > 0 && (
+            <span className="text-muted-foreground"> ({value.length})</span>
+          )}
         </span>
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 mt-1 max-h-72 w-72 overflow-auto rounded-md border bg-popover p-2 shadow-lg" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="absolute z-20 mt-1 max-h-72 w-72 overflow-auto rounded-md border bg-popover p-2 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between px-1 pb-2 text-xs">
               <button className="text-primary" onClick={() => onChange(options)}>เลือกทั้งหมด</button>
               <button className="text-muted-foreground" onClick={() => onChange([])}>ล้าง</button>
@@ -113,11 +126,26 @@ const MultiSelect = memo(function MultiSelect({
               const checked = value.includes(o);
               return (
                 <label key={o} className="flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent cursor-pointer">
-                  <input type="checkbox" checked={checked} onChange={() => onChange(checked ? value.filter((v) => v !== o) : [...value, o])} />
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() =>
+                      onChange(checked ? value.filter((v) => v !== o) : [...value, o])
+                    }
+                  />
                   <span className="truncate">{o}</span>
                 </label>
               );
             })}
+            <div className="sticky bottom-0 pt-2 mt-2 border-t bg-popover">
+              <button
+                type="button"
+                className="w-full rounded-md bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:opacity-90"
+                onClick={() => setOpen(false)}
+              >
+                เสร็จ ({value.length} รายการ)
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -152,17 +180,14 @@ const AssetCodeCombobox = memo(function AssetCodeCombobox({
   }, [q, options]);
 
   const showPanel = (focused || open) && suggestions.length > 0;
-
   return (
     <div className="relative">
-      <SearchIcon className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
       <Input
         placeholder="พิมพ์รหัสป้ายเพื่อค้นหา..."
         value={value}
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setFocused(true)}
         onBlur={() => setTimeout(() => setFocused(false), 150)}
-        className="pl-8 pr-7"
       />
       {value && (
         <button
@@ -186,68 +211,69 @@ const AssetCodeCombobox = memo(function AssetCodeCombobox({
               {c}
             </button>
           ))}
-          {options.length === 0 && (
-            <div className="px-2 py-2 text-xs text-muted-foreground">ไม่มีรหัสป้ายที่ตรงกับตัวกรอง</div>
-          )}
         </div>
       )}
     </div>
   );
 });
 
+type AppliedFilters = {
+  departments: string[];
+  zones: string[];
+  projects: string[];
+  mediaTypes: string[];
+  fromDate: string;
+  toDate: string;
+  assetSearch: string;
+};
 
 function MonitoringPage() {
-  const fn = useServerFn(getMonitoringData);
-  const optsFn = useServerFn(getMonitoringFilterOptions);
+  const fn = useServerFn(getMonitoringInsights);
+  const optsFn = useServerFn(getMonitoringInsightsFilterOptions);
   const qc = useQueryClient();
   const today = new Date();
   const pad2 = (n: number) => String(n).padStart(2, "0");
-  // Helpers: month string "YYYY-MM" ↔ day boundaries (TZ-safe, plain string)
-  const monthFirstDay = (ym: string) => `${ym}-01`;
-  const monthLastDay = (ym: string) => {
-    const [y, m] = ym.split("-").map(Number);
-    // Day 0 of next month = last day of current month
-    const d = new Date(Date.UTC(y, m, 0));
-    return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
-  };
-  const currentMonth = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}`;
-  // Default = Jan 2026 → current month
-  const defaultFromMonth = "2026-01";
+  const todayStr = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+  const yearStartStr = `${today.getFullYear()}-01-01`;
 
-  const [oldCode, setOldCode] = useState("");
+  const [departments, setDepartments] = useState<string[]>([]);
   const [zones, setZones] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [mediaTypes, setMediaTypes] = useState<string[]>([]);
-  const [fromMonth, setFromMonth] = useState(defaultFromMonth);
-  const [toMonth, setToMonth] = useState(currentMonth);
+  const [fromDate, setFromDate] = useState(yearStartStr);
+  const [toDate, setToDate] = useState(todayStr);
+  const [assetSearchDraft, setAssetSearchDraft] = useState("");
 
   const [applied, setApplied] = useState<AppliedFilters | null>(null);
-
-  const { data: optsData } = useQuery({
-    queryKey: ["monitoring-filter-options"],
-    queryFn: () => optsFn(),
-    staleTime: 30 * 60_000,
-  });
+  const [bucketSel, setBucketSel] = useState<string[]>([]);
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["monitoring", applied],
+    queryKey: ["monitoring-insights", applied],
     queryFn: () =>
       fn({
         data: {
-          oldCode: applied!.oldCode,
+          departments: applied!.departments,
           zones: applied!.zones,
           projects: applied!.projects,
           mediaTypes: applied!.mediaTypes,
           fromDate: applied!.fromDate,
           toDate: applied!.toDate,
+          assetCode: applied!.assetSearch || null,
         },
       }),
     enabled: applied !== null,
     staleTime: 5 * 60_000,
   });
 
-  const filterOptionsRaw = optsData ?? data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
-  const assetMeta = (optsData as { assetMeta?: Array<{ code: string; project: string | null; mediaType: string | null; zones: string[]; projects: string[] }> } | undefined)?.assetMeta ?? [];
+  const { data: optionsData } = useQuery({
+    queryKey: ["monitoring-insights-filter-options"],
+    queryFn: () => optsFn(),
+    staleTime: 10 * 60_000,
+  });
+
+  const filterOptionsRaw =
+    optionsData ?? data?.filters ?? { departments: [], zones: [], projects: [], mediaTypes: [] };
+  const assetMeta = optionsData?.assetMeta ?? [];
 
   const matchesAsset = (
     a: { project: string | null; mediaType: string | null; zones: string[]; projects: string[] },
@@ -318,38 +344,38 @@ function MonitoringPage() {
   };
 
   const handleApply = () => {
+    setBucketSel([]);
     setApplied({
-      oldCode,
+      departments,
       zones,
       projects,
       mediaTypes,
-      fromDate: monthFirstDay(fromMonth),
-      toDate: monthLastDay(toMonth),
+      fromDate,
+      toDate,
+      assetSearch: assetSearchDraft.trim(),
     });
   };
   const handleReset = () => {
-    setOldCode(""); setZones([]); setProjects([]); setMediaTypes([]);
-    setFromMonth(defaultFromMonth); setToMonth(currentMonth);
-    setApplied(null);
+    setDepartments([]); setZones([]); setProjects([]); setMediaTypes([]);
+    setFromDate(yearStartStr); setToDate(todayStr); setAssetSearchDraft("");
+    setBucketSel([]); setApplied(null);
   };
-
-
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Activity className="size-6 text-primary" /> Monitoring
+            <Activity className="size-6 text-primary" /> Monitoring Insights
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            ติดตามสถานะการตรวจ PM และอาการเสียที่เกิดหลังตรวจของป้ายทุกแผนก
+            วิเคราะห์ผลการตรวจสอบ Monitoring และผลกระทบกับ Claim ภาพรวมทุกป้าย
           </p>
         </div>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => qc.invalidateQueries({ queryKey: ["monitoring"] })}
+          onClick={() => qc.invalidateQueries({ queryKey: ["monitoring-insights"] })}
           disabled={isFetching || applied === null}
         >
           <RefreshCw className={"size-4 " + (isFetching ? "animate-spin" : "")} />
@@ -362,9 +388,7 @@ function MonitoringPage() {
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground">
-                กลุ่มสื่อ (Project)
-              </label>
+              <label className="text-xs text-muted-foreground">กลุ่มสื่อ (Project)</label>
               <MultiSelect label="กลุ่มสื่อ" options={filterOptions.projects} value={projects} onChange={setProjects} />
             </div>
             <div>
@@ -382,22 +406,22 @@ function MonitoringPage() {
                   <span className="ml-1 text-[10px]">({assetCodeOptions.length.toLocaleString()} รายการ)</span>
                 )}
               </label>
-              <AssetCodeCombobox value={oldCode} onChange={setOldCode} options={assetCodeOptions} />
+              <AssetCodeCombobox value={assetSearchDraft} onChange={setAssetSearchDraft} options={assetCodeOptions} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">เดือนเริ่ม</label>
-              <Input type="month" value={fromMonth} onChange={(e) => setFromMonth(e.target.value)} max={toMonth} />
+              <label className="text-xs text-muted-foreground">วันที่เริ่ม</label>
+              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">ถึงเดือน</label>
-              <Input type="month" value={toMonth} onChange={(e) => setToMonth(e.target.value)} min={fromMonth} />
+              <label className="text-xs text-muted-foreground">ถึงวันที่</label>
+              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
             </div>
           </div>
           <div className="flex items-center justify-between gap-3 mt-4 flex-wrap">
             <p className="text-xs text-muted-foreground">
               {applied === null
-                ? "ตั้งค่าตัวกรองแล้วกด “แสดงข้อมูล” เพื่อโหลด"
-                : "ตัวกรองปัจจุบันมีผลกับทุก Tab"}
+                ? "ตั้งค่าตัวกรองให้ครบ แล้วกดปุ่ม “แสดงข้อมูล” เพื่อโหลดทุกกราฟและตารางพร้อมกัน"
+                : "ตัวกรองปัจจุบันถูกใช้กับทุกกราฟและตารางในหน้านี้"}
             </p>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={handleReset} disabled={isFetching}>ล้างค่า</Button>
@@ -418,87 +442,82 @@ function MonitoringPage() {
           </CardContent>
         </Card>
       ) : isLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24" />)}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24" />)}
         </div>
       ) : data ? (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <KpiCard
-              icon={Building2}
-              label="ป้ายทั้งหมด"
-              value={data.kpi.totalAssets}
+              icon={Activity}
+              label="จำนวน Monitoring ทั้งหมด (ตั๋ว)"
+              value={data.kpi.monTickets ?? 0}
               color="text-blue-500"
-              info="ที่มา: ตาราง assets (นับเฉพาะป้ายที่ payload.IsDeleted ≠ true) หลังกรองด้วย Old Code/Project/พื้นที่/Media Type"
+              description="นับจำนวนตั๋ว Monitoring ทั้งหมดที่ผ่านตัวกรองด้านบน (ทุกสถานะ)"
+            />
+            <KpiCard
+              icon={CheckCircle2}
+              label="Asset Status: Pass"
+              value={data.kpi.monPass ?? 0}
+              color="text-emerald-500"
+              description="จำนวนตั๋ว Monitoring ที่ asset_status = Pass"
             />
             <KpiCard
               icon={AlertCircle}
-              label="12 เดือนย้อนหลังยังไม่เคยตรวจ"
-              value={data.kpi.neverPm}
-              color="text-orange-500"
-              info="ที่มา: mssql_asset_history (category=Monitoring) ของป้ายที่อยู่ในขอบเขต — นับป้ายที่ไม่มีการตรวจสถานะ Pass เลยภายใน 365 วันล่าสุด"
-            />
-            <KpiCard
-              icon={AlertTriangle}
-              label="ตรวจแล้วเสียภายใน 7 วัน"
-              value={data.kpi.earlyFail7}
+              label="Asset Status: Fail"
+              value={data.kpi.monFail ?? 0}
               color="text-rose-500"
-              info="ที่มา: คู่ Monitor.closed_at → Claim.opened_at ของ Old Code เดียวกัน (ช่วง 0–7 วัน) เฉพาะที่ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
+              description="จำนวนตั๋ว Monitoring ที่ asset_status = Fail"
             />
             <KpiCard
-              icon={CalendarClock}
-              label="ตั๋วเปิดแล้วรอตรวจ (Pending)"
-              value={data.kpi.pendingTickets}
+              icon={PackageOpen}
+              label="Asset Status: Skip"
+              value={data.kpi.monSkip ?? 0}
               color="text-amber-500"
-              info="ที่มา: mssql_asset_history (category=Monitoring) — นับป้ายที่สถานะตรวจล่าสุด (payload.assetStatus) ยังไม่ใช่ Pass/Fail/Skip"
+              description="จำนวนตั๋ว Monitoring ที่ asset_status = On Skip"
+            />
+            <KpiCard
+              icon={Clock}
+              label="ระยะเวลา Monitoring เฉลี่ย (วัน)"
+              value={data.kpi.monAvgGapDays ?? 0}
+              color="text-violet-500"
+              description="ค่าเฉลี่ยจำนวนวันระหว่างการ Monitor ครั้งติดกันของป้ายเดียวกัน"
             />
           </div>
 
-
-
-          <Tabs defaultValue="overview" className="space-y-4">
-            <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full sm:w-auto">
-              <TabsTrigger value="overview">ภาพรวม</TabsTrigger>
-              <TabsTrigger value="inspection">สถานะตรวจ</TabsTrigger>
-              <TabsTrigger value="aging">ตรวจ→Claim</TabsTrigger>
-              <TabsTrigger value="tickets">รายการป้าย</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview">
-              <OverviewTab data={data} />
-            </TabsContent>
-            <TabsContent value="inspection">
-              <InspectionTab rows={data.inspectionRows} />
-            </TabsContent>
-            <TabsContent value="aging">
-              <AgingTab aging={data.aging} pairs={data.pairs} earlySymptoms={data.earlySymptoms} />
-            </TabsContent>
-            <TabsContent value="tickets">
-              <TicketsTab rows={data.ticketRows} />
-            </TabsContent>
-          </Tabs>
+          <MonRowsList rows={data.monRows} total={data.monRowsTotal} monthly={data.monthly} />
+          <MonthlyChart data={data.monthly} details={data.monthlyDetails} />
+          <AgingReport
+            aging={data.aging}
+            pairs={data.pairs}
+            bucketSel={bucketSel}
+            onBucketSel={setBucketSel}
+          />
+          <MonCalendarView days={data.calendarDays ?? []} />
         </>
       ) : null}
     </div>
   );
 }
 
-function KpiCard({ icon: Icon, label, value, color, info }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number; color: string; info?: string }) {
+function KpiCard({
+  icon: Icon, label, value, color, description,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  color: string;
+  description?: string;
+}) {
   return (
     <Card>
       <CardContent className="pt-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="text-xs text-muted-foreground truncate">{label}</p>
-              {info && (
-                <span title={info} className="text-muted-foreground/70 cursor-help">
-                  <Info className="size-3.5" />
-                </span>
-              )}
-            </div>
-            <p className="text-2xl font-bold mt-1 tabular-nums">{value.toLocaleString()}</p>
+            <div className="text-sm text-muted-foreground">{label}</div>
+            <div className="text-3xl font-bold mt-1 tabular-nums">{value.toLocaleString()}</div>
+            {description && <p className="text-[11px] text-muted-foreground mt-2 leading-snug">{description}</p>}
           </div>
           <Icon className={`size-8 shrink-0 ${color}`} />
         </div>
@@ -507,404 +526,955 @@ function KpiCard({ icon: Icon, label, value, color, info }: { icon: React.Compon
   );
 }
 
-function SectionTitle({ title, info }: { title: string; info: string }) {
-  return (
-    <div className="flex items-center gap-1.5 mb-1">
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <span title={info} className="text-muted-foreground/70 cursor-help">
-        <Info className="size-3.5" />
-      </span>
-    </div>
-  );
-}
+type MonthTicket = {
+  ticket: string;
+  assetCode: string;
+  date: string;
+  status: string;
+  category: string;
+  department: string;
+};
 
-function FormulaNote({ children }: { children: React.ReactNode }) {
-  return <p className="text-[11px] text-muted-foreground mb-3 leading-relaxed">{children}</p>;
-}
-
-type MonitoringData = NonNullable<ReturnType<typeof useQuery<Awaited<ReturnType<typeof getMonitoringData>>>>["data"]>;
-
-function OverviewTab({ data }: { data: MonitoringData }) {
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <Card>
-        <CardContent className="pt-6">
-          <SectionTitle
-            title="สัดส่วนสถานะการตรวจ (ในช่วงที่เลือก)"
-            info="ที่มา: mssql_asset_history (category=Monitoring) — นับทุก Monitor event ที่ opened_at อยู่ในช่วงเดือนที่เลือก จำแนกตาม payload.assetStatus"
-          />
-          <FormulaNote>
-            สูตร: นับ Monitor event ทุกครั้งของป้ายในขอบเขต ที่ opened_at อยู่ระหว่างเดือนเริ่ม–ถึงเดือน → map payload.assetStatus เป็น Pending/Pass/Fail/Skip → รวมจำนวนเหตุการณ์ในแต่ละสถานะ (ไม่ใช่นับป้าย)
-          </FormulaNote>
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={data.statusPie} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} label>
-                {data.statusPie.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="pt-6">
-          <SectionTitle
-            title="จำนวนการตรวจตามสถานะ แยกรายแผนก"
-            info="ที่มา: รวมข้อมูลเดียวกับ Pie ด้านซ้าย — จัดกลุ่มตาม assets.department"
-          />
-          <FormulaNote>
-            สูตร: group by assets.department แล้วนับ Monitor event ในช่วงเดือนที่เลือก จำแนกเป็น 4 สถานะ — แท่งเรียงตามจำนวนเหตุการณ์มาก→น้อย
-          </FormulaNote>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={data.byDepartment} layout="vertical" margin={{ left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
-              <YAxis type="category" dataKey="dept" width={140} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="Pending" stackId="a" fill={PIE_COLORS[1]} name="ยังไม่ได้ตรวจ" />
-              <Bar dataKey="Pass" stackId="a" fill={PIE_COLORS[0]} name="ตรวจผ่าน" />
-              <Bar dataKey="Fail" stackId="a" fill={PIE_COLORS[2]} name="ตรวจไม่ผ่าน" />
-              <Bar dataKey="Skip" stackId="a" fill={PIE_COLORS[3]} name="ยกเลิกการตรวจ" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-      <Card className="lg:col-span-2">
-        <CardContent className="pt-6">
-          <SectionTitle
-            title="Top 10 อาการที่พบบ่อย (เสียภายใน 7 วันหลังตรวจ)"
-            info="ที่มา: จับคู่ Monitor.closed_at กับ Claim.opened_at ใน mssql_asset_history (Old Code เดียวกัน) — เฉพาะคู่ที่ห่างกัน ≤ 7 วัน และ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
-          />
-          <FormulaNote>
-            สูตร: สำหรับแต่ละ Monitor → หา Claim ถัดไปของป้ายเดียวกัน → ถ้า (Claim.opened_at − Monitor.closed_at) ระหว่าง 0–7 วัน → นับ payload.informDetail (หรือ problemDetail ถ้าว่าง). แสดง 10 อาการที่พบบ่อยที่สุด — ตัวเลขนี้ต้องสอดคล้องกับ KPI "ตรวจแล้วเสียภายใน 7 วัน"
-          </FormulaNote>
-
-          {data.topSymptoms.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">ไม่มีข้อมูล</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.topSymptoms} layout="vertical" margin={{ left: 30, right: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis type="category" dataKey="name" width={220} tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Bar dataKey="value" fill={PIE_COLORS[0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function InspectionTab({ rows }: { rows: MonitoringData["inspectionRows"] }) {
-  const [filter, setFilter] = useState<"all" | "Pending" | "Pass" | "Fail" | "Skip">("all");
-  const [q, setQ] = useState("");
-  const counts = useMemo(() => {
-    const c = { Pending: 0, Pass: 0, Fail: 0, Skip: 0 };
-    for (const r of rows) c[r.lastStatus as keyof typeof c]++;
-    return c;
-  }, [rows]);
-  const filtered = useMemo(() => {
-    return rows.filter((r) => {
-      if (filter !== "all" && r.lastStatus !== filter) return false;
-      if (q && !r.assetCode.toLowerCase().includes(q.toLowerCase())) return false;
-      return true;
-    });
-  }, [rows, filter, q]);
-  const BTN: { key: typeof filter; label: string }[] = [
-    { key: "all", label: `ทั้งหมด (${rows.length})` },
-    { key: "Pending", label: `ยังไม่ได้ตรวจ (${counts.Pending})` },
-    { key: "Pass", label: `ตรวจผ่าน (${counts.Pass})` },
-    { key: "Fail", label: `ตรวจไม่ผ่าน (${counts.Fail})` },
-    { key: "Skip", label: `ยกเลิกการตรวจ (${counts.Skip})` },
-  ];
+function MonthlyChart({
+  data, details,
+}: {
+  data: { month: string; pm: number; claim: number }[];
+  details: { month: string; pm: MonthTicket[]; claim: MonthTicket[] }[];
+}) {
+  const year = new Date().getFullYear();
+  const [selected, setSelected] = useState<string | null>(null);
+  const selDetail = useMemo(() => details.find((d) => d.month === selected), [details, selected]);
   return (
     <Card>
-      <CardContent className="pt-6 space-y-3">
-        <div className="space-y-1">
-          <SectionTitle
-            title="สถานะการตรวจรายป้าย"
-            info="ที่มา: assets (ป้ายในขอบเขต) + mssql_asset_history.category='Monitoring' — แต่ละแถวสรุปจำนวนครั้งที่ตรวจ, วันที่ตรวจล่าสุด, ค่าเฉลี่ยห่างระหว่างการตรวจ, และสถานะล่าสุด"
-          />
-          <FormulaNote>
-            สูตร: pmCount = จำนวน Monitor ของป้าย · lastPmDate = opened_at ล่าสุด · daysSinceLastPm = วันนี้ − lastPmDate · avgIntervalDays = ค่าเฉลี่ยช่วงห่างระหว่างคู่ Monitor ที่อยู่ติดกัน · สถานะ = payload.assetStatus ของ Monitor ล่าสุด (ว่าง = Pending). จำนวนตามปุ่มกรองรวมกัน = จำนวนป้ายทั้งหมด
-          </FormulaNote>
+      <CardHeader>
+        <CardTitle>จำนวนตั๋ว Monitoring และ Claim รายเดือน</CardTitle>
+        <div className="text-sm text-muted-foreground mt-1 space-y-1">
+          <p>นับตั๋วของปี {year}:</p>
+          <ul className="list-disc pl-5 space-y-0.5">
+            <li><b>แท่งเขียว (Monitoring)</b> = จำนวนตั๋ว Monitoring ที่ UpdatedDate อยู่ในเดือนนั้น</li>
+            <li><b>แท่งแดง (Claim)</b> = จำนวนตั๋ว Claim ที่ CreatedDate อยู่ในเดือนนั้น</li>
+          </ul>
+          <p className="text-xs">💡 <b>คลิกที่แท่งกราฟ</b> เพื่อดูรายการป้ายของเดือนนั้น</p>
         </div>
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {BTN.map((b) => (
-              <Button key={b.key} size="sm" variant={filter === b.key ? "default" : "outline"} onClick={() => setFilter(b.key)}>
-                {b.label}
+      </CardHeader>
+      <CardContent>
+        <div className="h-72">
+          <ResponsiveContainer>
+            <BarChart
+              data={data}
+              onClick={(s: { activeLabel?: string } | null) => {
+                const lbl = s?.activeLabel;
+                if (!lbl) return;
+                setSelected((cur) => (cur === lbl ? null : lbl));
+              }}
+            >
+              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="pm" name="Monitoring" fill={PASS_COLOR} radius={[6, 6, 0, 0]} style={{ cursor: "pointer" }} />
+              <Bar dataKey="claim" name="Claim" fill={FAIL_COLOR} radius={[6, 6, 0, 0]} style={{ cursor: "pointer" }} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        {selDetail && (
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold">
+                รายการตั๋วของเดือน {selDetail.month} {year} (Monitoring: {selDetail.pm.length} · Claim: {selDetail.claim.length})
+              </h4>
+              <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>
+                <ChevronUp className="size-4" /> ซ่อน
               </Button>
-            ))}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <MonthTicketTable title="Monitoring" color="text-green-600" rows={selDetail.pm} />
+              <MonthTicketTable title="Claim" color="text-rose-600" rows={selDetail.claim} />
+            </div>
           </div>
-          <div className="relative w-full sm:w-64">
-            <SearchIcon className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="ค้นหา Old Code..." value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" />
-          </div>
-        </div>
-
-        <div className="overflow-auto rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Old Code</TableHead>
-                <TableHead>แผนก</TableHead>
-                <TableHead className="text-right">ตรวจไปแล้ว</TableHead>
-                <TableHead>ตรวจครั้งล่าสุด</TableHead>
-                <TableHead className="text-right">วันที่ผ่านมา</TableHead>
-                <TableHead className="text-right">ค่าเฉลี่ยห่าง</TableHead>
-                <TableHead>สถานะ(TICKET)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.slice(0, 500).map((r) => {
-                const danger = r.pmCount === 0;
-                const warn = r.daysSinceLastPm != null && r.daysSinceLastPm > 60;
-                return (
-                  <TableRow key={r.assetCode} className={danger ? "bg-rose-50 dark:bg-rose-950/30" : warn ? "bg-orange-50 dark:bg-orange-950/30" : ""}>
-                    <TableCell className="font-mono text-xs">
-                      <Link to="/search" search={{ q: r.assetCode } as never} className="hover:underline text-primary">{r.assetCode}</Link>
-                    </TableCell>
-                    <TableCell className="text-xs">{r.department || "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.pmCount}</TableCell>
-                    <TableCell className="text-xs">{r.lastPmDate || "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.daysSinceLastPm ?? "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.avgIntervalDays ?? "—"}</TableCell>
-                    <TableCell>
-                      {r.lastStatus === "Pass" ? <Badge tone="success">Pass</Badge>
-                        : r.lastStatus === "Fail" ? <Badge tone="danger">Fail</Badge>
-                        : r.lastStatus === "Skip" ? <Badge tone="default">Skip</Badge>
-                        : <Badge tone="warning">Pending</Badge>}
-                    </TableCell>
-
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-        {filtered.length > 500 && <p className="text-xs text-muted-foreground">แสดง 500 รายการแรกจาก {filtered.length}</p>}
+        )}
       </CardContent>
     </Card>
   );
 }
 
-function AgingTab({ aging, pairs, earlySymptoms }: { aging: MonitoringData["aging"]; pairs: MonitoringData["pairs"]; earlySymptoms: MonitoringData["earlySymptoms"] }) {
-  const [bucket, setBucket] = useState<string | null>(null);
-  const filtered = useMemo(() => {
-    if (!bucket) return pairs.slice(0, 500);
-    return pairs.filter((p) => {
-      if (bucket === "0-3") return p.days >= 0 && p.days <= 3;
-      if (bucket === "4-7") return p.days >= 4 && p.days <= 7;
-      if (bucket === "8-15") return p.days >= 8 && p.days <= 15;
-      if (bucket === "16-30") return p.days >= 16 && p.days <= 30;
-      if (bucket === "31-60") return p.days >= 31 && p.days <= 60;
-      if (bucket === "61-90") return p.days >= 61 && p.days <= 90;
-      if (bucket === ">90") return p.days > 90;
-      return true;
-    }).slice(0, 500);
-  }, [pairs, bucket]);
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <SectionTitle
-              title="ตรวจเสร็จ → เปิด Claim (ช่วงเวลา)"
-              info="ที่มา: คู่ Monitor.closed_at → Claim.opened_at ของ Old Code เดียวกัน (จาก mssql_asset_history) เฉพาะที่ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
-            />
-            <FormulaNote>
-              สูตร: gap = floor((Claim.opened_at − Monitor.closed_at)/24h) แล้วจัดกลุ่มเป็น 0–3, 4–7, 8–15, 16–30, 31–60, 61–90, &gt;90 วัน. ผลรวมของ 0–3 + 4–7 ต้องเท่ากับ KPI "ตรวจแล้วเสียภายใน 7 วัน"
-            </FormulaNote>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={aging}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="bucket" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill={PIE_COLORS[3]} onClick={(d) => setBucket(d.bucket === bucket ? null : d.bucket)} cursor="pointer" />
-              </BarChart>
-            </ResponsiveContainer>
-            <p className="text-xs text-muted-foreground mt-2">คลิกแท่งเพื่อกรองตารางด้านล่าง · {bucket && <button className="text-primary hover:underline" onClick={() => setBucket(null)}>ล้างตัวกรอง ({bucket})</button>}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <SectionTitle
-              title="อาการที่เกิดเร็ว (ภายใน 7 วันหลังตรวจ)"
-              info="ที่มา: payload.informDetail (หรือ problemDetail) ของ Claim ที่เปิดภายใน 7 วันหลัง Monitor ปิด — กลุ่มเดียวกับ Top 10 ในแท็บภาพรวม"
-            />
-            <FormulaNote>
-              สูตร: filter คู่ที่ gap ≤ 7 วัน → group by อาการ → แสดงเป็นสัดส่วน
-            </FormulaNote>
-            {earlySymptoms.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">ไม่มี — ไม่มีป้ายที่เสียภายใน 7 วันหลังตรวจ</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie data={earlySymptoms} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={(d) => d.name.slice(0, 14)}>
-                    {earlySymptoms.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-            <p className="text-xs text-muted-foreground mt-2">→ ใช้เป็น checklist สำหรับการตรวจรอบหน้า</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardContent className="pt-6">
-          <SectionTitle
-            title={`รายละเอียดคู่ ตรวจ→Claim${bucket ? ` (กรอง: ${bucket} วัน)` : ""}`}
-            info="ที่มา: คู่ Monitor → Claim ที่ใช้สร้างกราฟด้านบน — เรียงตามวันที่ตรวจ"
-          />
-
-          <div className="overflow-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Old Code</TableHead>
-                  <TableHead>แผนก</TableHead>
-                  <TableHead>วันที่ตรวจ</TableHead>
-                  <TableHead>วันที่ Claim</TableHead>
-                  <TableHead className="text-right">ห่าง (วัน)</TableHead>
-                  <TableHead>สถานะ(TICKET)</TableHead>
-                  <TableHead className="text-right">ระยะเวลาแก้ปัญหาและตรวจสอบ(TICKET)</TableHead>
-                  <TableHead>ASSET STATUS</TableHead>
-                  <TableHead>อาการ (informDetail)</TableHead>
-                  <TableHead>Ticket</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((p, i) => (
-                  <TableRow key={i} className={p.days <= 7 ? "bg-rose-50 dark:bg-rose-950/30" : ""}>
-                    <TableCell className="font-mono text-xs">
-                      <Link to="/search" search={{ q: p.assetCode } as never} className="hover:underline text-primary">{p.assetCode}</Link>
-                    </TableCell>
-                    <TableCell className="text-xs">{p.department || "—"}</TableCell>
-                    <TableCell className="text-xs">{p.pmDate}</TableCell>
-                    <TableCell className="text-xs">{p.claimDate}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {p.days <= 7 ? <Badge tone="danger">{p.days}</Badge> : p.days}
-                    </TableCell>
-                    <TableCell className="text-xs">{(p as any).status}</TableCell>
-                    <TableCell className="text-xs text-right tabular-nums">{Math.round((p as any).days * 24)} ชม.</TableCell>
-                    <TableCell className="text-xs">{(p as any).assetStatus}</TableCell>
-                    <TableCell className="text-xs max-w-xs truncate" title={p.informDetail}>{p.informDetail}</TableCell>
-                    <TableCell className="text-xs font-mono">{p.claimRef}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          {pairs.length > 500 && !bucket && <p className="text-xs text-muted-foreground mt-2">แสดง 500 รายการแรกจาก {pairs.length}</p>}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function TicketsTab({ rows }: { rows: MonitoringData["ticketRows"] }) {
-  const [q, setQ] = useState("");
-  const [onlyOpen, setOnlyOpen] = useState(false);
-  const filtered = useMemo(() => {
-    return rows.filter((r) => {
-      if (onlyOpen && (r.status === "Finished" || r.status === "Closed" || r.status === "Approved")) return false;
-      if (q) {
-        const s = q.toLowerCase();
-        if (!r.assetCode.toLowerCase().includes(s) && !r.refNumber.toLowerCase().includes(s)) return false;
-      }
-      return true;
-    });
-  }, [rows, q, onlyOpen]);
-
-  const exportCsv = () => {
-    const headers = ["Old Code", "แผนก", "Ticket", "Created", "Updated", "Closed", "Status", "Pending", "Last Inspection"];
-    const lines = [headers.join(",")];
-    for (const r of filtered) {
-      lines.push([r.assetCode, r.department, r.refNumber, r.createdDate, r.updatedDate, r.closedDate, r.status, r.pending ? "Yes" : "No", r.lastInspectStatus].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
-    }
-    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `monitoring-tickets-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click(); URL.revokeObjectURL(url);
-  };
-
+function MonthTicketTable({ title, color, rows }: { title: string; color: string; rows: MonthTicket[] }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const cur = Math.min(page, totalPages);
+  const slice = rows.slice((cur - 1) * pageSize, cur * pageSize);
   return (
     <Card>
-      <CardContent className="pt-6 space-y-3">
-        <div className="space-y-1">
-          <SectionTitle
-            title="รายการตั๋ว Claim ในช่วง"
-            info="ที่มา: claim_tickets ที่เปิดอยู่ในช่วงเดือนที่เลือก (payload.createdDate หรือ opened_at)"
-          />
-          <FormulaNote>
-            สูตร: Created = payload.createdDate · Updated = payload.updatedDate · Closed = Updated เมื่อ status ∈ Finished/Closed/Approved · Pending = ตั๋วที่ Created = Updated (ยังไม่ขยับ) · การตรวจล่าสุด = สถานะ Monitor ล่าสุดของป้ายเดียวกัน
-          </FormulaNote>
-        </div>
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className="relative w-full sm:w-72">
-              <SearchIcon className="size-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="ค้นหา Old Code / Ticket..." value={q} onChange={(e) => setQ(e.target.value)} className="pl-8" />
-            </div>
-            <label className="flex items-center gap-1.5 text-sm">
-              <input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />
-              เฉพาะที่ยังไม่ปิด
-            </label>
-          </div>
-          <Button size="sm" variant="outline" onClick={exportCsv}>
-            <Download className="size-4" /> Export CSV
-          </Button>
-        </div>
-        <div className="overflow-auto rounded-md border">
+      <CardHeader className="pb-2">
+        <CardTitle className={`text-sm ${color}`}>{title} ({rows.length.toLocaleString()})</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Old Code</TableHead>
-                <TableHead>แผนก</TableHead>
-                <TableHead>Ticket</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead>Closed</TableHead>
-                <TableHead>สถานะ(TICKET)</TableHead>
-                <TableHead>การตรวจล่าสุด</TableHead>
+                <TableHead>วันที่</TableHead>
+                <TableHead>รหัสป้าย</TableHead>
+                <TableHead>หมวด</TableHead>
+                <TableHead>สถานะ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.slice(0, 500).map((r) => (
-                <TableRow key={r.refNumber} className={r.pending ? "bg-amber-50 dark:bg-amber-950/30" : ""}>
-                  <TableCell className="font-mono text-xs">
-                    <Link to="/search" search={{ q: r.assetCode } as never} className="hover:underline text-primary">{r.assetCode}</Link>
-                  </TableCell>
-                  <TableCell className="text-xs">{r.department || "—"}</TableCell>
-                  <TableCell className="text-xs font-mono">{r.refNumber}</TableCell>
-                  <TableCell className="text-xs">{r.createdDate || "—"}</TableCell>
-                  <TableCell className="text-xs">{r.updatedDate || "—"}</TableCell>
-                  <TableCell className="text-xs">{r.closedDate || "—"}</TableCell>
-                  <TableCell>
-                    <Badge tone={r.status === "Finished" || r.status === "Closed" || r.status === "Approved" ? "success" : r.status === "Working On" ? "default" : "warning"}>
-                      {r.status || "—"}
-                    </Badge>
-                    {r.pending && <span className="ml-1"><Badge tone="warning">Pending</Badge></span>}
-                  </TableCell>
-                  <TableCell className="text-xs">{r.lastInspectStatus}</TableCell>
+              {slice.length === 0 ? (
+                <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-4">ไม่มีข้อมูล</TableCell></TableRow>
+              ) : slice.map((r, i) => (
+                <TableRow key={`${r.assetCode}-${i}`}>
+                  <TableCell className="whitespace-nowrap">{r.date}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.assetCode}</TableCell>
+                  <TableCell className="text-xs">{r.category}</TableCell>
+                  <TableCell className="text-xs">{r.status}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
-        {filtered.length > 500 && <p className="text-xs text-muted-foreground">แสดง 500 รายการแรกจาก {filtered.length}</p>}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-2 text-xs">
+            <span className="text-muted-foreground">หน้า {cur} / {totalPages}</span>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>ก่อน</Button>
+              <Button size="sm" variant="outline" disabled={cur >= totalPages} onClick={() => setPage(cur + 1)}>ถัดไป</Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+type MonRowItem = {
+  ticket: string;
+  assetCode: string;
+  assetName: string;
+  project: string;
+  zone: string;
+  mediaType: string;
+  department: string;
+  category: string;
+  problemCategory: string;
+  problemDetail: string;
+  createdDate: string;
+  updatedDate: string;
+  eventDate: string;
+  ticketStatus: string;
+  assetStatus: string;
+  assetActive: "Active" | "Deleted";
+};
+
+const MON_COLS: { key: keyof MonRowItem; label: string; mono?: boolean; nowrap?: boolean }[] = [
+  { key: "assetCode", label: "Old Code", mono: true },
+  { key: "assetName", label: "ชื่อ" },
+  { key: "project", label: "Project" },
+  { key: "zone", label: "Zone" },
+  { key: "mediaType", label: "Media Type" },
+  { key: "department", label: "แผนก" },
+  { key: "category", label: "Category" },
+  { key: "problemCategory", label: "Problem Cat." },
+  { key: "problemDetail", label: "อาการ" },
+  { key: "createdDate", label: "Created", nowrap: true },
+  { key: "updatedDate", label: "Updated", nowrap: true },
+  { key: "ticketStatus", label: "Ticket Status" },
+  { key: "assetStatus", label: "Asset Status" },
+  { key: "assetActive", label: "Asset" },
+];
+
+function MonRowsList({
+  rows, total, monthly,
+}: {
+  rows: MonRowItem[];
+  total: number;
+  monthly: { month: string; pm: number; claim: number }[];
+}) {
+  const [open, setOpen] = useState(true);
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<20 | 50 | 100 | 200>(50);
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set(["category", "assetActive"]));
+  const [showColPanel, setShowColPanel] = useState(false);
+  const toggleHide = (k: string) =>
+    setHidden((p) => {
+      const n = new Set(p);
+      if (n.has(k)) n.delete(k); else n.add(k);
+      return n;
+    });
+  const visibleCols = MON_COLS.filter((c) => !hidden.has(c.key as string));
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return rows;
+    return rows.filter((r) =>
+      r.assetCode.toLowerCase().includes(s) ||
+      r.department.toLowerCase().includes(s) ||
+      r.problemDetail.toLowerCase().includes(s) ||
+      r.problemCategory.toLowerCase().includes(s) ||
+      r.ticketStatus.toLowerCase().includes(s),
+    );
+  }, [rows, q]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const cur = Math.min(page, totalPages);
+  const slice = filtered.slice((cur - 1) * pageSize, cur * pageSize);
+
+  const exportCsv = () => {
+    const header = visibleCols.map((c) => c.label);
+    const esc = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
+    const csv = [
+      header.join(","),
+      ...filtered.map((r) => visibleCols.map((c) => esc(String(r[c.key] ?? ""))).join(",")),
+    ].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `monitoring-rows-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const truncated = total > rows.length;
+  const monOnly = monthly.map((m) => ({ month: m.month, monitoring: m.pm }));
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="text-base">
+            รายการ Monitoring ทั้งหมด ({total.toLocaleString()}{truncated ? ` · แสดง ${rows.length.toLocaleString()}` : ""})
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0}>
+              Export CSV
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setOpen((o) => !o)}>
+              {open ? <><ChevronUp className="size-4" /> ซ่อน</> : <><ChevronDown className="size-4" /> แสดงรายการ</>}
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      {open && (
+        <CardContent className="space-y-4">
+          <div>
+            <div className="text-sm font-medium mb-2">แนวโน้มรายเดือน — Monitoring (ครบ 12 เดือน)</div>
+            <div className="h-56">
+              <ResponsiveContainer>
+                <LineChart data={monOnly}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="month" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="monitoring" name="Monitoring" stroke={PASS_COLOR} strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <Input
+              placeholder="ค้นหา รหัสป้าย / แผนก / อาการ / สถานะ"
+              value={q}
+              onChange={(e) => { setQ(e.target.value); setPage(1); }}
+              className="max-w-md"
+            />
+            <div className="relative">
+              <Button variant="outline" size="sm" onClick={() => setShowColPanel((v) => !v)}>
+                จัดการคอลัมน์
+                {hidden.size > 0 && (
+                  <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 py-0.5 text-[10px]">
+                    ซ่อน {hidden.size}
+                  </span>
+                )}
+                <ChevronDown className="size-3" />
+              </Button>
+              {showColPanel && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowColPanel(false)} />
+                  <div className="absolute right-0 z-40 mt-1 w-64 rounded-lg border bg-popover shadow-lg p-3 max-h-[60vh] overflow-auto">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs font-semibold">คอลัมน์ที่แสดง</div>
+                      <button onClick={() => setHidden(new Set())} className="text-[11px] text-primary hover:underline">
+                        แสดงทั้งหมด
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      {MON_COLS.map((c) => (
+                        <label key={c.key as string} className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-accent cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!hidden.has(c.key as string)}
+                            onChange={() => toggleHide(c.key as string)}
+                          />
+                          <span>{c.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto border rounded">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {visibleCols.map((c) => (
+                    <TableHead key={c.key as string} className="whitespace-nowrap">{c.label}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {slice.length === 0 ? (
+                  <TableRow><TableCell colSpan={visibleCols.length} className="text-center text-muted-foreground py-4">ไม่มีข้อมูล</TableCell></TableRow>
+                ) : slice.map((r, i) => (
+                  <TableRow key={`${r.assetCode}-${i}`}>
+                    {visibleCols.map((c) => (
+                      <TableCell
+                        key={c.key as string}
+                        className={
+                          "text-xs " +
+                          (c.mono ? "font-mono " : "") +
+                          (c.nowrap ? "whitespace-nowrap " : "")
+                        }
+                      >
+                        {String(r[c.key] ?? "")}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex items-center justify-between mt-2 text-xs flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">แสดงต่อหน้า:</span>
+              {[20, 50, 100, 200].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => { setPageSize(n as 20 | 50 | 100 | 200); setPage(1); }}
+                  className={
+                    "px-2 py-1 rounded border transition " +
+                    (pageSize === n
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background hover:bg-accent border-border")
+                  }
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <span className="text-muted-foreground">หน้า {cur} / {totalPages} · {filtered.length.toLocaleString()} รายการ</span>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>ก่อน</Button>
+              <Button size="sm" variant="outline" disabled={cur >= totalPages} onClick={() => setPage(cur + 1)}>ถัดไป</Button>
+            </div>
+          </div>
+          {truncated && (
+            <div className="mt-2 text-xs text-amber-600">
+              * แสดง {rows.length.toLocaleString()} แถวแรกจากทั้งหมด {total.toLocaleString()} — ใช้ Export CSV เพื่อโหลดทั้งหมด
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+type AgingPair = {
+  assetCode: string;
+  department: string;
+  mediaType: string;
+  zone: string;
+  project: string;
+  pmDate: string;
+  claimDate: string;
+  pmTicket: string;
+  claimTicket: string;
+  days: number;
+  problemCategory: string;
+  problemDetail: string;
+  problemEquipment: string;
+  solutionCategory: string;
+  solutionDetail: string;
+  status: string;
+  assetStatus: string;
+};
+
+const BUCKET_RANGES: Record<string, [number, number]> = {
+  "1-3": [1, 3], "4-7": [4, 7], "8-15": [8, 15], "16-30": [16, 30], "31-60": [31, 60], "61-90": [61, 90],
+};
+
+type DonutKey = "problemCategory" | "problemDetail" | "problemEquipment" | "solutionCategory" | "solutionDetail";
+const DONUT_DEFS: { key: DonutKey; title: string }[] = [
+  { key: "problemCategory", title: "Problem Category" },
+  { key: "problemDetail", title: "Problem Detail" },
+  { key: "problemEquipment", title: "Problem Equipment" },
+  { key: "solutionCategory", title: "Solution Category" },
+  { key: "solutionDetail", title: "Solution Detail" },
+];
+
+function AgingReport({
+  aging, pairs, bucketSel, onBucketSel,
+}: {
+  aging: { bucket: string; count: number }[];
+  pairs: AgingPair[];
+  bucketSel: string[];
+  onBucketSel: (b: string[]) => void;
+}) {
+  const [sel, setSel] = useState<Record<DonutKey, string | null>>({
+    problemCategory: null, problemDetail: null, problemEquipment: null, solutionCategory: null, solutionDetail: null,
+  });
+  const [search, setSearch] = useState("");
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(1);
+
+  const inSelectedBuckets = (days: number): boolean => {
+    if (bucketSel.length === 0) return false;
+    for (const b of bucketSel) {
+      const r = BUCKET_RANGES[b];
+      if (r && days >= r[0] && days <= r[1]) return true;
+    }
+    return false;
+  };
+
+  const early = useMemo(() => {
+    if (bucketSel.length > 0) return pairs.filter((p) => inSelectedBuckets(p.days));
+    return pairs.filter((p) => p.days <= 30);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairs, bucketSel]);
+  const totalPairs = aging.reduce((s, b) => s + b.count, 0);
+
+  const donutData = useMemo(() => {
+    const out: Record<DonutKey, { name: string; value: number }[]> = {
+      problemCategory: [], problemDetail: [], problemEquipment: [], solutionCategory: [], solutionDetail: [],
+    };
+    for (const def of DONUT_DEFS) {
+      const filtered = early.filter((p) =>
+        DONUT_DEFS.every((d) => d.key === def.key ? true : !sel[d.key] || p[d.key] === sel[d.key]),
+      );
+      const m = new Map<string, number>();
+      for (const p of filtered) {
+        const v = p[def.key];
+        m.set(v, (m.get(v) ?? 0) + 1);
+      }
+      out[def.key] = Array.from(m.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 12);
+    }
+    return out;
+  }, [early, sel]);
+
+  const activeDonutFilters = DONUT_DEFS.filter((d) => sel[d.key]);
+
+  const tablePairs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return pairs.filter((p) => {
+      if (bucketSel.length > 0 && !inSelectedBuckets(p.days)) return false;
+      for (const d of DONUT_DEFS) {
+        if (sel[d.key] && p[d.key] !== sel[d.key]) return false;
+      }
+      if (
+        q &&
+        !p.assetCode.toLowerCase().includes(q) &&
+        !p.department.toLowerCase().includes(q) &&
+        !p.mediaType.toLowerCase().includes(q) &&
+        !p.problemDetail.toLowerCase().includes(q) &&
+        !p.problemCategory.toLowerCase().includes(q)
+      ) return false;
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairs, bucketSel, sel, search]);
+
+  const totalPages = Math.max(1, Math.ceil(tablePairs.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const visible = tablePairs.slice(start, start + pageSize);
+
+  const toggleBucket = (b: string) => {
+    if (bucketSel.includes(b)) onBucketSel(bucketSel.filter((x) => x !== b));
+    else onBucketSel([...bucketSel, b]);
+    setPage(1);
+  };
+
+  const bucketLabel = bucketSel.length === 0 ? null : bucketSel.join(", ");
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Monitoring → Claim Aging</CardTitle>
+        <p className="text-sm text-muted-foreground mt-1">
+          จับคู่ Monitoring (assetStatus = Pass) กับ Claim ครั้งถัดไปของป้ายเดียวกัน · รวม <span className="font-semibold text-foreground">{totalPairs}</span> คู่ ·
+          แท่ง 1–3, 4–7 วัน = Critical · <b> คลิกแท่งกราฟหรือชิปเพื่อเลือกได้หลายช่วง</b>
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="h-72">
+          <ResponsiveContainer>
+            <BarChart data={aging}>
+              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+              <XAxis dataKey="bucket" />
+              <YAxis />
+              <Tooltip />
+              <Bar
+                dataKey="count"
+                radius={[8, 8, 0, 0]}
+                cursor="pointer"
+                onClick={(d: { bucket?: string }) => { if (!d?.bucket) return; toggleBucket(d.bucket); }}
+              >
+                {aging.map((entry, i) => {
+                  const isSelected = bucketSel.includes(entry.bucket);
+                  const isCritical = entry.bucket === "1-3" || entry.bucket === "4-7";
+                  return (
+                    <Cell
+                      key={i}
+                      fill={isCritical ? FAIL_COLOR : PASS_COLOR}
+                      opacity={bucketSel.length === 0 || isSelected ? 1 : 0.35}
+                    />
+                  );
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <span className="text-xs text-muted-foreground">เลือกช่วง:</span>
+          {aging.map((a) => {
+            const active = bucketSel.includes(a.bucket);
+            return (
+              <button
+                key={a.bucket}
+                type="button"
+                onClick={() => toggleBucket(a.bucket)}
+                className={
+                  "text-[11px] px-2 py-1 rounded border transition " +
+                  (active ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-accent text-foreground border-border")
+                }
+              >
+                {a.bucket} วัน ({a.count})
+              </button>
+            );
+          })}
+          {bucketSel.length > 0 && (
+            <button onClick={() => onBucketSel([])} className="text-[11px] text-muted-foreground hover:text-foreground underline ml-1">
+              ล้างช่วง
+            </button>
+          )}
+        </div>
+
+        <div className="mt-6">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <div>
+              <h4 className="font-semibold text-sm">
+                อาการ/วิธีแก้ที่พบบ่อย {bucketLabel ? `(ช่วง ${bucketLabel} วัน)` : "(เฉพาะ Claim ภายใน 30 วันหลัง Monitoring)"}
+              </h4>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {bucketLabel
+                  ? `นับเฉพาะคู่ Monitoring→Claim ที่อยู่ในช่วง ${bucketLabel} วัน (${early.length} คู่)`
+                  : `นับจำนวนคู่ Monitoring→Claim ที่ห่างกัน ≤ 30 วัน (${early.length} คู่)`}
+              </p>
+            </div>
+            {activeDonutFilters.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {activeDonutFilters.map((d) => (
+                  <button
+                    key={d.key}
+                    onClick={() => setSel((s) => ({ ...s, [d.key]: null }))}
+                    className="text-[11px] px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20"
+                  >
+                    {d.title}: {sel[d.key]} ✕
+                  </button>
+                ))}
+                <button
+                  onClick={() => setSel({ problemCategory: null, problemDetail: null, problemEquipment: null, solutionCategory: null, solutionDetail: null })}
+                  className="text-[11px] text-muted-foreground hover:text-foreground underline"
+                >
+                  ล้างทั้งหมด
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {DONUT_DEFS.map((d) => (
+              <DonutPanel
+                key={d.key}
+                title={d.title}
+                data={donutData[d.key]}
+                selected={sel[d.key]}
+                onSelect={(name) => setSel((s) => ({ ...s, [d.key]: s[d.key] === name ? null : name }))}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-8 border-t pt-6">
+          <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+            <div>
+              <h4 className="font-semibold text-base">รายละเอียดคู่ Monitoring → Claim</h4>
+              <p className="text-sm text-muted-foreground mt-1">
+                รวม <b>{tablePairs.length.toLocaleString()}</b> คู่
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="ค้นหารหัสป้าย / แผนก / Media Type / อาการ"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                className="w-80"
+              />
+              <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="20">20 / หน้า</SelectItem>
+                  <SelectItem value="50">50 / หน้า</SelectItem>
+                  <SelectItem value="100">100 / หน้า</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="overflow-auto border rounded">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>รหัสป้าย</TableHead>
+                  <TableHead>Media Type</TableHead>
+                  <TableHead>แผนก</TableHead>
+                  <TableHead>วัน Monitoring</TableHead>
+                  <TableHead>วัน Claim</TableHead>
+                  <TableHead className="text-right">ห่าง (วัน)</TableHead>
+                  <TableHead>หมวดอาการ</TableHead>
+                  <TableHead>อาการ</TableHead>
+                  <TableHead>อุปกรณ์</TableHead>
+                  <TableHead>วิธีแก้ (หมวด)</TableHead>
+                  <TableHead>วิธีแก้</TableHead>
+                  <TableHead>สถานะ Ticket</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visible.length === 0 ? (
+                  <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-8">ไม่พบข้อมูล</TableCell></TableRow>
+                ) : visible.map((p, i) => (
+                  <TableRow key={start + i} className={p.days <= 7 ? "bg-red-50 dark:bg-red-950/30" : ""}>
+                    <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
+                    <TableCell className="text-xs">{p.mediaType}</TableCell>
+                    <TableCell className="text-xs">{p.department}</TableCell>
+                    <TableCell className="text-xs">{p.pmDate}</TableCell>
+                    <TableCell className="text-xs">{p.claimDate}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {p.days <= 7 ? <Badge tone="danger">{p.days} · Critical</Badge> : p.days}
+                    </TableCell>
+                    <TableCell className="text-xs max-w-[140px] truncate" title={p.problemCategory}>{p.problemCategory}</TableCell>
+                    <TableCell className="text-xs max-w-[200px] truncate" title={p.problemDetail}>{p.problemDetail}</TableCell>
+                    <TableCell className="text-xs max-w-[160px] truncate" title={p.problemEquipment}>{p.problemEquipment}</TableCell>
+                    <TableCell className="text-xs max-w-[140px] truncate" title={p.solutionCategory}>{p.solutionCategory}</TableCell>
+                    <TableCell className="text-xs max-w-[200px] truncate" title={p.solutionDetail}>{p.solutionDetail}</TableCell>
+                    <TableCell className="text-xs">{p.status}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
+            <div>
+              แสดง {tablePairs.length === 0 ? 0 : start + 1}–{Math.min(start + pageSize, tablePairs.length)} จาก {tablePairs.length.toLocaleString()}
+            </div>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(1)}>«</Button>
+              <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>ก่อนหน้า</Button>
+              <span className="px-2 tabular-nums">หน้า {currentPage} / {totalPages}</span>
+              <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>ถัดไป</Button>
+              <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage(totalPages)}>»</Button>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DonutPanel({
+  title, data, selected, onSelect,
+}: {
+  title: string;
+  data: { name: string; value: number }[];
+  selected: string | null;
+  onSelect: (name: string) => void;
+}) {
+  if (!data.length) {
+    return <div className="text-xs text-muted-foreground text-center py-8 border rounded">{title}<br />ไม่มีข้อมูล</div>;
+  }
+  return (
+    <div className="border rounded-lg p-3">
+      <div className="text-xs font-medium text-center mb-2">{title}</div>
+      <div className="h-40">
+        <ResponsiveContainer>
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="value"
+              innerRadius={30}
+              outerRadius={55}
+              paddingAngle={2}
+              onClick={(d: { name?: string }) => d?.name && onSelect(d.name)}
+            >
+              {data.map((d, i) => (
+                <Cell
+                  key={i}
+                  fill={PIE_COLORS[i % PIE_COLORS.length]}
+                  opacity={!selected || selected === d.name ? 1 : 0.3}
+                  cursor="pointer"
+                />
+              ))}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-2 space-y-1 max-h-28 overflow-auto">
+        {data.map((d, i) => {
+          const isSel = selected === d.name;
+          return (
+            <button
+              key={i}
+              onClick={() => onSelect(d.name)}
+              className={
+                "w-full flex items-center gap-1.5 text-[11px] px-1 py-0.5 rounded hover:bg-accent text-left " +
+                (isSel ? "bg-primary/10 font-medium" : "")
+              }
+            >
+              <span className="size-2 rounded-sm shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+              <span className="truncate flex-1" title={d.name}>{d.name}</span>
+              <span className="tabular-nums text-muted-foreground">{d.value}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type CalendarDay = {
+  date: string;
+  pass: number;
+  fail: number;
+  passCodes: string[];
+  failCodes: string[];
+};
+
+const TH_MONTH_NAMES = [
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+];
+const TH_WEEKDAY = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+
+function ymKey(y: number, m: number) {
+  return `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+function parseYm(s: string): { y: number; m: number } {
+  const [y, m] = s.split("-").map(Number);
+  return { y, m: m - 1 };
+}
+function buildYmOptions(): { value: string; label: string }[] {
+  const now = new Date();
+  const baseY = now.getFullYear();
+  const out: { value: string; label: string }[] = [];
+  for (let y = baseY - 5; y <= baseY + 1; y++) {
+    for (let m = 0; m < 12; m++) {
+      out.push({ value: ymKey(y, m), label: `${TH_MONTH_NAMES[m]} ${y + 543}` });
+    }
+  }
+  return out;
+}
+
+function MonCalendarView({ days }: { days: CalendarDay[] }) {
+  const now = new Date();
+  const defaultTo = ymKey(now.getFullYear(), now.getMonth());
+  const startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const defaultFrom = ymKey(startDate.getFullYear(), startDate.getMonth());
+
+  const [fromYm, setFromYm] = useState<string>(defaultFrom);
+  const [toYm, setToYm] = useState<string>(defaultTo);
+  const [search, setSearch] = useState("");
+
+  const ymOptions = useMemo(buildYmOptions, []);
+
+  const monthsList = useMemo(() => {
+    const from = parseYm(fromYm);
+    const to = parseYm(toYm);
+    let fromIdx = from.y * 12 + from.m;
+    let toIdx = to.y * 12 + to.m;
+    if (fromIdx > toIdx) [fromIdx, toIdx] = [toIdx, fromIdx];
+    const arr: { y: number; m: number }[] = [];
+    for (let i = fromIdx; i <= toIdx && arr.length < 36; i++) {
+      arr.push({ y: Math.floor(i / 12), m: i % 12 });
+    }
+    return arr;
+  }, [fromYm, toYm]);
+
+  const dayMap = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const m = new Map<string, CalendarDay>();
+    for (const d of days) {
+      if (q) {
+        const hit =
+          d.passCodes.some((c) => c.toLowerCase().includes(q)) ||
+          d.failCodes.some((c) => c.toLowerCase().includes(q));
+        if (!hit) continue;
+      }
+      m.set(d.date, d);
+    }
+    return m;
+  }, [days, search]);
+
+  const totals = useMemo(() => {
+    let pass = 0, fail = 0;
+    for (const v of dayMap.values()) {
+      pass += v.pass;
+      fail += v.fail;
+    }
+    return { pass, fail };
+  }, [dayMap]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <CardTitle>ปฏิทินผลการ Monitoring (Pass / Fail)</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              <span className="inline-block w-3 h-3 rounded-sm align-middle mr-1" style={{ background: PASS_COLOR }} />Pass
+              {" · "}
+              <span className="inline-block w-3 h-3 rounded-sm align-middle mr-1" style={{ background: FAIL_COLOR }} />Fail
+              {" · ใช้วันที่ Update ของแต่ละ ticket Monitoring · เลื่อนเมาส์ที่ตัวเลขเพื่อดูรหัสป้าย"}
+            </p>
+          </div>
+          <div className="flex gap-2 flex-wrap items-center">
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-muted-foreground">จาก</span>
+              <Select value={fromYm} onValueChange={setFromYm}>
+                <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {ymOptions.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-muted-foreground">ถึง</span>
+              <Select value={toYm} onValueChange={setToYm}>
+                <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {ymOptions.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Input placeholder="ค้นหารหัสป้าย" value={search} onChange={(e) => setSearch(e.target.value)} className="w-44 h-9" />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-4 mt-3 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-sm" style={{ background: PASS_COLOR }} />
+            <span>Pass</span>
+            <span className="text-muted-foreground">({totals.pass.toLocaleString()})</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-sm" style={{ background: FAIL_COLOR }} />
+            <span>Fail</span>
+            <span className="text-muted-foreground">({totals.fail.toLocaleString()})</span>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {monthsList.map((mo) => (
+            <MonthCell key={`${mo.y}-${mo.m}`} year={mo.y} month={mo.m} dayMap={dayMap} />
+          ))}
+        </div>
+        {monthsList.length === 0 && (
+          <div className="text-center text-muted-foreground py-6 text-sm">เลือกช่วงเดือนเริ่ม–สิ้นสุดเพื่อแสดงปฏิทิน</div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MonthCell({
+  year, month, dayMap,
+}: { year: number; month: number; dayMap: Map<string, CalendarDay> }) {
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  let monthPass = 0, monthFail = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const v = dayMap.get(key);
+    if (v) { monthPass += v.pass; monthFail += v.fail; }
+  }
+
+  return (
+    <div className="border rounded-lg p-2.5 bg-card">
+      <div className="flex items-baseline justify-between mb-2">
+        <div className="font-semibold text-sm">
+          {TH_MONTH_NAMES[month]} <span className="text-muted-foreground font-normal">{year + 543}</span>
+        </div>
+        <div className="flex gap-1.5 text-[10px]">
+          {monthPass > 0 && (
+            <span className="px-1.5 rounded" style={{ background: "oklch(0.65 0.18 150 / 0.15)", color: "oklch(0.45 0.18 150)" }}>Pass {monthPass}</span>
+          )}
+          {monthFail > 0 && (
+            <span className="px-1.5 rounded" style={{ background: "oklch(0.6 0.22 25 / 0.15)", color: "oklch(0.5 0.2 25)" }}>Fail {monthFail}</span>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-0.5 text-[10px] text-muted-foreground mb-1">
+        {TH_WEEKDAY.map((w, i) => (<div key={i} className="text-center font-medium">{w}</div>))}
+      </div>
+      <div className="grid grid-cols-7 gap-0.5">
+        {cells.map((d, i) => {
+          if (d === null) return <div key={i} className="aspect-square" />;
+          const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          const v = dayMap.get(key);
+          const hasPass = !!v && v.pass > 0;
+          const hasFail = !!v && v.fail > 0;
+          const tip = v
+            ? [
+                hasPass ? `Pass (${v.pass}): ${v.passCodes.join(", ")}${v.pass > v.passCodes.length ? "..." : ""}` : "",
+                hasFail ? `Fail (${v.fail}): ${v.failCodes.join(", ")}${v.fail > v.failCodes.length ? "..." : ""}` : "",
+              ].filter(Boolean).join("\n")
+            : "";
+          return (
+            <div
+              key={i}
+              title={tip || undefined}
+              className={`aspect-square rounded text-[10px] flex flex-col items-center justify-start py-0.5 px-0.5 border ${
+                v ? "border-border" : "border-transparent"
+              } ${hasPass && hasFail ? "bg-muted/40" : ""}`}
+            >
+              <div className="text-foreground/70 leading-none">{d}</div>
+              <div className="flex flex-col gap-0.5 mt-0.5 items-center">
+                {hasPass && (
+                  <span className="text-[9px] leading-none px-1 rounded-sm text-white font-medium" style={{ background: PASS_COLOR }}>{v!.pass}</span>
+                )}
+                {hasFail && (
+                  <span className="text-[9px] leading-none px-1 rounded-sm text-white font-medium" style={{ background: FAIL_COLOR }}>{v!.fail}</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

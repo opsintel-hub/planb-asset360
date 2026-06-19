@@ -66,7 +66,7 @@ async function fetchHistoryByCreatedDate<T extends { id: string; created_date: s
     let q = supabaseAdmin
       .from("mssql_asset_history")
       .select(
-        "id, ref_number, old_code, category, created_date, updated_date, event_ts, status, asset_status, inform_detail, problem_category, problem_detail, problem_equipment, solution_category, solution_detail, project, bkk_upc, media_type, asset_department, asset_media_type",
+        "id, old_code, category, created_date, updated_date, status, asset_status, inform_detail, problem_category, problem_detail, problem_equipment, solution_category, solution_detail, project, bkk_upc, media_type",
       )
       .eq("category", category)
       .not("created_date", "is", null)
@@ -81,7 +81,7 @@ async function fetchHistoryByCreatedDate<T extends { id: string; created_date: s
 
     const res = await q;
     if (res.error) throw new Error(res.error.message);
-    const rows = (res.data as T[] | null) ?? [];
+    const rows = ((res.data as unknown) as T[] | null) ?? [];
     if (rows.length === 0) break;
     out.push(...rows);
     const last = rows[rows.length - 1];
@@ -106,12 +106,10 @@ async function fetchHistoryForScope<T extends HistRow>(
 
 type HistRow = {
   id: string;
-  ref_number: string | null;
   old_code: string | null;
   category: "Monitoring" | "Claim" | string | null;
   created_date: string | null;
   updated_date: string | null;
-  event_ts: string | null;
   status: string | null;
   asset_status: string | null;
   inform_detail: string | null;
@@ -123,8 +121,6 @@ type HistRow = {
   project: string | null;
   bkk_upc: string | null;
   media_type: string | null;
-  asset_department: string | null;
-  asset_media_type: string | null;
 };
 
 type AssetLite = {

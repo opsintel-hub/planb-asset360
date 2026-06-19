@@ -546,8 +546,12 @@ function PmInsightsPage() {
           {/* No-PM asset list (collapsible) */}
           <NoPmAssetList rows={data.noPmAssets} />
 
+          {/* All PM rows (collapsible, all columns) */}
+          <PmRowsList rows={data.pmRows} total={data.pmRowsTotal} />
+
           {/* Monthly PM vs Claim (current year) */}
           <MonthlyChart data={data.monthly} details={data.monthlyDetails} />
+
 
 
           {/* Report 1: Aging chart + donuts + pairs table (merged) */}

@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { runClaimSync, runAssetHistorySync, runAssetListSync, runAssetHistorySyncBatch } from "./sync.server";
+import { runClaimSync, runAssetListSync, runAssetHistorySyncBatch } from "./sync.server";
 
 async function assertAdmin(userId: string) {
   const { data } = await supabaseAdmin

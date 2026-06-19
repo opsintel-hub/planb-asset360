@@ -133,8 +133,8 @@ type AssetLite = {
 };
 
 function pickDate(h: HistRow): string | null {
-  if (h.category === "Monitoring") return h.updated_date ?? h.event_ts ?? h.created_date ?? null;
-  return h.created_date ?? h.event_ts ?? h.updated_date ?? null;
+  if (h.category === "Monitoring") return h.updated_date ?? h.created_date ?? null;
+  return h.created_date ?? h.updated_date ?? null;
 }
 
 export const getMonitoringInsights = createServerFn({ method: "POST" })

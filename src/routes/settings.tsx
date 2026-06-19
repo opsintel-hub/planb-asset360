@@ -93,9 +93,6 @@ function MainSettings() {
 
   const claimEndpoint =
     settings.claim_api_endpoint ?? "https://magicticket.magicsigncloud.com/planb_api/api/Ticket/RemainingClaimTickets";
-  const assetHistoryEndpoint =
-    settings.asset_history_endpoint ??
-    "https://uat-magicticket.magicsigncloud.com/planb_api/api/Ticket/AssetHistory?oldCode={id}";
   const claimAutoSync = settings.claim_auto_sync ?? true;
 
   const assetDb = (settings.asset_db_connection ?? {}) as {

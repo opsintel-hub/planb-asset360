@@ -77,6 +77,62 @@ async function fetchAllByKeyset<T extends { id: string | number }>(
   return out;
 }
 
+async function fetchHistoryByCreatedDate<T extends { id: string; created_date: string | null }>(
+  category: "Monitoring" | "Claim",
+  options: { fromMs?: number; toMs?: number; oldCodes?: string[] } = {},
+  pageSize = 2000,
+): Promise<T[]> {
+  const codes = options.oldCodes?.filter(Boolean);
+  if (codes && codes.length === 0) return [];
+
+  const out: T[] = [];
+  let lastCreatedDate: string | null = null;
+  let lastId: string | null = null;
+
+  for (let page = 0; page < 500; page++) {
+    let q = supabaseAdmin
+      .from("mssql_asset_history")
+      .select("id, old_code, category, created_date, updated_date, status, asset_status, inform_detail, problem_category, problem_detail")
+      .eq("category", category)
+      .not("created_date", "is", null)
+      .order("created_date", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(pageSize);
+
+    if (Number.isFinite(options.fromMs)) q = q.gte("created_date", new Date(options.fromMs!).toISOString());
+    if (Number.isFinite(options.toMs)) q = q.lte("created_date", new Date(options.toMs!).toISOString());
+    if (codes) q = q.in("old_code", codes);
+    if (lastCreatedDate && lastId) {
+      q = q.or(`created_date.gt.${lastCreatedDate},and(created_date.eq.${lastCreatedDate},id.gt.${lastId})`);
+    }
+
+    const res = await q;
+    if (res.error) throw new Error(res.error.message);
+    const rows = (res.data as T[] | null) ?? [];
+    if (rows.length === 0) break;
+    out.push(...rows);
+    const last = rows[rows.length - 1];
+    lastCreatedDate = last.created_date;
+    lastId = last.id;
+    if (rows.length < pageSize) break;
+  }
+  return out;
+}
+
+async function fetchHistoryForScope<T extends HistRow>(
+  category: "Monitoring" | "Claim",
+  options: { fromMs?: number; toMs?: number; oldCodes?: string[] },
+): Promise<T[]> {
+  const codes = options.oldCodes;
+  if (!codes || codes.length <= 200) return fetchHistoryByCreatedDate<T>(category, options);
+
+  const out: T[] = [];
+  for (let i = 0; i < codes.length; i += 200) {
+    out.push(...await fetchHistoryByCreatedDate<T>(category, { ...options, oldCodes: codes.slice(i, i + 200) }));
+  }
+  return out;
+}
+
 type AssetRow = {
   old_code: string;
   name: string | null;

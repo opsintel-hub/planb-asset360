@@ -93,7 +93,7 @@ function toHistoryShape(h: MssqlRow, assetIdByCode: Map<string, string>): Histor
     opened_at: h.created_date,
     closed_at: h.updated_date,
     sla_hours: null,
-    payload,
+    payload: payload as Record<string, string | number | boolean | null>,
   };
 }
 

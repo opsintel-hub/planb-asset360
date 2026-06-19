@@ -407,7 +407,7 @@ export const getMonitoringInsights = createServerFn({ method: "POST" })
         date: src.slice(0, 10),
         status: h.status ?? "",
         category: (h.category as string) ?? "",
-        department: h.asset_department ?? "",
+        department: "",
       };
       if (h.category === "Monitoring") {
         row.pm++;
@@ -517,7 +517,7 @@ export const getMonitoringInsights = createServerFn({ method: "POST" })
         v = { pass: new Set(), fail: new Set() };
         calMap.set(date, v);
       }
-      const key = h.ref_number || h.old_code || "";
+      const key = h.old_code || "";
       if (s === "pass") v.pass.add(key);
       else v.fail.add(key);
     }

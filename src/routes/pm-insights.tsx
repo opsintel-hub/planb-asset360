@@ -578,11 +578,9 @@ function PmInsightsPage() {
           {/* Report 3: Score */}
           <ScoreReport scoreRows={data.scoreRows} />
 
-          {/* Report 4: Frequency */}
-          <FrequencyReport
-            rows={data.frequency}
-            agg={data.freqAgg}
-          />
+          {/* Report 4: PM/Claim Calendar */}
+          <PmCalendarView days={data.calendarDays ?? []} />
+
         </>
       ) : null}
     </div>

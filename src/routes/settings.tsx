@@ -93,9 +93,6 @@ function MainSettings() {
 
   const claimEndpoint =
     settings.claim_api_endpoint ?? "https://magicticket.magicsigncloud.com/planb_api/api/Ticket/RemainingClaimTickets";
-  const assetHistoryEndpoint =
-    settings.asset_history_endpoint ??
-    "https://uat-magicticket.magicsigncloud.com/planb_api/api/Ticket/AssetHistory?oldCode={id}";
   const claimAutoSync = settings.claim_auto_sync ?? true;
 
   const assetDb = (settings.asset_db_connection ?? {}) as {
@@ -237,28 +234,10 @@ function MainSettings() {
 
       <SchemaAlertSection />
 
-      <Section
-        title="API ค้นหาประวัติ Asset (รายป้าย — HTTP fallback)"
-        desc="ดึงประวัติทีละป้ายจาก HTTP API ของระบบ PlanB — ใช้เสริมจาก MSSQL bulk sync ด้านบน เหมาะกับการเติมข้อมูลที่ขาดเฉพาะป้าย"
-      >
+      {/* Legacy "API ค้นหาประวัติ Asset (รายป้าย — HTTP fallback)" section was
+          removed. ระบบใช้ MSSQL bulk sync เป็นแหล่งเดียวสำหรับ Asset History
+          เพื่อไม่ให้ตัวเลขในหน้า Monitor / Search / PM Insights ขัดกัน */}
 
-        <EditableField
-          label="API Endpoint"
-          defaultValue={assetHistoryEndpoint}
-          onSave={(v) => saveMutation.mutate({ key: "asset_history_endpoint", value: v })}
-        />
-        <AssetHistoryScheduleControl
-          mode={
-            ((settings.asset_history_schedule as { mode?: string } | undefined)?.mode ?? "off") as
-              | "off"
-              | "every_3h"
-              | "daytime_3h"
-              | "daily_0530"
-          }
-          limit={Number((settings.asset_history_schedule as { limit?: number } | undefined)?.limit ?? 25)}
-          onSaveMode={(mode, limit) => saveMutation.mutate({ key: "asset_history_schedule", value: { mode, limit } })}
-        />
-      </Section>
 
       <Section title="API Claim Aging" desc="Auto-Sync ทุก 15 นาที (ตั้งจาก pg_cron)">
         <EditableField

@@ -1,97 +1,81 @@
+## เป้าหมาย
+- ปรับโครงสร้างตาราง `mssql_asset_history` ให้ตรงกับ schema ต้นทาง MSSQL (`planb.dbo.AssetHistory`) แบบ 1:1
+- เปลี่ยนทุกจุดในระบบที่อ่าน/เขียน `asset_history` ให้มาใช้ `mssql_asset_history` ใหม่
+- ลบตาราง `asset_history` และโค้ดที่เกี่ยวข้อง (Plan B Airtable sync เดิม) ทิ้งทั้งหมด
 
-# Monitoring Dashboard
+## ขั้นที่ 1 — Restructure `mssql_asset_history` ให้ตรงต้นทาง
 
-แดชบอร์ดติดตามสุขภาพป้ายแบบ "ภาพรวม → เจาะรายตัว" โดยใช้ข้อมูลที่มีอยู่แล้วจาก `assets`, `asset_history`, `claim_tickets` ไม่ต้องสร้างตาราง monitoring_status ใหม่ (ตารางว่างอยู่ ปล่อยทิ้งไว้)
-
-Route: `/monitoring` (เมนูเดิมในแถบข้าง — แทนที่ของเก่าทั้งหมด)
-
-## โครงสร้าง 4 Tabs
+ตาราง MSSQL ต้นทางมี 19 คอลัมน์ตามภาพ migration ใหม่จะลบคอลัมน์ `payload` (jsonb) แล้วแตกออกเป็นคอลัมน์จริง โครงใหม่:
 
 ```text
-┌─ Filter Bar (sticky): แผนก · BKK/UPC · Project · Date Range ─────────┐
-├─ KPI Cards (4 ใบ) ──────────────────────────────────────────────────┤
-├─ [Tab1 ภาพรวม] [Tab2 สถานะตรวจ] [Tab3 ตรวจ→Claim] [Tab4 รายป้าย] ──┤
-└─────────────────────────────────────────────────────────────────────┘
+id                    uuid PK
+project               text
+old_code              text       -- mssql: OldCode
+media_type            text
+bkk_upc               text
+category              text       -- 'Monitoring' | 'Claim' | ...
+created_date          timestamptz
+updated_date          timestamptz
+status                text       -- 'Approved' | ...
+inform_position       text
+inform_detail         text
+problem_category      text
+problem_equipment     text
+problem_detail        text
+solution_category     text
+solution_detail       text
+response_time         numeric
+resolve_time          numeric
+total_turnaround_time numeric
+asset_status          text       -- 'Pass' | 'Fail'
+synced_at             timestamptz
 ```
 
-### KPI Cards (4 ใบบนสุด — ตามผลของ filter ปัจจุบัน)
-1. **ป้ายทั้งหมด** จำนวน Old Code ใน scope
-2. **ยังไม่ได้ตรวจ PM** (assetStatus = "?" หรือ ไม่มี PM ใน 30 วันล่าสุด) — สีส้ม
-3. **ตรวจแล้วเสียภายใน 7 วัน** — สีแดง (ป้ายเฝ้าระวังพิเศษ)
-4. **Pending Claim** ตั๋วเปิดแต่ยังไม่ได้แตะ (created_date = updated_date) — สีเหลือง
+- คง unique key ธรรมชาติ: `(old_code, created_date, status, category)`
+- Index: `old_code`, `created_date`, `category`, `(category, created_date)`
+- GRANT + RLS เหมือนเดิม (SELECT ให้ `authenticated`, ALL ให้ `service_role`)
+- Backfill จาก `payload` ปัจจุบันลง field ใหม่ในตัว migration เดียว แล้ว drop `payload`
 
----
+## ขั้นที่ 2 — อัปเดต sync จาก MSSQL
 
-### Tab 1 — ภาพรวมสุขภาพ (Health Overview)
-- **Donut: สัดส่วนสถานะตรวจ** → ผ่าน / ไม่ผ่าน / ยังไม่ได้ตรวจ
-- **Stacked Bar รายแผนก**: จำนวนป้ายแยกตามสถานะตรวจ
-- **Top 10 อาการที่พบบ่อย** (จาก `claim_tickets.payload.problemDetail`) — Horizontal Bar
+- `supabase/functions/sync-asset-history/index.ts`: map field MSSQL → คอลัมน์ใหม่โดยตรง (ไม่ใส่ `payload` อีก) และ upsert ด้วย natural key ใหม่
+- `src/routes/api/public/hooks/sync-asset-history.ts`: ปรับให้สอดคล้องกับ schema ใหม่
+- Regen `src/integrations/supabase/types.ts` หลัง migration ผ่าน
 
-### Tab 2 — สถานะการตรวจ PM (Inspection Status)
-จุดประสงค์: หาป้ายที่ยังไม่ได้ตรวจ + ดูความถี่การตรวจ
+## ขั้นที่ 3 — เปลี่ยนทุกการอ่าน `asset_history` → `mssql_asset_history`
 
-- **ตาราง**: Old Code · แผนก · จำนวนครั้งที่ตรวจทั้งหมด · ตรวจครั้งล่าสุด · จำนวนวันนับจากครั้งล่าสุด · ค่าเฉลี่ยช่วงห่างระหว่างตรวจ · สถานะปัจจุบัน (Pass / Fail / ?)
-- เรียง: ป้ายที่ยังไม่เคยตรวจ → ป้ายที่ตรวจห่างที่สุด
-- Highlight แถวสีส้มถ้า > 60 วันไม่ได้ตรวจ, สีแดงถ้าไม่เคยตรวจ
-- **Filter ในแท็บ**: เฉพาะที่ยังไม่ได้ตรวจ / ตรวจห่าง / ทั้งหมด
+ทุก query map field ใหม่ดังนี้:
 
-### Tab 3 — ตรวจเสร็จ → Claim (Post-Inspection Aging)
-จุดประสงค์: ตรวจเสร็จแล้วกี่วันถึงเสีย + เสียด้วยอาการอะไร (เพื่อแจ้งทีมรอบหน้าให้ตรวจอาการนี้เป็นพิเศษ)
+| logic เดิม (asset_history) | ใหม่ (mssql_asset_history) |
+|---|---|
+| `type = 'Monitor'` | `category = 'Monitoring'` |
+| `type = 'Claim'` | `category = 'Claim'` |
+| `type = 'PM'` | `category ILIKE 'PM%'` (ยืนยันด้วยข้อมูลจริงก่อนใช้) |
+| `opened_at` | `created_date` |
+| `closed_at` | `updated_date` |
+| `asset_id` → `assets.id` | join `old_code = assets.code` |
+| `ticket_code` | `ref_number` (ถ้ายังมีใช้) |
+| `title` / `sla_hours` | ไม่มีต้นทาง → แสดงว่าง |
 
-- **Bar Chart bucket** เหมือน PM Insights: `1-3 / 4-7 / 8-15 / 16-30 / 31-60 / 61-90 / >90 วัน`
-- **ตารางเจาะ**: Old Code · แผนก · วันที่ตรวจ · วันที่เปิด Claim · ห่าง (วัน) · `problemCategory` · `problemDetail` · `informDetail`
-  - แถว ≤7 วัน → Badge "Critical" สีแดง + Highlight
-- **Donut "อาการที่เกิดเร็ว (≤7 วัน)"** — top problemDetail
-  → ใช้แจ้งทีมตรวจรอบหน้าได้ทันทีว่าอาการอะไรควรเช็คเป็นพิเศษ
+ไฟล์ที่ต้องแก้:
+- `src/lib/data.functions.ts` (จุดอ่าน asset_history ทั้งหมด รวม search history)
+- `src/lib/monitoring.functions.ts` (Monitoring tab + filter)
+- `src/lib/project-department-map.ts` (ถ้ามี aggregate)
+- `src/routes/monitoring.tsx`, `src/routes/pm-insights.tsx`, `src/routes/settings.tsx`, `src/components/breakdown-tab.tsx`
 
-### Tab 4 — รายการป้าย (Asset List — รวมทุกรอบของแต่ละป้าย)
-ตารางเต็ม + filter ค้นหา Old Code:
-- Old Code · แผนก · Ticket Number · Created Date · Updated Date · Closed Date · สถานะ (Pending / Working / Closed) · สถานะตรวจล่าสุด
-- ถ้า `Created Date = Updated Date` → Badge "Pending" สีเหลือง
-- ถ้า `Closed Date` = null → ยังไม่ปิด
-- ค้นหาด้วย Old Code / Ticket Number
-- Export CSV
+## ขั้นที่ 4 — ลบ Plan B (Airtable) sync และตาราง `asset_history`
 
----
+- ลบ `src/lib/sync.server.ts` ส่วนที่เขียน `asset_history` (หรือทั้งไฟล์ถ้าไม่ใช้แล้ว) และ UI ปุ่ม Sync Plan B ใน `settings.tsx`
+- Migration: `DROP TABLE public.asset_history CASCADE`
+- เอา type อ้างอิงออกจากโค้ดทั้งหมด
 
-## ตัวกรองหลัก (Filter Bar — sticky)
-- แผนก (multi-select)
-- BKK / UPC
-- Project / Media Type
-- Date Range (default: 90 วันล่าสุด)
+## ขั้นที่ 5 — ตรวจสอบ
 
-ทุก Tab share filter เดียวกัน — re-compute ผ่าน `useMemo` จาก dataset ที่ server fn ส่งมา
+- ค้นหา MTP A12 ใน Monitoring vs Search History → ตัวเลข PM/Monitor/Claim ต้องตรงกัน (ใช้ source เดียวกันแล้ว)
+- ตรวจ build, linter, และเช็คว่าไม่มี reference `asset_history` ค้างใน `rg`
 
----
+## คำยืนยันก่อนเริ่ม
 
-## รายละเอียดเชิงเทคนิค
-
-**ไฟล์ใหม่/แก้:**
-- `src/lib/monitoring.functions.ts` — server fn `getMonitoringData(filters)` (admin-import inside handler)
-  - ดึง `assets`, `asset_history`, `claim_tickets` → คำนวณ aggregate ฝั่ง server ส่งกลับเป็น JSON แบบ pre-computed (เหมือน pm-insights)
-  - คืน: `{ kpis, byDepartment, inspectionStatus[], postInspectionPairs[], assetList[], topSymptoms[] }`
-- `src/routes/monitoring.tsx` — เขียนใหม่ทั้งหมด (route เดิมที่เป็น Wifi/Online/Offline ลบทิ้ง)
-- `src/components/monitoring/` — `Filters.tsx`, `KpiCards.tsx`, `OverviewTab.tsx`, `InspectionTab.tsx`, `AgingTab.tsx`, `AssetListTab.tsx`
-- ปรับ `src/components/app-shell.tsx` — เปลี่ยน icon `Wifi` เป็น `Activity` ให้สื่อมากขึ้น
-- ปรับ `src/lib/admin.functions.ts` — ลงทะเบียน `/monitoring` ในรายการสิทธิ์ (ถ้ายังไม่มี)
-
-**Logic การ Map ข้อมูล (server side):**
-- "ยังไม่ได้ตรวจ" = ไม่มี `asset_history` type=PM ใน 30 วันล่าสุด OR `assetStatus` ในรายการล่าสุด = "?"
-- "ตรวจเสร็จ→Claim" pair: เรียง history ต่อ `asset_old_code`, จับคู่ PM (Pass/Fail) กับ Claim ตัวถัดไป, คำนวณ `daysBetween`
-- "Pending Claim": `claim_tickets` ที่ `created_date = updated_date` (ตามคำนิยามที่คุณให้)
-- ความถี่ตรวจเฉลี่ย: average diff ของ `opened_at` ของ PM ทุกรอบของป้ายเดียวกัน
-
-**Lib:** ใช้ Recharts (มีอยู่แล้ว), ไม่ต้องลงเพิ่ม
-
----
-
-## สิ่งที่ผมเสนอเพิ่ม (จากที่บอกว่า "เห็นว่าควรเพิ่มอะไรเสนอได้")
-
-1. **"อาการที่ทำนายได้" (Tab 3 Donut)** — Top อาการที่เกิดภายใน ≤7 วันหลังตรวจ → ตอบโจทย์ "คราวหน้าตรวจอาการนี้เป็นพิเศษ" ตรงๆ
-2. **Export CSV ใน Tab 4** — ทีมหน้างานเอาไปติดตามต่อได้
-3. **Badge "Pending" บน ticket** — ตามนิยาม `created = updated` ที่คุณให้
-4. **ปุ่ม drill-through จาก Tab 3 → เปิดดูประวัติป้ายในเมนู "ค้นหาประวัติป้าย"** (ใช้ Old Code เป็น query)
-
----
-
-หากแผนนี้โอเค ผมจะเริ่ม build เลย — โครงสร้างจะเหมือน PM Insights (loader + server fn + React Query staleTime 5 นาที + Tabs + Recharts) ให้ feel ใกล้กัน ใช้งานง่ายต่อเนื่องกัน
+1. ยืนยันลบ Plan B (Airtable) sync ถาวร — ระบบจะใช้ MSSQL เป็นแหล่งเดียว ✅/❌
+2. ฟิลด์ที่ไม่มีใน MSSQL (`title`, `sla_hours`, รายละเอียด claim ticket แบบเดิม) ยอมให้แสดงว่าง ✅/❌
+3. การ map `type='PM'` ใน MSSQL — ขอผม query หาค่าจริงของ `category`/`action` ในตารางก่อน เพื่อยืนยัน mapping ที่ถูกต้อง 100% ก่อนเริ่ม refactor ✅/❌

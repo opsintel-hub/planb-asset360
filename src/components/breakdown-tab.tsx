@@ -339,7 +339,7 @@ export function BreakdownTab({
           <div>
             <div className="font-medium text-foreground">แหล่งข้อมูลการจัดหมวดหมู่</div>
             <div className="mt-0.5">
-              ระบบดึงข้อมูลจากตาราง <code className="font-mono">asset_history</code> เฉพาะรายการประเภท <b>Claim</b> แล้วนำข้อความจาก
+              ระบบดึงข้อมูลจากตาราง <code className="font-mono">mssql_asset_history</code> เฉพาะรายการประเภท <b>Claim</b> แล้วนำข้อความจาก
               field <code className="font-mono">title</code>, <code className="font-mono">payload.problemCategory</code>, <code className="font-mono">payload.problemEquipment</code>, <code className="font-mono">payload.problemDetail</code> และ <code className="font-mono">payload.solutionDetail</code> มา
               match กับ <b>Keywords</b> ที่กำหนดในหน้า ตั้งค่า → Diagram Mappings (ไม่ case-sensitive, รองรับไทย/อังกฤษ)
             </div>

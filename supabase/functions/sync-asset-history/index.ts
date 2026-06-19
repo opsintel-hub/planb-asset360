@@ -179,46 +179,49 @@ async function runBatch(
     }
 
     const nowIso = new Date().toISOString();
-    const rows = list.map((item) => {
-      const payload: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(item)) {
-        if (k === "__cursor") continue;
-        payload[k] = v instanceof Date ? v.toISOString() : v;
-      }
-      return {
-        asset_old_code: pickStr(item, ["OldCode"]),
-        ref_number: null,
-        action_date: isoOrNull(item["CreatedDate"]),
-        action: pickStr(item, ["Status"]),
-        status: pickStr(item, ["Status"]),
-        project: pickStr(item, ["Project"]),
-        payload,
-        synced_at: nowIso,
-      };
-    });
+    const rows = list.map((item) => ({
+      old_code:               pickStr(item, ["OldCode"]),
+      project:                pickStr(item, ["Project"]),
+      media_type:             pickStr(item, ["MediaType"]),
+      bkk_upc:                pickStr(item, ["BKKUPC"]),
+      category:               pickStr(item, ["Category"]),
+      created_date:           isoOrNull(item["CreatedDate"]),
+      updated_date:           isoOrNull(item["UpdatedDate"]),
+      status:                 pickStr(item, ["Status"]),
+      inform_position:        pickStr(item, ["InformPosition"]),
+      inform_detail:          pickStr(item, ["InformDetail"]),
+      problem_category:       pickStr(item, ["ProblemCategory"]),
+      problem_equipment:      pickStr(item, ["ProblemEquipment"]),
+      problem_detail:         pickStr(item, ["ProblemDetail"]),
+      solution_category:      pickStr(item, ["SolutionCategory"]),
+      solution_detail:        pickStr(item, ["SolutionDetail"]),
+      response_time:          item["ResponseTime"] == null ? null : Number(item["ResponseTime"]),
+      resolve_time:           item["ResolveTime"]  == null ? null : Number(item["ResolveTime"]),
+      total_turnaround_time:  item["TotalTurnaroundTime"] == null ? null : Number(item["TotalTurnaroundTime"]),
+      asset_status:           pickStr(item, ["AssetStatus"]),
+      synced_at:              nowIso,
+    }));
 
-    // Dedupe by natural key BEFORE upsert — the source can return multiple
-    // rows with the same (OldCode, CreatedDate, Status) in one batch, which
-    // PostgreSQL rejects with "ON CONFLICT DO UPDATE command cannot affect
-    // row a second time". Keep the last occurrence (latest in ORDER BY).
+    // Dedupe by natural key BEFORE upsert (source can have duplicates in one batch)
     const deduped = new Map<string, typeof rows[number]>();
     for (const r of rows) {
-      const key = `${r.asset_old_code ?? ""}|${r.action_date ?? ""}|${r.status ?? ""}`;
+      const key = `${r.old_code ?? ""}|${r.created_date ?? ""}|${r.category ?? ""}|${r.status ?? ""}`;
       deduped.set(key, r);
     }
     const uniqueRows = Array.from(deduped.values());
 
-    // Upsert in chunks using the unique natural-key index
+    // Upsert using the new natural-key (old_code, created_date, category, status)
     let upserted = 0;
     const chunk = 500;
     for (let i = 0; i < uniqueRows.length; i += chunk) {
       const slice = uniqueRows.slice(i, i + chunk);
       const { error } = await admin
         .from("mssql_asset_history")
-        .upsert(slice, { onConflict: "asset_old_code,action_date,status", ignoreDuplicates: false });
+        .upsert(slice, { onConflict: "old_code,created_date,category,status", ignoreDuplicates: false });
       if (error) throw new Error(error.message);
       upserted += slice.length;
     }
+
 
     // Advance cursor to MAX(__cursor) from this batch
     let nextCursor = sinceCursor;

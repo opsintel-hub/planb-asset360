@@ -65,13 +65,15 @@ type AssetRow = {
   payload: Record<string, unknown> | null;
 };
 type HistRow = {
-  asset_old_code: string | null;
-  type: string;
-  opened_at: string | null;
-  closed_at: string | null;
+  old_code: string | null;
+  category: string | null;
+  created_date: string | null;
+  updated_date: string | null;
   status: string | null;
-  ticket_code: string | null;
-  payload: Record<string, unknown> | null;
+  asset_status: string | null;
+  inform_detail: string | null;
+  problem_category: string | null;
+  problem_detail: string | null;
 };
 type ClaimTicketRow = {
   ref_number: string;
@@ -91,7 +93,6 @@ function dayStr(s: string | null | undefined): string {
   return s.length >= 10 ? s.slice(0, 10) : s;
 }
 function parseDay(s: string | null | undefined): number {
-  // Parse a YYYY-MM-DD string as UTC midnight (TZ-safe day comparison)
   const d = dayStr(s);
   if (!d) return NaN;
   const t = Date.parse(d + "T00:00:00Z");
@@ -111,9 +112,9 @@ export const getMonitoringData = createServerFn({ method: "POST" })
       ),
       fetchAll<HistRow>((from, to) =>
         supabaseAdmin
-          .from("asset_history")
-          .select("asset_old_code, type, opened_at, closed_at, status, ticket_code, payload")
-          .in("type", ["Monitor", "Claim"])
+          .from("mssql_asset_history")
+          .select("old_code, category, created_date, updated_date, status, asset_status, inform_detail, problem_category, problem_detail")
+          .in("category", ["Monitoring", "Claim"])
           .range(from, to),
       ),
       fetchAll<ClaimTicketRow>((from, to) =>
@@ -182,17 +183,15 @@ export const getMonitoringData = createServerFn({ method: "POST" })
     const claimByAsset = new Map<string, ClaimEvent[]>();
 
     for (const h of histRaw) {
-      if (!h.asset_old_code || !inScopeAssets.has(h.asset_old_code)) continue;
-      const p = h.payload ?? {};
-      if (h.type === "Monitor") {
-        // opened_at = วันที่เปิดตรวจ; closed_at = วันที่ตรวจเสร็จ
-        const openStr = dayStr(h.opened_at) || pstr(p, "createdDate");
-        const closedStr = dayStr(h.closed_at) || pstr(p, "updatedDate");
+      if (!h.old_code || !inScopeAssets.has(h.old_code)) continue;
+      if (h.category === "Monitoring") {
+        const openStr = dayStr(h.created_date);
+        const closedStr = dayStr(h.updated_date);
         const openMs = parseDay(openStr);
         const closedMs = parseDay(closedStr);
         if (!Number.isFinite(openMs) && !Number.isFinite(closedMs)) continue;
-        const arr = monByAsset.get(h.asset_old_code) ?? [];
-        const status = normalizeStatus(pstr(p, "assetStatus"));
+        const arr = monByAsset.get(h.old_code) ?? [];
+        const status = normalizeStatus(h.asset_status);
         arr.push({
           dateMs: Number.isFinite(openMs) ? openMs : closedMs,
           dateStr: openStr || closedStr,
@@ -200,24 +199,25 @@ export const getMonitoringData = createServerFn({ method: "POST" })
           closedStr: closedStr || openStr,
           assetStatus: status,
         });
-        monByAsset.set(h.asset_old_code, arr);
-      } else if (h.type === "Claim") {
-        const openStr = dayStr(h.opened_at) || pstr(p, "createdDate");
+        monByAsset.set(h.old_code, arr);
+      } else if (h.category === "Claim") {
+        const openStr = dayStr(h.created_date);
         const d = parseDay(openStr);
         if (!Number.isFinite(d)) continue;
-        const arr = claimByAsset.get(h.asset_old_code) ?? [];
+        const arr = claimByAsset.get(h.old_code) ?? [];
         arr.push({
           dateMs: d,
           dateStr: openStr,
-          refNumber: h.ticket_code ?? "",
-          informDetail: pstr(p, "informDetail"),
-          problemCategory: pstr(p, "problemCategory"),
-          problemDetail: pstr(p, "problemDetail"),
-          status: h.status ?? pstr(p, "status"),
+          refNumber: "",
+          informDetail: h.inform_detail ?? "",
+          problemCategory: h.problem_category ?? "",
+          problemDetail: h.problem_detail ?? "",
+          status: h.status ?? "",
         });
-        claimByAsset.set(h.asset_old_code, arr);
+        claimByAsset.set(h.old_code, arr);
       }
     }
+
     for (const arr of monByAsset.values()) arr.sort((a, b) => a.dateMs - b.dateMs);
     for (const arr of claimByAsset.values()) arr.sort((a, b) => a.dateMs - b.dateMs);
 

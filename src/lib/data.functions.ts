@@ -1,7 +1,101 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { runAssetHistorySync } from "./sync.server";
+
+// ---------- Helpers ----------
+// Shape used by Search History / Breakdown / Monitoring UIs.
+// Built from mssql_asset_history rows so the UI stays unchanged.
+type HistoryShape = {
+  id: string;
+  asset_id: string | null;
+  asset_old_code: string | null;
+  ticket_code: string;
+  type: "PM" | "Claim" | "Monitor" | "Other";
+  title: string | null;
+  status: string | null;
+  opened_at: string | null;
+  closed_at: string | null;
+  sla_hours: number | null;
+  payload: Record<string, string | number | boolean | null>;
+};
+
+type MssqlRow = {
+  id: string;
+  old_code: string | null;
+  category: string | null;
+  status: string | null;
+  project: string | null;
+  media_type: string | null;
+  bkk_upc: string | null;
+  created_date: string | null;
+  updated_date: string | null;
+  inform_position: string | null;
+  inform_detail: string | null;
+  problem_category: string | null;
+  problem_equipment: string | null;
+  problem_detail: string | null;
+  solution_category: string | null;
+  solution_detail: string | null;
+  response_time: number | null;
+  resolve_time: number | null;
+  total_turnaround_time: number | null;
+  asset_status: string | null;
+};
+
+const MSSQL_HISTORY_COLS =
+  "id, old_code, category, status, project, media_type, bkk_upc, created_date, updated_date, inform_position, inform_detail, problem_category, problem_equipment, problem_detail, solution_category, solution_detail, response_time, resolve_time, total_turnaround_time, asset_status";
+
+function typeFromCategory(cat: string | null): HistoryShape["type"] {
+  const c = (cat ?? "").trim();
+  if (c === "Claim") return "Claim";
+  if (c.startsWith("PM")) return "PM";
+  if (c === "Monitoring") return "Monitor";
+  return "Other";
+}
+
+function toHistoryShape(h: MssqlRow, assetIdByCode: Map<string, string>): HistoryShape {
+  const payload: Record<string, unknown> = {
+    project: h.project,
+    oldCode: h.old_code,
+    mediaType: h.media_type,
+    bkkUpc: h.bkk_upc,
+    category: h.category,
+    createdDate: h.created_date,
+    updatedDate: h.updated_date,
+    status: h.status,
+    informPosition: h.inform_position,
+    informDetail: h.inform_detail,
+    problemCategory: h.problem_category,
+    problemEquipment: h.problem_equipment,
+    problemDetail: h.problem_detail,
+    solutionCategory: h.solution_category,
+    solutionDetail: h.solution_detail,
+    responseTime: h.response_time,
+    resolveTime: h.resolve_time,
+    totalTurnaroundTime: h.total_turnaround_time,
+    assetStatus: h.asset_status,
+  };
+  const type = typeFromCategory(h.category);
+  const title =
+    type === "Claim"
+      ? (h.solution_detail || h.solution_category || h.problem_detail || "Claim")
+      : type === "PM"
+        ? "Preventive Maintenance"
+        : "Monitoring Check";
+  return {
+    id: h.id,
+    asset_id: h.old_code ? assetIdByCode.get(h.old_code) ?? null : null,
+    asset_old_code: h.old_code,
+    ticket_code: h.id,
+    type,
+    title,
+    status: h.status,
+    opened_at: h.created_date,
+    closed_at: h.updated_date,
+    sla_hours: null,
+    payload: payload as Record<string, string | number | boolean | null>,
+  };
+}
 
 // ---------- Dashboard ----------
 export const getDashboardOverview = createServerFn({ method: "GET" })
@@ -14,9 +108,9 @@ export const getDashboardOverview = createServerFn({ method: "GET" })
       supabase.from("claim_tickets").select("ref_number, sla_status, age_hours", { count: "exact" }),
       supabase.from("monitoring_status").select("online, error_code"),
       supabase
-        .from("asset_history")
-        .select("id, type, title, status, opened_at, ticket_code, asset_old_code")
-        .order("opened_at", { ascending: false })
+        .from("mssql_asset_history")
+        .select("id, category, status, old_code, created_date, problem_detail, solution_detail")
+        .order("created_date", { ascending: false })
         .limit(15),
     ]);
 
@@ -68,18 +162,19 @@ export const getDashboardOverview = createServerFn({ method: "GET" })
       trendBuckets[key] = { pm: 0, claim: 0, monitor: 0 };
     }
     const { data: histAll } = await supabase
-      .from("asset_history")
-      .select("type, opened_at")
-      .gte("opened_at", new Date(now.getFullYear(), now.getMonth() - 4, 1).toISOString());
+      .from("mssql_asset_history")
+      .select("category, created_date")
+      .gte("created_date", new Date(now.getFullYear(), now.getMonth() - 4, 1).toISOString());
     for (const h of histAll ?? []) {
-      if (!h.opened_at) continue;
-      const d = new Date(h.opened_at);
+      if (!h.created_date) continue;
+      const d = new Date(h.created_date);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const b = trendBuckets[key];
       if (!b) continue;
-      if (h.type === "PM") b.pm++;
-      else if (h.type === "Claim") b.claim++;
-      else if (h.type === "Monitor") b.monitor++;
+      const t = typeFromCategory(h.category);
+      if (t === "PM") b.pm++;
+      else if (t === "Claim") b.claim++;
+      else if (t === "Monitor") b.monitor++;
     }
     const trendData = monthLabels.map((label, i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - (4 - i), 1);
@@ -88,13 +183,13 @@ export const getDashboardOverview = createServerFn({ method: "GET" })
       return { month: label, ...b };
     });
 
-    // stats
+    // stats — PM count this month (category LIKE 'PM%')
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const { count: pmThisMonth } = await supabase
-      .from("asset_history")
+      .from("mssql_asset_history")
       .select("id", { count: "exact", head: true })
-      .eq("type", "PM")
-      .gte("opened_at", monthStart);
+      .like("category", "PM%")
+      .gte("created_date", monthStart);
 
     const avgClaimAge = claims.length
       ? claims.reduce((s, c) => s + (Number(c.age_hours) || 0), 0) / claims.length / 24
@@ -113,12 +208,12 @@ export const getDashboardOverview = createServerFn({ method: "GET" })
       statusData,
       trendData,
       recent: history.map((h) => ({
-        id: h.ticket_code ?? h.id,
-        type: h.type,
+        id: h.id,
+        type: typeFromCategory(h.category),
         status: h.status ?? "—",
-        title: h.title ?? "",
-        opened_at: h.opened_at,
-        asset_old_code: h.asset_old_code,
+        title: h.solution_detail ?? h.problem_detail ?? "",
+        opened_at: h.created_date,
+        asset_old_code: h.old_code,
       })),
     };
   });
@@ -150,18 +245,21 @@ export const searchAssets = createServerFn({ method: "POST" })
     }
     const { data: assets } = await assetsQuery;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let history: any[] = [];
+    let history: HistoryShape[] = [];
     if (assets && assets.length) {
-      const ids = assets.map((a) => a.id);
-      const { data: h } = await supabase
-        .from("asset_history")
-        .select("id, asset_id, ticket_code, type, title, status, opened_at, closed_at, sla_hours")
-        .in("asset_id", ids)
-        .eq("type", data.tab)
-        .order("opened_at", { ascending: false })
+      const codes = assets.map((a) => a.old_code).filter(Boolean) as string[];
+      const assetIdByCode = new Map(assets.map((a) => [a.old_code, a.id] as const));
+      let q2 = supabase
+        .from("mssql_asset_history")
+        .select(MSSQL_HISTORY_COLS)
+        .in("old_code", codes)
+        .order("created_date", { ascending: false })
         .limit(200);
-      history = h ?? [];
+      if (data.tab === "PM") q2 = q2.like("category", "PM%");
+      else if (data.tab === "Claim") q2 = q2.eq("category", "Claim");
+      else if (data.tab === "Monitor") q2 = q2.eq("category", "Monitoring");
+      const { data: h } = await q2;
+      history = (h ?? []).map((r) => toHistoryShape(r as MssqlRow, assetIdByCode));
     }
     return { assets: assets ?? [], history };
   });
@@ -185,7 +283,7 @@ export const autocompleteAssets = createServerFn({ method: "POST" })
       .from("assets")
       .select("id, old_code, name, area, department, status, payload")
       .order("old_code", { ascending: true })
-      .limit(data.mediaType ? 200 : data.limit); // over-fetch when filtering by jsonb
+      .limit(data.mediaType ? 200 : data.limit);
     if (q) {
       query = query.or(`old_code.ilike.%${q}%,name.ilike.%${q}%,area.ilike.%${q}%`);
     }
@@ -229,7 +327,7 @@ export const getFilterOptions = createServerFn({ method: "GET" })
     };
   });
 
-// Fetch one asset + history; auto-sync from PlanB if local history is empty (or forced)
+// Fetch one asset + history (from MSSQL-sourced mssql_asset_history)
 export const getAssetWithHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) =>
@@ -246,36 +344,28 @@ export const getAssetWithHistory = createServerFn({ method: "POST" })
       .select("id, old_code, name, department, area, status, last_pm_at, last_claim_at, last_monitor_ok_at")
       .eq("old_code", data.oldCode)
       .maybeSingle();
-    if (!asset) return { asset: null, history: [], synced: false, syncError: null };
+    if (!asset) return { asset: null, history: [] as HistoryShape[], synced: false, syncError: null };
 
-    const { count } = await supabase
-      .from("asset_history")
-      .select("id", { count: "exact", head: true })
-      .eq("asset_id", asset.id);
-
-    let synced = false;
-    let syncError: string | null = null;
-    if (data.forceSync || (count ?? 0) === 0) {
-      try {
-        await runAssetHistorySync(data.oldCode);
-        synced = true;
-      } catch (e) {
-        syncError = (e as Error).message;
-      }
-    }
-
-    const { data: history } = await supabase
-      .from("asset_history")
-      .select("id, ticket_code, type, title, status, opened_at, closed_at, sla_hours")
-      .eq("asset_id", asset.id)
-      .eq("type", data.tab)
-      .order("opened_at", { ascending: false })
+    let q = supabase
+      .from("mssql_asset_history")
+      .select(MSSQL_HISTORY_COLS)
+      .eq("old_code", data.oldCode)
+      .order("created_date", { ascending: false })
       .limit(200);
-    return { asset, history: history ?? [], synced, syncError };
+    if (data.tab === "PM") q = q.like("category", "PM%");
+    else if (data.tab === "Claim") q = q.eq("category", "Claim");
+    else if (data.tab === "Monitor") q = q.eq("category", "Monitoring");
+    const { data: history } = await q;
+    const idMap = new Map([[asset.old_code, asset.id] as const]);
+    return {
+      asset,
+      history: (history ?? []).map((r) => toHistoryShape(r as MssqlRow, idMap)),
+      synced: false,
+      syncError: null,
+    };
   });
 
 // Comparison: fetch up to 5 assets + history filtered by tab + date range + slicers.
-// Auto-syncs from PlanB for any asset with no local history (best-effort, non-blocking errors).
 export const getAssetsComparison = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) =>
@@ -292,82 +382,52 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const { data: assets } = await supabase
-      .from("assets")
-      .select("id, old_code, name, department, area, status, payload, last_pm_at, last_claim_at, last_monitor_ok_at, latitude, longitude, installed_at")
-      .in("old_code", data.oldCodes);
-    const list = assets ?? [];
-
-    // Sync missing
-    const syncErrors: Record<string, string> = {};
-    for (const code of data.oldCodes) {
-      const a = list.find((x) => x.old_code === code);
-      const needsSync = data.forceSync || !a;
-      if (needsSync || a) {
-        const { count } = a
-          ? await supabase.from("asset_history").select("id", { count: "exact", head: true }).eq("asset_id", a.id)
-          : { count: 0 };
-        if (data.forceSync || (count ?? 0) === 0) {
-          try { await runAssetHistorySync(code); } catch (e) { syncErrors[code] = (e as Error).message; }
-        }
-      }
-    }
-
-
-    // re-fetch assets in case sync created any
     const { data: assets2 } = await supabase
       .from("assets")
       .select("id, old_code, name, department, area, status, payload, last_pm_at, last_claim_at, last_monitor_ok_at, latitude, longitude, installed_at")
       .in("old_code", data.oldCodes);
     const finalAssets = assets2 ?? [];
 
-    const ids = finalAssets.map((a) => a.id);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let history: any[] = [];
+    const assetIdByCode = new Map(finalAssets.map((a) => [a.old_code, a.id] as const));
+    let history: HistoryShape[] = [];
 
-    if (ids.length) {
+    if (finalAssets.length) {
+      const codes = finalAssets.map((a) => a.old_code).filter(Boolean) as string[];
       let q = supabase
-        .from("asset_history")
-        .select("id, asset_id, asset_old_code, ticket_code, type, title, status, opened_at, closed_at, sla_hours, payload")
-        .in("asset_id", ids)
-        .order("opened_at", { ascending: false })
+        .from("mssql_asset_history")
+        .select(MSSQL_HISTORY_COLS)
+        .in("old_code", codes)
+        .order("created_date", { ascending: false })
         .limit(2000);
-      if (data.tab !== "AssetHealth") q = q.eq("type", data.tab);
-      if (data.from) q = q.gte("opened_at", data.from);
-      if (data.to) q = q.lte("opened_at", data.to);
+      if (data.tab === "PM") q = q.like("category", "PM%");
+      else if (data.tab === "Claim") q = q.eq("category", "Claim");
+      else if (data.tab === "Monitor") q = q.eq("category", "Monitoring");
+      if (data.from) q = q.gte("created_date", data.from);
+      if (data.to) q = q.lte("created_date", data.to);
       const { data: h } = await q;
-      history = h ?? [];
+      history = (h ?? []).map((r) => toHistoryShape(r as MssqlRow, assetIdByCode));
     }
 
-    // Merge OPEN claim tickets (still in progress; not yet in asset_history) so
-    // ค้นหาประวัติป้าย shows in-flight statuses like "Working On" / "Pending".
+    // Merge OPEN claim tickets (in progress; not in mssql history yet)
     if ((data.tab === "Claim" || data.tab === "AssetHealth") && finalAssets.length) {
       const codes = finalAssets.map((a) => a.old_code).filter(Boolean) as string[];
       if (codes.length) {
-        // Fetch ALL open claim tickets for these assets regardless of from/to —
-        // open tickets often have NULL opened_at and should always be visible.
         const { data: openTix } = await supabase
           .from("claim_tickets")
           .select("ref_number, asset_old_code, title, status, opened_at, age_hours, sla_status, payload")
           .in("asset_old_code", codes);
-        const existingRefs = new Set(history.map((h) => h.ticket_code).filter(Boolean));
-        const assetByCode = new Map(finalAssets.map((a) => [a.old_code, a]));
+        const existingTitles = new Set(history.map((h) => h.id).filter(Boolean));
         const nowMs = Date.now();
-        const extras = (openTix ?? [])
-          .filter((t) => !existingRefs.has(t.ref_number))
+        const extras: HistoryShape[] = (openTix ?? [])
+          .filter((t) => !existingTitles.has(t.ref_number))
           .map((t) => {
-            const a = assetByCode.get(t.asset_old_code ?? "");
-            // Fallback chain for "Working On" tickets that may lack opened_at:
-            //   1) opened_at from claim_tickets (already derived from totalTime in sync)
-            //   2) compute from age_hours (now − age)
-            //   3) null (don't substitute with current time)
             const ageH = typeof t.age_hours === "number" ? t.age_hours : Number(t.age_hours ?? NaN);
             const derived =
               t.opened_at ??
               (Number.isFinite(ageH) ? new Date(nowMs - ageH * 3_600_000).toISOString() : null);
             return {
               id: `open-${t.ref_number}`,
-              asset_id: a?.id ?? null,
+              asset_id: t.asset_old_code ? assetIdByCode.get(t.asset_old_code) ?? null : null,
               asset_old_code: t.asset_old_code,
               ticket_code: t.ref_number,
               type: "Claim",
@@ -375,8 +435,8 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
               status: t.status,
               opened_at: derived,
               closed_at: null,
-              sla_hours: t.age_hours,
-              payload: t.payload,
+              sla_hours: typeof t.age_hours === "number" ? t.age_hours : null,
+              payload: (t.payload ?? {}) as Record<string, string | number | boolean | null>,
             };
           });
         if (extras.length) {
@@ -389,7 +449,7 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
       }
     }
 
-    // slicer filter (in-memory; reads asset's department/area/payload.mediaType)
+    // slicer filter (in-memory)
     const filtered = finalAssets.filter((a) => {
       if (data.department && (a.department ?? "") !== data.department) return false;
       if (data.region && (a.area ?? "") !== data.region) return false;
@@ -400,7 +460,6 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
       return true;
     });
 
-    // available slicer values across all selected assets
     const departments = Array.from(new Set(finalAssets.map((a) => a.department).filter(Boolean))) as string[];
     const regions = Array.from(new Set(finalAssets.map((a) => a.area).filter(Boolean))) as string[];
     const mediaTypes = Array.from(new Set(finalAssets.map((a) => {
@@ -412,7 +471,7 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
       assets: filtered,
       history,
       slicers: { departments, regions, mediaTypes },
-      syncErrors,
+      syncErrors: {} as Record<string, string>,
     };
   });
 
@@ -426,14 +485,18 @@ export const getAssetDetail = createServerFn({ method: "POST" })
       .select("*")
       .eq("old_code", data.oldCode)
       .maybeSingle();
-    if (!asset) return { asset: null, history: [] };
+    if (!asset) return { asset: null, history: [] as HistoryShape[] };
     const { data: history } = await supabase
-      .from("asset_history")
-      .select("*")
-      .eq("asset_id", asset.id)
-      .order("opened_at", { ascending: false })
+      .from("mssql_asset_history")
+      .select(MSSQL_HISTORY_COLS)
+      .eq("old_code", data.oldCode)
+      .order("created_date", { ascending: false })
       .limit(100);
-    return { asset, history: history ?? [] };
+    const idMap = new Map([[asset.old_code as string, asset.id as string] as const]);
+    return {
+      asset,
+      history: (history ?? []).map((r) => toHistoryShape(r as MssqlRow, idMap)),
+    };
   });
 
 // ---------- Asset PM Schedules (from Modern Corp `Asset_PM_Schedule` table) ----------
@@ -461,7 +524,6 @@ export const listClaims = createServerFn({ method: "POST" })
     z.object({ sla: z.enum(["all", "ontrack", "atrisk", "breached"]).optional().default("all") }).parse(i),
   )
   .handler(async ({ data, context }) => {
-    // Drive Claim Aging UI from the live snapshot table (1 ticket = 1 row).
     let q = context.supabase
       .from("claim_tickets")
       .select("*")
@@ -560,7 +622,6 @@ export const listAirtableSlots = createServerFn({ method: "GET" })
   });
 
 // ---------- Schema change detection ----------
-// Compares current Asset payload keys vs a saved snapshot to alert when upstream changes.
 export const getSchemaStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -617,17 +678,16 @@ export const getAssetProfile = createServerFn({ method: "POST" })
         .order("opened_at", { ascending: false }),
     ]);
     const list = assets ?? [];
-    const ids = list.map((a) => a.id);
+    const codes = list.map((a) => a.old_code).filter(Boolean) as string[];
     const now = new Date();
     const since = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-    const histRes = ids.length
+    const histRes = codes.length
       ? await supabase
-          .from("asset_history")
-          .select("asset_id, type, opened_at, closed_at")
-          .in("asset_id", ids)
-          .in("type", ["PM", "Claim"])
-          .gte("opened_at", since.toISOString())
-      : { data: [] as Array<{ asset_id: string | null; type: string; opened_at: string | null; closed_at: string | null }> };
+          .from("mssql_asset_history")
+          .select("old_code, category, created_date, updated_date")
+          .in("old_code", codes)
+          .gte("created_date", since.toISOString())
+      : { data: [] as Array<{ old_code: string | null; category: string | null; created_date: string | null; updated_date: string | null }> };
     const hist = histRes.data ?? [];
 
     const th = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
@@ -655,8 +715,6 @@ export const getAssetProfile = createServerFn({ method: "POST" })
         status = sev || "อยู่ระหว่างการปรับปรุง";
         statusTone = /finish|approved|closed|done|ok/i.test(sev) ? "ok" : "warning";
       }
-      // พิกัดจาก assets table; ถ้าไม่มี ให้ fallback ไปอ่านจาก payload ของ asset เอง
-      // (รองรับคีย์ latitudeLongitude / LatitudeLongitude รูปแบบ "lat, lng" และคีย์แยก lat/lng)
       let lat: number | null = a.latitude != null ? Number(a.latitude) : null;
       let lng: number | null = a.longitude != null ? Number(a.longitude) : null;
       if (lat == null || lng == null || Number.isNaN(lat) || Number.isNaN(lng)) {
@@ -676,12 +734,13 @@ export const getAssetProfile = createServerFn({ method: "POST" })
       }
       const counts = { PM: Array(12).fill(0) as number[], Claim: Array(12).fill(0) as number[] };
       for (const h of hist) {
-        if (h.asset_id !== a.id) continue;
-        const d = h.type === "Claim" ? h.opened_at : (h.closed_at ?? h.opened_at);
+        if (h.old_code !== a.old_code) continue;
+        const t = typeFromCategory(h.category);
+        const d = t === "Claim" ? h.created_date : (h.updated_date ?? h.created_date);
         if (!d) continue;
         const key = String(d).slice(0, 7);
         const idx = months.findIndex((m) => m.key === key);
-        if (idx >= 0 && (h.type === "PM" || h.type === "Claim")) counts[h.type as "PM" | "Claim"][idx]++;
+        if (idx >= 0 && (t === "PM" || t === "Claim")) counts[t][idx]++;
       }
       return {
         asset: a,

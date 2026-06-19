@@ -65,59 +65,6 @@ export type Database = {
         }
         Relationships: []
       }
-      asset_history: {
-        Row: {
-          asset_id: string | null
-          asset_old_code: string | null
-          closed_at: string | null
-          created_at: string
-          id: string
-          opened_at: string | null
-          payload: Json
-          sla_hours: number | null
-          status: string | null
-          ticket_code: string | null
-          title: string | null
-          type: string
-        }
-        Insert: {
-          asset_id?: string | null
-          asset_old_code?: string | null
-          closed_at?: string | null
-          created_at?: string
-          id?: string
-          opened_at?: string | null
-          payload?: Json
-          sla_hours?: number | null
-          status?: string | null
-          ticket_code?: string | null
-          title?: string | null
-          type: string
-        }
-        Update: {
-          asset_id?: string | null
-          asset_old_code?: string | null
-          closed_at?: string | null
-          created_at?: string
-          id?: string
-          opened_at?: string | null
-          payload?: Json
-          sla_hours?: number | null
-          status?: string | null
-          ticket_code?: string | null
-          title?: string | null
-          type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "asset_history_asset_id_fkey"
-            columns: ["asset_id"]
-            isOneToOne: false
-            referencedRelation: "assets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       asset_pm_schedules: {
         Row: {
           asset_old_code: string | null
@@ -424,37 +371,73 @@ export type Database = {
       }
       mssql_asset_history: {
         Row: {
-          action: string | null
-          action_date: string | null
-          asset_old_code: string | null
+          asset_status: string | null
+          bkk_upc: string | null
+          category: string | null
+          created_date: string | null
           id: string
-          payload: Json
+          inform_detail: string | null
+          inform_position: string | null
+          media_type: string | null
+          old_code: string | null
+          problem_category: string | null
+          problem_detail: string | null
+          problem_equipment: string | null
           project: string | null
-          ref_number: string | null
+          resolve_time: number | null
+          response_time: number | null
+          solution_category: string | null
+          solution_detail: string | null
           status: string | null
           synced_at: string
+          total_turnaround_time: number | null
+          updated_date: string | null
         }
         Insert: {
-          action?: string | null
-          action_date?: string | null
-          asset_old_code?: string | null
+          asset_status?: string | null
+          bkk_upc?: string | null
+          category?: string | null
+          created_date?: string | null
           id?: string
-          payload?: Json
+          inform_detail?: string | null
+          inform_position?: string | null
+          media_type?: string | null
+          old_code?: string | null
+          problem_category?: string | null
+          problem_detail?: string | null
+          problem_equipment?: string | null
           project?: string | null
-          ref_number?: string | null
+          resolve_time?: number | null
+          response_time?: number | null
+          solution_category?: string | null
+          solution_detail?: string | null
           status?: string | null
           synced_at?: string
+          total_turnaround_time?: number | null
+          updated_date?: string | null
         }
         Update: {
-          action?: string | null
-          action_date?: string | null
-          asset_old_code?: string | null
+          asset_status?: string | null
+          bkk_upc?: string | null
+          category?: string | null
+          created_date?: string | null
           id?: string
-          payload?: Json
+          inform_detail?: string | null
+          inform_position?: string | null
+          media_type?: string | null
+          old_code?: string | null
+          problem_category?: string | null
+          problem_detail?: string | null
+          problem_equipment?: string | null
           project?: string | null
-          ref_number?: string | null
+          resolve_time?: number | null
+          response_time?: number | null
+          solution_category?: string | null
+          solution_detail?: string | null
           status?: string | null
           synced_at?: string
+          total_turnaround_time?: number | null
+          updated_date?: string | null
         }
         Relationships: []
       }

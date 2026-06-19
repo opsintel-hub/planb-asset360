@@ -578,11 +578,9 @@ function PmInsightsPage() {
           {/* Report 3: Score */}
           <ScoreReport scoreRows={data.scoreRows} />
 
-          {/* Report 4: Frequency */}
-          <FrequencyReport
-            rows={data.frequency}
-            agg={data.freqAgg}
-          />
+          {/* Report 4: PM/Claim Calendar */}
+          <PmCalendarView days={data.calendarDays ?? []} />
+
         </>
       ) : null}
     </div>
@@ -1569,172 +1567,247 @@ function ScoreReport({
   );
 }
 
-type FreqAggRow = { name: string; pm: number; claim: number; assets: number };
+type CalendarDay = {
+  date: string;
+  pm: number;
+  claim: number;
+  pmCodes: string[];
+  claimCodes: string[];
+};
 
-function FrequencyReport({
-  rows,
-  agg,
-}: {
-  rows: {
-    assetCode: string;
-    department: string;
-    mediaType: string;
-    zone: string;
-    pmYear: number;
-    pmMonth: number;
-    avgGapDays: number | null;
-    claimsAfterPM: number;
-  }[];
-  agg: { byMediaType: FreqAggRow[]; byDepartment: FreqAggRow[]; byZone: FreqAggRow[] };
-}) {
-  const [filter, setFilter] = useState<string>("all");
-  const [mtFilter, setMtFilter] = useState<string>("all");
+const TH_MONTH_NAMES = [
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+];
+const TH_WEEKDAY = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+
+function ymKey(y: number, m: number) {
+  return `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+function parseYm(s: string): { y: number; m: number } {
+  const [y, m] = s.split("-").map(Number);
+  return { y, m: m - 1 };
+}
+function ymToIndex(s: string) {
+  const { y, m } = parseYm(s);
+  return y * 12 + m;
+}
+function buildYmOptions(): { value: string; label: string }[] {
+  const now = new Date();
+  const baseY = now.getFullYear();
+  const out: { value: string; label: string }[] = [];
+  // 5 years back to 1 year forward
+  for (let y = baseY - 5; y <= baseY + 1; y++) {
+    for (let m = 0; m < 12; m++) {
+      out.push({ value: ymKey(y, m), label: `${TH_MONTH_NAMES[m]} ${y + 543}` });
+    }
+  }
+  return out;
+}
+
+function PmCalendarView({ days }: { days: CalendarDay[] }) {
+  const now = new Date();
+  const defaultTo = ymKey(now.getFullYear(), now.getMonth());
+  const startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const defaultFrom = ymKey(startDate.getFullYear(), startDate.getMonth());
+
+  const [fromYm, setFromYm] = useState<string>(defaultFrom);
+  const [toYm, setToYm] = useState<string>(defaultTo);
   const [search, setSearch] = useState("");
-  const filtered = useMemo(
-    () =>
-      rows.filter((r) => {
-        if (filter !== "all" && r.department !== filter) return false;
-        if (mtFilter !== "all" && r.mediaType !== mtFilter) return false;
-        if (search && !r.assetCode.toLowerCase().includes(search.toLowerCase())) return false;
-        return true;
-      }),
-    [rows, filter, mtFilter, search],
-  );
-  const depts = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.department))).filter(Boolean).sort(),
-    [rows],
-  );
-  const mts = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.mediaType))).filter(Boolean).sort(),
-    [rows],
-  );
+
+  const ymOptions = useMemo(buildYmOptions, []);
+
+  // Build months list (inclusive)
+  const monthsList = useMemo(() => {
+    const from = parseYm(fromYm);
+    const to = parseYm(toYm);
+    let fromIdx = from.y * 12 + from.m;
+    let toIdx = to.y * 12 + to.m;
+    if (fromIdx > toIdx) [fromIdx, toIdx] = [toIdx, fromIdx];
+    const arr: { y: number; m: number }[] = [];
+    for (let i = fromIdx; i <= toIdx && arr.length < 36; i++) {
+      arr.push({ y: Math.floor(i / 12), m: i % 12 });
+    }
+    return arr;
+  }, [fromYm, toYm]);
+
+  // Filter days by search and group by date string
+  const dayMap = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const m = new Map<string, CalendarDay>();
+    for (const d of days) {
+      if (q) {
+        const hit =
+          d.pmCodes.some((c) => c.toLowerCase().includes(q)) ||
+          d.claimCodes.some((c) => c.toLowerCase().includes(q));
+        if (!hit) continue;
+      }
+      m.set(d.date, d);
+    }
+    return m;
+  }, [days, search]);
+
+  // Totals for visible months
+  const totals = useMemo(() => {
+    let pm = 0, claim = 0;
+    const fromIdx = ymToIndex(monthsList[0] ? ymKey(monthsList[0].y, monthsList[0].m) : fromYm);
+    const lastM = monthsList[monthsList.length - 1];
+    const toIdx = ymToIndex(lastM ? ymKey(lastM.y, lastM.m) : toYm);
+    for (const [date, v] of dayMap) {
+      const [yy, mm] = date.split("-").map(Number);
+      const idx = yy * 12 + (mm - 1);
+      if (idx >= fromIdx && idx <= toIdx) {
+        pm += v.pm;
+        claim += v.claim;
+      }
+    }
+    return { pm, claim };
+  }, [dayMap, monthsList, fromYm, toYm]);
+
   return (
     <Card>
       <CardHeader>
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <CardTitle>ความถี่ของการ PM</CardTitle>
+            <CardTitle>ปฏิทินกิจกรรม PM / Claim</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              ป้ายไหนทำ PM กี่ครั้งต่อปี/เดือน · ห่างกันเฉลี่ยกี่วัน (นับจาก PM ครั้งก่อนหน้า) · มี Claim ตามมาภายหลังกี่ครั้ง · กรองตาม filter ด้านบน
-            </p>
-            <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-              <b>วิธีนับ "Claim ตามมาภายหลัง":</b> นับจำนวนคู่ (PM → Claim) ของป้ายเดียวกัน
-              โดย Claim ต้องเปิดหลัง PM ปิดงาน และ <u>ภายใน 1–90 วัน</u> เท่านั้น (เกิน 90 วันถือว่าไม่เกี่ยวข้องกับ PM ครั้งนั้น)
-              ตัวเลขในคอลัมน์นี้ <b>สัมพันธ์โดยตรง</b> กับรายงานด้านบน:
-              ผลรวมของทุกแถว = ผลรวมแท่ง Aging 1–3 ถึง 61–90 วัน = จำนวนแถวในตาราง "PM → Claim ที่จับคู่ได้"
+              ดูภาพรวมว่าวันไหนมีการ PM (สีฟ้า) และวันไหนมีการเปิด Claim (สีแดง) เพื่อตามดูระยะห่างระหว่าง PM กับวันที่ป้ายเสีย
+              · ใช้ "วันที่ Update" ของแต่ละ ticket · เลื่อนเมาส์ที่ตัวเลขเพื่อดูรหัสป้าย
             </p>
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-center">
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-muted-foreground">จาก</span>
+              <Select value={fromYm} onValueChange={setFromYm}>
+                <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {ymOptions.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-muted-foreground">ถึง</span>
+              <Select value={toYm} onValueChange={setToYm}>
+                <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {ymOptions.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
+                </SelectContent>
+              </Select>
+            </div>
             <Input
               placeholder="ค้นหารหัสป้าย"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-48"
+              className="w-44 h-9"
             />
-            <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="w-44"><SelectValue placeholder="แผนก" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">ทุกแผนก</SelectItem>
-                {depts.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}
-              </SelectContent>
-            </Select>
-            <Select value={mtFilter} onValueChange={setMtFilter}>
-              <SelectTrigger className="w-52"><SelectValue placeholder="Media Type" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">ทุก Media Type</SelectItem>
-                {mts.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}
-              </SelectContent>
-            </Select>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-4 mt-3 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "oklch(0.62 0.18 250)" }} />
+            <span>PM</span>
+            <span className="text-muted-foreground">({totals.pm.toLocaleString()})</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "oklch(0.6 0.22 25)" }} />
+            <span>Claim</span>
+            <span className="text-muted-foreground">({totals.claim.toLocaleString()})</span>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Multi-dimension charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <FreqAggBar title="Top 15 ตาม Media Type" data={agg.byMediaType} />
-          <FreqAggBar title="แยกตามแผนก" data={agg.byDepartment} />
-          <FreqAggDonut title="สัดส่วน PM ตาม Media Type (Top 8)" data={agg.byMediaType.slice(0, 8)} />
+      <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {monthsList.map((mo) => (
+            <MonthCell key={`${mo.y}-${mo.m}`} year={mo.y} month={mo.m} dayMap={dayMap} />
+          ))}
         </div>
-
-        <div className="max-h-96 overflow-auto border rounded">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>รหัสป้าย</TableHead>
-                <TableHead>Media Type</TableHead>
-                <TableHead>แผนก</TableHead>
-                <TableHead>พื้นที่</TableHead>
-                <TableHead className="text-right" title="จำนวนครั้งที่ทำ PM (Pass) ภายในปีนี้">#PM ปีนี้ (ครั้ง)</TableHead>
-                <TableHead className="text-right" title="จำนวนครั้งที่ทำ PM (Pass) ภายในเดือนปัจจุบัน">#PM เดือนนี้ (ครั้ง)</TableHead>
-                <TableHead className="text-right" title="ค่าเฉลี่ยจำนวนวันระหว่าง PM แต่ละครั้ง (นับจากวันที่ PM Pass ครั้งก่อนหน้าถึงครั้งถัดไป)">เฉลี่ยห่าง (วัน/ครั้ง)</TableHead>
-                <TableHead className="text-right" title="จำนวน Claim ที่เปิดหลัง PM Pass (นับเฉพาะ Claim ที่เกิดหลัง PM ในช่วง filter)">Claim หลัง PM (ครั้ง)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((r) => (
-                <TableRow key={r.assetCode}>
-                  <TableCell className="font-mono text-xs">{r.assetCode}</TableCell>
-                  <TableCell className="text-xs">{r.mediaType}</TableCell>
-                  <TableCell className="text-xs">{r.department}</TableCell>
-                  <TableCell className="text-xs">{r.zone || "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">{r.pmYear}</TableCell>
-                  <TableCell className="text-right tabular-nums">{r.pmMonth}</TableCell>
-                  <TableCell className="text-right tabular-nums">{r.avgGapDays ?? "—"}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {r.claimsAfterPM > 0 ? (
-                      <Badge tone={r.claimsAfterPM >= 3 ? "danger" : "warning"}>{r.claimsAfterPM}</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">0</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        {monthsList.length === 0 && (
+          <div className="text-center text-muted-foreground py-6 text-sm">เลือกช่วงเดือนเริ่ม–สิ้นสุดเพื่อแสดงปฏิทิน</div>
+        )}
       </CardContent>
     </Card>
   );
 }
 
-function FreqAggBar({ title, data }: { title: string; data: FreqAggRow[] }) {
+function MonthCell({
+  year, month, dayMap,
+}: { year: number; month: number; dayMap: Map<string, CalendarDay> }) {
+  const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  let monthPm = 0, monthClaim = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const v = dayMap.get(key);
+    if (v) { monthPm += v.pm; monthClaim += v.claim; }
+  }
+
   return (
-    <div className="border rounded-lg p-3">
-      <div className="text-xs font-semibold mb-2">{title}</div>
-      <div className="h-64">
-        <ResponsiveContainer>
-          <BarChart data={data} layout="vertical" margin={{ left: 8, right: 16 }}>
-            <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-            <XAxis type="number" />
-            <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10 }} />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="pm" name="PM" fill="oklch(0.7 0.14 160)" />
-            <Bar dataKey="claim" name="Claim หลัง PM" fill="oklch(0.6 0.2 25)" />
-          </BarChart>
-        </ResponsiveContainer>
+    <div className="border rounded-lg p-2.5 bg-card">
+      <div className="flex items-baseline justify-between mb-2">
+        <div className="font-semibold text-sm">
+          {TH_MONTH_NAMES[month]} <span className="text-muted-foreground font-normal">{year + 543}</span>
+        </div>
+        <div className="flex gap-1.5 text-[10px]">
+          {monthPm > 0 && (
+            <span className="px-1.5 rounded" style={{ background: "oklch(0.62 0.18 250 / 0.15)", color: "oklch(0.45 0.18 250)" }}>PM {monthPm}</span>
+          )}
+          {monthClaim > 0 && (
+            <span className="px-1.5 rounded" style={{ background: "oklch(0.6 0.22 25 / 0.15)", color: "oklch(0.5 0.2 25)" }}>Claim {monthClaim}</span>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-0.5 text-[10px] text-muted-foreground mb-1">
+        {TH_WEEKDAY.map((w, i) => (
+          <div key={i} className="text-center font-medium">{w}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-0.5">
+        {cells.map((d, i) => {
+          if (d === null) return <div key={i} className="aspect-square" />;
+          const key = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          const v = dayMap.get(key);
+          const hasPm = !!v && v.pm > 0;
+          const hasClaim = !!v && v.claim > 0;
+          const tip = v
+            ? [
+                hasPm ? `PM (${v.pm}): ${v.pmCodes.join(", ")}${v.pm > v.pmCodes.length ? "..." : ""}` : "",
+                hasClaim ? `Claim (${v.claim}): ${v.claimCodes.join(", ")}${v.claim > v.claimCodes.length ? "..." : ""}` : "",
+              ].filter(Boolean).join("\n")
+            : "";
+          return (
+            <div
+              key={i}
+              title={tip || undefined}
+              className={`aspect-square rounded text-[10px] flex flex-col items-center justify-start py-0.5 px-0.5 border ${
+                v ? "border-border" : "border-transparent"
+              } ${hasPm && hasClaim ? "bg-muted/40" : ""}`}
+            >
+              <div className="text-foreground/70 leading-none">{d}</div>
+              <div className="flex flex-col gap-0.5 mt-0.5 items-center">
+                {hasPm && (
+                  <span
+                    className="text-[9px] leading-none px-1 rounded-sm text-white font-medium"
+                    style={{ background: "oklch(0.62 0.18 250)" }}
+                  >{v!.pm}</span>
+                )}
+                {hasClaim && (
+                  <span
+                    className="text-[9px] leading-none px-1 rounded-sm text-white font-medium"
+                    style={{ background: "oklch(0.6 0.22 25)" }}
+                  >{v!.claim}</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function FreqAggDonut({ title, data }: { title: string; data: FreqAggRow[] }) {
-  return (
-    <div className="border rounded-lg p-3">
-      <div className="text-xs font-semibold mb-2">{title}</div>
-      <div className="h-64">
-        <ResponsiveContainer>
-          <PieChart>
-            <Pie data={data} dataKey="pm" nameKey="name" innerRadius={40} outerRadius={80} paddingAngle={2}>
-              {data.map((_, i) => (
-                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: 10 }} />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-}

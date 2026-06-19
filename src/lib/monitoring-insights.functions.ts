@@ -407,7 +407,7 @@ export const getMonitoringInsights = createServerFn({ method: "POST" })
         date: src.slice(0, 10),
         status: h.status ?? "",
         category: (h.category as string) ?? "",
-        department: "",
+        department: (h.old_code ? assetMap.get(h.old_code)?.department : "") ?? "",
       };
       if (h.category === "Monitoring") {
         row.pm++;

@@ -225,14 +225,21 @@ export const syncClaimsNow = createServerFn({ method: "POST" })
     return result;
   });
 
+// Deprecated: Plan B per-asset HTTP sync was removed when we consolidated to MSSQL.
+// Kept as a no-op so any old caller fails loudly rather than silently writing stale data.
 export const syncAssetHistoryNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => z.object({ oldCode: z.string().min(1).max(100) }).parse(i))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ context }) => {
     await assertAdmin(context.userId);
-    const result = await runAssetHistorySync(data.oldCode);
-    return result;
+    return {
+      ok: false,
+      rows: 0,
+      error:
+        "Per-asset Plan B sync ถูกยกเลิกแล้ว — ใช้การ Sync จาก MSSQL (Settings → AssetHistory) เป็นแหล่งเดียว",
+    };
   });
+
 
 export const syncAssetsNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

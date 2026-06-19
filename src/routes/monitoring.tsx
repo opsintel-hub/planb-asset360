@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { memo, useMemo, useState } from "react";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+
 import {
   BarChart,
   Bar,

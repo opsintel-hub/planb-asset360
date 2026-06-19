@@ -631,12 +631,18 @@ export const getPmInsights = createServerFn({ method: "POST" })
     type DayBuckets = { pm: Set<string>; claim: Set<string> };
     const calMap = new Map<string, DayBuckets>();
     for (const h of filteredHist) {
-      const src = h.updated_at ?? h.event_ts ?? h.created_at ?? "";
+      // Same date rule as the search-history view:
+      //   PM    → updated_at (PM performed date)
+      //   Claim → created_at (ticket opened date)
+      const src =
+        h.type === "PM"
+          ? (h.updated_at ?? h.event_ts ?? h.created_at ?? "")
+          : (h.created_at ?? h.event_ts ?? h.updated_at ?? "");
       const date = src.slice(0, 10);
       if (!date) continue;
       let v = calMap.get(date);
       if (!v) { v = { pm: new Set(), claim: new Set() }; calMap.set(date, v); }
-      const key = h.asset_old_code || h.ref_number || "";
+      const key = h.ref_number || h.asset_old_code || "";
       if (h.type === "PM") v.pm.add(key);
       else if (h.type === "Claim") v.claim.add(key);
     }

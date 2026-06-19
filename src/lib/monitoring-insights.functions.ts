@@ -199,12 +199,12 @@ export const getMonitoringInsights = createServerFn({ method: "POST" })
     function inScopeHist(h: HistRow): boolean {
       if (h.old_code && deletedSet.has(h.old_code)) return false;
       const a = h.old_code ? assetMap.get(h.old_code) : undefined;
-      const dept = h.asset_department ?? a?.department ?? "";
+      const dept = a?.department ?? "";
       if (depSet.size && !depSet.has(dept)) return false;
       const zone = h.bkk_upc ?? a?.zone ?? "";
       if (zoneSet.size && !zoneSet.has(zone)) return false;
       if (!matchProject(h.project ?? "", dept)) return false;
-      const mt = h.media_type || h.asset_media_type || a?.asset_media_type || "";
+      const mt = h.media_type || a?.asset_media_type || "";
       if (mtSet.size && !mtSet.has(mt)) return false;
       if (assetCodeQ && (h.old_code ?? "").toLowerCase() !== assetCodeQ) return false;
       return true;
@@ -347,7 +347,7 @@ export const getMonitoringInsights = createServerFn({ method: "POST" })
       const a = assetMap.get(code);
       for (const m of mons) {
         if ((m.asset_status ?? "").toLowerCase() !== "pass") continue;
-        const mTs = new Date(m.updated_date ?? m.event_ts ?? m.created_date ?? 0).getTime();
+        const mTs = new Date(m.updated_date ?? m.created_date ?? 0).getTime();
         if (!Number.isFinite(mTs)) continue;
         const next = claims.find((c) => c.ts >= mTs);
         if (!next) continue;
@@ -356,14 +356,14 @@ export const getMonitoringInsights = createServerFn({ method: "POST" })
         const c = next.row;
         pairs.push({
           assetCode: code,
-          department: m.asset_department ?? a?.department ?? "",
-          mediaType: m.media_type || m.asset_media_type || a?.asset_media_type || "(ไม่ระบุ)",
+          department: a?.department ?? "",
+          mediaType: m.media_type || a?.asset_media_type || "(ไม่ระบุ)",
           zone: m.bkk_upc ?? a?.zone ?? "",
           project: m.project ?? "",
           pmDate: (m.updated_date ?? m.created_date ?? "").slice(0, 10),
           claimDate: (c.created_date ?? "").slice(0, 10),
-          pmTicket: m.ref_number ?? "",
-          claimTicket: c.ref_number ?? "",
+          pmTicket: "",
+          claimTicket: "",
           days,
           problemCategory: c.problem_category || "(ไม่ระบุ)",
           problemDetail: c.problem_detail || "(ไม่ระบุ)",
@@ -402,7 +402,7 @@ export const getMonitoringInsights = createServerFn({ method: "POST" })
       const row = monthlyMap.get(mi)!;
       const det = monthlyDetailsMap.get(mi)!;
       const item: MonthTicket = {
-        ticket: h.ref_number ?? "",
+        ticket: "",
         assetCode: h.old_code ?? "",
         date: src.slice(0, 10),
         status: h.status ?? "",
@@ -481,19 +481,19 @@ export const getMonitoringInsights = createServerFn({ method: "POST" })
       if (h.category !== "Monitoring") continue;
       const a = h.old_code ? assetMap.get(h.old_code) : undefined;
       monRowsOut.push({
-        ticket: h.ref_number ?? "",
+        ticket: "",
         assetCode: h.old_code ?? "",
         assetName: a?.name ?? "",
         project: h.project ?? "",
         zone: h.bkk_upc ?? a?.zone ?? "",
-        mediaType: h.media_type || h.asset_media_type || a?.asset_media_type || "",
-        department: h.asset_department ?? a?.department ?? "",
+        mediaType: h.media_type || a?.asset_media_type || "",
+        department: a?.department ?? "",
         category: (h.category as string) ?? "",
         problemCategory: h.problem_category ?? "",
         problemDetail: h.problem_detail ?? "",
         createdDate: (h.created_date ?? "").slice(0, 19).replace("T", " "),
         updatedDate: (h.updated_date ?? "").slice(0, 19).replace("T", " "),
-        eventDate: (h.event_ts ?? "").slice(0, 19).replace("T", " "),
+        eventDate: ("").slice(0, 19).replace("T", " "),
         ticketStatus: h.status ?? "",
         assetStatus: h.asset_status ?? "",
         assetActive: h.old_code && deletedSet.has(h.old_code) ? "Deleted" : "Active",

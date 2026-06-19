@@ -723,7 +723,7 @@ function AgingTab({ aging, pairs, earlySymptoms }: { aging: MonitoringData["agin
           <CardContent className="pt-6">
             <SectionTitle
               title="ตรวจเสร็จ → เปิด Claim (ช่วงเวลา)"
-              info="ที่มา: คู่ Monitor.closed_at → Claim.opened_at ของ Old Code เดียวกัน (จาก asset_history) เฉพาะที่ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
+              info="ที่มา: คู่ Monitor.closed_at → Claim.opened_at ของ Old Code เดียวกัน (จาก mssql_asset_history) เฉพาะที่ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
             />
             <FormulaNote>
               สูตร: gap = floor((Claim.opened_at − Monitor.closed_at)/24h) แล้วจัดกลุ่มเป็น 0–3, 4–7, 8–15, 16–30, 31–60, 61–90, &gt;90 วัน. ผลรวมของ 0–3 + 4–7 ต้องเท่ากับ KPI "ตรวจแล้วเสียภายใน 7 วัน"

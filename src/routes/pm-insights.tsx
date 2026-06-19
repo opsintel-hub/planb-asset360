@@ -172,59 +172,53 @@ const AssetCodeCombobox = memo(function AssetCodeCombobox({
   const showPanel = (focused || open) && suggestions.length > 0;
 
   return (
-    <Popover open={showPanel} onOpenChange={setOpen}>
-      <PopoverAnchor asChild>
-        <div className="relative">
-          <Input
-            placeholder="พิมพ์รหัสป้ายเพื่อค้นหา..."
-            value={value}
-            onChange={(e) => {
-              onChange(e.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setTimeout(() => setFocused(false), 150)}
-          />
-          {value && (
+    <div className="relative">
+      <Input
+        placeholder="พิมพ์รหัสป้ายเพื่อค้นหา..."
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
+      />
+      {value && (
+        <button
+          type="button"
+          aria-label="ล้างคำค้น"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          onClick={() => onChange("")}
+        >
+          <X className="size-3.5" />
+        </button>
+      )}
+      {showPanel && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-popover text-popover-foreground shadow-md p-1 max-h-60 overflow-auto">
+          {suggestions.map((c) => (
             <button
+              key={c}
               type="button"
-              aria-label="ล้างคำค้น"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              onClick={() => onChange("")}
+              className="w-full text-left px-2 py-1 text-xs rounded hover:bg-accent font-mono"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange(c);
+                setOpen(false);
+                setFocused(false);
+              }}
             >
-              <X className="size-3.5" />
+              {c}
             </button>
+          ))}
+          {options.length === 0 && (
+            <div className="px-2 py-2 text-xs text-muted-foreground">ไม่มีรหัสป้ายที่ตรงกับตัวกรอง</div>
           )}
         </div>
-      </PopoverAnchor>
-      <PopoverContent
-        align="start"
-        sideOffset={4}
-        className="w-[--radix-popover-trigger-width] p-1 max-h-60 overflow-auto"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
-        {suggestions.map((c) => (
-          <button
-            key={c}
-            type="button"
-            className="w-full text-left px-2 py-1 text-xs rounded hover:bg-accent font-mono"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onChange(c);
-              setOpen(false);
-              setFocused(false);
-            }}
-          >
-            {c}
-          </button>
-        ))}
-        {options.length === 0 && (
-          <div className="px-2 py-2 text-xs text-muted-foreground">ไม่มีรหัสป้ายที่ตรงกับตัวกรอง</div>
-        )}
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   );
 });
+
 
 type AppliedFilters = {
   departments: string[];

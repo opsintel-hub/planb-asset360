@@ -1,29 +1,48 @@
-## เปลี่ยนกรอบ "ความถี่ของการ PM" → Calendar View
 
-ลบกราฟแท่ง/โดนัท/ตารางคู่ PM-Claim ทั้งหมดในกรอบนี้ แทนด้วย Calendar 12 เดือน แสดงวันที่มี PM (สีฟ้า) และ Claim (สีแดง)
+# ปรับเมนู Monitoring ให้เหมือน PM Insight
 
-### Filter ด้านบน Calendar
-- เดือน/ปี เริ่มต้น (เช่น ม.ค. 2025)
-- เดือน/ปี สิ้นสุด (เช่น ธ.ค. 2025)
-- ค้นหารหัสป้าย, แผนก, Media Type (คงไว้เหมือนเดิม)
-- Default: 12 เดือนล่าสุดจนถึงเดือนปัจจุบัน
+ยกโครงสร้างทั้งหมดของ PM Insight มาใช้กับหน้า Monitoring โดยเปลี่ยน source filter จาก category = PM เป็น category = Monitoring
 
-### Calendar Layout
-- แสดง grid 12 เดือนในหน้าเดียว (4 คอลัมน์ × 3 แถว บน desktop, responsive ลงเป็น 2/1 คอลัมน์)
-- แต่ละเดือนเป็น mini-calendar (7 คอลัมน์ × 6 แถว) มีหัวเดือน-ปี
-- แต่ละวันแสดง 2 dot/badge เล็กๆ:
-  - 🔵 ฟ้า = วันนั้นมี PM (จาก updatedDate ของ history ที่ category=PM)
-  - 🔴 แดง = วันนั้นมี Claim (จาก updatedDate ของ history ที่ category=Claim หรือไม่ใช่ PM)
-- ถ้าวันนั้นมีหลายรายการ แสดงตัวเลขจำนวนข้างๆ dot
-- Hover/Click วัน → tooltip/popover แสดงรายการ ticket วันนั้น (รหัสป้าย, ticket no, status)
+## โครงสร้างหน้าใหม่ (Monitoring)
 
-### Logic
-- Source: `pmRows` ที่มีอยู่แล้ว + ดึง claim rows เพิ่ม (จาก `mv_pm_history` type=Claim) ใน `getPmInsightsData` server fn
-- กรองตาม filter ด้านบน (assetCode, department, mediaType) และตามช่วงเดือน/ปีที่เลือก
-- คำนวณ "PM แล้วกี่วันเสีย": สำหรับแต่ละ asset หา PM date ที่ใกล้ที่สุดก่อน claim → แสดงใน tooltip ของวัน claim
-- ใช้สีจาก design tokens (เพิ่ม `--pm-blue`, `--claim-red` ใน `src/styles.css` ถ้ายังไม่มี)
+1. **Filter Bar (ด้านบน)** — เหมือน PM Insight
+   - Project, Zone, Department, Media Type, ช่วงวันที่, ค้นหา Old Code/ป้าย
 
-### ไฟล์ที่แก้
-- `src/lib/pm-insights.functions.ts` — เพิ่ม claimRows ใน return + helper หา PM→Claim gap
-- `src/routes/pm-insights.tsx` — ลบ `PmClaimPairsSection` (กรอบเดิม) สร้าง `PmCalendarView` component ใหม่
-- `src/styles.css` — เพิ่ม semantic tokens สำหรับสี PM/Claim
+2. **Summary Cards 4 ใบ** (ล้อตาม filter)
+   - Total Monitoring (จำนวน ticket Monitoring ทั้งหมด)
+   - Asset Status Pass
+   - Asset Status Fail
+   - Asset Status Skip
+   - + การ์ดเสริม: ระยะเวลา Monitoring เฉลี่ย (วัน)
+
+3. **กราฟแท่งรายเดือน** — PM vs Claim → เปลี่ยนเป็น **Monitoring vs Claim**
+   - สีเขียว = Monitoring (Pass-style), สีแดง = Claim
+   - ใช้ pickDate เดียวกัน (updated_at สำหรับ Monitoring, created_at สำหรับ Claim)
+
+4. **Calendar View 12 เดือน**
+   - **เขียว = Pass**, **แดง = Fail** (ตามที่ผู้ใช้เลือก)
+   - dot/badge ในแต่ละวัน hover เห็นรายการ asset
+   - month/year range picker เหมือน PM Insight
+
+5. **ตารางรายการ Monitoring ทั้งหมด** (show/hide column, แนวนอน scroll)
+   - คอลัมน์เหมือน PM Insight: Old Code, Project, Zone, Media Type, Department, Created/Opened/Closed/Updated, Ticket No, Status, Category, Sub-category, อาการ, Asset Status, Last Inspection
+
+## รายละเอียดทางเทคนิค
+
+### `src/lib/monitoring.functions.ts`
+- เพิ่ม `getMonitoringInsightsData` (mirror ของ `getPmInsightsData`) ที่ query `mssql_asset_history` เงื่อนไข `category ILIKE '%monitor%'` (แทน PM)
+- คืนค่า: filters options, summary (total/pass/fail/skip/avgDays), monthlyChart, calendarDays (เขียว=pass, แดง=fail), tableRows
+- คง claimRows สำหรับกราฟ Monitoring vs Claim (อ่านจาก `mv_pm_history` หรือ asset_history category Claim — ยืนยันด้วย logic เดียวกับ PM Insight)
+
+### `src/routes/monitoring.tsx`
+- Refactor ทั้งไฟล์ให้ใช้โครงเดียวกับ `pm-insights.tsx`
+- Reuse component: `SummaryCard`, `MonthCell`, calendar, table show/hide
+- เปลี่ยน label/heading เป็น "Monitoring Insights"
+- เก็บฟีเจอร์เดิมของ Monitoring ที่ผู้ใช้ใช้อยู่ (search ป้าย) ให้รวมเข้ากับ filter bar ใหม่
+
+### `src/styles.css`
+- เพิ่ม token `--monitor-pass` (เขียว) และ reuse `--claim-red` (แดง) สำหรับ calendar
+
+## หมายเหตุ
+- ไม่แตะ schema/migration — ใช้ตารางเดิม (`mssql_asset_history`, `mv_pm_history`)
+- โครงทั้งหมด mirror PM Insight 1:1 เพื่อ UX สอดคล้องกัน

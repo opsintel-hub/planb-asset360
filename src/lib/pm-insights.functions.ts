@@ -535,6 +535,51 @@ export const getPmInsights = createServerFn({ method: "POST" })
 
     pairs.sort((a, b) => a.days - b.days);
 
+    // ---- All PM rows (for Show/Hide list in UI) ----
+    type PmRow = {
+      ticket: string;
+      assetCode: string;
+      assetName: string;
+      project: string;
+      zone: string;
+      mediaType: string;
+      department: string;
+      category: string;
+      problemCategory: string;
+      problemDetail: string;
+      createdDate: string;
+      updatedDate: string;
+      eventDate: string;
+      ticketStatus: string;
+      assetStatus: string;
+      assetActive: "Active" | "Deleted";
+    };
+    const pmRows: PmRow[] = [];
+    for (const h of filteredHist) {
+      if (h.type !== "PM") continue;
+      const a = h.asset_old_code ? assetMap.get(h.asset_old_code) : undefined;
+      pmRows.push({
+        ticket: h.ref_number ?? "",
+        assetCode: h.asset_old_code ?? "",
+        assetName: a?.name ?? "",
+        project: h.project ?? "",
+        zone: h.bkk_upc ?? "",
+        mediaType: h.media_type || h.asset_media_type || a?.asset_media_type || "",
+        department: h.asset_department ?? a?.department ?? "",
+        category: h.category ?? "",
+        problemCategory: h.problem_category ?? "",
+        problemDetail: h.problem_detail ?? "",
+        createdDate: (h.created_at ?? "").slice(0, 19).replace("T", " "),
+        updatedDate: (h.updated_at ?? "").slice(0, 19).replace("T", " "),
+        eventDate: (h.event_ts ?? "").slice(0, 19).replace("T", " "),
+        ticketStatus: h.status ?? "",
+        assetStatus: h.asset_status ?? "",
+        assetActive: h.asset_old_code && deletedSet.has(h.asset_old_code) ? "Deleted" : "Active",
+      });
+    }
+    pmRows.sort((a, b) => (b.createdDate || "").localeCompare(a.createdDate || ""));
+    const pmRowsTotal = pmRows.length;
+
     return {
       kpi,
       monthly,
@@ -547,6 +592,8 @@ export const getPmInsights = createServerFn({ method: "POST" })
       frequency: frequencyTop,
       freqAgg,
       pairs: pairs.slice(0, 2000),
+      pmRows: pmRows.slice(0, 10000),
+      pmRowsTotal,
       filters: {
         departments: Array.from(allDepts).sort(),
         zones: Array.from(allZones).sort(),
@@ -555,6 +602,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       },
     };
   });
+
 
 // Lightweight server fn — returns filter dropdown options + per-asset metadata
 // so the client can interlock filters (project Static → only Static codes/zones/

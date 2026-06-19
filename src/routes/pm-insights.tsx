@@ -859,6 +859,188 @@ function NoPmAssetList({ rows }: { rows: { assetCode: string; name: string; depa
   );
 }
 
+type PmRowItem = {
+  ticket: string;
+  assetCode: string;
+  assetName: string;
+  project: string;
+  zone: string;
+  mediaType: string;
+  department: string;
+  category: string;
+  problemCategory: string;
+  problemDetail: string;
+  createdDate: string;
+  updatedDate: string;
+  eventDate: string;
+  ticketStatus: string;
+  assetStatus: string;
+  assetActive: "Active" | "Deleted";
+};
+
+function PmRowsList({ rows, total }: { rows: PmRowItem[]; total: number }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<20 | 50 | 100 | 200>(50);
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return rows;
+    return rows.filter((r) =>
+      r.assetCode.toLowerCase().includes(s) ||
+      r.ticket.toLowerCase().includes(s) ||
+      r.department.toLowerCase().includes(s) ||
+      r.problemDetail.toLowerCase().includes(s) ||
+      r.problemCategory.toLowerCase().includes(s) ||
+      r.ticketStatus.toLowerCase().includes(s),
+    );
+  }, [rows, q]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const cur = Math.min(page, totalPages);
+  const slice = filtered.slice((cur - 1) * pageSize, cur * pageSize);
+
+  const exportCsv = () => {
+    const header = [
+      "Ticket", "Old Code", "ชื่อ", "Project", "Zone", "Media Type", "แผนก",
+      "Category", "Problem Category", "Problem Detail",
+      "Created", "Updated", "Event", "Ticket Status", "Asset Status (PM)", "Asset",
+    ];
+    const esc = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
+    const csv = [
+      header.join(","),
+      ...filtered.map((r) => [
+        r.ticket, r.assetCode, r.assetName, r.project, r.zone, r.mediaType, r.department,
+        r.category, r.problemCategory, r.problemDetail,
+        r.createdDate, r.updatedDate, r.eventDate, r.ticketStatus, r.assetStatus, r.assetActive,
+      ].map(esc).join(",")),
+    ].join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pm-rows-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const truncated = total > rows.length;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="text-base">
+            รายการ PM ทั้งหมด ({total.toLocaleString()}{truncated ? ` · แสดง ${rows.length.toLocaleString()}` : ""})
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0}>
+              Export CSV
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setOpen((o) => !o)}>
+              {open ? <><ChevronUp className="size-4" /> ซ่อน</> : <><ChevronDown className="size-4" /> แสดงรายการ</>}
+            </Button>
+          </div>
+        </div>
+        {open && (
+          <div className="mt-2">
+            <Input
+              placeholder="ค้นหา รหัสป้าย / Ticket / แผนก / อาการ / สถานะ"
+              value={q}
+              onChange={(e) => { setQ(e.target.value); setPage(1); }}
+              className="max-w-md"
+            />
+          </div>
+        )}
+      </CardHeader>
+      {open && (
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ticket</TableHead>
+                  <TableHead>Old Code</TableHead>
+                  <TableHead>ชื่อ</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Zone</TableHead>
+                  <TableHead>Media Type</TableHead>
+                  <TableHead>แผนก</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Problem Cat.</TableHead>
+                  <TableHead>อาการ</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead>Event</TableHead>
+                  <TableHead>Ticket Status</TableHead>
+                  <TableHead>Asset Status (PM)</TableHead>
+                  <TableHead>Asset</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {slice.length === 0 ? (
+                  <TableRow><TableCell colSpan={16} className="text-center text-muted-foreground py-4">ไม่มีข้อมูล</TableCell></TableRow>
+                ) : slice.map((r, i) => (
+                  <TableRow key={`${r.ticket}-${r.assetCode}-${i}`}>
+                    <TableCell className="font-mono text-xs whitespace-nowrap">{r.ticket}</TableCell>
+                    <TableCell className="font-mono text-xs">{r.assetCode}</TableCell>
+                    <TableCell className="text-xs">{r.assetName}</TableCell>
+                    <TableCell className="text-xs">{r.project}</TableCell>
+                    <TableCell className="text-xs">{r.zone}</TableCell>
+                    <TableCell className="text-xs">{r.mediaType}</TableCell>
+                    <TableCell className="text-xs">{r.department}</TableCell>
+                    <TableCell className="text-xs">{r.category}</TableCell>
+                    <TableCell className="text-xs">{r.problemCategory}</TableCell>
+                    <TableCell className="text-xs">{r.problemDetail}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{r.createdDate}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{r.updatedDate}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{r.eventDate}</TableCell>
+                    <TableCell className="text-xs">{r.ticketStatus}</TableCell>
+                    <TableCell className="text-xs">{r.assetStatus}</TableCell>
+                    <TableCell className="text-xs">{r.assetActive}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="flex items-center justify-between mt-2 text-xs flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">แสดงต่อหน้า:</span>
+              {[20, 50, 100, 200].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => { setPageSize(n as 20 | 50 | 100 | 200); setPage(1); }}
+                  className={
+                    "px-2 py-1 rounded border transition " +
+                    (pageSize === n
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background hover:bg-accent border-border")
+                  }
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <span className="text-muted-foreground">หน้า {cur} / {totalPages} · {filtered.length.toLocaleString()} รายการ</span>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>ก่อน</Button>
+              <Button size="sm" variant="outline" disabled={cur >= totalPages} onClick={() => setPage(cur + 1)}>ถัดไป</Button>
+            </div>
+          </div>
+          {truncated && (
+            <div className="mt-2 text-xs text-amber-600">
+              * แสดง {rows.length.toLocaleString()} แถวแรกจากทั้งหมด {total.toLocaleString()} — ใช้ Export CSV เพื่อโหลดทั้งหมดในช่วงนี้ หรือปรับ Filter ด้านบนให้แคบลง
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+
+
 
 type DonutKey =
   | "problemCategory"

@@ -258,12 +258,50 @@ export const getPmInsights = createServerFn({ method: "POST" })
       });
     }
     noPmAssets.sort((a, b) => a.assetCode.localeCompare(b.assetCode));
+    // ---- Ticket-level PM KPIs (filtered) ----
+    let pmTickets = 0, pmPass = 0, pmFail = 0, pmSkip = 0, pmPending = 0;
+    const pmByAssetDates = new Map<string, number[]>();
+    for (const h of filteredHist) {
+      if (h.type !== "PM") continue;
+      pmTickets++;
+      const s = (h.asset_status ?? "").toLowerCase();
+      if (s === "pass") pmPass++;
+      else if (s === "fail") pmFail++;
+      else if (s.includes("skip")) pmSkip++;
+      else if (s === "pending") pmPending++;
+      const code = h.asset_old_code;
+      if (code) {
+        const ts = new Date(h.created_at ?? h.event_ts ?? 0).getTime();
+        if (Number.isFinite(ts)) {
+          const arr = pmByAssetDates.get(code) ?? [];
+          arr.push(ts);
+          pmByAssetDates.set(code, arr);
+        }
+      }
+    }
+    let gapSum = 0, gapN = 0;
+    for (const arr of pmByAssetDates.values()) {
+      if (arr.length < 2) continue;
+      arr.sort((a, b) => a - b);
+      for (let i = 1; i < arr.length; i++) {
+        gapSum += (arr[i] - arr[i - 1]) / 86400_000;
+        gapN++;
+      }
+    }
+    const pmAvgGapDays = gapN > 0 ? Math.round((gapSum / gapN) * 10) / 10 : null;
+
     const kpi = {
       assets: assetCount,
       pmAll: pmAllAssets.size,
       pmMedia: pmMediaAssets.size,
       pmNonMedia: pmNonMediaAssets.size,
       pmNone: noPmAssets.length,
+      pmTickets,
+      pmPass,
+      pmFail,
+      pmSkip,
+      pmPending,
+      pmAvgGapDays,
     };
 
 

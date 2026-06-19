@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/select";
 
 import { getPmInsights, getPmInsightsFilterOptions } from "@/lib/pm-insights.functions";
-import { BarChart3, Building2, Wrench, Monitor, PackageOpen, RefreshCw, AlertCircle, ChevronDown, ChevronUp, X } from "lucide-react";
+import { BarChart3, Wrench, Monitor, PackageOpen, RefreshCw, AlertCircle, ChevronDown, ChevronUp, X } from "lucide-react";
 
 export const Route = createFileRoute("/pm-insights")({
   head: () => ({
@@ -518,36 +518,48 @@ function PmInsightsPage() {
 
       ) : data ? (
         <>
-          {/* KPI Cards — 3 boxes */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <KpiCard
-              icon={Building2}
-              label="จำนวนป้ายทั้งหมด"
-              value={data.kpi.assets}
+              icon={Wrench}
+              label="จำนวน PM ทั้งหมด (ตั๋ว)"
+              value={data.kpi.pmTickets ?? 0}
               color="text-blue-500"
-              description="นับ distinct asset_old_code จากตาราง assets (ไม่นับ IsDeleted=true) — ไม่ขึ้นกับช่วงวันที่; ตอบสนองตัวกรอง Project / Zone / Media Type / Old Code"
+              description="นับจำนวนตั๋ว PM ทั้งหมดที่ผ่านตัวกรองด้านบน (ทุกสถานะ)"
             />
             <KpiCard
               icon={Wrench}
-              label="ป้ายที่เปิดตั๋ว PM ทั้งหมด"
-              value={data.kpi.pmAll}
-              color="text-green-500"
-              description="นับ distinct asset_old_code จาก mssql_asset_history ที่ payload.Category ∈ {PM (Media), PM (non Media)} และ opened_at อยู่ในช่วงวันที่เริ่ม–ถึงวันที่ และผ่านตัวกรอง Project / Zone / Media Type / Old Code"
+              label="Asset Status: Pass"
+              value={data.kpi.pmPass ?? 0}
+              color="text-emerald-500"
+              description="จำนวนตั๋ว PM ที่ asset_status = Pass (ตามตัวกรอง)"
             />
             <KpiCard
               icon={AlertCircle}
-              label="ป้ายที่ยังไม่ได้เปิดตั๋ว PM"
-              value={data.kpi.pmNone}
+              label="Asset Status: Fail"
+              value={data.kpi.pmFail ?? 0}
               color="text-rose-500"
-              description="= จำนวนป้ายทั้งหมด − ป้ายที่เปิดตั๋ว PM ทั้งหมด (ป้ายที่ไม่มีตั๋ว PM ใด ๆ ในช่วงและตัวกรองที่เลือก)"
+              description="จำนวนตั๋ว PM ที่ asset_status = Fail (ตามตัวกรอง)"
+            />
+            <KpiCard
+              icon={PackageOpen}
+              label="Asset Status: Skip"
+              value={data.kpi.pmSkip ?? 0}
+              color="text-amber-500"
+              description="จำนวนตั๋ว PM ที่ asset_status = On Skip (ตามตัวกรอง)"
+            />
+            <KpiCard
+              icon={Monitor}
+              label="ระยะเวลา PM เฉลี่ย (วัน)"
+              value={data.kpi.pmAvgGapDays ?? 0}
+              color="text-violet-500"
+              description="ค่าเฉลี่ยจำนวนวันระหว่างการ PM ครั้งติดกันของป้ายเดียวกัน (ทุกป้ายที่มี PM ≥ 2 ครั้งในตัวกรอง)"
             />
           </div>
 
-          {/* No-PM asset list (collapsible) */}
-          <NoPmAssetList rows={data.noPmAssets} />
+          {/* All PM rows (collapsible, all columns + monthly trend) */}
+          <PmRowsList rows={data.pmRows} total={data.pmRowsTotal} monthly={data.monthly} />
 
-          {/* All PM rows (collapsible, all columns) */}
-          <PmRowsList rows={data.pmRows} total={data.pmRowsTotal} />
 
           {/* Monthly PM vs Claim (current year) */}
           <MonthlyChart data={data.monthly} details={data.monthlyDetails} />
@@ -761,103 +773,6 @@ function MonthTicketTable({ title, color, rows }: { title: string; color: string
   );
 }
 
-function NoPmAssetList({ rows }: { rows: { assetCode: string; name: string; department: string; area: string; mediaType: string }[] }) {
-  const [open, setOpen] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<20 | 50 | 100>(50);
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
-  const cur = Math.min(page, totalPages);
-  const slice = rows.slice((cur - 1) * pageSize, cur * pageSize);
-
-  const exportCsv = () => {
-    const header = ["รหัสป้าย", "ชื่อ", "แผนก", "พื้นที่", "Media Type"];
-    const esc = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
-    const csv = [
-      header.join(","),
-      ...rows.map((r) => [r.assetCode, r.name, r.department, r.area, r.mediaType].map(esc).join(",")),
-    ].join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `assets-no-pm-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-base">รายการป้ายที่ยังไม่ได้เปิดตั๋ว PM ({rows.length.toLocaleString()})</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={exportCsv} disabled={rows.length === 0}>
-              Export CSV
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setOpen((o) => !o)}>
-              {open ? <><ChevronUp className="size-4" /> ซ่อน</> : <><ChevronDown className="size-4" /> แสดงรายการ</>}
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      {open && (
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>รหัสป้าย</TableHead>
-                  <TableHead>ชื่อ</TableHead>
-                  <TableHead>แผนก</TableHead>
-                  <TableHead>พื้นที่</TableHead>
-                  <TableHead>Media Type</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {slice.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-4">ไม่มีข้อมูล</TableCell></TableRow>
-                ) : slice.map((r) => (
-                  <TableRow key={r.assetCode}>
-                    <TableCell className="font-mono text-xs">{r.assetCode}</TableCell>
-                    <TableCell className="text-xs">{r.name}</TableCell>
-                    <TableCell className="text-xs">{r.department}</TableCell>
-                    <TableCell className="text-xs">{r.area}</TableCell>
-                    <TableCell className="text-xs">{r.mediaType}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="flex items-center justify-between mt-2 text-xs flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">แสดงต่อหน้า:</span>
-              {[20, 50, 100].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => { setPageSize(n as 20 | 50 | 100); setPage(1); }}
-                  className={
-                    "px-2 py-1 rounded border transition " +
-                    (pageSize === n
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background hover:bg-accent border-border")
-                  }
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-            <span className="text-muted-foreground">หน้า {cur} / {totalPages} · {rows.length.toLocaleString()} รายการ</span>
-            <div className="flex gap-1">
-              <Button size="sm" variant="outline" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>ก่อน</Button>
-              <Button size="sm" variant="outline" disabled={cur >= totalPages} onClick={() => setPage(cur + 1)}>ถัดไป</Button>
-            </div>
-          </div>
-        </CardContent>
-      )}
-    </Card>
-  );
-}
 
 type PmRowItem = {
   ticket: string;
@@ -878,11 +793,47 @@ type PmRowItem = {
   assetActive: "Active" | "Deleted";
 };
 
-function PmRowsList({ rows, total }: { rows: PmRowItem[]; total: number }) {
-  const [open, setOpen] = useState(false);
+const PM_COLS: { key: keyof PmRowItem; label: string; mono?: boolean; nowrap?: boolean }[] = [
+  { key: "ticket", label: "Ticket", mono: true, nowrap: true },
+  { key: "assetCode", label: "Old Code", mono: true },
+  { key: "assetName", label: "ชื่อ" },
+  { key: "project", label: "Project" },
+  { key: "zone", label: "Zone" },
+  { key: "mediaType", label: "Media Type" },
+  { key: "department", label: "แผนก" },
+  { key: "category", label: "Category" },
+  { key: "problemCategory", label: "Problem Cat." },
+  { key: "problemDetail", label: "อาการ" },
+  { key: "createdDate", label: "Created", nowrap: true },
+  { key: "updatedDate", label: "Updated", nowrap: true },
+  { key: "eventDate", label: "Event", nowrap: true },
+  { key: "ticketStatus", label: "Ticket Status" },
+  { key: "assetStatus", label: "Asset Status (PM)" },
+  { key: "assetActive", label: "Asset" },
+];
+
+function PmRowsList({
+  rows,
+  total,
+  monthly,
+}: {
+  rows: PmRowItem[];
+  total: number;
+  monthly: { month: string; pm: number; claim: number }[];
+}) {
+  const [open, setOpen] = useState(true);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<20 | 50 | 100 | 200>(50);
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set(["eventDate", "category", "assetActive"]));
+  const [showColPanel, setShowColPanel] = useState(false);
+  const toggleHide = (k: string) =>
+    setHidden((p) => {
+      const n = new Set(p);
+      if (n.has(k)) n.delete(k); else n.add(k);
+      return n;
+    });
+  const visibleCols = PM_COLS.filter((c) => !hidden.has(c.key as string));
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -901,19 +852,11 @@ function PmRowsList({ rows, total }: { rows: PmRowItem[]; total: number }) {
   const slice = filtered.slice((cur - 1) * pageSize, cur * pageSize);
 
   const exportCsv = () => {
-    const header = [
-      "Ticket", "Old Code", "ชื่อ", "Project", "Zone", "Media Type", "แผนก",
-      "Category", "Problem Category", "Problem Detail",
-      "Created", "Updated", "Event", "Ticket Status", "Asset Status (PM)", "Asset",
-    ];
+    const header = visibleCols.map((c) => c.label);
     const esc = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
     const csv = [
       header.join(","),
-      ...filtered.map((r) => [
-        r.ticket, r.assetCode, r.assetName, r.project, r.zone, r.mediaType, r.department,
-        r.category, r.problemCategory, r.problemDetail,
-        r.createdDate, r.updatedDate, r.eventDate, r.ticketStatus, r.assetStatus, r.assetActive,
-      ].map(esc).join(",")),
+      ...filtered.map((r) => visibleCols.map((c) => esc(String(r[c.key] ?? ""))).join(",")),
     ].join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -925,6 +868,7 @@ function PmRowsList({ rows, total }: { rows: PmRowItem[]; total: number }) {
   };
 
   const truncated = total > rows.length;
+  const pmOnly = monthly.map((m) => ({ month: m.month, pm: m.pm }));
 
   return (
     <Card>
@@ -942,62 +886,107 @@ function PmRowsList({ rows, total }: { rows: PmRowItem[]; total: number }) {
             </Button>
           </div>
         </div>
-        {open && (
-          <div className="mt-2">
+      </CardHeader>
+      {open && (
+        <CardContent className="space-y-4">
+          {/* Monthly PM trend */}
+          <div>
+            <div className="text-sm font-medium mb-2">แนวโน้มรายเดือน — PM (ครบ 12 เดือน)</div>
+            <div className="h-56">
+              <ResponsiveContainer>
+                <LineChart data={pmOnly}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                  <XAxis dataKey="month" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="pm" name="PM" stroke="oklch(0.62 0.19 255)" strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Toolbar: search + column manager */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <Input
               placeholder="ค้นหา รหัสป้าย / Ticket / แผนก / อาการ / สถานะ"
               value={q}
               onChange={(e) => { setQ(e.target.value); setPage(1); }}
               className="max-w-md"
             />
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowColPanel((v) => !v)}
+              >
+                จัดการคอลัมน์
+                {hidden.size > 0 && (
+                  <span className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 py-0.5 text-[10px]">
+                    ซ่อน {hidden.size}
+                  </span>
+                )}
+                <ChevronDown className="size-3" />
+              </Button>
+              {showColPanel && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowColPanel(false)} />
+                  <div className="absolute right-0 z-40 mt-1 w-64 rounded-lg border bg-popover shadow-lg p-3 max-h-[60vh] overflow-auto">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs font-semibold">คอลัมน์ที่แสดง</div>
+                      <button
+                        onClick={() => setHidden(new Set())}
+                        className="text-[11px] text-primary hover:underline"
+                      >
+                        แสดงทั้งหมด
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      {PM_COLS.map((c) => (
+                        <label
+                          key={c.key as string}
+                          className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-accent cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!hidden.has(c.key as string)}
+                            onChange={() => toggleHide(c.key as string)}
+                          />
+                          <span>{c.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        )}
-      </CardHeader>
-      {open && (
-        <CardContent>
-          <div className="overflow-x-auto">
+
+          <div className="overflow-x-auto border rounded">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Ticket</TableHead>
-                  <TableHead>Old Code</TableHead>
-                  <TableHead>ชื่อ</TableHead>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Zone</TableHead>
-                  <TableHead>Media Type</TableHead>
-                  <TableHead>แผนก</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Problem Cat.</TableHead>
-                  <TableHead>อาการ</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Updated</TableHead>
-                  <TableHead>Event</TableHead>
-                  <TableHead>Ticket Status</TableHead>
-                  <TableHead>Asset Status (PM)</TableHead>
-                  <TableHead>Asset</TableHead>
+                  {visibleCols.map((c) => (
+                    <TableHead key={c.key as string} className="whitespace-nowrap">{c.label}</TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {slice.length === 0 ? (
-                  <TableRow><TableCell colSpan={16} className="text-center text-muted-foreground py-4">ไม่มีข้อมูล</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={visibleCols.length} className="text-center text-muted-foreground py-4">ไม่มีข้อมูล</TableCell></TableRow>
                 ) : slice.map((r, i) => (
                   <TableRow key={`${r.ticket}-${r.assetCode}-${i}`}>
-                    <TableCell className="font-mono text-xs whitespace-nowrap">{r.ticket}</TableCell>
-                    <TableCell className="font-mono text-xs">{r.assetCode}</TableCell>
-                    <TableCell className="text-xs">{r.assetName}</TableCell>
-                    <TableCell className="text-xs">{r.project}</TableCell>
-                    <TableCell className="text-xs">{r.zone}</TableCell>
-                    <TableCell className="text-xs">{r.mediaType}</TableCell>
-                    <TableCell className="text-xs">{r.department}</TableCell>
-                    <TableCell className="text-xs">{r.category}</TableCell>
-                    <TableCell className="text-xs">{r.problemCategory}</TableCell>
-                    <TableCell className="text-xs">{r.problemDetail}</TableCell>
-                    <TableCell className="text-xs whitespace-nowrap">{r.createdDate}</TableCell>
-                    <TableCell className="text-xs whitespace-nowrap">{r.updatedDate}</TableCell>
-                    <TableCell className="text-xs whitespace-nowrap">{r.eventDate}</TableCell>
-                    <TableCell className="text-xs">{r.ticketStatus}</TableCell>
-                    <TableCell className="text-xs">{r.assetStatus}</TableCell>
-                    <TableCell className="text-xs">{r.assetActive}</TableCell>
+                    {visibleCols.map((c) => (
+                      <TableCell
+                        key={c.key as string}
+                        className={
+                          "text-xs " +
+                          (c.mono ? "font-mono " : "") +
+                          (c.nowrap ? "whitespace-nowrap " : "")
+                        }
+                      >
+                        {String(r[c.key] ?? "")}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 ))}
               </TableBody>
@@ -1038,6 +1027,7 @@ function PmRowsList({ rows, total }: { rows: PmRowItem[]; total: number }) {
     </Card>
   );
 }
+
 
 
 

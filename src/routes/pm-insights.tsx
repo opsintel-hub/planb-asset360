@@ -518,36 +518,48 @@ function PmInsightsPage() {
 
       ) : data ? (
         <>
-          {/* KPI Cards — 3 boxes */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <KpiCard
-              icon={Building2}
-              label="จำนวนป้ายทั้งหมด"
-              value={data.kpi.assets}
+              icon={Wrench}
+              label="จำนวน PM ทั้งหมด (ตั๋ว)"
+              value={data.kpi.pmTickets ?? 0}
               color="text-blue-500"
-              description="นับ distinct asset_old_code จากตาราง assets (ไม่นับ IsDeleted=true) — ไม่ขึ้นกับช่วงวันที่; ตอบสนองตัวกรอง Project / Zone / Media Type / Old Code"
+              description="นับจำนวนตั๋ว PM ทั้งหมดที่ผ่านตัวกรองด้านบน (ทุกสถานะ)"
             />
             <KpiCard
               icon={Wrench}
-              label="ป้ายที่เปิดตั๋ว PM ทั้งหมด"
-              value={data.kpi.pmAll}
-              color="text-green-500"
-              description="นับ distinct asset_old_code จาก mssql_asset_history ที่ payload.Category ∈ {PM (Media), PM (non Media)} และ opened_at อยู่ในช่วงวันที่เริ่ม–ถึงวันที่ และผ่านตัวกรอง Project / Zone / Media Type / Old Code"
+              label="Asset Status: Pass"
+              value={data.kpi.pmPass ?? 0}
+              color="text-emerald-500"
+              description="จำนวนตั๋ว PM ที่ asset_status = Pass (ตามตัวกรอง)"
             />
             <KpiCard
               icon={AlertCircle}
-              label="ป้ายที่ยังไม่ได้เปิดตั๋ว PM"
-              value={data.kpi.pmNone}
+              label="Asset Status: Fail"
+              value={data.kpi.pmFail ?? 0}
               color="text-rose-500"
-              description="= จำนวนป้ายทั้งหมด − ป้ายที่เปิดตั๋ว PM ทั้งหมด (ป้ายที่ไม่มีตั๋ว PM ใด ๆ ในช่วงและตัวกรองที่เลือก)"
+              description="จำนวนตั๋ว PM ที่ asset_status = Fail (ตามตัวกรอง)"
+            />
+            <KpiCard
+              icon={PackageOpen}
+              label="Asset Status: Skip"
+              value={data.kpi.pmSkip ?? 0}
+              color="text-amber-500"
+              description="จำนวนตั๋ว PM ที่ asset_status = On Skip (ตามตัวกรอง)"
+            />
+            <KpiCard
+              icon={Monitor}
+              label="ระยะเวลา PM เฉลี่ย (วัน)"
+              value={data.kpi.pmAvgGapDays ?? 0}
+              color="text-violet-500"
+              description="ค่าเฉลี่ยจำนวนวันระหว่างการ PM ครั้งติดกันของป้ายเดียวกัน (ทุกป้ายที่มี PM ≥ 2 ครั้งในตัวกรอง)"
             />
           </div>
 
-          {/* No-PM asset list (collapsible) */}
-          <NoPmAssetList rows={data.noPmAssets} />
+          {/* All PM rows (collapsible, all columns + monthly trend) */}
+          <PmRowsList rows={data.pmRows} total={data.pmRowsTotal} monthly={data.monthly} />
 
-          {/* All PM rows (collapsible, all columns) */}
-          <PmRowsList rows={data.pmRows} total={data.pmRowsTotal} />
 
           {/* Monthly PM vs Claim (current year) */}
           <MonthlyChart data={data.monthly} details={data.monthlyDetails} />

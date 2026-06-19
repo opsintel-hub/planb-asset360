@@ -65,13 +65,15 @@ type AssetRow = {
   payload: Record<string, unknown> | null;
 };
 type HistRow = {
-  asset_old_code: string | null;
-  type: string;
-  opened_at: string | null;
-  closed_at: string | null;
+  old_code: string | null;
+  category: string | null;
+  created_date: string | null;
+  updated_date: string | null;
   status: string | null;
-  ticket_code: string | null;
-  payload: Record<string, unknown> | null;
+  asset_status: string | null;
+  inform_detail: string | null;
+  problem_category: string | null;
+  problem_detail: string | null;
 };
 type ClaimTicketRow = {
   ref_number: string;
@@ -91,7 +93,6 @@ function dayStr(s: string | null | undefined): string {
   return s.length >= 10 ? s.slice(0, 10) : s;
 }
 function parseDay(s: string | null | undefined): number {
-  // Parse a YYYY-MM-DD string as UTC midnight (TZ-safe day comparison)
   const d = dayStr(s);
   if (!d) return NaN;
   const t = Date.parse(d + "T00:00:00Z");
@@ -111,9 +112,9 @@ export const getMonitoringData = createServerFn({ method: "POST" })
       ),
       fetchAll<HistRow>((from, to) =>
         supabaseAdmin
-          .from("asset_history")
-          .select("asset_old_code, type, opened_at, closed_at, status, ticket_code, payload")
-          .in("type", ["Monitor", "Claim"])
+          .from("mssql_asset_history")
+          .select("old_code, category, created_date, updated_date, status, asset_status, inform_detail, problem_category, problem_detail")
+          .in("category", ["Monitoring", "Claim"])
           .range(from, to),
       ),
       fetchAll<ClaimTicketRow>((from, to) =>

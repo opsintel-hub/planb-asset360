@@ -1,4 +1,4 @@
-// Maps "Project" (asset_history.payload.project — 5 high-level groups)
+// Maps "Project" (mssql_asset_history.project — 5 high-level groups)
 // to "Department" (assets.department — 11 detailed owner units).
 // Used to keep PM Insights' Project filter consistent with asset-level data.
 

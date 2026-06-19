@@ -443,7 +443,7 @@ function MonitoringPage() {
               label="12 เดือนย้อนหลังยังไม่เคยตรวจ"
               value={data.kpi.neverPm}
               color="text-orange-500"
-              info="ที่มา: asset_history (type=Monitor) ของป้ายที่อยู่ในขอบเขต — นับป้ายที่ไม่มีการตรวจสถานะ Pass เลยภายใน 365 วันล่าสุด"
+              info="ที่มา: mssql_asset_history (category=Monitoring) ของป้ายที่อยู่ในขอบเขต — นับป้ายที่ไม่มีการตรวจสถานะ Pass เลยภายใน 365 วันล่าสุด"
             />
             <KpiCard
               icon={AlertTriangle}
@@ -457,7 +457,7 @@ function MonitoringPage() {
               label="ตั๋วเปิดแล้วรอตรวจ (Pending)"
               value={data.kpi.pendingTickets}
               color="text-amber-500"
-              info="ที่มา: asset_history (type=Monitor) — นับป้ายที่สถานะตรวจล่าสุด (payload.assetStatus) ยังไม่ใช่ Pass/Fail/Skip"
+              info="ที่มา: mssql_asset_history (category=Monitoring) — นับป้ายที่สถานะตรวจล่าสุด (payload.assetStatus) ยังไม่ใช่ Pass/Fail/Skip"
             />
           </div>
 
@@ -537,7 +537,7 @@ function OverviewTab({ data }: { data: MonitoringData }) {
         <CardContent className="pt-6">
           <SectionTitle
             title="สัดส่วนสถานะการตรวจ (ในช่วงที่เลือก)"
-            info="ที่มา: asset_history (type=Monitor) — นับทุก Monitor event ที่ opened_at อยู่ในช่วงเดือนที่เลือก จำแนกตาม payload.assetStatus"
+            info="ที่มา: mssql_asset_history (category=Monitoring) — นับทุก Monitor event ที่ opened_at อยู่ในช่วงเดือนที่เลือก จำแนกตาม payload.assetStatus"
           />
           <FormulaNote>
             สูตร: นับ Monitor event ทุกครั้งของป้ายในขอบเขต ที่ opened_at อยู่ระหว่างเดือนเริ่ม–ถึงเดือน → map payload.assetStatus เป็น Pending/Pass/Fail/Skip → รวมจำนวนเหตุการณ์ในแต่ละสถานะ (ไม่ใช่นับป้าย)
@@ -581,7 +581,7 @@ function OverviewTab({ data }: { data: MonitoringData }) {
         <CardContent className="pt-6">
           <SectionTitle
             title="Top 10 อาการที่พบบ่อย (เสียภายใน 7 วันหลังตรวจ)"
-            info="ที่มา: จับคู่ Monitor.closed_at กับ Claim.opened_at ใน asset_history (Old Code เดียวกัน) — เฉพาะคู่ที่ห่างกัน ≤ 7 วัน และ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
+            info="ที่มา: จับคู่ Monitor.closed_at กับ Claim.opened_at ใน mssql_asset_history (Old Code เดียวกัน) — เฉพาะคู่ที่ห่างกัน ≤ 7 วัน และ Monitor ปิดอยู่ในช่วงเดือนที่เลือก"
           />
           <FormulaNote>
             สูตร: สำหรับแต่ละ Monitor → หา Claim ถัดไปของป้ายเดียวกัน → ถ้า (Claim.opened_at − Monitor.closed_at) ระหว่าง 0–7 วัน → นับ payload.informDetail (หรือ problemDetail ถ้าว่าง). แสดง 10 อาการที่พบบ่อยที่สุด — ตัวเลขนี้ต้องสอดคล้องกับ KPI "ตรวจแล้วเสียภายใน 7 วัน"
@@ -634,7 +634,7 @@ function InspectionTab({ rows }: { rows: MonitoringData["inspectionRows"] }) {
         <div className="space-y-1">
           <SectionTitle
             title="สถานะการตรวจรายป้าย"
-            info="ที่มา: assets (ป้ายในขอบเขต) + asset_history.type='Monitor' — แต่ละแถวสรุปจำนวนครั้งที่ตรวจ, วันที่ตรวจล่าสุด, ค่าเฉลี่ยห่างระหว่างการตรวจ, และสถานะล่าสุด"
+            info="ที่มา: assets (ป้ายในขอบเขต) + mssql_asset_history.category='Monitoring' — แต่ละแถวสรุปจำนวนครั้งที่ตรวจ, วันที่ตรวจล่าสุด, ค่าเฉลี่ยห่างระหว่างการตรวจ, และสถานะล่าสุด"
           />
           <FormulaNote>
             สูตร: pmCount = จำนวน Monitor ของป้าย · lastPmDate = opened_at ล่าสุด · daysSinceLastPm = วันนี้ − lastPmDate · avgIntervalDays = ค่าเฉลี่ยช่วงห่างระหว่างคู่ Monitor ที่อยู่ติดกัน · สถานะ = payload.assetStatus ของ Monitor ล่าสุด (ว่าง = Pending). จำนวนตามปุ่มกรองรวมกัน = จำนวนป้ายทั้งหมด

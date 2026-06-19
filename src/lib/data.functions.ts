@@ -16,7 +16,7 @@ type HistoryShape = {
   opened_at: string | null;
   closed_at: string | null;
   sla_hours: number | null;
-  payload: Record<string, unknown>;
+  payload: Record<string, string | number | boolean | null>;
 };
 
 type MssqlRow = {

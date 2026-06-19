@@ -367,9 +367,18 @@ export const getPmInsights = createServerFn({ method: "POST" })
       monthlyMap.set(m, { pm: 0, claim: 0 });
       monthlyDetailsMap.set(m, { pm: [], claim: [] });
     }
+    // Date rule matches the "ค้นหาประวัติป้าย" page:
+    //   PM    → updated_at (when the PM was actually performed)
+    //   Claim → created_at (when the claim ticket was opened)
+    function pickDate(h: HistRow): string | null {
+      if (h.type === "PM") return h.updated_at ?? h.event_ts ?? h.created_at ?? null;
+      return h.created_at ?? h.event_ts ?? h.updated_at ?? null;
+    }
     for (const h of hist) {
       if (!inScopeHist(h)) continue;
-      const d = new Date(h.created_at ?? h.event_ts ?? 0);
+      const src = pickDate(h);
+      if (!src) continue;
+      const d = new Date(src);
       if (!Number.isFinite(d.getTime()) || d.getFullYear() !== year) continue;
       const mi = d.getMonth();
       const row = monthlyMap.get(mi)!;
@@ -377,7 +386,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       const item: MonthTicket = {
         ticket: h.ref_number ?? "",
         assetCode: h.asset_old_code ?? "",
-        date: (h.created_at ?? h.event_ts ?? "").slice(0, 10),
+        date: src.slice(0, 10),
         status: h.status ?? "",
         category: h.category ?? "",
         department: h.asset_department ?? "",

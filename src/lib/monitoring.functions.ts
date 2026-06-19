@@ -57,21 +57,21 @@ async function fetchAll<T>(
   return out;
 }
 
-// Keyset pagination on numeric `id` (PK). Avoids OFFSET scans that hit the
-// Postgres statement_timeout on large tables (e.g. mssql_asset_history ~200k rows).
-async function fetchAllByKeyset<T extends { id: number }>(
-  build: (lastId: number, limit: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+// Keyset pagination on `id` (works for numeric or uuid). Avoids OFFSET scans
+// that hit the Postgres statement_timeout on large tables.
+async function fetchAllByKeyset<T extends { id: string | number }>(
+  build: (lastId: string | null, limit: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
   pageSize = 5000,
 ): Promise<T[]> {
   const out: T[] = [];
-  let lastId = 0;
+  let lastId: string | null = null;
   for (let page = 0; page < 500; page++) {
     const res = await build(lastId, pageSize);
     if (res.error) throw new Error(res.error.message);
     const rows = (res.data as T[] | null) ?? [];
     if (rows.length === 0) break;
     out.push(...rows);
-    lastId = rows[rows.length - 1].id;
+    lastId = String(rows[rows.length - 1].id);
     if (rows.length < pageSize) break;
   }
   return out;

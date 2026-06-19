@@ -183,20 +183,10 @@ export const getMonitoringData = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => filtersSchema.parse(i ?? {}))
   .handler(async ({ data: f }) => {
-    const [assetsRaw, histRaw, claimRaw] = await Promise.all([
+    const [assetsRaw, claimRaw] = await Promise.all([
       fetchAll<AssetRow>((from, to) =>
         supabaseAdmin.from("assets").select("old_code, name, department, area, payload").range(from, to),
       ),
-      fetchAllByKeyset<HistRow>((lastId, limit) => {
-        let q = supabaseAdmin
-          .from("mssql_asset_history")
-          .select("id, old_code, category, created_date, updated_date, status, asset_status, inform_detail, problem_category, problem_detail")
-          .in("category", ["Monitoring", "Claim"])
-          .order("id", { ascending: true })
-          .limit(limit);
-        if (lastId !== null) q = q.gt("id", lastId);
-        return q;
-      }),
       fetchAll<ClaimTicketRow>((from, to) =>
         supabaseAdmin
           .from("claim_tickets")
@@ -234,6 +224,8 @@ export const getMonitoringData = createServerFn({ method: "POST" })
 
     const fromDay = f.fromDate ? parseDay(f.fromDate) : -Infinity;
     const toDay = f.toDate ? parseDay(f.toDate) + 86_400_000 - 1 : Infinity;
+    const nowMs = Date.now();
+    const yearAgoMs = nowMs - 365 * 86_400_000;
 
     function matchAsset(a: { department: string; project: string; zone: string; mediaType: string; code: string }): boolean {
       if (codeQ && a.code.toLowerCase() !== codeQ) return false;
@@ -247,6 +239,21 @@ export const getMonitoringData = createServerFn({ method: "POST" })
     for (const a of assetMap.values()) {
       if (matchAsset(a)) inScopeAssets.set(a.code, a);
     }
+
+    const scopedCodes = Array.from(inScopeAssets.keys());
+    const historyCodes = codeQ || scopedCodes.length <= 1000 ? scopedCodes : undefined;
+    const [monitorHist, claimHist] = await Promise.all([
+      fetchHistoryForScope<HistRow>("Monitoring", {
+        fromMs: Number.isFinite(fromDay) ? Math.min(fromDay, yearAgoMs) : undefined,
+        toMs: Number.isFinite(toDay) ? Math.max(toDay, nowMs) : undefined,
+        oldCodes: historyCodes,
+      }),
+      fetchHistoryForScope<HistRow>("Claim", {
+        fromMs: Number.isFinite(fromDay) ? fromDay : undefined,
+        oldCodes: historyCodes,
+      }),
+    ]);
+    const histRaw = [...monitorHist, ...claimHist];
 
     // Build per-asset Monitor + Claim history
     type MonEvent = { dateMs: number; dateStr: string; closedMs: number; closedStr: string; assetStatus: StatusKey };
@@ -300,9 +307,6 @@ export const getMonitoringData = createServerFn({ method: "POST" })
 
     for (const arr of monByAsset.values()) arr.sort((a, b) => a.dateMs - b.dateMs);
     for (const arr of claimByAsset.values()) arr.sort((a, b) => a.dateMs - b.dateMs);
-
-    const nowMs = Date.now();
-    const yearAgoMs = nowMs - 365 * 86_400_000;
 
     // ---------- Per-asset inspection rows ----------
     type InspectionRow = {

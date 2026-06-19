@@ -80,14 +80,13 @@ async function fetchAllByKeyset<T extends { id: string | number }>(
 async function fetchHistoryByCreatedDate<T extends { id: string; created_date: string | null }>(
   category: "Monitoring" | "Claim",
   options: { fromMs?: number; toMs?: number; oldCodes?: string[] } = {},
-  pageSize = 2000,
+  pageSize = 10000,
 ): Promise<T[]> {
   const codes = options.oldCodes?.filter(Boolean);
   if (codes && codes.length === 0) return [];
 
   const out: T[] = [];
   let lastCreatedDate: string | null = null;
-  let lastId: string | null = null;
 
   for (let page = 0; page < 500; page++) {
     let q = supabaseAdmin
@@ -102,9 +101,7 @@ async function fetchHistoryByCreatedDate<T extends { id: string; created_date: s
     if (Number.isFinite(options.fromMs)) q = q.gte("created_date", new Date(options.fromMs!).toISOString());
     if (Number.isFinite(options.toMs)) q = q.lte("created_date", new Date(options.toMs!).toISOString());
     if (codes) q = q.in("old_code", codes);
-    if (lastCreatedDate && lastId) {
-      q = q.or(`created_date.gt.${lastCreatedDate},and(created_date.eq.${lastCreatedDate},id.gt.${lastId})`);
-    }
+    if (lastCreatedDate) q = q.gt("created_date", lastCreatedDate);
 
     const res = await q;
     if (res.error) throw new Error(res.error.message);
@@ -113,7 +110,6 @@ async function fetchHistoryByCreatedDate<T extends { id: string; created_date: s
     out.push(...rows);
     const last = rows[rows.length - 1];
     lastCreatedDate = last.created_date;
-    lastId = last.id;
     if (rows.length < pageSize) break;
   }
   return out;

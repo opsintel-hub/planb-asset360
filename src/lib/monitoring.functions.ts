@@ -131,13 +131,16 @@ export const getMonitoringData = createServerFn({ method: "POST" })
       fetchAll<AssetRow>((from, to) =>
         supabaseAdmin.from("assets").select("old_code, name, department, area, payload").range(from, to),
       ),
-      fetchAll<HistRow>((from, to) =>
-        supabaseAdmin
+      fetchAllByKeyset<HistRow>((lastId, limit) => {
+        let q = supabaseAdmin
           .from("mssql_asset_history")
-          .select("old_code, category, created_date, updated_date, status, asset_status, inform_detail, problem_category, problem_detail")
+          .select("id, old_code, category, created_date, updated_date, status, asset_status, inform_detail, problem_category, problem_detail")
           .in("category", ["Monitoring", "Claim"])
-          .range(from, to),
-      ),
+          .order("id", { ascending: true })
+          .limit(limit);
+        if (lastId !== null) q = q.gt("id", lastId);
+        return q;
+      }),
       fetchAll<ClaimTicketRow>((from, to) =>
         supabaseAdmin
           .from("claim_tickets")

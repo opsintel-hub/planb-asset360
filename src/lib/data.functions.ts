@@ -436,7 +436,7 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
               opened_at: derived,
               closed_at: null,
               sla_hours: typeof t.age_hours === "number" ? t.age_hours : null,
-              payload: (t.payload ?? {}) as Record<string, unknown>,
+              payload: (t.payload ?? {}) as Record<string, string | number | boolean | null>,
             };
           });
         if (extras.length) {

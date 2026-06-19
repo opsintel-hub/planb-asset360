@@ -618,6 +618,29 @@ export const getPmInsights = createServerFn({ method: "POST" })
     pmRows.sort((a, b) => (b.createdDate || "").localeCompare(a.createdDate || ""));
     const pmRowsTotal = pmRows.length;
 
+    // ---- Calendar events (PM + Claim per day) ----
+    type DayBuckets = { pm: Set<string>; claim: Set<string> };
+    const calMap = new Map<string, DayBuckets>();
+    for (const h of filteredHist) {
+      const src = h.updated_at ?? h.event_ts ?? h.created_at ?? "";
+      const date = src.slice(0, 10);
+      if (!date) continue;
+      let v = calMap.get(date);
+      if (!v) { v = { pm: new Set(), claim: new Set() }; calMap.set(date, v); }
+      const key = h.asset_old_code || h.ref_number || "";
+      if (h.type === "PM") v.pm.add(key);
+      else if (h.type === "Claim") v.claim.add(key);
+    }
+    const calendarDays = Array.from(calMap.entries())
+      .map(([date, v]) => ({
+        date,
+        pm: v.pm.size,
+        claim: v.claim.size,
+        pmCodes: Array.from(v.pm).slice(0, 30),
+        claimCodes: Array.from(v.claim).slice(0, 30),
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
     return {
       kpi,
       monthly,
@@ -632,6 +655,7 @@ export const getPmInsights = createServerFn({ method: "POST" })
       pairs: pairs.slice(0, 2000),
       pmRows: pmRows.slice(0, 10000),
       pmRowsTotal,
+      calendarDays,
       filters: {
         departments: Array.from(allDepts).sort(),
         zones: Array.from(allZones).sort(),

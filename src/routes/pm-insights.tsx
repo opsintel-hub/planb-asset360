@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/select";
 
 import { getPmInsights, getPmInsightsFilterOptions } from "@/lib/pm-insights.functions";
-import { BarChart3, Building2, Wrench, Monitor, PackageOpen, RefreshCw, AlertCircle, ChevronDown, ChevronUp, X } from "lucide-react";
+import { BarChart3, Wrench, Monitor, PackageOpen, RefreshCw, AlertCircle, ChevronDown, ChevronUp, X } from "lucide-react";
 
 export const Route = createFileRoute("/pm-insights")({
   head: () => ({

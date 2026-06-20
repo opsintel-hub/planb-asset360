@@ -567,7 +567,6 @@ export const getRcaMapping = createServerFn({ method: "POST" })
     }
     const unmappedPhrases = new Map<string, number>();
     let unmappedCount = 0;
-    let totalClassified = 0;
     for (const c of claims) {
       const text = buildClaimText(c);
       const r = classifyText(text, mappings);

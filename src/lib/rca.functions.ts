@@ -595,9 +595,7 @@ export const getRcaMapping = createServerFn({ method: "POST" })
         unmappedCount++;
         const phrase = (c.problem_equipment || c.problem_category || c.problem_detail || "(ว่าง)").trim().slice(0, 80);
         unmappedPhrases.set(phrase, (unmappedPhrases.get(phrase) ?? 0) + 1);
-        if (totalClassified === 0) totalClassified++; // count it
       }
-      totalClassified++;
     }
 
     const distribution = Array.from(statsMap.values()).map((s) => ({

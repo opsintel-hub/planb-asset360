@@ -457,7 +457,7 @@ function PortfolioTab({ applied }: { applied: AppliedFilters | null }) {
               <TableBody>
                 {data.topOffenders.map((o) => (
                   <TableRow key={o.oldCode}>
-                    <TableCell className="font-mono text-xs"><Link to="/search" search={{ q: o.oldCode } as never} className="hover:underline">{o.oldCode}</Link></TableCell>
+                    <TableCell className="font-mono text-xs">{o.oldCode}</TableCell>
                     <TableCell className="text-xs">{o.project || "—"}</TableCell>
                     <TableCell className="text-xs">{o.zone || "—"}</TableCell>
                     <TableCell className="text-right font-semibold">{o.claims}</TableCell>

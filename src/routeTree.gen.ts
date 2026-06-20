@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as RcaRouteImport } from './routes/rca'
 import { Route as PmInsightsRouteImport } from './routes/pm-insights'
 import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as MonitoringRouteImport } from './routes/monitoring'
@@ -28,6 +29,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RcaRoute = RcaRouteImport.update({
+  id: '/rca',
+  path: '/rca',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PmInsightsRoute = PmInsightsRouteImport.update({
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/monitoring': typeof MonitoringRoute
   '/permissions': typeof PermissionsRoute
   '/pm-insights': typeof PmInsightsRoute
+  '/rca': typeof RcaRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/monitoring': typeof MonitoringRoute
   '/permissions': typeof PermissionsRoute
   '/pm-insights': typeof PmInsightsRoute
+  '/rca': typeof RcaRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/monitoring': typeof MonitoringRoute
   '/permissions': typeof PermissionsRoute
   '/pm-insights': typeof PmInsightsRoute
+  '/rca': typeof RcaRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
@@ -119,6 +128,7 @@ export interface FileRouteTypes {
     | '/monitoring'
     | '/permissions'
     | '/pm-insights'
+    | '/rca'
     | '/search'
     | '/settings'
     | '/api/public/hooks/sync-asset-history'
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
     | '/monitoring'
     | '/permissions'
     | '/pm-insights'
+    | '/rca'
     | '/search'
     | '/settings'
     | '/api/public/hooks/sync-asset-history'
@@ -143,6 +154,7 @@ export interface FileRouteTypes {
     | '/monitoring'
     | '/permissions'
     | '/pm-insights'
+    | '/rca'
     | '/search'
     | '/settings'
     | '/api/public/hooks/sync-asset-history'
@@ -156,6 +168,7 @@ export interface RootRouteChildren {
   MonitoringRoute: typeof MonitoringRoute
   PermissionsRoute: typeof PermissionsRoute
   PmInsightsRoute: typeof PmInsightsRoute
+  RcaRoute: typeof RcaRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   ApiPublicHooksSyncAssetHistoryRoute: typeof ApiPublicHooksSyncAssetHistoryRoute
@@ -176,6 +189,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rca': {
+      id: '/rca'
+      path: '/rca'
+      fullPath: '/rca'
+      preLoaderRoute: typeof RcaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pm-insights': {
@@ -244,6 +264,7 @@ const rootRouteChildren: RootRouteChildren = {
   MonitoringRoute: MonitoringRoute,
   PermissionsRoute: PermissionsRoute,
   PmInsightsRoute: PmInsightsRoute,
+  RcaRoute: RcaRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   ApiPublicHooksSyncAssetHistoryRoute: ApiPublicHooksSyncAssetHistoryRoute,

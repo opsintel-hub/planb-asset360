@@ -3,8 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { memo, useMemo, useState } from "react";
 import {
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   Tooltip,
@@ -13,8 +11,8 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
   Line,
+  Bar,
   ComposedChart,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

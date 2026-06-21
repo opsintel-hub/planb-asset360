@@ -545,6 +545,7 @@ export const getRcaAsset = createServerFn({ method: "POST" })
       fingerprint,
       recurrences: recurrences.slice(0, 20),
       pmEffective,
+      repairTime,
       history,
     };
   });

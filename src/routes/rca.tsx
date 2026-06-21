@@ -885,7 +885,7 @@ function MappingTab({ applied }: { applied: AppliedFilters | null }) {
                     <TableCell className="text-right text-xs font-semibold">{c.totalClaims}</TableCell>
                     <TableCell className="text-right text-xs">{c.uniqueAssets}</TableCell>
                     <TableCell className="text-right text-xs">{c.mtbfDays ?? "—"}</TableCell>
-                    <TableCell className="text-right text-xs">{c.avgResolveHrs ?? "—"}</TableCell>
+                    <TableCell className="text-right text-xs whitespace-nowrap">{fmtDuration(c.avgResolveHrs)}</TableCell>
                     <TableCell className="text-xs truncate max-w-[180px]" title={c.topSolution}>{c.topSolution}</TableCell>
                   </TableRow>
                 ))}

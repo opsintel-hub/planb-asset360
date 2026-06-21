@@ -27,6 +27,7 @@ type HistRow = {
   status: string | null;
   asset_status: string | null;
   inform_detail: string | null;
+  inform_position: string | null;
   problem_category: string | null;
   problem_detail: string | null;
   problem_equipment: string | null;

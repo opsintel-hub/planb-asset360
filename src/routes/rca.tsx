@@ -542,6 +542,18 @@ function AssetTab({ assetCode }: { assetCode: string }) {
 
   const fmtDate = (s: string) => (s ? s.slice(0, 10) : "—");
   const fmtNum = (v: number | null) => (typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—");
+  const fmtDuration = (mins: number | null | undefined) => {
+    if (typeof mins !== "number" || !Number.isFinite(mins) || mins <= 0) return "—";
+    const total = Math.round(mins);
+    const d = Math.floor(total / 1440);
+    const h = Math.floor((total % 1440) / 60);
+    const m = total % 60;
+    const parts: string[] = [];
+    if (d) parts.push(`${d}วัน`);
+    if (h) parts.push(`${h}ชม.`);
+    if (m || parts.length === 0) parts.push(`${m}นาที`);
+    return parts.join(" ");
+  };
 
   return (
     <div className="space-y-6">

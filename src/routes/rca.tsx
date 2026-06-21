@@ -701,9 +701,9 @@ function AssetTab({ assetCode }: { assetCode: string }) {
                     <TableHead className="whitespace-nowrap">Problem Detail</TableHead>
                     <TableHead className="whitespace-nowrap">Solution Category</TableHead>
                     <TableHead className="whitespace-nowrap">Solution Detail</TableHead>
-                    <TableHead className="whitespace-nowrap text-right">Response Time (วัน)</TableHead>
-                    <TableHead className="whitespace-nowrap text-right">Resolve Time (วัน)</TableHead>
-                    <TableHead className="whitespace-nowrap text-right">Total Turnaround (วัน)</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Response Time</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Resolve Time</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Total Turnaround</TableHead>
                     <TableHead className="whitespace-nowrap">Asset Status</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>

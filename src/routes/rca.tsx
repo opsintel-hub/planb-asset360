@@ -175,7 +175,6 @@ function RcaPage() {
   const [assetSearchDraft, setAssetSearchDraft] = useState("");
   const [applied, setApplied] = useState<AppliedFilters | null>(null);
   const [tab, setTab] = useState("portfolio");
-  const [assetQuery, setAssetQuery] = useState("");
 
   const { data: optionsData } = useQuery({
     queryKey: ["rca-filter-options"],
@@ -301,8 +300,8 @@ function RcaPage() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="grid grid-cols-3 w-full md:w-auto">
-          <TabsTrigger value="portfolio"><Activity className="size-4 mr-1" /> Portfolio</TabsTrigger>
-          <TabsTrigger value="asset"><Search className="size-4 mr-1" /> Per-Asset</TabsTrigger>
+          <TabsTrigger value="portfolio"><Activity className="size-4 mr-1" /> ภาพรวม Portfolio</TabsTrigger>
+          <TabsTrigger value="asset"><Search className="size-4 mr-1" /> เจาะรายป้าย (Per-Asset)</TabsTrigger>
           <TabsTrigger value="mapping"><Wrench className="size-4 mr-1" /> Diagram Mapping</TabsTrigger>
         </TabsList>
 
@@ -310,11 +309,7 @@ function RcaPage() {
           <PortfolioTab applied={applied} />
         </TabsContent>
         <TabsContent value="asset" className="mt-4">
-          <AssetTab
-            assetCode={assetQuery}
-            onAssetCode={setAssetQuery}
-            assetCodeOptions={assetCodeOptions}
-          />
+          <AssetTab assetCode={applied?.assetSearch ?? ""} />
         </TabsContent>
         <TabsContent value="mapping" className="mt-4">
           <MappingTab applied={applied} />
@@ -521,10 +516,9 @@ function SummaryCard({ icon: Icon, label, value, color }: { icon: React.ElementT
 // ═══════════════════════════════════════════════════════════════════════
 // PER-ASSET TAB
 // ═══════════════════════════════════════════════════════════════════════
-function AssetTab({ assetCode, onAssetCode, assetCodeOptions }: { assetCode: string; onAssetCode: (v: string) => void; assetCodeOptions: string[] }) {
+function AssetTab({ assetCode }: { assetCode: string }) {
   const fn = useServerFn(getRcaAsset);
   const [windowDays, setWindowDays] = useState(14);
-  const [draft, setDraft] = useState(assetCode);
 
   const { data, isLoading } = useQuery({
     queryKey: ["rca-asset", assetCode, windowDays],
@@ -533,37 +527,15 @@ function AssetTab({ assetCode, onAssetCode, assetCodeOptions }: { assetCode: str
     staleTime: 60_000,
   });
 
+  const fmtDate = (s: string) => (s ? s.slice(0, 19).replace("T", " ") : "—");
+  const fmtNum = (v: number | null) => (typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—");
+
   return (
     <div className="space-y-6">
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-end">
-            <div>
-              <label className="text-xs text-muted-foreground">ค้นหารหัสป้าย (Old Code)</label>
-              <AssetCodeCombobox value={draft} onChange={setDraft} options={assetCodeOptions} placeholder="พิมพ์รหัสป้ายเพื่อเริ่มวิเคราะห์..." />
-            </div>
-            <Button onClick={() => onAssetCode(draft.trim())} disabled={!draft.trim()}>วิเคราะห์</Button>
-            {assetCode && (
-              <Button variant="outline" onClick={() => { setDraft(""); onAssetCode(""); }}>ล้าง</Button>
-            )}
-          </div>
-          {assetCode && (
-            <div className="mt-4 flex items-center gap-4 flex-wrap">
-              <label className="text-xs text-muted-foreground">PM Effectiveness window:</label>
-              <div className="flex items-center gap-3">
-                <Slider min={3} max={60} step={1} value={[windowDays]} onValueChange={(v) => setWindowDays(v[0])} className="w-48" />
-                <Badge variant="outline">{windowDays} วัน</Badge>
-              </div>
-              <p className="text-xs text-muted-foreground">นับว่า PM Pass ครั้งนั้น “ไม่ได้ผล” ถ้าเกิด Claim ภายใน N วัน</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {!assetCode ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground space-y-2">
           <Search className="size-10 mx-auto opacity-40" />
-          <p className="text-sm">พิมพ์รหัสป้ายแล้วกด “วิเคราะห์” เพื่อดูประวัติและสาเหตุการเสีย</p>
+          <p className="text-sm">กรอก “ค้นหารหัสป้าย (Old Code)” ที่ตัวกรองด้านบน แล้วกด “แสดงข้อมูล / อัปเดตข้อมูล”</p>
         </CardContent></Card>
       ) : isLoading || !data ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{[1,2,3,4].map(i=><Skeleton key={i} className="h-24" />)}</div>
@@ -574,6 +546,18 @@ function AssetTab({ assetCode, onAssetCode, assetCodeOptions }: { assetCode: str
         </Alert>
       ) : (
         <>
+          {/* PM Effectiveness window control */}
+          <Card>
+            <CardContent className="pt-6 flex items-center gap-4 flex-wrap">
+              <label className="text-xs text-muted-foreground">PM Effectiveness window:</label>
+              <div className="flex items-center gap-3">
+                <Slider min={3} max={60} step={1} value={[windowDays]} onValueChange={(v) => setWindowDays(v[0])} className="w-48" />
+                <Badge variant="outline">{windowDays} วัน</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">นับว่า PM Pass ครั้งนั้น “ไม่ได้ผล” ถ้าเกิด Claim ภายใน N วัน</p>
+            </CardContent>
+          </Card>
+
           {/* Header */}
           <Card>
             <CardContent className="pt-6 grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
@@ -591,6 +575,13 @@ function AssetTab({ assetCode, onAssetCode, assetCodeOptions }: { assetCode: str
             <SummaryCard icon={Repeat} label="MTBF (วัน)" value={data.kpi.mtbfDays ?? "—"} color="text-amber-500" />
             <SummaryCard icon={Clock} label="Avg Resolve (ชม.)" value={data.kpi.avgResolveHrs ?? "—"} color="text-violet-500" />
             <SummaryCard icon={TrendingDown} label="Days since last failure" value={data.kpi.daysSinceLast ?? "—"} color="text-emerald-500" />
+          </div>
+
+          {/* Repair-time KPIs (days) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <SummaryCard icon={Clock} label="เฉลี่ย Response Time (วัน) — แจ้งซ่อม → เริ่มซ่อม" value={data.repairTime.avgResponseDays ?? "—"} color="text-sky-500" />
+            <SummaryCard icon={Wrench} label="เฉลี่ย Resolve Time (วัน) — เวลาที่ช่างใช้ซ่อม" value={data.repairTime.avgResolveDays ?? "—"} color="text-violet-500" />
+            <SummaryCard icon={Activity} label="เฉลี่ย Total Turnaround (วัน) — รวมเวลาทั้งหมด" value={data.repairTime.avgTotalTurnaroundDays ?? "—"} color="text-rose-500" />
           </div>
 
           {/* Recurrence alert */}
@@ -664,19 +655,38 @@ function AssetTab({ assetCode, onAssetCode, assetCodeOptions }: { assetCode: str
             <CardHeader><CardTitle className="text-base">ประวัติ Claim ทั้งหมด ({data.history.length} รายการ)</CardTitle></CardHeader>
             <CardContent className="px-0">
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="min-w-[1800px]">
                   <TableHeader><TableRow>
-                    <TableHead>วันที่</TableHead><TableHead>สถานะ</TableHead><TableHead>Problem</TableHead><TableHead>Equipment</TableHead><TableHead>Solution</TableHead><TableHead className="text-right">Resolve (ชม.)</TableHead>
+                    <TableHead className="whitespace-nowrap">Create Date</TableHead>
+                    <TableHead className="whitespace-nowrap">Update Date</TableHead>
+                    <TableHead className="whitespace-nowrap">Inform Position</TableHead>
+                    <TableHead className="whitespace-nowrap">Inform Detail</TableHead>
+                    <TableHead className="whitespace-nowrap">Problem Category</TableHead>
+                    <TableHead className="whitespace-nowrap">Problem Equipment</TableHead>
+                    <TableHead className="whitespace-nowrap">Problem Detail</TableHead>
+                    <TableHead className="whitespace-nowrap">Solution Category</TableHead>
+                    <TableHead className="whitespace-nowrap">Solution Detail</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Response Time (ชม.)</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Resolve Time (ชม.)</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Total Turnaround (ชม.)</TableHead>
+                    <TableHead className="whitespace-nowrap">Asset Status</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
-                    {data.history.slice(0, 100).map((h, i) => (
+                    {data.history.slice(0, 200).map((h, i) => (
                       <TableRow key={i}>
-                        <TableCell className="text-xs whitespace-nowrap">{h.date}</TableCell>
-                        <TableCell className="text-xs">{h.status}</TableCell>
-                        <TableCell className="text-xs">{h.problemCategory}</TableCell>
-                        <TableCell className="text-xs">{h.problemEquipment}</TableCell>
-                        <TableCell className="text-xs">{h.solutionCategory}</TableCell>
-                        <TableCell className="text-right text-xs">{h.resolveHrs ?? "—"}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{fmtDate(h.createdDate)}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{fmtDate(h.updatedDate)}</TableCell>
+                        <TableCell className="text-xs max-w-[200px] truncate" title={h.informPosition}>{h.informPosition || "—"}</TableCell>
+                        <TableCell className="text-xs max-w-[260px] truncate" title={h.informDetail}>{h.informDetail || "—"}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{h.problemCategory || "—"}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{h.problemEquipment || "—"}</TableCell>
+                        <TableCell className="text-xs max-w-[260px] truncate" title={h.problemDetail}>{h.problemDetail || "—"}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{h.solutionCategory || "—"}</TableCell>
+                        <TableCell className="text-xs max-w-[260px] truncate" title={h.solutionDetail}>{h.solutionDetail || "—"}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums">{fmtNum(h.responseTime)}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums">{fmtNum(h.resolveTime)}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums">{fmtNum(h.totalTurnaroundTime)}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{h.assetStatus || "—"}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

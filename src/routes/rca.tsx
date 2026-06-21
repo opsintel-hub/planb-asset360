@@ -376,16 +376,28 @@ function PortfolioTab({ applied }: { applied: AppliedFilters | null }) {
     <div className="space-y-6">
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <SummaryCard icon={Activity} label="Total Claims" value={data.summary.totalClaims} color="text-rose-500" />
-        <SummaryCard icon={AlertTriangle} label="Unique Assets Affected" value={data.summary.uniqueAssets} color="text-amber-500" />
-        <SummaryCard icon={Clock} label="Avg Resolve Time (ชม.)" value={data.summary.avgResolveHrs ?? "—"} color="text-violet-500" />
-        <SummaryCard icon={Repeat} label="Repeat-Failure Rate (≥3 ครั้ง)" value={`${data.summary.repeatRatePct}%`} color="text-orange-500" />
+        <SummaryCard icon={Activity} label="Total Claims" value={data.summary.totalClaims} color="text-rose-500" hint="จำนวนใบแจ้งซ่อม (Claim) ทั้งหมดในช่วงและตัวกรองที่เลือก" />
+        <SummaryCard icon={AlertTriangle} label="Unique Assets Affected" value={data.summary.uniqueAssets} color="text-amber-500" hint="จำนวนป้าย (รหัสไม่ซ้ำ) ที่มี Claim อย่างน้อย 1 ครั้ง" />
+        <SummaryCard icon={Clock} label="Avg Resolve Time (วัน)" value={data.summary.avgResolveHrs ?? "—"} color="text-violet-500" hint="ค่าเฉลี่ย resolve_time ของทุก Claim (หน่วยวัน)" />
+        <SummaryCard icon={Repeat} label="Repeat-Failure Rate (≥3 ครั้ง)" value={`${data.summary.repeatRatePct}%`} color="text-orange-500" hint="% ของป้ายที่เสียซ้ำ ≥ 3 ครั้งในช่วงนี้ เทียบกับป้ายที่มี Claim ทั้งหมด" />
       </div>
 
       {/* Pareto charts */}
+      <Alert>
+        <Activity className="size-4 text-primary" />
+        <AlertTitle>วิธีอ่านกราฟ Pareto (กฎ 80/20)</AlertTitle>
+        <AlertDescription className="text-xs leading-relaxed">
+          แท่งสีแดง = <b>จำนวน Claim</b> ของแต่ละหมวด เรียงจากมากไปน้อย · เส้นสีน้ำเงิน = <b>% สะสม</b>
+          (จุดที่เส้นแตะ 80% คือกลุ่มอาการ/อุปกรณ์ที่ก่อให้เกิดปัญหา 80% ของทั้งหมด).
+          <br />
+          <b>ใช้ทำอะไร:</b> โฟกัสแก้ 2–3 หมวดแรกที่อยู่ก่อนเส้น 80% จะลดงานซ่อมส่วนใหญ่ได้ —
+          เช่น ถ้า "ไฟไม่มา Breaker" อยู่อันดับ 1 ก็ควรลงทุนตรวจระบบไฟ/เปลี่ยน Breaker เป็นมาตรการป้องกัน
+          แทนที่จะแก้ทีละจุด.
+        </AlertDescription>
+      </Alert>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ParetoCard title="Pareto — Problem Category" data={data.paretoProblem} />
-        <ParetoCard title="Pareto — Problem Equipment" data={data.paretoEquipment} />
+        <ParetoCard title="Pareto — Problem Category (กลุ่มอาการเสีย)" data={data.paretoProblem} />
+        <ParetoCard title="Pareto — Problem Equipment (อุปกรณ์ที่เสีย)" data={data.paretoEquipment} />
       </div>
 
       {/* Heatmap matrix */}
@@ -497,17 +509,18 @@ function ParetoCard({ title, data }: { title: string; data: { label: string; cou
   );
 }
 
-function SummaryCard({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string | number; color: string }) {
+function SummaryCard({ icon: Icon, label, value, color, hint }: { icon: React.ElementType; label: string; value: string | number; color: string; hint?: string }) {
   return (
     <Card>
       <CardContent className="pt-6 pb-4">
         <div className="flex items-center gap-3">
           <Icon className={`size-8 ${color}`} />
           <div className="min-w-0">
-            <div className="text-xs text-muted-foreground truncate">{label}</div>
+            <div className="text-xs text-muted-foreground truncate" title={hint}>{label}</div>
             <div className="text-2xl font-bold tabular-nums">{value}</div>
           </div>
         </div>
+        {hint && <p className="text-[11px] text-muted-foreground mt-2 leading-snug">{hint}</p>}
       </CardContent>
     </Card>
   );
@@ -527,7 +540,7 @@ function AssetTab({ assetCode }: { assetCode: string }) {
     staleTime: 60_000,
   });
 
-  const fmtDate = (s: string) => (s ? s.slice(0, 19).replace("T", " ") : "—");
+  const fmtDate = (s: string) => (s ? s.slice(0, 10) : "—");
   const fmtNum = (v: number | null) => (typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—");
 
   return (
@@ -548,13 +561,23 @@ function AssetTab({ assetCode }: { assetCode: string }) {
         <>
           {/* PM Effectiveness window control */}
           <Card>
-            <CardContent className="pt-6 flex items-center gap-4 flex-wrap">
-              <label className="text-xs text-muted-foreground">PM Effectiveness window:</label>
-              <div className="flex items-center gap-3">
-                <Slider min={3} max={60} step={1} value={[windowDays]} onValueChange={(v) => setWindowDays(v[0])} className="w-48" />
-                <Badge variant="outline">{windowDays} วัน</Badge>
+            <CardContent className="pt-6 space-y-3">
+              <div className="flex items-center gap-4 flex-wrap">
+                <label className="text-xs font-medium">PM Effectiveness window:</label>
+                <div className="flex items-center gap-3">
+                  <Slider min={3} max={60} step={1} value={[windowDays]} onValueChange={(v) => setWindowDays(v[0])} className="w-48" />
+                  <Badge variant="outline">{windowDays} วัน</Badge>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">นับว่า PM Pass ครั้งนั้น “ไม่ได้ผล” ถ้าเกิด Claim ภายใน N วัน</p>
+              <div className="text-xs text-muted-foreground leading-relaxed bg-muted/40 rounded-md p-3">
+                <b>ตัวเลื่อนนี้คืออะไร?</b> ใช้ตั้งช่วงเวลา (N วัน) สำหรับวัดว่า "การ PM แต่ละครั้งได้ผลจริงหรือไม่"
+                — ถ้าช่างทำ PM ผ่าน (Pass) แล้วป้ายเดียวกัน <b>เกิด Claim ภายใน N วัน</b> ระบบจะนับว่า PM ครั้งนั้น
+                "ไม่ได้ผล" (ซ่อมไม่ถึงต้นเหตุ หรือ checklist หลวมเกินไป).
+                <br />
+                <b>ประโยชน์:</b> ใช้ประเมินคุณภาพงาน PM ของช่าง/ทีม, หาช่วงเวลาที่เหมาะสมระหว่างรอบ PM,
+                และพิสูจน์ว่าการ PM ช่วยลดการเสียจริงหรือไม่ — เลื่อนเลขสูงขึ้น (เช่น 30–60 วัน) เพื่อดูผลระยะยาว,
+                หรือเลื่อนต่ำ (7–14 วัน) เพื่อจับ "PM แล้วเสียทันที".
+              </div>
             </CardContent>
           </Card>
 
@@ -571,17 +594,17 @@ function AssetTab({ assetCode }: { assetCode: string }) {
 
           {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <SummaryCard icon={Activity} label="Total Claims" value={data.kpi.totalClaims} color="text-rose-500" />
-            <SummaryCard icon={Repeat} label="MTBF (วัน)" value={data.kpi.mtbfDays ?? "—"} color="text-amber-500" />
-            <SummaryCard icon={Clock} label="Avg Resolve (ชม.)" value={data.kpi.avgResolveHrs ?? "—"} color="text-violet-500" />
-            <SummaryCard icon={TrendingDown} label="Days since last failure" value={data.kpi.daysSinceLast ?? "—"} color="text-emerald-500" />
+            <SummaryCard icon={Activity} label="Total Claims" value={data.kpi.totalClaims} color="text-rose-500" hint="จำนวน Claim ของป้ายนี้ทั้งหมด (นับทุกช่วงเวลา)" />
+            <SummaryCard icon={Repeat} label="MTBF (วัน)" value={data.kpi.mtbfDays ?? "—"} color="text-amber-500" hint="Mean Time Between Failures = ค่าเฉลี่ยจำนวนวัน 'ระหว่าง' Claim แต่ละครั้ง — ยิ่งมากยิ่งดี (เสียถี่น้อยลง)" />
+            <SummaryCard icon={Clock} label="Avg Resolve (วัน)" value={data.kpi.avgResolveHrs ?? "—"} color="text-violet-500" hint="ค่าเฉลี่ย resolve_time จาก DB (วัน) = เวลาที่ช่างใช้ซ่อมจริงต่อ Claim 1 ใบ" />
+            <SummaryCard icon={TrendingDown} label="Days since last failure" value={data.kpi.daysSinceLast ?? "—"} color="text-emerald-500" hint="จำนวนวันนับจาก Claim ล่าสุดถึงวันนี้ — ยิ่งมากแปลว่าป้ายเสถียรขึ้น" />
           </div>
 
           {/* Repair-time KPIs (days) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <SummaryCard icon={Clock} label="เฉลี่ย Response Time (วัน) — แจ้งซ่อม → เริ่มซ่อม" value={data.repairTime.avgResponseDays ?? "—"} color="text-sky-500" />
-            <SummaryCard icon={Wrench} label="เฉลี่ย Resolve Time (วัน) — เวลาที่ช่างใช้ซ่อม" value={data.repairTime.avgResolveDays ?? "—"} color="text-violet-500" />
-            <SummaryCard icon={Activity} label="เฉลี่ย Total Turnaround (วัน) — รวมเวลาทั้งหมด" value={data.repairTime.avgTotalTurnaroundDays ?? "—"} color="text-rose-500" />
+            <SummaryCard icon={Clock} label="เฉลี่ย Response Time (วัน)" value={data.repairTime.avgResponseDays ?? "—"} color="text-sky-500" hint="แจ้งซ่อม → เริ่มซ่อม (รอช่างเข้าหน้างาน)" />
+            <SummaryCard icon={Wrench} label="เฉลี่ย Resolve Time (วัน)" value={data.repairTime.avgResolveDays ?? "—"} color="text-violet-500" hint="เวลาที่ช่างใช้ซ่อมจริง (ตั้งแต่เริ่ม → ปิดงาน)" />
+            <SummaryCard icon={Activity} label="เฉลี่ย Total Turnaround (วัน)" value={data.repairTime.avgTotalTurnaroundDays ?? "—"} color="text-rose-500" hint="รวมเวลาทั้งหมด: แจ้งซ่อม → ปิดงาน (Response + Resolve + รออื่นๆ)" />
           </div>
 
           {/* Recurrence alert */}
@@ -666,9 +689,9 @@ function AssetTab({ assetCode }: { assetCode: string }) {
                     <TableHead className="whitespace-nowrap">Problem Detail</TableHead>
                     <TableHead className="whitespace-nowrap">Solution Category</TableHead>
                     <TableHead className="whitespace-nowrap">Solution Detail</TableHead>
-                    <TableHead className="whitespace-nowrap text-right">Response Time (ชม.)</TableHead>
-                    <TableHead className="whitespace-nowrap text-right">Resolve Time (ชม.)</TableHead>
-                    <TableHead className="whitespace-nowrap text-right">Total Turnaround (ชม.)</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Response Time (วัน)</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Resolve Time (วัน)</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Total Turnaround (วัน)</TableHead>
                     <TableHead className="whitespace-nowrap">Asset Status</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>

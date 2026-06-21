@@ -55,6 +55,20 @@ const COLORS = [
   "oklch(0.7 0.12 30)",
 ];
 
+// Format a duration stored in minutes as "Xวัน Yชม. Zนาที"
+function fmtDuration(mins: number | null | undefined): string {
+  if (typeof mins !== "number" || !Number.isFinite(mins) || mins <= 0) return "—";
+  const total = Math.round(mins);
+  const d = Math.floor(total / 1440);
+  const h = Math.floor((total % 1440) / 60);
+  const m = total % 60;
+  const parts: string[] = [];
+  if (d) parts.push(`${d}วัน`);
+  if (h) parts.push(`${h}ชม.`);
+  if (m || parts.length === 0) parts.push(`${m}นาที`);
+  return parts.join(" ");
+}
+
 // ─────────────────────── MultiSelect (reused pattern) ───────────────────────
 const MultiSelect = memo(function MultiSelect({
   label, options, value, onChange,

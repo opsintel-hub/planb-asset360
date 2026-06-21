@@ -67,7 +67,7 @@ async function fetchAll<T>(
 }
 
 const HIST_COLS =
-  "id, old_code, category, created_date, updated_date, status, asset_status, inform_detail, problem_category, problem_detail, problem_equipment, solution_category, solution_detail, response_time, resolve_time, total_turnaround_time, project, bkk_upc, media_type";
+  "id, old_code, category, created_date, updated_date, status, asset_status, inform_position, inform_detail, problem_category, problem_detail, problem_equipment, solution_category, solution_detail, response_time, resolve_time, total_turnaround_time, project, bkk_upc, media_type";
 
 async function fetchHistoryKeyset(
   category: string,

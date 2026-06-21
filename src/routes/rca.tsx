@@ -874,7 +874,7 @@ function MappingTab({ applied }: { applied: AppliedFilters | null }) {
           <CardContent className="px-0">
             <Table>
               <TableHeader><TableRow>
-                <TableHead>Category</TableHead><TableHead className="text-right">Claims</TableHead><TableHead className="text-right">Assets</TableHead><TableHead className="text-right">MTBF</TableHead><TableHead className="text-right">Resolve (ชม.)</TableHead><TableHead>Top Solution</TableHead>
+                <TableHead>Category</TableHead><TableHead className="text-right">Claims</TableHead><TableHead className="text-right">Assets</TableHead><TableHead className="text-right">MTBF</TableHead><TableHead className="text-right">Resolve Time</TableHead><TableHead>Top Solution</TableHead>
               </TableRow></TableHeader>
               <TableBody>
                 {data.perCategory.map((c) => (

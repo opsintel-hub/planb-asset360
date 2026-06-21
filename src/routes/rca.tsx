@@ -175,7 +175,6 @@ function RcaPage() {
   const [assetSearchDraft, setAssetSearchDraft] = useState("");
   const [applied, setApplied] = useState<AppliedFilters | null>(null);
   const [tab, setTab] = useState("portfolio");
-  const [assetQuery, setAssetQuery] = useState("");
 
   const { data: optionsData } = useQuery({
     queryKey: ["rca-filter-options"],

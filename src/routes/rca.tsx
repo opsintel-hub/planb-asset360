@@ -55,6 +55,20 @@ const COLORS = [
   "oklch(0.7 0.12 30)",
 ];
 
+// Format a duration stored in minutes as "Xวัน Yชม. Zนาที"
+function fmtDuration(mins: number | null | undefined): string {
+  if (typeof mins !== "number" || !Number.isFinite(mins) || mins <= 0) return "—";
+  const total = Math.round(mins);
+  const d = Math.floor(total / 1440);
+  const h = Math.floor((total % 1440) / 60);
+  const m = total % 60;
+  const parts: string[] = [];
+  if (d) parts.push(`${d}วัน`);
+  if (h) parts.push(`${h}ชม.`);
+  if (m || parts.length === 0) parts.push(`${m}นาที`);
+  return parts.join(" ");
+}
+
 // ─────────────────────── MultiSelect (reused pattern) ───────────────────────
 const MultiSelect = memo(function MultiSelect({
   label, options, value, onChange,
@@ -378,7 +392,7 @@ function PortfolioTab({ applied }: { applied: AppliedFilters | null }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <SummaryCard icon={Activity} label="Total Claims" value={data.summary.totalClaims} color="text-rose-500" hint="จำนวนใบแจ้งซ่อม (Claim) ทั้งหมดในช่วงและตัวกรองที่เลือก" />
         <SummaryCard icon={AlertTriangle} label="Unique Assets Affected" value={data.summary.uniqueAssets} color="text-amber-500" hint="จำนวนป้าย (รหัสไม่ซ้ำ) ที่มี Claim อย่างน้อย 1 ครั้ง" />
-        <SummaryCard icon={Clock} label="Avg Resolve Time (วัน)" value={data.summary.avgResolveHrs ?? "—"} color="text-violet-500" hint="ค่าเฉลี่ย resolve_time ของทุก Claim (หน่วยวัน)" />
+        <SummaryCard icon={Clock} label="Avg Resolve Time" value={fmtDuration(data.summary.avgResolveHrs)} color="text-violet-500" hint="ค่าเฉลี่ย resolve_time ของทุก Claim (แสดงเป็น วัน/ชม./นาที)" />
         <SummaryCard icon={Repeat} label="Repeat-Failure Rate (≥3 ครั้ง)" value={`${data.summary.repeatRatePct}%`} color="text-orange-500" hint="% ของป้ายที่เสียซ้ำ ≥ 3 ครั้งในช่วงนี้ เทียบกับป้ายที่มี Claim ทั้งหมด" />
       </div>
 
@@ -596,15 +610,15 @@ function AssetTab({ assetCode }: { assetCode: string }) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <SummaryCard icon={Activity} label="Total Claims" value={data.kpi.totalClaims} color="text-rose-500" hint="จำนวน Claim ของป้ายนี้ทั้งหมด (นับทุกช่วงเวลา)" />
             <SummaryCard icon={Repeat} label="MTBF (วัน)" value={data.kpi.mtbfDays ?? "—"} color="text-amber-500" hint="Mean Time Between Failures = ค่าเฉลี่ยจำนวนวัน 'ระหว่าง' Claim แต่ละครั้ง — ยิ่งมากยิ่งดี (เสียถี่น้อยลง)" />
-            <SummaryCard icon={Clock} label="Avg Resolve (วัน)" value={data.kpi.avgResolveHrs ?? "—"} color="text-violet-500" hint="ค่าเฉลี่ย resolve_time จาก DB (วัน) = เวลาที่ช่างใช้ซ่อมจริงต่อ Claim 1 ใบ" />
+            <SummaryCard icon={Clock} label="Avg Resolve Time" value={fmtDuration(data.kpi.avgResolveHrs)} color="text-violet-500" hint="ค่าเฉลี่ย resolve_time จาก DB = เวลาที่ช่างใช้ซ่อมจริงต่อ Claim 1 ใบ (แสดงเป็น วัน/ชม./นาที)" />
             <SummaryCard icon={TrendingDown} label="Days since last failure" value={data.kpi.daysSinceLast ?? "—"} color="text-emerald-500" hint="จำนวนวันนับจาก Claim ล่าสุดถึงวันนี้ — ยิ่งมากแปลว่าป้ายเสถียรขึ้น" />
           </div>
 
-          {/* Repair-time KPIs (days) */}
+          {/* Repair-time KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <SummaryCard icon={Clock} label="เฉลี่ย Response Time (วัน)" value={data.repairTime.avgResponseDays ?? "—"} color="text-sky-500" hint="แจ้งซ่อม → เริ่มซ่อม (รอช่างเข้าหน้างาน)" />
-            <SummaryCard icon={Wrench} label="เฉลี่ย Resolve Time (วัน)" value={data.repairTime.avgResolveDays ?? "—"} color="text-violet-500" hint="เวลาที่ช่างใช้ซ่อมจริง (ตั้งแต่เริ่ม → ปิดงาน)" />
-            <SummaryCard icon={Activity} label="เฉลี่ย Total Turnaround (วัน)" value={data.repairTime.avgTotalTurnaroundDays ?? "—"} color="text-rose-500" hint="รวมเวลาทั้งหมด: แจ้งซ่อม → ปิดงาน (Response + Resolve + รออื่นๆ)" />
+            <SummaryCard icon={Clock} label="เฉลี่ย Response Time" value={fmtDuration(data.repairTime.avgResponseDays)} color="text-sky-500" hint="แจ้งซ่อม → เริ่มซ่อม (รอช่างเข้าหน้างาน) — แสดงเป็น วัน/ชม./นาที" />
+            <SummaryCard icon={Wrench} label="เฉลี่ย Resolve Time" value={fmtDuration(data.repairTime.avgResolveDays)} color="text-violet-500" hint="เวลาที่ช่างใช้ซ่อมจริง (ตั้งแต่เริ่ม → ปิดงาน) — แสดงเป็น วัน/ชม./นาที" />
+            <SummaryCard icon={Activity} label="เฉลี่ย Total Turnaround" value={fmtDuration(data.repairTime.avgTotalTurnaroundDays)} color="text-rose-500" hint="รวมเวลาทั้งหมด: แจ้งซ่อม → ปิดงาน (Response + Resolve + รออื่นๆ) — แสดงเป็น วัน/ชม./นาที" />
           </div>
 
           {/* Recurrence alert */}
@@ -689,9 +703,9 @@ function AssetTab({ assetCode }: { assetCode: string }) {
                     <TableHead className="whitespace-nowrap">Problem Detail</TableHead>
                     <TableHead className="whitespace-nowrap">Solution Category</TableHead>
                     <TableHead className="whitespace-nowrap">Solution Detail</TableHead>
-                    <TableHead className="whitespace-nowrap text-right">Response Time (วัน)</TableHead>
-                    <TableHead className="whitespace-nowrap text-right">Resolve Time (วัน)</TableHead>
-                    <TableHead className="whitespace-nowrap text-right">Total Turnaround (วัน)</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Response Time</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Resolve Time</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Total Turnaround</TableHead>
                     <TableHead className="whitespace-nowrap">Asset Status</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
@@ -706,9 +720,9 @@ function AssetTab({ assetCode }: { assetCode: string }) {
                         <TableCell className="text-xs max-w-[260px] truncate" title={h.problemDetail}>{h.problemDetail || "—"}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{h.solutionCategory || "—"}</TableCell>
                         <TableCell className="text-xs max-w-[260px] truncate" title={h.solutionDetail}>{h.solutionDetail || "—"}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{fmtNum(h.responseTime)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{fmtNum(h.resolveTime)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{fmtNum(h.totalTurnaroundTime)}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums whitespace-nowrap">{fmtDuration(h.responseTime)}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums whitespace-nowrap">{fmtDuration(h.resolveTime)}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums whitespace-nowrap">{fmtDuration(h.totalTurnaroundTime)}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{h.assetStatus || "—"}</TableCell>
                       </TableRow>
                     ))}
@@ -860,7 +874,7 @@ function MappingTab({ applied }: { applied: AppliedFilters | null }) {
           <CardContent className="px-0">
             <Table>
               <TableHeader><TableRow>
-                <TableHead>Category</TableHead><TableHead className="text-right">Claims</TableHead><TableHead className="text-right">Assets</TableHead><TableHead className="text-right">MTBF</TableHead><TableHead className="text-right">Resolve (ชม.)</TableHead><TableHead>Top Solution</TableHead>
+                <TableHead>Category</TableHead><TableHead className="text-right">Claims</TableHead><TableHead className="text-right">Assets</TableHead><TableHead className="text-right">MTBF</TableHead><TableHead className="text-right">Resolve Time</TableHead><TableHead>Top Solution</TableHead>
               </TableRow></TableHeader>
               <TableBody>
                 {data.perCategory.map((c) => (
@@ -871,7 +885,7 @@ function MappingTab({ applied }: { applied: AppliedFilters | null }) {
                     <TableCell className="text-right text-xs font-semibold">{c.totalClaims}</TableCell>
                     <TableCell className="text-right text-xs">{c.uniqueAssets}</TableCell>
                     <TableCell className="text-right text-xs">{c.mtbfDays ?? "—"}</TableCell>
-                    <TableCell className="text-right text-xs">{c.avgResolveHrs ?? "—"}</TableCell>
+                    <TableCell className="text-right text-xs whitespace-nowrap">{fmtDuration(c.avgResolveHrs)}</TableCell>
                     <TableCell className="text-xs truncate max-w-[180px]" title={c.topSolution}>{c.topSolution}</TableCell>
                   </TableRow>
                 ))}

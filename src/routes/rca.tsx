@@ -718,9 +718,9 @@ function AssetTab({ assetCode }: { assetCode: string }) {
                         <TableCell className="text-xs max-w-[260px] truncate" title={h.problemDetail}>{h.problemDetail || "—"}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{h.solutionCategory || "—"}</TableCell>
                         <TableCell className="text-xs max-w-[260px] truncate" title={h.solutionDetail}>{h.solutionDetail || "—"}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{fmtNum(h.responseTime)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{fmtNum(h.resolveTime)}</TableCell>
-                        <TableCell className="text-right text-xs tabular-nums">{fmtNum(h.totalTurnaroundTime)}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums whitespace-nowrap">{fmtDuration(h.responseTime)}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums whitespace-nowrap">{fmtDuration(h.resolveTime)}</TableCell>
+                        <TableCell className="text-right text-xs tabular-nums whitespace-nowrap">{fmtDuration(h.totalTurnaroundTime)}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{h.assetStatus || "—"}</TableCell>
                       </TableRow>
                     ))}

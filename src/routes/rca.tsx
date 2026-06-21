@@ -301,8 +301,8 @@ function RcaPage() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="grid grid-cols-3 w-full md:w-auto">
-          <TabsTrigger value="portfolio"><Activity className="size-4 mr-1" /> Portfolio</TabsTrigger>
-          <TabsTrigger value="asset"><Search className="size-4 mr-1" /> Per-Asset</TabsTrigger>
+          <TabsTrigger value="portfolio"><Activity className="size-4 mr-1" /> ภาพรวม Portfolio</TabsTrigger>
+          <TabsTrigger value="asset"><Search className="size-4 mr-1" /> เจาะรายป้าย (Per-Asset)</TabsTrigger>
           <TabsTrigger value="mapping"><Wrench className="size-4 mr-1" /> Diagram Mapping</TabsTrigger>
         </TabsList>
 
@@ -310,11 +310,7 @@ function RcaPage() {
           <PortfolioTab applied={applied} />
         </TabsContent>
         <TabsContent value="asset" className="mt-4">
-          <AssetTab
-            assetCode={assetQuery}
-            onAssetCode={setAssetQuery}
-            assetCodeOptions={assetCodeOptions}
-          />
+          <AssetTab assetCode={applied?.assetSearch ?? ""} />
         </TabsContent>
         <TabsContent value="mapping" className="mt-4">
           <MappingTab applied={applied} />

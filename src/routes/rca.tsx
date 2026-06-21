@@ -527,7 +527,7 @@ function AssetTab({ assetCode }: { assetCode: string }) {
     staleTime: 60_000,
   });
 
-  const fmtDate = (s: string) => (s ? s.slice(0, 19).replace("T", " ") : "—");
+  const fmtDate = (s: string) => (s ? s.slice(0, 10) : "—");
   const fmtNum = (v: number | null) => (typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—");
 
   return (

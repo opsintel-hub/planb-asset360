@@ -516,11 +516,11 @@ export const getRcaAsset = createServerFn({ method: "POST" })
       }))
       .sort((a, b) => b.createdDate.localeCompare(a.createdDate));
 
-    // Avg repair time KPIs (assume DB stores hours → convert to days)
+    // Avg repair time KPIs (DB already stores values in days)
     const avgOf = (arr: (number | null)[]) => {
       let s = 0, n = 0;
       for (const v of arr) if (typeof v === "number" && Number.isFinite(v) && v > 0) { s += v; n++; }
-      return n > 0 ? Math.round((s / n / 24) * 100) / 100 : null;
+      return n > 0 ? Math.round((s / n) * 100) / 100 : null;
     };
     const repairTime = {
       avgResponseDays: avgOf(claims.map((c) => c.response_time)),

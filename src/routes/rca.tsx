@@ -392,7 +392,7 @@ function PortfolioTab({ applied }: { applied: AppliedFilters | null }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <SummaryCard icon={Activity} label="Total Claims" value={data.summary.totalClaims} color="text-rose-500" hint="จำนวนใบแจ้งซ่อม (Claim) ทั้งหมดในช่วงและตัวกรองที่เลือก" />
         <SummaryCard icon={AlertTriangle} label="Unique Assets Affected" value={data.summary.uniqueAssets} color="text-amber-500" hint="จำนวนป้าย (รหัสไม่ซ้ำ) ที่มี Claim อย่างน้อย 1 ครั้ง" />
-        <SummaryCard icon={Clock} label="Avg Resolve Time (วัน)" value={data.summary.avgResolveHrs ?? "—"} color="text-violet-500" hint="ค่าเฉลี่ย resolve_time ของทุก Claim (หน่วยวัน)" />
+        <SummaryCard icon={Clock} label="Avg Resolve Time" value={fmtDuration(data.summary.avgResolveHrs)} color="text-violet-500" hint="ค่าเฉลี่ย resolve_time ของทุก Claim (แสดงเป็น วัน/ชม./นาที)" />
         <SummaryCard icon={Repeat} label="Repeat-Failure Rate (≥3 ครั้ง)" value={`${data.summary.repeatRatePct}%`} color="text-orange-500" hint="% ของป้ายที่เสียซ้ำ ≥ 3 ครั้งในช่วงนี้ เทียบกับป้ายที่มี Claim ทั้งหมด" />
       </div>
 

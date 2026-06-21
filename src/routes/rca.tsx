@@ -608,15 +608,15 @@ function AssetTab({ assetCode }: { assetCode: string }) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <SummaryCard icon={Activity} label="Total Claims" value={data.kpi.totalClaims} color="text-rose-500" hint="จำนวน Claim ของป้ายนี้ทั้งหมด (นับทุกช่วงเวลา)" />
             <SummaryCard icon={Repeat} label="MTBF (วัน)" value={data.kpi.mtbfDays ?? "—"} color="text-amber-500" hint="Mean Time Between Failures = ค่าเฉลี่ยจำนวนวัน 'ระหว่าง' Claim แต่ละครั้ง — ยิ่งมากยิ่งดี (เสียถี่น้อยลง)" />
-            <SummaryCard icon={Clock} label="Avg Resolve (วัน)" value={data.kpi.avgResolveHrs ?? "—"} color="text-violet-500" hint="ค่าเฉลี่ย resolve_time จาก DB (วัน) = เวลาที่ช่างใช้ซ่อมจริงต่อ Claim 1 ใบ" />
+            <SummaryCard icon={Clock} label="Avg Resolve Time" value={fmtDuration(data.kpi.avgResolveHrs)} color="text-violet-500" hint="ค่าเฉลี่ย resolve_time จาก DB = เวลาที่ช่างใช้ซ่อมจริงต่อ Claim 1 ใบ (แสดงเป็น วัน/ชม./นาที)" />
             <SummaryCard icon={TrendingDown} label="Days since last failure" value={data.kpi.daysSinceLast ?? "—"} color="text-emerald-500" hint="จำนวนวันนับจาก Claim ล่าสุดถึงวันนี้ — ยิ่งมากแปลว่าป้ายเสถียรขึ้น" />
           </div>
 
-          {/* Repair-time KPIs (days) */}
+          {/* Repair-time KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <SummaryCard icon={Clock} label="เฉลี่ย Response Time (วัน)" value={data.repairTime.avgResponseDays ?? "—"} color="text-sky-500" hint="แจ้งซ่อม → เริ่มซ่อม (รอช่างเข้าหน้างาน)" />
-            <SummaryCard icon={Wrench} label="เฉลี่ย Resolve Time (วัน)" value={data.repairTime.avgResolveDays ?? "—"} color="text-violet-500" hint="เวลาที่ช่างใช้ซ่อมจริง (ตั้งแต่เริ่ม → ปิดงาน)" />
-            <SummaryCard icon={Activity} label="เฉลี่ย Total Turnaround (วัน)" value={data.repairTime.avgTotalTurnaroundDays ?? "—"} color="text-rose-500" hint="รวมเวลาทั้งหมด: แจ้งซ่อม → ปิดงาน (Response + Resolve + รออื่นๆ)" />
+            <SummaryCard icon={Clock} label="เฉลี่ย Response Time" value={fmtDuration(data.repairTime.avgResponseDays)} color="text-sky-500" hint="แจ้งซ่อม → เริ่มซ่อม (รอช่างเข้าหน้างาน) — แสดงเป็น วัน/ชม./นาที" />
+            <SummaryCard icon={Wrench} label="เฉลี่ย Resolve Time" value={fmtDuration(data.repairTime.avgResolveDays)} color="text-violet-500" hint="เวลาที่ช่างใช้ซ่อมจริง (ตั้งแต่เริ่ม → ปิดงาน) — แสดงเป็น วัน/ชม./นาที" />
+            <SummaryCard icon={Activity} label="เฉลี่ย Total Turnaround" value={fmtDuration(data.repairTime.avgTotalTurnaroundDays)} color="text-rose-500" hint="รวมเวลาทั้งหมด: แจ้งซ่อม → ปิดงาน (Response + Resolve + รออื่นๆ) — แสดงเป็น วัน/ชม./นาที" />
           </div>
 
           {/* Recurrence alert */}

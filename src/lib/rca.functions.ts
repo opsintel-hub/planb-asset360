@@ -495,16 +495,37 @@ export const getRcaAsset = createServerFn({ method: "POST" })
     // History rows for table
     const history = claims
       .map((c) => ({
-        date: (c.created_date ?? "").slice(0, 10),
-        status: c.status ?? "",
+        createdDate: c.created_date ?? "",
+        updatedDate: c.updated_date ?? "",
+        informPosition: (c as { inform_position?: string | null }).inform_position ?? "",
+        informDetail: c.inform_detail ?? "",
         problemCategory: c.problem_category ?? "",
         problemEquipment: c.problem_equipment ?? "",
         problemDetail: c.problem_detail ?? "",
         solutionCategory: c.solution_category ?? "",
         solutionDetail: c.solution_detail ?? "",
+        responseTime: c.response_time ?? null,
+        resolveTime: c.resolve_time ?? null,
+        totalTurnaroundTime: c.total_turnaround_time ?? null,
+        assetStatus: c.asset_status ?? "",
+        // legacy
+        date: (c.created_date ?? "").slice(0, 10),
+        status: c.status ?? "",
         resolveHrs: c.resolve_time ?? null,
       }))
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort((a, b) => b.createdDate.localeCompare(a.createdDate));
+
+    // Avg repair time KPIs (assume DB stores hours → convert to days)
+    const avgOf = (arr: (number | null)[]) => {
+      let s = 0, n = 0;
+      for (const v of arr) if (typeof v === "number" && Number.isFinite(v) && v > 0) { s += v; n++; }
+      return n > 0 ? Math.round((s / n / 24) * 100) / 100 : null;
+    };
+    const repairTime = {
+      avgResponseDays: avgOf(claims.map((c) => c.response_time)),
+      avgResolveDays: avgOf(claims.map((c) => c.resolve_time)),
+      avgTotalTurnaroundDays: avgOf(claims.map((c) => c.total_turnaround_time)),
+    };
 
     return {
       asset: a

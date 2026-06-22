@@ -49,7 +49,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/search")({
   head: () => ({
     meta: [
-      { title: "ค้นหาประวัติป้ายโฆษณา — Asset History 360" },
+      { title: "Asset history\n — Asset History 360" },
       { name: "description", content: "เปรียบเทียบประวัติ PM / Claim / Monitoring ของป้ายโฆษณาสูงสุด 5 ป้าย" },
     ],
   }),
@@ -454,7 +454,7 @@ function SearchPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="ค้นหาประวัติป้ายโฆษณา"
+        title="Asset history\n"
         subtitle="เปรียบเทียบประวัติงานสูงสุด 5 ป้าย — PM / Claim / Monitoring / Asset Health"
         actions={
           codes.length > 0 ? (

@@ -522,11 +522,20 @@ export const getRcaAsset = createServerFn({ method: "POST" })
       for (const v of arr) if (typeof v === "number" && Number.isFinite(v) && v > 0) { s += v; n++; }
       return n > 0 ? Math.round((s / n) * 100) / 100 : null;
     };
+    const sumOf = (arr: (number | null)[]) => {
+      let s = 0, n = 0;
+      for (const v of arr) if (typeof v === "number" && Number.isFinite(v) && v > 0) { s += v; n++; }
+      return { sum: n > 0 ? Math.round(s * 100) / 100 : null, count: n };
+    };
+    const totalTurnaround = sumOf(claims.map((c) => c.total_turnaround_time));
     const repairTime = {
       avgResponseDays: avgOf(claims.map((c) => c.response_time)),
       avgResolveDays: avgOf(claims.map((c) => c.resolve_time)),
       avgTotalTurnaroundDays: avgOf(claims.map((c) => c.total_turnaround_time)),
+      totalDowntimeMins: totalTurnaround.sum,
+      downtimeTickets: totalTurnaround.count,
     };
+
 
     return {
       asset: a

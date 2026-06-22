@@ -459,44 +459,13 @@ function PortfolioTab({ applied }: { applied: AppliedFilters | null }) {
         </CardContent>
       </Card>
 
-      {/* Top offenders */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Top 15 ป้ายที่เสียซ้ำมากสุด</CardTitle></CardHeader>
-        <CardContent className="px-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Old Code</TableHead>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Zone</TableHead>
-                  <TableHead className="text-right">Claims</TableHead>
-                  <TableHead className="text-right">MTBF (วัน)</TableHead>
-                  <TableHead>อาการหลัก</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.topOffenders.map((o) => (
-                  <TableRow key={o.oldCode}>
-                    <TableCell className="font-mono text-xs">{o.oldCode}</TableCell>
-                    <TableCell className="text-xs">{o.project || "—"}</TableCell>
-                    <TableCell className="text-xs">{o.zone || "—"}</TableCell>
-                    <TableCell className="text-right font-semibold">{o.claims}</TableCell>
-                    <TableCell className="text-right">{o.mtbfDays ?? "—"}</TableCell>
-                    <TableCell className="text-xs truncate max-w-[280px]" title={o.topSymptom}>{o.topSymptom}</TableCell>
-                  </TableRow>
-                ))}
-                {data.topOffenders.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">ไม่มีข้อมูล</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
+
+
+
+
 
 function ParetoCard({ title, data }: { title: string; data: { label: string; count: number; cumulativePct: number }[] }) {
   return (
@@ -615,11 +584,19 @@ function AssetTab({ assetCode }: { assetCode: string }) {
           </div>
 
           {/* Repair-time KPIs */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <SummaryCard icon={Clock} label="เฉลี่ย Response Time" value={fmtDuration(data.repairTime.avgResponseDays)} color="text-sky-500" hint="แจ้งซ่อม → เริ่มซ่อม (รอช่างเข้าหน้างาน) — แสดงเป็น วัน/ชม./นาที" />
             <SummaryCard icon={Wrench} label="เฉลี่ย Resolve Time" value={fmtDuration(data.repairTime.avgResolveDays)} color="text-violet-500" hint="เวลาที่ช่างใช้ซ่อมจริง (ตั้งแต่เริ่ม → ปิดงาน) — แสดงเป็น วัน/ชม./นาที" />
             <SummaryCard icon={Activity} label="เฉลี่ย Total Turnaround" value={fmtDuration(data.repairTime.avgTotalTurnaroundDays)} color="text-rose-500" hint="รวมเวลาทั้งหมด: แจ้งซ่อม → ปิดงาน (Response + Resolve + รออื่นๆ) — แสดงเป็น วัน/ชม./นาที" />
+            <SummaryCard
+              icon={Clock}
+              label="Downtime รวม"
+              value={fmtDuration(data.repairTime.totalDowntimeMins)}
+              color="text-amber-500"
+              hint={`รวม total_turnaround_time ของทุก Claim ภายใต้ตัวกรองด้านบน (${data.repairTime.downtimeTickets} ใบ) — เพื่อดูเวลารวมที่ป้ายเสียทั้งหมด`}
+            />
           </div>
+
 
           {/* Recurrence alert */}
           {data.recurrences.length > 0 && (

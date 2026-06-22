@@ -408,49 +408,11 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
       history = (h ?? []).map((r) => toHistoryShape(r as MssqlRow, assetIdByCode));
     }
 
-    // Merge OPEN claim tickets (in progress; not in mssql history yet)
-    // NOTE: Claim tab counts must match mssql_asset_history WHERE category='Claim'
-    // exactly (single source of truth across the system). So we only merge open
-    // tickets for the AssetHealth aggregate view, not for the Claim tab itself.
-    if (data.tab === "AssetHealth" && finalAssets.length) {
-      const codes = finalAssets.map((a) => a.old_code).filter(Boolean) as string[];
-      if (codes.length) {
-        const { data: openTix } = await supabase
-          .from("claim_tickets")
-          .select("ref_number, asset_old_code, title, status, opened_at, age_hours, sla_status, payload")
-          .in("asset_old_code", codes);
-        const existingTitles = new Set(history.map((h) => h.id).filter(Boolean));
-        const nowMs = Date.now();
-        const extras: HistoryShape[] = (openTix ?? [])
-          .filter((t) => !existingTitles.has(t.ref_number))
-          .map((t) => {
-            const ageH = typeof t.age_hours === "number" ? t.age_hours : Number(t.age_hours ?? NaN);
-            const derived =
-              t.opened_at ??
-              (Number.isFinite(ageH) ? new Date(nowMs - ageH * 3_600_000).toISOString() : null);
-            return {
-              id: `open-${t.ref_number}`,
-              asset_id: t.asset_old_code ? assetIdByCode.get(t.asset_old_code) ?? null : null,
-              asset_old_code: t.asset_old_code,
-              ticket_code: t.ref_number,
-              type: "Claim",
-              title: t.title,
-              status: t.status,
-              opened_at: derived,
-              closed_at: null,
-              sla_hours: typeof t.age_hours === "number" ? t.age_hours : null,
-              payload: (t.payload ?? {}) as Record<string, string | number | boolean | null>,
-            };
-          });
-        if (extras.length) {
-          history = [...extras, ...history].sort((x, y) => {
-            const dx = x.opened_at ? new Date(x.opened_at).getTime() : 0;
-            const dy = y.opened_at ? new Date(y.opened_at).getTime() : 0;
-            return dy - dx;
-          });
-        }
-      }
-    }
+    // NOTE: Claim counts everywhere must match mssql_asset_history WHERE
+    // category='Claim' (single source of truth across the system). We do NOT
+    // merge open claim_tickets into any view, so Tab Claim / AssetHealth
+    // calendar / bar chart all show the same number.
+
 
     // slicer filter (in-memory)
     const filtered = finalAssets.filter((a) => {

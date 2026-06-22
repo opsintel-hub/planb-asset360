@@ -1157,12 +1157,20 @@ function AgingReport({
     <Card>
       <CardHeader>
         <CardTitle>PM Effectiveness & Aging</CardTitle>
-        <p className="text-sm text-muted-foreground mt-1">
-          จับคู่ PM (assetStatus = Pass) กับ Claim ครั้งถัดไปของป้ายเดียวกัน แล้วนับจำนวน "คู่" ตามช่วงวันที่ห่างกัน
-          · รวม <span className="font-semibold text-foreground">{totalPairs}</span> คู่ ·
-          แท่ง 1–3, 4–7 วัน = Critical (PM แล้วเสียซ้ำเร็ว) ·
-          <b> คลิกแท่งกราฟ หรือชิปด้านล่าง เพื่อเลือกได้หลายช่วง</b>
-        </p>
+        {(() => {
+          const failsWithin30 = pairs.filter((p) => p.days >= 1 && p.days <= 30).length;
+          const eff = pmPass > 0 ? Math.round((1 - failsWithin30 / pmPass) * 1000) / 10 : null;
+          return (
+            <p className="text-sm text-muted-foreground mt-1">
+              <span className="font-semibold text-foreground">PM Effectiveness: {eff === null ? "—" : `${eff}%`}</span>
+              <span className="text-xs"> (สูตรมาตรฐาน: <code>1 − Claim_ภายใน_30วัน ÷ PM_Pass × 100</code> · PM_Pass = {pmPass} · Claim_ภายใน_30วัน = {failsWithin30})</span>
+              <br />
+              จับคู่ PM (assetStatus = Pass) กับ Claim ครั้งถัดไปของป้ายเดียวกัน แล้วนับจำนวน "คู่" ตามช่วงวันที่ห่างกัน
+              · รวม <span className="font-semibold text-foreground">{totalPairs}</span> คู่ · แหล่งข้อมูล: <code>mssql_asset_history</code>
+              · แท่ง 1–3, 4–7 วัน = Critical · <b>คลิกแท่งกราฟ หรือชิปด้านล่าง เพื่อเลือกได้หลายช่วง</b>
+            </p>
+          );
+        })()}
       </CardHeader>
       <CardContent>
         <div className="h-72">

@@ -670,7 +670,7 @@ function MonthlyChart({
       <CardHeader>
         <CardTitle>จำนวนตั๋ว PM และ Claim รายเดือน</CardTitle>
         <div className="text-sm text-muted-foreground mt-1 space-y-1">
-          <p>นับตั๋วของปี {year} โดยอิงวันที่แบบเดียวกับเมนู <b>ค้นหาประวัติป้าย</b>:</p>
+          <p>นับตั๋วของปี {year} โดยอิงวันที่แบบเดียวกับเมนู <b>Asset history\n</b>:</p>
           <ul className="list-disc pl-5 space-y-0.5">
             <li><b>แท่งเขียว (PM)</b> = จำนวนตั๋ว PM ที่ <b>UpdatedDate</b> (วันที่ทำ PM จริง) อยู่ในเดือนนั้น — ทุกสถานะ Pass / Fail / In progress</li>
             <li><b>แท่งแดง (Claim)</b> = จำนวนตั๋ว Claim ที่ <b>CreatedDate</b> (วันเปิดตั๋ว) อยู่ในเดือนนั้น — ทุกสถานะ ทั้งปิดแล้วและยังค้าง</li>

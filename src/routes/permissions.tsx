@@ -30,7 +30,7 @@ const ROLES = ["admin", "manager", "technician", "sale", "crm", "production"] as
 type Role = (typeof ROLES)[number];
 
 const MENU_LABELS: Record<string, string> = {
-  "/search": "ค้นหาประวัติป้าย",
+  "/search": "Asset history\n",
   "/claims": "Claim Aging",
   "/settings": "ตั้งค่าระบบ",
   "/permissions": "จัดการสิทธิ์ (admin เท่านั้น)",

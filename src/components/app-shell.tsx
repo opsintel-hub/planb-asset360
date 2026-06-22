@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { getMyMenuAccess } from "@/lib/admin.functions";
 
 const NAV_ALL = [
-  { to: "/search", label: "Asset history\n", icon: Search },
+  { to: "/search", label: "Asset history", icon: Search },
   { to: "/claims", label: "Claim Aging", icon: Wrench },
   { to: "/pm-insights", label: "PM Insights", icon: BarChart3 },
   { to: "/monitoring", label: "Monitoring", icon: Activity },

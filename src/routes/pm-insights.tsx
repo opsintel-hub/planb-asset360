@@ -572,6 +572,7 @@ function PmInsightsPage() {
             pairs={data.pairs}
             bucketSel={bucketSel}
             onBucketSel={setBucketSel}
+            pmPass={data.kpi.pmPass ?? 0}
           />
 
 

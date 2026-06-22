@@ -642,7 +642,14 @@ function AssetTab({ assetCode }: { assetCode: string }) {
 
           {/* PM Effectiveness */}
           <Card>
-            <CardHeader><CardTitle className="text-base">PM Effectiveness ของป้ายนี้</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">PM Effectiveness ของป้ายนี้</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                สูตรมาตรฐานทั่วทั้งระบบ: <code>Success Rate = (1 − PM_ที่ตามด้วย_Claim_ภายใน_N_วัน ÷ PM_Pass_ทั้งหมด) × 100</code>
+                · แหล่งข้อมูล: <code>mssql_asset_history</code> (PM: <code>asset_status = "Pass"</code>, Claim: <code>category = "Claim"</code>)
+                · หน้าต่างเวลาปรับได้จากแถบเลื่อนด้านบน
+              </p>
+            </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div><div className="text-xs text-muted-foreground">PM Pass ทั้งหมด</div><div className="text-xl font-semibold">{data.pmEffective.passCount}</div></div>

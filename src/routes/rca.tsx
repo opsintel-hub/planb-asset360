@@ -463,8 +463,8 @@ function PortfolioTab({ applied }: { applied: AppliedFilters | null }) {
   );
 }
 
-// eslint dummy to satisfy structure
-function _ParetoTail() { return null;
+
+
 
 
 function ParetoCard({ title, data }: { title: string; data: { label: string; count: number; cumulativePct: number }[] }) {

@@ -1483,27 +1483,34 @@ function AssetHealthTab({
         });
         return (
           <div className="rounded-lg border bg-card p-4">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-1">
               <CalendarClock className="size-4 text-primary" />
               <h4 className="font-semibold text-sm">PM Schedule (จากตารางที่วางแผนไว้)</h4>
             </div>
+            <p className="text-[11px] text-muted-foreground mb-3">
+              แหล่งข้อมูล: <code>Asset_PM_Schedule</code> (Modern Corp) — ตัวเลขทั้งหมดนับจาก <code>schedule_date</code> ของป้ายที่เลือกเทียบกับวันนี้
+            </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="rounded-md bg-muted/40 p-2.5">
                 <div className="text-[11px] text-muted-foreground">ทั้งหมด</div>
                 <div className="text-xl font-semibold">{sched.length}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">ทุกแถวในตารางแผน</div>
               </div>
               <div className="rounded-md bg-success/10 p-2.5">
                 <div className="text-[11px] text-success">ทำแล้ว</div>
                 <div className="text-xl font-semibold text-success">{done}</div>
+                <div className="text-[10px] text-success/80 mt-0.5">status = approved / finished</div>
               </div>
               <div className="rounded-md bg-destructive/10 p-2.5">
                 <div className="text-[11px] text-destructive">เกินกำหนด</div>
                 <div className="text-xl font-semibold text-destructive">{overdue.length}</div>
+                <div className="text-[10px] text-destructive/80 mt-0.5">schedule_date &lt; วันนี้ &amp; ยังไม่ทำ</div>
                 {maxOverdue > 0 && <div className="text-[10px] text-destructive/80">สูงสุด {maxOverdue} วัน</div>}
               </div>
               <div className="rounded-md bg-muted/40 p-2.5">
                 <div className="text-[11px] text-muted-foreground">รอถึงกำหนด</div>
                 <div className="text-xl font-semibold">{upcoming}</div>
+                <div className="text-[10px] text-muted-foreground mt-0.5">schedule_date ≥ วันนี้</div>
               </div>
             </div>
             {lastDoneByAsset.size > 0 && (

@@ -459,44 +459,13 @@ function PortfolioTab({ applied }: { applied: AppliedFilters | null }) {
         </CardContent>
       </Card>
 
-      {/* Top offenders */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Top 15 ป้ายที่เสียซ้ำมากสุด</CardTitle></CardHeader>
-        <CardContent className="px-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Old Code</TableHead>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Zone</TableHead>
-                  <TableHead className="text-right">Claims</TableHead>
-                  <TableHead className="text-right">MTBF (วัน)</TableHead>
-                  <TableHead>อาการหลัก</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.topOffenders.map((o) => (
-                  <TableRow key={o.oldCode}>
-                    <TableCell className="font-mono text-xs">{o.oldCode}</TableCell>
-                    <TableCell className="text-xs">{o.project || "—"}</TableCell>
-                    <TableCell className="text-xs">{o.zone || "—"}</TableCell>
-                    <TableCell className="text-right font-semibold">{o.claims}</TableCell>
-                    <TableCell className="text-right">{o.mtbfDays ?? "—"}</TableCell>
-                    <TableCell className="text-xs truncate max-w-[280px]" title={o.topSymptom}>{o.topSymptom}</TableCell>
-                  </TableRow>
-                ))}
-                {data.topOffenders.length === 0 && (
-                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">ไม่มีข้อมูล</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
+
+// eslint dummy to satisfy structure
+function _ParetoTail() { return null;
+
 
 function ParetoCard({ title, data }: { title: string; data: { label: string; count: number; cumulativePct: number }[] }) {
   return (

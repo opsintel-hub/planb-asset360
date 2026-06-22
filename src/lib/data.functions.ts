@@ -409,7 +409,10 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
     }
 
     // Merge OPEN claim tickets (in progress; not in mssql history yet)
-    if ((data.tab === "Claim" || data.tab === "AssetHealth") && finalAssets.length) {
+    // NOTE: Claim tab counts must match mssql_asset_history WHERE category='Claim'
+    // exactly (single source of truth across the system). So we only merge open
+    // tickets for the AssetHealth aggregate view, not for the Claim tab itself.
+    if (data.tab === "AssetHealth" && finalAssets.length) {
       const codes = finalAssets.map((a) => a.old_code).filter(Boolean) as string[];
       if (codes.length) {
         const { data: openTix } = await supabase

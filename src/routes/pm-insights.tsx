@@ -1051,11 +1051,13 @@ function AgingReport({
   pairs,
   bucketSel,
   onBucketSel,
+  pmPass,
 }: {
   aging: { bucket: string; count: number }[];
   pairs: AgingPair[];
   bucketSel: string[];
   onBucketSel: (b: string[]) => void;
+  pmPass: number;
 }) {
   const [sel, setSel] = useState<Record<DonutKey, string | null>>({
     problemCategory: null,

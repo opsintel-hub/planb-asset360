@@ -366,11 +366,10 @@ function PortfolioTab({ applied }: { applied: AppliedFilters | null }) {
     return <div className="grid grid-cols-2 md:grid-cols-4 gap-4">{[1,2,3,4].map((i) => <Skeleton key={i} className="h-24" />)}</div>;
   }
 
-  const matrixGrid = (() => {
-    // Build top-N problems × top-N solutions matrix
+  const buildMatrix = (rows: { problemCat: string; solutionCat: string; count: number }[]) => {
     const problemTotals = new Map<string, number>();
     const solutionTotals = new Map<string, number>();
-    for (const m of data.matrix) {
+    for (const m of rows) {
       problemTotals.set(m.problemCat, (problemTotals.get(m.problemCat) ?? 0) + m.count);
       solutionTotals.set(m.solutionCat, (solutionTotals.get(m.solutionCat) ?? 0) + m.count);
     }
@@ -378,13 +377,15 @@ function PortfolioTab({ applied }: { applied: AppliedFilters | null }) {
     const topSolutions = Array.from(solutionTotals.entries()).sort((a,b)=>b[1]-a[1]).slice(0,8).map(x=>x[0]);
     const cellMap = new Map<string, number>();
     let max = 0;
-    for (const m of data.matrix) {
+    for (const m of rows) {
       const k = `${m.problemCat}|||${m.solutionCat}`;
       cellMap.set(k, m.count);
       if (m.count > max) max = m.count;
     }
     return { topProblems, topSolutions, cellMap, max };
-  })();
+  };
+  const matrixGrid = buildMatrix(data.matrix);
+  const informMatrixGrid = buildMatrix(data.informMatrix);
 
   return (
     <div className="space-y-6">

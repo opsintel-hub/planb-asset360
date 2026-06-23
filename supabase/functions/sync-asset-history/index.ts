@@ -160,6 +160,8 @@ async function runBatch(
     const req = pool!.request();
     const sinceDate = toDate(sinceCursor) ?? new Date(EPOCH);
     req.input("sinceCursor", sql.DateTimeOffset, sinceDate);
+    req.input("sinceOldCode", sql.NVarChar, sinceOldCode);
+    req.input("sinceRefNumber", sql.NVarChar, sinceRefNumber);
 
     const cursorExpr = `
       CASE
@@ -172,13 +174,30 @@ async function runBatch(
     `;
 
     const q = `
-      SELECT TOP ${batchSize} *, (${cursorExpr}) AS __cursor
+      SELECT TOP ${batchSize} *,
+        (${cursorExpr}) AS __cursor,
+        COALESCE(CAST([OldCode] AS nvarchar(255)), '') AS __cursor_old_code,
+        COALESCE(CAST([RefNumber] AS nvarchar(255)), '') AS __cursor_ref_number
       FROM ${historyTable}
-      WHERE (${cursorExpr}) > @sinceCursor
+      WHERE (
+          (${cursorExpr}) > @sinceCursor
+          OR (
+            (${cursorExpr}) = @sinceCursor
+            AND (
+              COALESCE(CAST([OldCode] AS nvarchar(255)), '') > @sinceOldCode
+              OR (
+                COALESCE(CAST([OldCode] AS nvarchar(255)), '') = @sinceOldCode
+                AND COALESCE(CAST([RefNumber] AS nvarchar(255)), '') > @sinceRefNumber
+              )
+            )
+          )
+        )
         AND TRY_CAST([CreatedDate] AS datetime2) >= (
           SELECT MAX(d) FROM (VALUES (DATEADD(month, -12, GETDATE())), ('2026-01-01')) AS v(d)
         )
-      ORDER BY (${cursorExpr}) ASC, [OldCode] ASC
+      ORDER BY (${cursorExpr}) ASC,
+        COALESCE(CAST([OldCode] AS nvarchar(255)), '') ASC,
+        COALESCE(CAST([RefNumber] AS nvarchar(255)), '') ASC
     `;
 
     const r = await req.query(q);
@@ -241,17 +260,26 @@ async function runBatch(
 
     // Advance cursor to MAX(__cursor) from this batch
     let nextCursor = sinceCursor;
+    let nextOldCode = sinceOldCode;
+    let nextRefNumber = sinceRefNumber;
     if (list.length) {
       const last = list[list.length - 1]["__cursor"];
       const iso = isoOrNull(last);
       if (iso) nextCursor = iso;
+      nextOldCode = String(list[list.length - 1]["__cursor_old_code"] ?? "");
+      nextRefNumber = String(list[list.length - 1]["__cursor_ref_number"] ?? "");
     }
 
     // Persist cursor only when we made progress
-    if (nextCursor !== sinceCursor) await setCursor(admin, nextCursor);
+    const madeProgress = nextCursor !== sinceCursor || nextOldCode !== sinceOldCode || nextRefNumber !== sinceRefNumber;
+    if (madeProgress) await setCursor(admin, {
+      lastCursor: nextCursor,
+      lastOldCode: nextOldCode,
+      lastRefNumber: nextRefNumber,
+    });
 
     const isFull = list.length === batchSize;
-    const noProgress = nextCursor === sinceCursor;
+    const noProgress = !madeProgress;
     const hasMore = isFull && !noProgress && batchIndex + 1 < maxBatches;
 
     await pool!.close(); pool = null;
@@ -284,7 +312,10 @@ async function runBatch(
 
       const url = `${SUPABASE_URL}/functions/v1/sync-asset-history`;
       const body = JSON.stringify({
-        batchSize, reset: false, sinceCursor: nextCursor,
+        batchSize, reset: false,
+        sinceCursor: nextCursor,
+        sinceOldCode: nextOldCode,
+        sinceRefNumber: nextRefNumber,
         batchIndex: batchIndex + 1, maxBatches, _logId: nextLogId,
       });
       // @ts-ignore EdgeRuntime

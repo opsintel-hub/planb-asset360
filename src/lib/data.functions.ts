@@ -21,6 +21,7 @@ type HistoryShape = {
 
 type MssqlRow = {
   id: string;
+  ref_number: string | null;
   old_code: string | null;
   category: string | null;
   status: string | null;
@@ -43,7 +44,8 @@ type MssqlRow = {
 };
 
 const MSSQL_HISTORY_COLS =
-  "id, old_code, category, status, project, media_type, bkk_upc, created_date, updated_date, inform_position, inform_detail, problem_category, problem_equipment, problem_detail, solution_category, solution_detail, response_time, resolve_time, total_turnaround_time, asset_status";
+  "id, ref_number, old_code, category, status, project, media_type, bkk_upc, created_date, updated_date, inform_position, inform_detail, problem_category, problem_equipment, problem_detail, solution_category, solution_detail, response_time, resolve_time, total_turnaround_time, asset_status";
+
 
 function typeFromCategory(cat: string | null): HistoryShape["type"] {
   const c = (cat ?? "").trim();

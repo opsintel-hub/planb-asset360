@@ -1,99 +1,79 @@
+## ขอบเขต
 
-# Root Cause Analysis (RCA)
+แก้ปัญหา 2 จุดในหน้า **Asset history** (`/search`):
 
-เมนูใหม่ `/rca` วิเคราะห์อาการเสียของป้ายโฆษณา โดยใช้ข้อมูลจาก `mssql_asset_history` (Claim/PM/Monitoring) ประกบกับ `diagram_mappings` เพื่อจัดกลุ่มอาการเสียอย่างมีโครงสร้าง ใช้ layout เดียวกับ PM Insight (Filter bar + Summary cards + Charts + Table)
+1. กราฟใน Tab **Monitoring / Claim / PM** (และอาจรวม Analytics) ไม่แสดงผล
+2. ลบปุ่ม **Generate PM Work Order** ใน Tab **Breakdown** (เลิกใช้แล้ว)
 
-## โครงสร้างหน้า
+---
 
-แท็บ (Tabs) 3 แท็บอยู่ใต้ Filter bar ร่วม:
+## งานที่ 1 — Diagnose & Fix กราฟไม่แสดงผล
 
-```text
-[Filter: Project | Zone | Media Type | Date range | Old Code search]
-  ├─ Tab 1: Portfolio Overview      (ภาพรวมทุกป้าย)
-  ├─ Tab 2: Per-Asset Deep Dive     (เจาะรายป้าย)
-  └─ Tab 3: Diagram Mapping Insight (คุณภาพการ map keywords)
-```
+### สิ่งที่ต้องตรวจสอบก่อนแก้ (Investigation)
 
-### Tab 1 — Portfolio Overview
+ก่อนแก้ผมต้องยืนยันสาเหตุที่แท้จริงด้วยการไล่ดูตามลำดับนี้ (จะทำหลังจาก approve plan):
 
-Summary Cards (4):
-- Total Claims (ในช่วงเวลา)
-- Unique Assets Affected
-- Avg Resolve Time (ชม.)
-- Repeat-Failure Rate % (ป้ายที่เสีย ≥3 ครั้ง)
+1. **เปิดหน้า `/search` จริง** ผ่าน Playwright + ใส่ old_code 1 ตัวที่มีข้อมูลใน DB (จะ query หาตัวที่มี Claim/PM/Monitor มากที่สุด) แล้วสลับแท็บ Monitoring / Claim / PM พร้อมจับ console + network เพื่อดูว่า:
+   - `getAssetsComparison` คืน `history.length > 0` หรือไม่
+   - มี runtime error / NaN ที่ recharts บ่นหรือไม่
+   - กราฟ render เป็นพื้นที่ว่าง (axis มี แต่ไม่มีเส้น) หรือ block หายทั้งก้อน
 
-Charts:
-- **Pareto Chart** ของ `problem_category` + `problem_equipment` (Bar เรียงมาก→น้อย + เส้น cumulative %) ระบุกลุ่ม 80/20
-- **Problem → Solution Matrix** (Heatmap): แกน X = `solution_category`, แกน Y = `problem_category` (จัดกลุ่มจาก diagram_mappings) สีตามจำนวน
-- **Top 10 Repeat Offenders** (ตารางป้ายที่เสียซ้ำมากสุด): Old Code, จำนวนเคลม, MTBF, อาการหลัก, คลิกเปิด Tab 2
+2. **ตรวจ logic ปัจจุบันที่เกี่ยวข้อง** (ใน `src/routes/search.tsx`):
+   - `eventDate(h)` (บรรทัด ~204): Claim ใช้ `opened_at` (= `created_date`), PM/Monitor ใช้ `closed_at` (= `updated_date`) → ถ้า `updated_date` เป็น `null` จะ fallback เป็น `opened_at` — เคสนี้น่าจะปลอดภัย
+   - `chartData` (บรรทัด ~1131): สร้าง 12 เดือนของ `chartYear` แล้วนับด้วย `history.filter(h => h.asset_id === a.id && eventDate(h)?.startsWith(\`${chartYear}-${mm}\`))`
+   - `defaultYear` (บรรทัด ~1112): หยิบปีล่าสุดจาก `yearsAvailable` — ถ้า history มีแต่ปีเก่า กราฟจะโชว์ปีเก่า ผู้ใช้อาจเข้าใจผิดว่า "ไม่แสดงผล"
+   - Date filter ที่ส่งไป backend: ค่า default `from = "2026-01-01"` → ถ้าเลือกป้ายที่มีประวัติเฉพาะปี 2024–2025 จะไม่ได้ row คืนมาเลย (นี่คือ candidate สาเหตุอันดับ 1)
 
-### Tab 2 — Per-Asset Deep Dive
+3. **ตรวจ backend** (`src/lib/data.functions.ts` → `getAssetsComparison`):
+   - filter `created_date >= from` และ `<= to` ใช้กับคอลัมน์ `nvarchar` "YYYY-MM-DD" — string compare ใช้ได้ ถูกต้อง
+   - `tab === "PM"` ใช้ `.like("category", "PM%")` ครอบ "PM (Media)", "PM (Schedule)", "PM (non Media)" — OK
+   - `limit(2000)` — ถ้าป้ายมีประวัติ > 2000 จะถูกตัด (จุดที่ต้องระวัง แต่ไม่น่าเกี่ยวกับ "ไม่แสดงผลเลย")
 
-Input: Autocomplete `Old Code` (reuse จาก PM Insight)
+### Hypothesis อันดับสาเหตุ (จากความเป็นไปได้)
 
-แสดง:
-- หัวการ์ดป้าย (Project / Zone / Media Type / Status / Last PM / Last Claim)
-- KPI: Total Claims, MTBF (วัน), Avg Resolve Time, Days Since Last Failure
-- **Timeline แนวนอน** (เหตุการณ์ทั้งหมด: PM=ฟ้า, Monitoring=เขียว, Claim=แดง) — เหมือน calendar แต่เป็นเส้นเวลาเดียว เพื่อดูว่า PM แล้วกี่วันเสีย, ซ้ำที่ตำแหน่ง/อุปกรณ์เดิมหรือไม่
-- **Failure Fingerprint**: Donut ของ problem_category สำหรับป้ายนี้ + อุปกรณ์ที่เสียบ่อย
-- **Recurrence Detector**: ถ้า problem_equipment เดิมซ้ำ ≥2 ครั้งภายใน 30 วัน → แสดง alert "อาการซ้ำ — อาจไม่ได้แก้ที่ต้นเหตุ"
-- **PM Effectiveness สำหรับป้ายนี้**: แสดงทุกครั้งที่ PM=Pass แล้วเกิด Claim ภายใน N วัน (slider 7/14/30 วัน) — สะท้อนว่า PM ครั้งนั้นมีประสิทธิภาพแค่ไหน
-- ตารางประวัติเต็ม (เหมือน tab Breakdown/Claim ของเมนูค้นหา)
+| # | สาเหตุที่คาด | วิธีแก้ |
+|---|---|---|
+| 1 | `from` default = `2026-01-01` กรองทิ้งข้อมูลปีก่อน → history ว่าง → กราฟไม่โผล่ (มี `history.length > 0 && ...`) | เปลี่ยน default `from` เป็น 12 เดือนย้อนหลังจากวันนี้ หรือ "ทั้งหมด" |
+| 2 | ป้ายที่เลือกไม่มีข้อมูลในตาราง `mssql_asset_history` (มีแต่ใน `claim_tickets` / `monitoring_status`) | เพิ่ม empty-state แจ้ง "ไม่มีประวัติในช่วงเวลานี้" + ปุ่มขยายช่วงอัตโนมัติ |
+| 3 | `chartYear` ค้างที่ปีที่ไม่มีข้อมูล (`defaultYear` คำนวณครั้งเดียวจากข้อมูลที่ load มา) | ปรับ `defaultYear` ให้อัปเดตเมื่อ history เปลี่ยน + แสดงตัวเลือกปีที่มีข้อมูลจริง |
+| 4 | สาเหตุอื่น (runtime error / asset_id ไม่ตรง) | แก้ตามผลจาก step Investigation |
 
-### Tab 3 — Diagram Mapping Insight
+ผมจะ **ไม่ลงมือแก้จนกว่าจะยืนยันสาเหตุจริง** เพื่อไม่ให้ "แก้ผิดจุด" เหมือนรอบก่อน
 
-ใช้ keywords จาก `diagram_mappings` (display/power/structure/system + อื่น ๆ ที่ admin เพิ่ม) มา classify แต่ละแถวของ `mssql_asset_history`:
+### แผน Fix หลัง Investigation
 
-- Algorithm: รวมข้อความ `problem_category + problem_equipment + problem_detail + inform_detail` แล้วเช็คว่ามี keyword ของ category ไหน (case-insensitive, Thai+English) → ถ้าหลาย match ให้ category ที่ match keyword จำนวนมากกว่า; ถ้าไม่เจอ = `unmapped`
-- Pie ของสัดส่วนแต่ละ category + การ์ด `Unmapped %`
-- ตาราง **Top Unmapped Phrases** (เคลมที่ไม่เข้า category ใด): จัดกลุ่ม problem_equipment + ความถี่ + ปุ่ม "เสนอเพิ่ม keyword" (link ไปหน้า Settings → Diagram Mappings พร้อม prefill)
-- ตาราง coverage ต่อ category (Total claims, MTBF เฉลี่ย, Resolve time เฉลี่ย, Solution ที่ใช้บ่อยสุด) — ช่วยตอบ "หมวด Power ใช้เวลาซ่อมเฉลี่ยนานกว่า Display หรือไม่"
+ขึ้นอยู่กับผล ดังนี้:
 
-## รายละเอียดทางเทคนิค
+- ถ้าเป็น **เคส 1**: เปลี่ยน `useState("2026-01-01")` → `useState(() => { const d = new Date(); d.setMonth(d.getMonth()-12); return d.toISOString().slice(0,10); })` ใน `src/routes/search.tsx`
+- ถ้าเป็น **เคส 2**: เพิ่ม empty-state UI ใน `RegularTab` เมื่อ `history.length === 0` พร้อมข้อความบอกเหตุผล
+- ถ้าเป็น **เคส 3**: ห่อ `defaultYear` ใน `useMemo` + sync `chartYear` ผ่าน `useEffect` ที่ depend on `yearsAvailable.join(",")`
+- ถ้าเป็น **เคส 4**: แก้ตามที่เจอ และรายงานก่อนลงมือ
 
-### Backend (`src/lib/rca.functions.ts` — สร้างใหม่)
+---
 
-Server functions (ทั้งหมด `requireSupabaseAuth` + เรียกจาก `_authenticated` route):
+## งานที่ 2 — ลบปุ่ม Generate PM Work Order
 
-- `getRcaFilterOptions()` — reuse pattern จาก pm-insights
-- `getRcaPortfolio({ filters })` → คืน:
-  - summary {totalClaims, uniqueAssets, avgResolveHrs, repeatRatePct}
-  - paretoProblem [{label, count, cumulativePct}]
-  - paretoEquipment [{label, count, cumulativePct}]
-  - matrix [{problemCat, solutionCat, count}]
-  - topOffenders [{oldCode, project, zone, claims, mtbfDays, topSymptom}]
-- `getRcaAsset({ oldCode })` → คืน asset header, events timeline (PM+Monitoring+Claim), kpi, fingerprint, recurrence flags, pmEffectiveness pairs, history rows
-- `getRcaMapping({ filters })` → ดึง diagram_mappings + ทุก claim ในช่วง, classify ใน server, คืน distribution, unmappedPhrases, perCategoryStats
+ไฟล์: `src/components/breakdown-tab.tsx`
 
-ใช้แหล่งข้อมูล:
-- Claim/Monitoring/PM events: `mssql_asset_history` (กรอง category)
-- Mapping rules: `diagram_mappings` (enabled=true, เรียง sort_order)
-- หัวป้าย: `mssql_asset_history` group by old_code (ล่าสุด)
+ลบ:
+- ปุ่ม `<Button onClick={openPMDialog}>...</Button>` (บรรทัด 534–536)
+- `<Dialog open={pmOpen} ...>` ทั้งก้อน (บรรทัด 539–582)
+- State + functions ที่ใช้เฉพาะปุ่มนี้: `pmOpen`, `pmDate`, `pmAsset`, `pmNote`, `openPMDialog`, `confirmGeneratePM`, `todayStr`, `pmDateInvalid`, `nextPredicted` (ถ้าไม่ถูกใช้ที่อื่น)
+- Imports ที่ไม่ใช้แล้ว: `ClipboardList`, `Dialog*`, `Input`, `Info` (ตรวจก่อนลบจริง)
 
-Classifier เป็น pure function ใน `src/lib/rca-classifier.ts` (shared) เพื่อ unit-testable
+เหลือเฉพาะปุ่ม `Export Insight Report` ใน Actions row
 
-### Frontend
+---
 
-- `src/routes/_authenticated/rca.tsx` — สร้างใหม่ พร้อม Tabs (shadcn)
-- Components ภายในไฟล์: `<FilterBar/>`, `<PortfolioTab/>`, `<AssetTab/>`, `<MappingTab/>`
-- กราฟใช้ recharts (มีอยู่แล้ว): BarChart สำหรับ Pareto (combo bar+line), custom div-grid heatmap, PieChart สำหรับ donut, custom horizontal timeline (div-based)
-- สี: ฟ้า PM `--pm-blue`, เขียว Monitoring `--monitor-pass`, แดง Claim `--claim-red` (ใช้ token ที่มีอยู่)
-- ปุ่มลิงก์ออก: "ดูใน PM Insights / Search" สำหรับเปิด context อื่น
+## Verification
 
-### Navigation
+1. Build ผ่าน (TS strict)
+2. เปิด `/search` → เลือกป้ายที่มีข้อมูล → ทุก Tab (Monitoring / Claim / PM) แสดงกราฟ + ตาราง
+3. Tab Breakdown → ไม่มีปุ่ม Generate PM Work Order, เหลือแค่ Export
+4. Screenshot ยืนยันทั้ง 2 จุด
 
-เพิ่มเมนู "Root Cause" ใน sidebar (ใต้ Monitoring) ด้วยไอคอน `Activity` หรือ `Microscope` จาก lucide-react
+---
 
-### ไม่แก้
+## หมายเหตุ
 
-- ไม่แตะ `client.ts`, `types.ts`, schemas
-- ไม่แก้หน้า PM Insight / Monitoring / Search เดิม
-- ไม่สร้าง migration (ข้อมูลครบแล้ว)
-
-## ลำดับงาน
-
-1. สร้าง `rca-classifier.ts` + unit logic
-2. สร้าง `rca.functions.ts` (3 server fns)
-3. สร้าง route `_authenticated/rca.tsx` + 3 tab components
-4. เพิ่มเมนูใน sidebar
-5. ทดสอบด้วยข้อมูลจริงผ่าน preview
+ทั้งหมดเป็นงานฝั่ง **frontend/presentation** เท่านั้น ไม่แตะ business logic, ไม่แตะ DB schema, ไม่แตะ edge functions (per งานก่อนหน้าที่ user รอ Dev เพิ่ม RefNumber)

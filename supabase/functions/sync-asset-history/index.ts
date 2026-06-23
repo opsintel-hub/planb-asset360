@@ -2,8 +2,8 @@
 //
 // Strategy (no auto-id available on source):
 //   - Natural key = (OldCode, CreatedDate, Status) → upsert via unique index.
-//   - Cursor      = GREATEST(CreatedDate, UpdatedDate) ascending.
-//   - Persist last cursor in app_settings key `mssql_asset_history_cursor`.
+//   - Cursor      = GREATEST(CreatedDate, UpdatedDate) + (OldCode, RefNumber) tie-breaker.
+//   - Persist last cursor position in app_settings key `mssql_asset_history_cursor`.
 //   - Window: last 12 months OR since 2026-01-01 (whichever is later).
 //   - reset=true wipes the table AND resets the cursor → full re-pull.
 //   - reset=false (default) = incremental: only rows with cursor > saved value.
@@ -37,9 +37,17 @@ interface BatchOpts {
   batchSize: number;
   reset: boolean;
   sinceCursor: string; // ISO; rows with GREATEST(Created,Updated) > this
+  sinceOldCode: string;
+  sinceRefNumber: string;
   batchIndex: number;
   maxBatches: number;
   logId?: number;
+}
+
+interface CursorState {
+  lastCursor: string;
+  lastOldCode: string;
+  lastRefNumber: string;
 }
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -90,15 +98,19 @@ function isoOrNull(v: unknown): string | null {
   return d ? d.toISOString() : null;
 }
 
-async function getCursor(admin: ReturnType<typeof createClient>): Promise<string> {
+async function getCursor(admin: ReturnType<typeof createClient>): Promise<CursorState> {
   const { data } = await admin.from("app_settings").select("value").eq("key", CURSOR_KEY).maybeSingle();
-  const v = (data?.value ?? {}) as { lastCursor?: string };
-  return v.lastCursor && typeof v.lastCursor === "string" ? v.lastCursor : EPOCH;
+  const v = (data?.value ?? {}) as Partial<CursorState>;
+  return {
+    lastCursor: v.lastCursor && typeof v.lastCursor === "string" ? v.lastCursor : EPOCH,
+    lastOldCode: v.lastOldCode && typeof v.lastOldCode === "string" ? v.lastOldCode : "",
+    lastRefNumber: v.lastRefNumber && typeof v.lastRefNumber === "string" ? v.lastRefNumber : "",
+  };
 }
 
-async function setCursor(admin: ReturnType<typeof createClient>, cursor: string) {
+async function setCursor(admin: ReturnType<typeof createClient>, state: CursorState) {
   await admin.from("app_settings").upsert(
-    { key: CURSOR_KEY, value: { lastCursor: cursor, updatedAt: new Date().toISOString() } },
+    { key: CURSOR_KEY, value: { ...state, updatedAt: new Date().toISOString() } },
     { onConflict: "key" },
   );
 }
@@ -110,7 +122,7 @@ async function runBatch(
   SERVICE_KEY: string,
   opts: BatchOpts,
 ) {
-  const { batchSize, reset, sinceCursor, batchIndex, maxBatches, logId } = opts;
+  const { batchSize, reset, sinceCursor, sinceOldCode, sinceRefNumber, batchIndex, maxBatches, logId } = opts;
   const setLog = async (status: "success" | "error", message: string, rows: number) => {
     if (logId)
       await admin

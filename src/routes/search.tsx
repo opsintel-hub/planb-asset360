@@ -2009,6 +2009,8 @@ function AssetHealthTab({
                 type: "PMSchedule",
                 asset_id: r.asset_old_code ? (assetById.get(r.asset_old_code) ?? null) : null,
                 asset_old_code: r.asset_old_code,
+                ref_number: r.ref_number ?? null,
+                payload: { refNumber: r.ref_number ?? null },
                 opened_at: r.schedule_date,
                 closed_at: null,
                 status: statusLabel,

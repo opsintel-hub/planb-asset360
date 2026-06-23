@@ -415,52 +415,82 @@ function PortfolioTab({ applied }: { applied: AppliedFilters | null }) {
         <ParetoCard title="Pareto — Problem Equipment (อุปกรณ์ที่เสีย)" data={data.paretoEquipment} />
       </div>
 
-      {/* Heatmap matrix */}
-      <Card>
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingDown className="size-4" /> Problem → Solution Matrix</CardTitle></CardHeader>
-        <CardContent>
-          {matrixGrid.topProblems.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">ไม่มีข้อมูล</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="text-xs border-collapse">
-                <thead>
-                  <tr>
-                    <th className="text-left p-2 bg-muted/50">Problem ↓ / Solution →</th>
-                    {matrixGrid.topSolutions.map((s) => (
-                      <th key={s} className="p-2 bg-muted/50 text-center max-w-[120px]"><div className="truncate" title={s}>{s}</div></th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {matrixGrid.topProblems.map((p) => (
-                    <tr key={p}>
-                      <td className="p-2 font-medium max-w-[200px] truncate" title={p}>{p}</td>
-                      {matrixGrid.topSolutions.map((s) => {
-                        const v = matrixGrid.cellMap.get(`${p}|||${s}`) ?? 0;
-                        const intensity = matrixGrid.max > 0 ? v / matrixGrid.max : 0;
-                        return (
-                          <td key={s} className="p-2 text-center" style={{
-                            background: v > 0 ? `oklch(0.68 0.18 25 / ${0.15 + intensity * 0.7})` : "transparent",
-                            color: intensity > 0.5 ? "white" : "inherit",
-                          }}>
-                            {v || ""}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground mt-3">
-            แสดง Top 8 Problem × Top 8 Solution — สีเข้ม = ใช้คู่ Problem/Solution นี้บ่อย
-          </p>
-        </CardContent>
-      </Card>
+      {/* Heatmap matrix — Problem vs Solution */}
+      <MatrixCard
+        title="Problem → Solution Matrix"
+        rowLabel="Problem"
+        colLabel="Solution"
+        grid={matrixGrid}
+      />
+
+      {/* Inform Position / Detail Pareto */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ParetoCard title="Pareto — Inform Position (จุดที่แจ้ง)" data={data.paretoInformPosition} />
+        <ParetoCard title="Pareto — Inform Detail (รายละเอียดที่แจ้ง)" data={data.paretoInformDetail} />
+      </div>
+
+      {/* Heatmap matrix — Inform Detail vs Solution Detail */}
+      <MatrixCard
+        title="Inform Detail → Solution Detail Matrix"
+        rowLabel="Inform Detail"
+        colLabel="Solution Detail"
+        grid={informMatrixGrid}
+      />
 
     </div>
+  );
+}
+
+function MatrixCard({ title, rowLabel, colLabel, grid }: {
+  title: string;
+  rowLabel: string;
+  colLabel: string;
+  grid: { topProblems: string[]; topSolutions: string[]; cellMap: Map<string, number>; max: number };
+}) {
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingDown className="size-4" /> {title}</CardTitle></CardHeader>
+      <CardContent>
+        {grid.topProblems.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">ไม่มีข้อมูล</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="text-xs border-collapse">
+              <thead>
+                <tr>
+                  <th className="text-left p-2 bg-muted/50">{rowLabel} ↓ / {colLabel} →</th>
+                  {grid.topSolutions.map((s) => (
+                    <th key={s} className="p-2 bg-muted/50 text-center max-w-[120px]"><div className="truncate" title={s}>{s}</div></th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {grid.topProblems.map((p) => (
+                  <tr key={p}>
+                    <td className="p-2 font-medium max-w-[200px] truncate" title={p}>{p}</td>
+                    {grid.topSolutions.map((s) => {
+                      const v = grid.cellMap.get(`${p}|||${s}`) ?? 0;
+                      const intensity = grid.max > 0 ? v / grid.max : 0;
+                      return (
+                        <td key={s} className="p-2 text-center" style={{
+                          background: v > 0 ? `oklch(0.68 0.18 25 / ${0.15 + intensity * 0.7})` : "transparent",
+                          color: intensity > 0.5 ? "white" : "inherit",
+                        }}>
+                          {v || ""}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground mt-3">
+          แสดง Top 8 {rowLabel} × Top 8 {colLabel} — สีเข้ม = ใช้คู่นี้บ่อย
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

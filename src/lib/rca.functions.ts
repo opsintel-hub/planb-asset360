@@ -345,7 +345,7 @@ export const getRcaPortfolio = createServerFn({ method: "POST" })
       .sort((a, b) => b.claims - a.claims)
       .slice(0, 15);
 
-    return { summary, paretoProblem, paretoEquipment, matrix, problemCats: Array.from(pSet).sort(), solutionCats: Array.from(sSet).sort(), topOffenders: offenders };
+    return { summary, paretoProblem, paretoEquipment, paretoInformPosition, paretoInformDetail, matrix, informMatrix, problemCats: Array.from(pSet).sort(), solutionCats: Array.from(sSet).sort(), topOffenders: offenders };
   });
 
 // ═══════════════════════════════════════════════════════════════════════

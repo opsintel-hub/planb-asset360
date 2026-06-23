@@ -444,6 +444,132 @@ export type Database = {
         }
         Relationships: []
       }
+      mv_pm_claim_pairs: {
+        Row: {
+          asset_old_code: string | null
+          claim_ref: string | null
+          claim_ts: string | null
+          days: number | null
+          department: string | null
+          media_type: string | null
+          pm_category: string | null
+          pm_end_ts: string | null
+          pm_ref: string | null
+          problem_category: string | null
+          problem_detail: string | null
+          problem_equipment: string | null
+          project: string | null
+          solution_category: string | null
+          solution_detail: string | null
+          zone: string | null
+        }
+        Insert: {
+          asset_old_code?: string | null
+          claim_ref?: string | null
+          claim_ts?: string | null
+          days?: number | null
+          department?: string | null
+          media_type?: string | null
+          pm_category?: string | null
+          pm_end_ts?: string | null
+          pm_ref?: string | null
+          problem_category?: string | null
+          problem_detail?: string | null
+          problem_equipment?: string | null
+          project?: string | null
+          solution_category?: string | null
+          solution_detail?: string | null
+          zone?: string | null
+        }
+        Update: {
+          asset_old_code?: string | null
+          claim_ref?: string | null
+          claim_ts?: string | null
+          days?: number | null
+          department?: string | null
+          media_type?: string | null
+          pm_category?: string | null
+          pm_end_ts?: string | null
+          pm_ref?: string | null
+          problem_category?: string | null
+          problem_detail?: string | null
+          problem_equipment?: string | null
+          project?: string | null
+          solution_category?: string | null
+          solution_detail?: string | null
+          zone?: string | null
+        }
+        Relationships: []
+      }
+      mv_pm_history: {
+        Row: {
+          asset_department: string | null
+          asset_media_type: string | null
+          asset_old_code: string | null
+          asset_status: string | null
+          bkk_upc: string | null
+          category: string | null
+          created_at: string | null
+          event_ts: string | null
+          media_type: string | null
+          problem_category: string | null
+          problem_detail: string | null
+          problem_equipment: string | null
+          project: string | null
+          ref_number: string | null
+          solution_category: string | null
+          solution_detail: string | null
+          status: string | null
+          total_turnaround_time: number | null
+          type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          asset_department?: string | null
+          asset_media_type?: string | null
+          asset_old_code?: string | null
+          asset_status?: string | null
+          bkk_upc?: string | null
+          category?: string | null
+          created_at?: string | null
+          event_ts?: string | null
+          media_type?: string | null
+          problem_category?: string | null
+          problem_detail?: string | null
+          problem_equipment?: string | null
+          project?: string | null
+          ref_number?: string | null
+          solution_category?: string | null
+          solution_detail?: string | null
+          status?: string | null
+          total_turnaround_time?: number | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          asset_department?: string | null
+          asset_media_type?: string | null
+          asset_old_code?: string | null
+          asset_status?: string | null
+          bkk_upc?: string | null
+          category?: string | null
+          created_at?: string | null
+          event_ts?: string | null
+          media_type?: string | null
+          problem_category?: string | null
+          problem_detail?: string | null
+          problem_equipment?: string | null
+          project?: string | null
+          ref_number?: string | null
+          solution_category?: string | null
+          solution_detail?: string | null
+          status?: string | null
+          total_turnaround_time?: number | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -527,52 +653,7 @@ export type Database = {
       }
     }
     Views: {
-      mv_pm_claim_pairs: {
-        Row: {
-          asset_old_code: string | null
-          claim_ref: string | null
-          claim_ts: string | null
-          days: number | null
-          department: string | null
-          media_type: string | null
-          pm_category: string | null
-          pm_end_ts: string | null
-          pm_ref: string | null
-          problem_category: string | null
-          problem_detail: string | null
-          problem_equipment: string | null
-          project: string | null
-          solution_category: string | null
-          solution_detail: string | null
-          zone: string | null
-        }
-        Relationships: []
-      }
-      mv_pm_history: {
-        Row: {
-          asset_department: string | null
-          asset_media_type: string | null
-          asset_old_code: string | null
-          asset_status: string | null
-          bkk_upc: string | null
-          category: string | null
-          created_at: string | null
-          event_ts: string | null
-          media_type: string | null
-          problem_category: string | null
-          problem_detail: string | null
-          problem_equipment: string | null
-          project: string | null
-          ref_number: string | null
-          solution_category: string | null
-          solution_detail: string | null
-          status: string | null
-          total_turnaround_time: number | null
-          type: string | null
-          updated_at: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       get_mssql_cron_schedules: {

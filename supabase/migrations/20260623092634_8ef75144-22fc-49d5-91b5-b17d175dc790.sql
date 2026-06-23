@@ -1,0 +1,1 @@
+DELETE FROM public.mssql_asset_history WHERE ref_number IS NULL OR ref_number = '';

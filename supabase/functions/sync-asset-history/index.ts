@@ -357,6 +357,8 @@ Deno.serve(async (req: Request) => {
     batchSize?: number;
     reset?: boolean;
     sinceCursor?: string;
+    sinceOldCode?: string;
+    sinceRefNumber?: string;
     batchIndex?: number;
     maxBatches?: number;
     _logId?: number;
@@ -379,14 +381,18 @@ Deno.serve(async (req: Request) => {
   //   - If chained call, trust body.sinceCursor
   //   - If reset=true on first call, force EPOCH and clear persisted cursor
   //   - Otherwise, read persisted cursor
-  let sinceCursor: string;
+  let cursorState: CursorState;
   if (typeof body.sinceCursor === "string" && body.sinceCursor) {
-    sinceCursor = body.sinceCursor;
+    cursorState = {
+      lastCursor: body.sinceCursor,
+      lastOldCode: typeof body.sinceOldCode === "string" ? body.sinceOldCode : "",
+      lastRefNumber: typeof body.sinceRefNumber === "string" ? body.sinceRefNumber : "",
+    };
   } else if (reset) {
-    sinceCursor = EPOCH;
-    await setCursor(admin, EPOCH);
+    cursorState = { lastCursor: EPOCH, lastOldCode: "", lastRefNumber: "" };
+    await setCursor(admin, cursorState);
   } else {
-    sinceCursor = await getCursor(admin);
+    cursorState = await getCursor(admin);
   }
 
   let logId = body._logId;
@@ -396,7 +402,7 @@ Deno.serve(async (req: Request) => {
       .insert({
         source: "mssql_asset_history",
         status: "running",
-        message: `batch #${batchIndex} starting (mode=${reset ? "FULL RESET" : "incremental"}, since=${sinceCursor})`,
+        message: `batch #${batchIndex} starting (mode=${reset ? "FULL RESET" : "incremental"}, since=${cursorState.lastCursor}, oldCode=${cursorState.lastOldCode}, ref=${cursorState.lastRefNumber})`,
       }).select("id").single();
     logId = logRow?.id as number | undefined;
   }
@@ -404,14 +410,21 @@ Deno.serve(async (req: Request) => {
   // @ts-ignore EdgeRuntime
   EdgeRuntime.waitUntil(
     runBatch(admin, DB_PASSWORD, SUPABASE_URL, SERVICE_KEY, {
-      batchSize, reset, sinceCursor, batchIndex, maxBatches, logId,
+      batchSize, reset,
+      sinceCursor: cursorState.lastCursor,
+      sinceOldCode: cursorState.lastOldCode,
+      sinceRefNumber: cursorState.lastRefNumber,
+      batchIndex, maxBatches, logId,
     }),
   );
 
   return jsonResponse({
     ok: true, queued: true, logId, batchIndex,
     mode: reset ? "full-reset" : "incremental",
-    sinceCursor, batchSize,
+    sinceCursor: cursorState.lastCursor,
+    sinceOldCode: cursorState.lastOldCode,
+    sinceRefNumber: cursorState.lastRefNumber,
+    batchSize,
     message: "batch queued; subsequent batches will auto-chain. Watch sync_logs.",
   });
 });

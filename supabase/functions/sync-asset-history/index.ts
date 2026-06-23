@@ -205,23 +205,23 @@ async function runBatch(
 
 
     // Dedupe by natural key BEFORE upsert (source can have duplicates in one batch).
-    // Natural key now includes updated_date so two tickets created on the same day
-    // for the same asset/category/status (but updated at different times) don't collapse.
+    // Natural key is (ref_number, old_code) — ticket number + asset identifies a row.
+    // Keep the latest occurrence (rows arrive ordered by __cursor asc, so last wins).
     const deduped = new Map<string, typeof rows[number]>();
     for (const r of rows) {
-      const key = `${r.ref_number ?? ""}|${r.old_code ?? ""}|${r.created_date ?? ""}|${r.updated_date ?? ""}|${r.category ?? ""}|${r.status ?? ""}`;
+      const key = `${r.ref_number ?? ""}|${r.old_code ?? ""}`;
       deduped.set(key, r);
     }
     const uniqueRows = Array.from(deduped.values());
 
-    // Upsert using the natural-key (ref_number, old_code, created_date, updated_date, category, status)
+    // Upsert using the natural key (ref_number, old_code)
     let upserted = 0;
     const chunk = 500;
     for (let i = 0; i < uniqueRows.length; i += chunk) {
       const slice = uniqueRows.slice(i, i + chunk);
       const { error } = await admin
         .from("mssql_asset_history")
-        .upsert(slice, { onConflict: "ref_number,old_code,created_date,updated_date,category,status", ignoreDuplicates: false });
+        .upsert(slice, { onConflict: "ref_number,old_code", ignoreDuplicates: false });
       if (error) throw new Error(error.message);
       upserted += slice.length;
     }

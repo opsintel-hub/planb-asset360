@@ -6,15 +6,12 @@ import {
   Tooltip as RTooltip, ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
 import {
-  AlertTriangle, Activity, Clock, Wrench, FileDown, ClipboardList,
+  AlertTriangle, Activity, Clock, Wrench, FileDown,
   Zap, Monitor, Building, Cpu, RotateCcw, Info, Tag,
 } from "lucide-react";
 import { StatCard, Badge } from "@/components/ui-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { listDiagramMappings } from "@/lib/data.functions";

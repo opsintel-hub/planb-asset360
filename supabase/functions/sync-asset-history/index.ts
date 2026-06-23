@@ -180,6 +180,7 @@ async function runBatch(
 
     const nowIso = new Date().toISOString();
     const rows = list.map((item) => ({
+      ref_number:             pickStr(item, ["RefNumber"]),
       old_code:               pickStr(item, ["OldCode"]),
       project:                pickStr(item, ["Project"]),
       media_type:             pickStr(item, ["MediaType"]),
@@ -201,6 +202,7 @@ async function runBatch(
       asset_status:           pickStr(item, ["AssetStatus"]),
       synced_at:              nowIso,
     }));
+
 
     // Dedupe by natural key BEFORE upsert (source can have duplicates in one batch).
     // Natural key now includes updated_date so two tickets created on the same day

@@ -726,7 +726,10 @@ const EXCLUDED_PAYLOAD_KEYS = new Set([
   "ResponseTime",
   "ResolveTime",
   "TotalTurnaroundTime",
+  "refNumber",
+  "RefNumber",
 ]);
+
 
 function RawDataTable({
   tab,

@@ -313,7 +313,11 @@ function SlotCombobox({
 function SearchPage() {
   const [slots, setSlots] = useState<(string | null)[]>([null]);
   const [tab, setTab] = useState<TabId>("Profile");
-  const [from, setFrom] = useState("2026-01-01");
+  const [from, setFrom] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 12);
+    return d.toISOString().slice(0, 10);
+  });
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [dept, setDept] = useState("");
   const [region, setRegion] = useState("");

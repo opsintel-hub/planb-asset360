@@ -294,6 +294,8 @@ export const getRcaPortfolio = createServerFn({ method: "POST" })
 
     const paretoProblem = paretoOf(claims.map((c) => c.problem_category ?? ""), 12);
     const paretoEquipment = paretoOf(claims.map((c) => c.problem_equipment ?? ""), 12);
+    const paretoInformPosition = paretoOf(claims.map((c) => c.inform_position ?? ""), 12);
+    const paretoInformDetail = paretoOf(claims.map((c) => c.inform_detail ?? ""), 12);
 
     // Problem → Solution matrix
     const mxMap = new Map<string, number>();
@@ -308,6 +310,19 @@ export const getRcaPortfolio = createServerFn({ method: "POST" })
       mxMap.set(k, (mxMap.get(k) ?? 0) + 1);
     }
     const matrix = Array.from(mxMap.entries()).map(([k, count]) => {
+      const [problemCat, solutionCat] = k.split("|||");
+      return { problemCat, solutionCat, count };
+    });
+
+    // Inform Detail → Solution Detail matrix
+    const idMap = new Map<string, number>();
+    for (const c of claims) {
+      const p = (c.inform_detail || "(ไม่ระบุ)").trim();
+      const s = (c.solution_detail || "(ไม่ระบุ)").trim();
+      const k = `${p}|||${s}`;
+      idMap.set(k, (idMap.get(k) ?? 0) + 1);
+    }
+    const informMatrix = Array.from(idMap.entries()).map(([k, count]) => {
       const [problemCat, solutionCat] = k.split("|||");
       return { problemCat, solutionCat, count };
     });

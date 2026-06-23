@@ -20,6 +20,7 @@ export type RcaFilters = z.infer<typeof filtersSchema>;
 // ───────────────── Helpers ─────────────────
 type HistRow = {
   id: string;
+  ref_number: string | null;
   old_code: string | null;
   category: string | null;
   created_date: string | null;
@@ -67,7 +68,7 @@ async function fetchAll<T>(
 }
 
 const HIST_COLS =
-  "id, old_code, category, created_date, updated_date, status, asset_status, inform_position, inform_detail, problem_category, problem_detail, problem_equipment, solution_category, solution_detail, response_time, resolve_time, total_turnaround_time, project, bkk_upc, media_type";
+  "id, ref_number, old_code, category, created_date, updated_date, status, asset_status, inform_position, inform_detail, problem_category, problem_detail, problem_equipment, solution_category, solution_detail, response_time, resolve_time, total_turnaround_time, project, bkk_upc, media_type";
 
 async function fetchHistoryKeyset(
   category: string,
@@ -372,6 +373,7 @@ export const getRcaAsset = createServerFn({ method: "POST" })
     // Timeline events
     type Evt = {
       kind: "PM" | "Monitoring" | "Claim";
+      refNumber: string;
       date: string;
       status: string;
       problem: string;
@@ -383,18 +385,19 @@ export const getRcaAsset = createServerFn({ method: "POST" })
     for (const p of pm) {
       const d = p.updated_date ?? p.created_date;
       if (!d) continue;
-      events.push({ kind: "PM", date: d, status: p.asset_status ?? "", problem: "", equipment: "", solution: "", resolveHrs: null });
+      events.push({ kind: "PM", refNumber: p.ref_number ?? "", date: d, status: p.asset_status ?? "", problem: "", equipment: "", solution: "", resolveHrs: null });
     }
     for (const p of mon) {
       const d = p.updated_date ?? p.created_date;
       if (!d) continue;
-      events.push({ kind: "Monitoring", date: d, status: p.asset_status ?? "", problem: "", equipment: "", solution: "", resolveHrs: null });
+      events.push({ kind: "Monitoring", refNumber: p.ref_number ?? "", date: d, status: p.asset_status ?? "", problem: "", equipment: "", solution: "", resolveHrs: null });
     }
     for (const p of claims) {
       const d = p.created_date;
       if (!d) continue;
       events.push({
         kind: "Claim",
+        refNumber: p.ref_number ?? "",
         date: d,
         status: p.status ?? "",
         problem: p.problem_category ?? "",
@@ -471,17 +474,18 @@ export const getRcaAsset = createServerFn({ method: "POST" })
     recurrences.sort((a, b) => b.count - a.count);
 
     // PM Effectiveness: PM Pass → next Claim within windowDays
-    type PmFail = { pmDate: string; claimDate: string; days: number; problem: string; equipment: string };
+    type PmFail = { pmDate: string; pmRef: string; claimDate: string; claimRef: string; days: number; problem: string; equipment: string };
     const pmFails: PmFail[] = [];
     const passPmTs = pm
       .filter((p) => (p.asset_status ?? "").toLowerCase() === "pass")
-      .map((p) => ({ ts: new Date(p.updated_date ?? p.created_date ?? 0).getTime(), date: (p.updated_date ?? p.created_date ?? "").slice(0, 10) }))
+      .map((p) => ({ ts: new Date(p.updated_date ?? p.created_date ?? 0).getTime(), date: (p.updated_date ?? p.created_date ?? "").slice(0, 10), refNumber: p.ref_number ?? "" }))
       .filter((x) => Number.isFinite(x.ts))
       .sort((a, b) => a.ts - b.ts);
     const claimEvents = claims
       .map((c) => ({
         ts: new Date(c.created_date ?? 0).getTime(),
         date: (c.created_date ?? "").slice(0, 10),
+        refNumber: c.ref_number ?? "",
         problem: c.problem_category ?? "",
         equipment: c.problem_equipment ?? "",
       }))
@@ -493,7 +497,9 @@ export const getRcaAsset = createServerFn({ method: "POST" })
       if (c) {
         pmFails.push({
           pmDate: p.date,
+          pmRef: p.refNumber,
           claimDate: c.date,
+          claimRef: c.refNumber,
           days: Math.floor((c.ts - p.ts) / 86_400_000),
           problem: c.problem,
           equipment: c.equipment,
@@ -511,6 +517,7 @@ export const getRcaAsset = createServerFn({ method: "POST" })
     // History rows for table
     const history = claims
       .map((c) => ({
+        refNumber: c.ref_number ?? "",
         createdDate: c.created_date ?? "",
         updatedDate: c.updated_date ?? "",
         informPosition: (c as { inform_position?: string | null }).inform_position ?? "",

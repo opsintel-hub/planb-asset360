@@ -616,6 +616,7 @@ function MonthTicketTable({ title, color, rows }: { title: string; color: string
             <TableHeader>
               <TableRow>
                 <TableHead>วันที่</TableHead>
+                <TableHead>Ref No.</TableHead>
                 <TableHead>รหัสป้าย</TableHead>
                 <TableHead>หมวด</TableHead>
                 <TableHead>สถานะ</TableHead>
@@ -623,10 +624,11 @@ function MonthTicketTable({ title, color, rows }: { title: string; color: string
             </TableHeader>
             <TableBody>
               {slice.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-4">ไม่มีข้อมูล</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-4">ไม่มีข้อมูล</TableCell></TableRow>
               ) : slice.map((r, i) => (
                 <TableRow key={`${r.assetCode}-${i}`}>
                   <TableCell className="whitespace-nowrap">{r.date}</TableCell>
+                  <TableCell className="font-mono text-xs whitespace-nowrap">{r.ticket || "—"}</TableCell>
                   <TableCell className="font-mono text-xs">{r.assetCode}</TableCell>
                   <TableCell className="text-xs">{r.category}</TableCell>
                   <TableCell className="text-xs">{r.status}</TableCell>
@@ -669,6 +671,7 @@ type MonRowItem = {
 };
 
 const MON_COLS: { key: keyof MonRowItem; label: string; mono?: boolean; nowrap?: boolean }[] = [
+  { key: "ticket", label: "Ref No.", mono: true, nowrap: true },
   { key: "assetCode", label: "Old Code", mono: true },
   { key: "assetName", label: "ชื่อ" },
   { key: "project", label: "Project" },
@@ -711,6 +714,7 @@ function MonRowsList({
     if (!s) return rows;
     return rows.filter((r) =>
       r.assetCode.toLowerCase().includes(s) ||
+      r.ticket.toLowerCase().includes(s) ||
       r.department.toLowerCase().includes(s) ||
       r.problemDetail.toLowerCase().includes(s) ||
       r.problemCategory.toLowerCase().includes(s) ||
@@ -776,7 +780,7 @@ function MonRowsList({
 
           <div className="flex items-center justify-between flex-wrap gap-2">
             <Input
-              placeholder="ค้นหา รหัสป้าย / แผนก / อาการ / สถานะ"
+              placeholder="ค้นหา รหัสป้าย / Ref No. / แผนก / อาการ / สถานะ"
               value={q}
               onChange={(e) => { setQ(e.target.value); setPage(1); }}
               className="max-w-md"
@@ -986,7 +990,9 @@ function AgingReport({
         !p.department.toLowerCase().includes(q) &&
         !p.mediaType.toLowerCase().includes(q) &&
         !p.problemDetail.toLowerCase().includes(q) &&
-        !p.problemCategory.toLowerCase().includes(q)
+        !p.problemCategory.toLowerCase().includes(q) &&
+        !p.pmTicket.toLowerCase().includes(q) &&
+        !p.claimTicket.toLowerCase().includes(q)
       ) return false;
       return true;
     });
@@ -1125,7 +1131,7 @@ function AgingReport({
             </div>
             <div className="flex items-center gap-2">
               <Input
-                placeholder="ค้นหารหัสป้าย / แผนก / Media Type / อาการ"
+                placeholder="ค้นหารหัสป้าย / Ref No. / แผนก / Media Type / อาการ"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 className="w-80"
@@ -1145,6 +1151,8 @@ function AgingReport({
               <TableHeader>
                 <TableRow>
                   <TableHead>รหัสป้าย</TableHead>
+                    <TableHead>Monitoring Ref No.</TableHead>
+                    <TableHead>Claim Ref No.</TableHead>
                   <TableHead>Media Type</TableHead>
                   <TableHead>แผนก</TableHead>
                   <TableHead>วัน Monitoring</TableHead>
@@ -1160,10 +1168,12 @@ function AgingReport({
               </TableHeader>
               <TableBody>
                 {visible.length === 0 ? (
-                  <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-8">ไม่พบข้อมูล</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={14} className="text-center text-muted-foreground py-8">ไม่พบข้อมูล</TableCell></TableRow>
                 ) : visible.map((p, i) => (
                   <TableRow key={start + i} className={p.days <= 7 ? "bg-red-50 dark:bg-red-950/30" : ""}>
                     <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
+                    <TableCell className="font-mono text-xs whitespace-nowrap">{p.pmTicket || "—"}</TableCell>
+                    <TableCell className="font-mono text-xs whitespace-nowrap">{p.claimTicket || "—"}</TableCell>
                     <TableCell className="text-xs">{p.mediaType}</TableCell>
                     <TableCell className="text-xs">{p.department}</TableCell>
                     <TableCell className="text-xs">{p.pmDate}</TableCell>

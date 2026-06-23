@@ -66,7 +66,7 @@ async function fetchHistoryByCreatedDate<T extends { id: string; created_date: s
     let q = supabaseAdmin
       .from("mssql_asset_history")
       .select(
-        "id, old_code, category, created_date, updated_date, status, asset_status, inform_detail, problem_category, problem_detail, problem_equipment, solution_category, solution_detail, project, bkk_upc, media_type",
+        "id, ref_number, old_code, category, created_date, updated_date, status, asset_status, inform_detail, problem_category, problem_detail, problem_equipment, solution_category, solution_detail, project, bkk_upc, media_type",
       )
       .eq("category", category)
       .not("created_date", "is", null)
@@ -106,6 +106,7 @@ async function fetchHistoryForScope<T extends HistRow>(
 
 type HistRow = {
   id: string;
+  ref_number: string | null;
   old_code: string | null;
   category: "Monitoring" | "Claim" | string | null;
   created_date: string | null;
@@ -362,8 +363,8 @@ export const getMonitoringInsights = createServerFn({ method: "POST" })
           project: m.project ?? "",
           pmDate: (m.updated_date ?? m.created_date ?? "").slice(0, 10),
           claimDate: (c.created_date ?? "").slice(0, 10),
-          pmTicket: "",
-          claimTicket: "",
+          pmTicket: m.ref_number ?? "",
+          claimTicket: c.ref_number ?? "",
           days,
           problemCategory: c.problem_category || "(ไม่ระบุ)",
           problemDetail: c.problem_detail || "(ไม่ระบุ)",
@@ -402,7 +403,7 @@ export const getMonitoringInsights = createServerFn({ method: "POST" })
       const row = monthlyMap.get(mi)!;
       const det = monthlyDetailsMap.get(mi)!;
       const item: MonthTicket = {
-        ticket: "",
+        ticket: h.ref_number ?? "",
         assetCode: h.old_code ?? "",
         date: src.slice(0, 10),
         status: h.status ?? "",
@@ -481,7 +482,7 @@ export const getMonitoringInsights = createServerFn({ method: "POST" })
       if (h.category !== "Monitoring") continue;
       const a = h.old_code ? assetMap.get(h.old_code) : undefined;
       monRowsOut.push({
-        ticket: "",
+        ticket: h.ref_number ?? "",
         assetCode: h.old_code ?? "",
         assetName: a?.name ?? "",
         project: h.project ?? "",

@@ -2,8 +2,8 @@
 //
 // Strategy (no auto-id available on source):
 //   - Natural key = (OldCode, CreatedDate, Status) → upsert via unique index.
-//   - Cursor      = GREATEST(CreatedDate, UpdatedDate) ascending.
-//   - Persist last cursor in app_settings key `mssql_asset_history_cursor`.
+//   - Cursor      = GREATEST(CreatedDate, UpdatedDate) + (OldCode, RefNumber) tie-breaker.
+//   - Persist last cursor position in app_settings key `mssql_asset_history_cursor`.
 //   - Window: last 12 months OR since 2026-01-01 (whichever is later).
 //   - reset=true wipes the table AND resets the cursor → full re-pull.
 //   - reset=false (default) = incremental: only rows with cursor > saved value.
@@ -37,9 +37,17 @@ interface BatchOpts {
   batchSize: number;
   reset: boolean;
   sinceCursor: string; // ISO; rows with GREATEST(Created,Updated) > this
+  sinceOldCode: string;
+  sinceRefNumber: string;
   batchIndex: number;
   maxBatches: number;
   logId?: number;
+}
+
+interface CursorState {
+  lastCursor: string;
+  lastOldCode: string;
+  lastRefNumber: string;
 }
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -90,15 +98,19 @@ function isoOrNull(v: unknown): string | null {
   return d ? d.toISOString() : null;
 }
 
-async function getCursor(admin: ReturnType<typeof createClient>): Promise<string> {
+async function getCursor(admin: ReturnType<typeof createClient>): Promise<CursorState> {
   const { data } = await admin.from("app_settings").select("value").eq("key", CURSOR_KEY).maybeSingle();
-  const v = (data?.value ?? {}) as { lastCursor?: string };
-  return v.lastCursor && typeof v.lastCursor === "string" ? v.lastCursor : EPOCH;
+  const v = (data?.value ?? {}) as Partial<CursorState>;
+  return {
+    lastCursor: v.lastCursor && typeof v.lastCursor === "string" ? v.lastCursor : EPOCH,
+    lastOldCode: v.lastOldCode && typeof v.lastOldCode === "string" ? v.lastOldCode : "",
+    lastRefNumber: v.lastRefNumber && typeof v.lastRefNumber === "string" ? v.lastRefNumber : "",
+  };
 }
 
-async function setCursor(admin: ReturnType<typeof createClient>, cursor: string) {
+async function setCursor(admin: ReturnType<typeof createClient>, state: CursorState) {
   await admin.from("app_settings").upsert(
-    { key: CURSOR_KEY, value: { lastCursor: cursor, updatedAt: new Date().toISOString() } },
+    { key: CURSOR_KEY, value: { ...state, updatedAt: new Date().toISOString() } },
     { onConflict: "key" },
   );
 }
@@ -110,7 +122,7 @@ async function runBatch(
   SERVICE_KEY: string,
   opts: BatchOpts,
 ) {
-  const { batchSize, reset, sinceCursor, batchIndex, maxBatches, logId } = opts;
+  const { batchSize, reset, sinceCursor, sinceOldCode, sinceRefNumber, batchIndex, maxBatches, logId } = opts;
   const setLog = async (status: "success" | "error", message: string, rows: number) => {
     if (logId)
       await admin
@@ -148,6 +160,8 @@ async function runBatch(
     const req = pool!.request();
     const sinceDate = toDate(sinceCursor) ?? new Date(EPOCH);
     req.input("sinceCursor", sql.DateTimeOffset, sinceDate);
+    req.input("sinceOldCode", sql.NVarChar, sinceOldCode);
+    req.input("sinceRefNumber", sql.NVarChar, sinceRefNumber);
 
     const cursorExpr = `
       CASE
@@ -160,13 +174,30 @@ async function runBatch(
     `;
 
     const q = `
-      SELECT TOP ${batchSize} *, (${cursorExpr}) AS __cursor
+      SELECT TOP ${batchSize} *,
+        (${cursorExpr}) AS __cursor,
+        COALESCE(CAST([OldCode] AS nvarchar(255)), '') AS __cursor_old_code,
+        COALESCE(CAST([RefNumber] AS nvarchar(255)), '') AS __cursor_ref_number
       FROM ${historyTable}
-      WHERE (${cursorExpr}) > @sinceCursor
+      WHERE (
+          (${cursorExpr}) > @sinceCursor
+          OR (
+            (${cursorExpr}) = @sinceCursor
+            AND (
+              COALESCE(CAST([OldCode] AS nvarchar(255)), '') > @sinceOldCode
+              OR (
+                COALESCE(CAST([OldCode] AS nvarchar(255)), '') = @sinceOldCode
+                AND COALESCE(CAST([RefNumber] AS nvarchar(255)), '') > @sinceRefNumber
+              )
+            )
+          )
+        )
         AND TRY_CAST([CreatedDate] AS datetime2) >= (
           SELECT MAX(d) FROM (VALUES (DATEADD(month, -12, GETDATE())), ('2026-01-01')) AS v(d)
         )
-      ORDER BY (${cursorExpr}) ASC, [OldCode] ASC
+      ORDER BY (${cursorExpr}) ASC,
+        COALESCE(CAST([OldCode] AS nvarchar(255)), '') ASC,
+        COALESCE(CAST([RefNumber] AS nvarchar(255)), '') ASC
     `;
 
     const r = await req.query(q);
@@ -229,17 +260,26 @@ async function runBatch(
 
     // Advance cursor to MAX(__cursor) from this batch
     let nextCursor = sinceCursor;
+    let nextOldCode = sinceOldCode;
+    let nextRefNumber = sinceRefNumber;
     if (list.length) {
       const last = list[list.length - 1]["__cursor"];
       const iso = isoOrNull(last);
       if (iso) nextCursor = iso;
+      nextOldCode = String(list[list.length - 1]["__cursor_old_code"] ?? "");
+      nextRefNumber = String(list[list.length - 1]["__cursor_ref_number"] ?? "");
     }
 
     // Persist cursor only when we made progress
-    if (nextCursor !== sinceCursor) await setCursor(admin, nextCursor);
+    const madeProgress = nextCursor !== sinceCursor || nextOldCode !== sinceOldCode || nextRefNumber !== sinceRefNumber;
+    if (madeProgress) await setCursor(admin, {
+      lastCursor: nextCursor,
+      lastOldCode: nextOldCode,
+      lastRefNumber: nextRefNumber,
+    });
 
     const isFull = list.length === batchSize;
-    const noProgress = nextCursor === sinceCursor;
+    const noProgress = !madeProgress;
     const hasMore = isFull && !noProgress && batchIndex + 1 < maxBatches;
 
     await pool!.close(); pool = null;
@@ -272,7 +312,10 @@ async function runBatch(
 
       const url = `${SUPABASE_URL}/functions/v1/sync-asset-history`;
       const body = JSON.stringify({
-        batchSize, reset: false, sinceCursor: nextCursor,
+        batchSize, reset: false,
+        sinceCursor: nextCursor,
+        sinceOldCode: nextOldCode,
+        sinceRefNumber: nextRefNumber,
         batchIndex: batchIndex + 1, maxBatches, _logId: nextLogId,
       });
       // @ts-ignore EdgeRuntime
@@ -314,6 +357,8 @@ Deno.serve(async (req: Request) => {
     batchSize?: number;
     reset?: boolean;
     sinceCursor?: string;
+    sinceOldCode?: string;
+    sinceRefNumber?: string;
     batchIndex?: number;
     maxBatches?: number;
     _logId?: number;
@@ -336,14 +381,18 @@ Deno.serve(async (req: Request) => {
   //   - If chained call, trust body.sinceCursor
   //   - If reset=true on first call, force EPOCH and clear persisted cursor
   //   - Otherwise, read persisted cursor
-  let sinceCursor: string;
+  let cursorState: CursorState;
   if (typeof body.sinceCursor === "string" && body.sinceCursor) {
-    sinceCursor = body.sinceCursor;
+    cursorState = {
+      lastCursor: body.sinceCursor,
+      lastOldCode: typeof body.sinceOldCode === "string" ? body.sinceOldCode : "",
+      lastRefNumber: typeof body.sinceRefNumber === "string" ? body.sinceRefNumber : "",
+    };
   } else if (reset) {
-    sinceCursor = EPOCH;
-    await setCursor(admin, EPOCH);
+    cursorState = { lastCursor: EPOCH, lastOldCode: "", lastRefNumber: "" };
+    await setCursor(admin, cursorState);
   } else {
-    sinceCursor = await getCursor(admin);
+    cursorState = await getCursor(admin);
   }
 
   let logId = body._logId;
@@ -353,7 +402,7 @@ Deno.serve(async (req: Request) => {
       .insert({
         source: "mssql_asset_history",
         status: "running",
-        message: `batch #${batchIndex} starting (mode=${reset ? "FULL RESET" : "incremental"}, since=${sinceCursor})`,
+        message: `batch #${batchIndex} starting (mode=${reset ? "FULL RESET" : "incremental"}, since=${cursorState.lastCursor}, oldCode=${cursorState.lastOldCode}, ref=${cursorState.lastRefNumber})`,
       }).select("id").single();
     logId = logRow?.id as number | undefined;
   }
@@ -361,14 +410,21 @@ Deno.serve(async (req: Request) => {
   // @ts-ignore EdgeRuntime
   EdgeRuntime.waitUntil(
     runBatch(admin, DB_PASSWORD, SUPABASE_URL, SERVICE_KEY, {
-      batchSize, reset, sinceCursor, batchIndex, maxBatches, logId,
+      batchSize, reset,
+      sinceCursor: cursorState.lastCursor,
+      sinceOldCode: cursorState.lastOldCode,
+      sinceRefNumber: cursorState.lastRefNumber,
+      batchIndex, maxBatches, logId,
     }),
   );
 
   return jsonResponse({
     ok: true, queued: true, logId, batchIndex,
     mode: reset ? "full-reset" : "incremental",
-    sinceCursor, batchSize,
+    sinceCursor: cursorState.lastCursor,
+    sinceOldCode: cursorState.lastOldCode,
+    sinceRefNumber: cursorState.lastRefNumber,
+    batchSize,
     message: "batch queued; subsequent batches will auto-chain. Watch sync_logs.",
   });
 });

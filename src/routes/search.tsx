@@ -815,13 +815,15 @@ function RawDataTable({
           </span>
         );
       case "__ref": {
-        const ref = String(
+        const raw =
           (p as { refNumber?: unknown; RefNumber?: unknown }).refNumber ??
-            (p as { RefNumber?: unknown }).RefNumber ??
-            h.ticket_code ??
-            "",
-        );
-        return <span className="font-mono text-xs whitespace-nowrap">{ref || "—"}</span>;
+          (p as { RefNumber?: unknown }).RefNumber ??
+          h.ref_number ??
+          "";
+        const ref = raw == null ? "" : String(raw).trim();
+        // อย่าโชว์ UUID (id ภายใน) เป็นเลขตั๋ว — ถ้าไม่มี ref_number จริง ๆ ให้ขีด
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ref);
+        return <span className="font-mono text-xs whitespace-nowrap">{ref && !isUuid ? ref : "—"}</span>;
       }
       case "__opened":
         return <span className="text-xs whitespace-nowrap">{fmtDate(h.opened_at)}</span>;

@@ -668,13 +668,15 @@ function AssetTab({ assetCode }: { assetCode: string }) {
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader><TableRow>
-                      <TableHead>PM Date</TableHead><TableHead>Claim Date</TableHead><TableHead className="text-right">Days</TableHead><TableHead>Problem</TableHead><TableHead>Equipment</TableHead>
+                      <TableHead>PM Date</TableHead><TableHead>PM Ref No.</TableHead><TableHead>Claim Date</TableHead><TableHead>Claim Ref No.</TableHead><TableHead className="text-right">Days</TableHead><TableHead>Problem</TableHead><TableHead>Equipment</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
                       {data.pmEffective.fails.slice(0, 10).map((f, i) => (
                         <TableRow key={i}>
                           <TableCell className="text-xs">{f.pmDate}</TableCell>
+                          <TableCell className="font-mono text-xs whitespace-nowrap">{f.pmRef || "—"}</TableCell>
                           <TableCell className="text-xs">{f.claimDate}</TableCell>
+                          <TableCell className="font-mono text-xs whitespace-nowrap">{f.claimRef || "—"}</TableCell>
                           <TableCell className="text-right font-mono text-xs">{f.days}</TableCell>
                           <TableCell className="text-xs">{f.problem}</TableCell>
                           <TableCell className="text-xs">{f.equipment}</TableCell>
@@ -709,6 +711,7 @@ function AssetTab({ assetCode }: { assetCode: string }) {
               <div className="overflow-x-auto">
                 <Table className="min-w-[1800px]">
                   <TableHeader><TableRow>
+                    <TableHead className="whitespace-nowrap">Ref No.</TableHead>
                     <TableHead className="whitespace-nowrap">Create Date</TableHead>
                     <TableHead className="whitespace-nowrap">Update Date</TableHead>
                     <TableHead className="whitespace-nowrap">Inform Position</TableHead>
@@ -726,6 +729,7 @@ function AssetTab({ assetCode }: { assetCode: string }) {
                   <TableBody>
                     {data.history.slice(0, 200).map((h, i) => (
                       <TableRow key={i}>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">{h.refNumber || "—"}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{fmtDate(h.createdDate)}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{fmtDate(h.updatedDate)}</TableCell>
                         <TableCell className="text-xs max-w-[200px] truncate" title={h.informPosition}>{h.informPosition || "—"}</TableCell>
@@ -784,7 +788,7 @@ function FingerprintCard({ title, rows }: { title: string; rows: { label: string
   );
 }
 
-function Timeline({ events }: { events: { kind: "PM" | "Monitoring" | "Claim"; date: string; status: string; problem: string; equipment: string }[] }) {
+function Timeline({ events }: { events: { kind: "PM" | "Monitoring" | "Claim"; refNumber: string; date: string; status: string; problem: string; equipment: string }[] }) {
   if (events.length === 0) return <p className="text-sm text-muted-foreground py-6 text-center">ไม่มีเหตุการณ์</p>;
   const colorMap: Record<string, string> = {
     PM: "oklch(0.66 0.18 250)",
@@ -812,9 +816,9 @@ function Timeline({ events }: { events: { kind: "PM" | "Monitoring" | "Claim"; d
                 key={i}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-white text-[10px]"
                 style={{ background: colorMap[e.kind] }}
-                title={`${e.kind} · ${e.status}${e.problem ? ` · ${e.problem}` : ""}${e.equipment ? ` · ${e.equipment}` : ""}`}
+                title={`${e.kind}${e.refNumber ? ` · Ref No. ${e.refNumber}` : ""} · ${e.status}${e.problem ? ` · ${e.problem}` : ""}${e.equipment ? ` · ${e.equipment}` : ""}`}
               >
-                {e.kind}{e.status ? ` · ${e.status}` : ""}
+                {e.kind}{e.refNumber ? ` · ${e.refNumber}` : ""}{e.status ? ` · ${e.status}` : ""}
               </span>
             ))}
           </div>

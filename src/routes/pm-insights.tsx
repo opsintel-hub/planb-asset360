@@ -739,6 +739,7 @@ function MonthTicketTable({ title, color, rows }: { title: string; color: string
             <TableHeader>
               <TableRow>
                 <TableHead>วันที่</TableHead>
+                <TableHead>Ref No.</TableHead>
                 <TableHead>รหัสป้าย</TableHead>
                 <TableHead>หมวด</TableHead>
                 <TableHead>สถานะ(TICKET)</TableHead>
@@ -746,10 +747,11 @@ function MonthTicketTable({ title, color, rows }: { title: string; color: string
             </TableHeader>
             <TableBody>
               {slice.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-4">ไม่มีข้อมูล</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-4">ไม่มีข้อมูล</TableCell></TableRow>
               ) : slice.map((r, i) => (
                 <TableRow key={`${r.ticket}-${i}`}>
                   <TableCell className="whitespace-nowrap">{r.date}</TableCell>
+                  <TableCell className="font-mono text-xs whitespace-nowrap">{r.ticket || "—"}</TableCell>
                   <TableCell className="font-mono text-xs">{r.assetCode}</TableCell>
                   <TableCell className="text-xs">{r.category}</TableCell>
                   <TableCell className="text-xs">{r.status}</TableCell>
@@ -793,7 +795,7 @@ type PmRowItem = {
 };
 
 const PM_COLS: { key: keyof PmRowItem; label: string; mono?: boolean; nowrap?: boolean }[] = [
-  { key: "ticket", label: "Ticket", mono: true, nowrap: true },
+  { key: "ticket", label: "Ref No.", mono: true, nowrap: true },
   { key: "assetCode", label: "Old Code", mono: true },
   { key: "assetName", label: "ชื่อ" },
   { key: "project", label: "Project" },
@@ -907,7 +909,7 @@ function PmRowsList({
           {/* Toolbar: search + column manager */}
           <div className="flex items-center justify-between flex-wrap gap-2">
             <Input
-              placeholder="ค้นหา รหัสป้าย / Ticket / แผนก / อาการ / สถานะ"
+              placeholder="ค้นหา รหัสป้าย / Ref No. / แผนก / อาการ / สถานะ"
               value={q}
               onChange={(e) => { setQ(e.target.value); setPage(1); }}
               className="max-w-md"
@@ -1342,6 +1344,8 @@ function AgingReport({
               <TableHeader>
                 <TableRow>
                   <TableHead>รหัสป้าย</TableHead>
+                  <TableHead>PM Ref No.</TableHead>
+                  <TableHead>Claim Ref No.</TableHead>
                   <TableHead>Media Type</TableHead>
                   <TableHead>แผนก</TableHead>
                   <TableHead>วัน PM</TableHead>
@@ -1360,7 +1364,7 @@ function AgingReport({
               <TableBody>
                 {visible.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={14} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={16} className="text-center text-muted-foreground py-8">
                       ไม่พบข้อมูลตามเงื่อนไข
                     </TableCell>
                   </TableRow>
@@ -1368,6 +1372,8 @@ function AgingReport({
                   visible.map((p, i) => (
                     <TableRow key={start + i} className={p.days <= 7 ? "bg-red-50 dark:bg-red-950/30" : ""}>
                       <TableCell className="font-mono text-xs">{p.assetCode}</TableCell>
+                      <TableCell className="font-mono text-xs whitespace-nowrap">{p.pmTicket || "—"}</TableCell>
+                      <TableCell className="font-mono text-xs whitespace-nowrap">{p.claimTicket || "—"}</TableCell>
                       <TableCell className="text-xs">{p.mediaType}</TableCell>
                       <TableCell className="text-xs">{p.department}</TableCell>
                       <TableCell className="text-xs">{p.pmDate}</TableCell>

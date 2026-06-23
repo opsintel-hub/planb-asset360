@@ -814,8 +814,18 @@ function RawDataTable({
             <span className="font-mono text-xs">{h.asset_old_code}</span>
           </span>
         );
+      case "__ref": {
+        const ref = String(
+          (p as { refNumber?: unknown; RefNumber?: unknown }).refNumber ??
+            (p as { RefNumber?: unknown }).RefNumber ??
+            h.ticket_code ??
+            "",
+        );
+        return <span className="font-mono text-xs whitespace-nowrap">{ref || "—"}</span>;
+      }
       case "__opened":
         return <span className="text-xs whitespace-nowrap">{fmtDate(h.opened_at)}</span>;
+
       case "__closed":
         return <span className="text-xs whitespace-nowrap text-muted-foreground">{fmtDate(h.closed_at)}</span>;
       case "__responseTime": {

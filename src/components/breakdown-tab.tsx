@@ -221,38 +221,6 @@ export function BreakdownTab({
     return new Date(Math.max(nextPredictedRaw.getTime(), tomorrow.getTime()));
   }, [nextPredictedRaw]);
 
-  // ---- PM Work Order draft dialog ----
-  const [pmOpen, setPmOpen] = useState(false);
-  const [pmDate, setPmDate] = useState("");
-  const [pmAsset, setPmAsset] = useState("");
-  const [pmNote, setPmNote] = useState("");
-
-  function openPMDialog() {
-    const target = assets[0]?.old_code ?? filtered[0]?.asset_old_code ?? "";
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const defaultDate = nextPredicted && nextPredicted.getTime() >= tomorrow.getTime()
-      ? nextPredicted
-      : tomorrow;
-    setPmAsset(target);
-    setPmDate(defaultDate.toISOString().slice(0, 10));
-    setPmNote(`อ้างอิงปัญหาหลัก: ${topCategories[0]?.name ?? "—"} | MTBF: ${mtbf.days.toFixed(1)} วัน`);
-    setPmOpen(true);
-  }
-
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const pmDateInvalid = !pmDate || pmDate <= todayStr;
-
-  function confirmGeneratePM() {
-    if (pmDateInvalid) {
-      toast.error("วันนัดตรวจต้องเป็นวันที่อนาคต (หลังวันนี้)");
-      return;
-    }
-    toast.success("บันทึกใบสั่งงาน PM (ฉบับร่าง) แล้ว", {
-      description: `Asset: ${pmAsset || "—"} | นัดตรวจ: ${new Date(pmDate).toLocaleDateString("th-TH")}`,
-    });
-    setPmOpen(false);
-  }
 
   function handleExport() {
     const rows = filtered.map((h) => ({

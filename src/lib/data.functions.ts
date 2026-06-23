@@ -57,6 +57,7 @@ function typeFromCategory(cat: string | null): HistoryShape["type"] {
 
 function toHistoryShape(h: MssqlRow, assetIdByCode: Map<string, string>): HistoryShape {
   const payload: Record<string, unknown> = {
+    refNumber: h.ref_number,
     project: h.project,
     oldCode: h.old_code,
     mediaType: h.media_type,
@@ -88,7 +89,7 @@ function toHistoryShape(h: MssqlRow, assetIdByCode: Map<string, string>): Histor
     id: h.id,
     asset_id: h.old_code ? assetIdByCode.get(h.old_code) ?? null : null,
     asset_old_code: h.old_code,
-    ticket_code: h.id,
+    ticket_code: h.ref_number ?? h.id,
     type,
     title,
     status: h.status,
@@ -98,6 +99,7 @@ function toHistoryShape(h: MssqlRow, assetIdByCode: Map<string, string>): Histor
     payload: payload as Record<string, string | number | boolean | null>,
   };
 }
+
 
 // ---------- Dashboard ----------
 export const getDashboardOverview = createServerFn({ method: "GET" })

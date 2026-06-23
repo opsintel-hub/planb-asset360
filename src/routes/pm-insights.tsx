@@ -909,7 +909,7 @@ function PmRowsList({
           {/* Toolbar: search + column manager */}
           <div className="flex items-center justify-between flex-wrap gap-2">
             <Input
-              placeholder="ค้นหา รหัสป้าย / Ticket / แผนก / อาการ / สถานะ"
+              placeholder="ค้นหา รหัสป้าย / Ref No. / แผนก / อาการ / สถานะ"
               value={q}
               onChange={(e) => { setQ(e.target.value); setPage(1); }}
               className="max-w-md"

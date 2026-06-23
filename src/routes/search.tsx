@@ -1179,28 +1179,34 @@ function RegularTab({
       </div>
 
       {/* Trend chart — ครบ 12 เดือน + เลือกปี */}
-      {history.length > 0 && (
-        <div className="rounded-xl border p-4">
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <div className="text-sm font-medium">
-              แนวโน้มรายเดือน — {tab} <span className="text-xs text-muted-foreground">(ครบ 12 เดือน)</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground">ปี</span>
-              <select
-                value={chartYear}
-                onChange={(e) => setChartYear(e.target.value)}
-                className="h-8 rounded border bg-background px-2 text-xs"
-              >
-                {(yearsAvailable.length ? yearsAvailable : [defaultYear]).map((y) => (
-                  <option key={y} value={y}>
-                    {Number(y) + 543}
-                  </option>
-                ))}
-              </select>
-            </div>
+      <div className="rounded-xl border p-4">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="text-sm font-medium">
+            แนวโน้มรายเดือน — {tab} <span className="text-xs text-muted-foreground">(ครบ 12 เดือน)</span>
           </div>
-          <div className="h-64">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground">ปี</span>
+            <select
+              value={chartYear}
+              onChange={(e) => setChartYear(e.target.value)}
+              className="h-8 rounded border bg-background px-2 text-xs"
+            >
+              {(yearsAvailable.length ? yearsAvailable : [defaultYear]).map((y) => (
+                <option key={y} value={y}>
+                  {Number(y) + 543}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="h-64 relative">
+          {history.length === 0 ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center gap-1 text-muted-foreground">
+              <BarChart3 className="size-8 opacity-40" />
+              <div className="text-sm font-medium">ไม่มีข้อมูล {tab} ในช่วงเวลาที่เลือก</div>
+              <div className="text-xs">ลองขยายช่วง "วันที่เริ่ม / สิ้นสุด" ด้านบน หรือกดปุ่ม "ซิงค์ใหม่" เพื่อดึงข้อมูลล่าสุดจากต้นทาง</div>
+            </div>
+          ) : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0 0)" />
@@ -1221,9 +1227,10 @@ function RegularTab({
                 ))}
               </LineChart>
             </ResponsiveContainer>
-          </div>
+          )}
         </div>
-      )}
+      </div>
+
 
       {/* Alerts (PM only) */}
       {tab === "PM" && alerts.length > 0 && (

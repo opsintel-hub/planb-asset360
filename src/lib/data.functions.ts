@@ -89,7 +89,7 @@ function toHistoryShape(h: MssqlRow, assetIdByCode: Map<string, string>): Histor
     id: h.id,
     asset_id: h.old_code ? assetIdByCode.get(h.old_code) ?? null : null,
     asset_old_code: h.old_code,
-    ticket_code: h.ref_number ?? h.id,
+    ticket_code: h.ref_number ?? "",
     type,
     title,
     status: h.status,

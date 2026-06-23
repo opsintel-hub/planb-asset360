@@ -3092,7 +3092,7 @@ function PmScheduleYearCalendar({ rows, statuses }: { rows: PmScheduleRow[]; sta
                   const title = items.length
                     ? items
                         .map(({ row, status }) => {
-                          const code = row.asset_old_code ?? row.ref_number ?? "?";
+                          const code = row.ref_number ? `${row.ref_number} • ${row.asset_old_code ?? "?"}` : (row.asset_old_code ?? "?");
                           const tail =
                             status.kind === "overdue"
                               ? `เกิน ${status.days} วัน`

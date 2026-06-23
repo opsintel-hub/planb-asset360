@@ -21,6 +21,7 @@ type HistoryShape = {
 
 type MssqlRow = {
   id: string;
+  ref_number: string | null;
   old_code: string | null;
   category: string | null;
   status: string | null;
@@ -43,7 +44,8 @@ type MssqlRow = {
 };
 
 const MSSQL_HISTORY_COLS =
-  "id, old_code, category, status, project, media_type, bkk_upc, created_date, updated_date, inform_position, inform_detail, problem_category, problem_equipment, problem_detail, solution_category, solution_detail, response_time, resolve_time, total_turnaround_time, asset_status";
+  "id, ref_number, old_code, category, status, project, media_type, bkk_upc, created_date, updated_date, inform_position, inform_detail, problem_category, problem_equipment, problem_detail, solution_category, solution_detail, response_time, resolve_time, total_turnaround_time, asset_status";
+
 
 function typeFromCategory(cat: string | null): HistoryShape["type"] {
   const c = (cat ?? "").trim();
@@ -55,6 +57,7 @@ function typeFromCategory(cat: string | null): HistoryShape["type"] {
 
 function toHistoryShape(h: MssqlRow, assetIdByCode: Map<string, string>): HistoryShape {
   const payload: Record<string, unknown> = {
+    refNumber: h.ref_number,
     project: h.project,
     oldCode: h.old_code,
     mediaType: h.media_type,
@@ -86,7 +89,7 @@ function toHistoryShape(h: MssqlRow, assetIdByCode: Map<string, string>): Histor
     id: h.id,
     asset_id: h.old_code ? assetIdByCode.get(h.old_code) ?? null : null,
     asset_old_code: h.old_code,
-    ticket_code: h.id,
+    ticket_code: h.ref_number ?? h.id,
     type,
     title,
     status: h.status,
@@ -96,6 +99,7 @@ function toHistoryShape(h: MssqlRow, assetIdByCode: Map<string, string>): Histor
     payload: payload as Record<string, string | number | boolean | null>,
   };
 }
+
 
 // ---------- Dashboard ----------
 export const getDashboardOverview = createServerFn({ method: "GET" })

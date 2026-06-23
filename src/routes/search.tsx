@@ -700,6 +700,7 @@ function Slicer({
 // ============ Raw Data Table (shared by PM/Claim/Monitor) ============
 const CORE_COLS_BASE: Array<{ key: string; label: string; sticky?: boolean }> = [
   { key: "__asset", label: "ป้าย", sticky: true },
+  { key: "__ref", label: "Ref No." },
   { key: "__opened", label: "วันที่เปิด" },
   { key: "__responseTime", label: "ระยะเวลาตอบรับ" },
   { key: "__resolveTime", label: "ระยะเวลาช่างซ่อม" },
@@ -709,6 +710,7 @@ const CORE_COLS_BASE: Array<{ key: string; label: string; sticky?: boolean }> = 
   { key: "__title", label: "รายการ" },
   { key: "__status", label: "สถานะ" },
 ];
+
 const CLAIM_ONLY_COLS = new Set(["__responseTime", "__resolveTime", "__totalTurnaround"]);
 function getCoreCols(tab: TabId) {
   return tab === "Claim" ? CORE_COLS_BASE : CORE_COLS_BASE.filter((c) => !CLAIM_ONLY_COLS.has(c.key));
@@ -724,7 +726,10 @@ const EXCLUDED_PAYLOAD_KEYS = new Set([
   "ResponseTime",
   "ResolveTime",
   "TotalTurnaroundTime",
+  "refNumber",
+  "RefNumber",
 ]);
+
 
 function RawDataTable({
   tab,
@@ -809,8 +814,18 @@ function RawDataTable({
             <span className="font-mono text-xs">{h.asset_old_code}</span>
           </span>
         );
+      case "__ref": {
+        const ref = String(
+          (p as { refNumber?: unknown; RefNumber?: unknown }).refNumber ??
+            (p as { RefNumber?: unknown }).RefNumber ??
+            h.ticket_code ??
+            "",
+        );
+        return <span className="font-mono text-xs whitespace-nowrap">{ref || "—"}</span>;
+      }
       case "__opened":
         return <span className="text-xs whitespace-nowrap">{fmtDate(h.opened_at)}</span>;
+
       case "__closed":
         return <span className="text-xs whitespace-nowrap text-muted-foreground">{fmtDate(h.closed_at)}</span>;
       case "__responseTime": {

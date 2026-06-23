@@ -384,6 +384,7 @@ export type Database = {
           problem_detail: string | null
           problem_equipment: string | null
           project: string | null
+          ref_number: string | null
           resolve_time: number | null
           response_time: number | null
           solution_category: string | null
@@ -407,6 +408,7 @@ export type Database = {
           problem_detail?: string | null
           problem_equipment?: string | null
           project?: string | null
+          ref_number?: string | null
           resolve_time?: number | null
           response_time?: number | null
           solution_category?: string | null
@@ -430,6 +432,7 @@ export type Database = {
           problem_detail?: string | null
           problem_equipment?: string | null
           project?: string | null
+          ref_number?: string | null
           resolve_time?: number | null
           response_time?: number | null
           solution_category?: string | null

@@ -199,7 +199,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
-        <main className={cn("flex-1 p-3 sm:p-4 md:p-6 lg:p-8 min-w-0", neonActive && "neon-theme")}>{children}</main>
+        <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 min-w-0">{children}</main>
 
       </div>
     </div>

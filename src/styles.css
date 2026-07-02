@@ -165,8 +165,8 @@
   --warning: oklch(0.85 0.18 85);             /* neon amber */
   --warning-foreground: oklch(0.15 0.03 235);
 
-  --border: oklch(0.85 0.18 195 / 22%);       /* cyan-tinted border */
-  --input: oklch(0.85 0.18 195 / 18%);
+  --border: oklch(0.85 0.18 195 / 7%);        /* cyan-tinted border, dimmed ~70% */
+  --input: oklch(0.85 0.18 195 / 8%);
   --ring: oklch(0.85 0.18 195);
 
   --chart-1: oklch(0.85 0.18 195);            /* cyan */
@@ -175,24 +175,24 @@
   --chart-4: oklch(0.85 0.18 85);             /* amber */
   --chart-5: oklch(0.68 0.24 20);             /* red */
 
-  --shadow-card: 0 0 0 1px oklch(0.85 0.18 195 / 20%),
-                 0 4px 20px -4px oklch(0.85 0.18 195 / 15%);
-  --shadow-elegant: 0 0 24px oklch(0.85 0.18 195 / 30%),
-                    0 0 60px oklch(0.85 0.18 195 / 15%);
+  --shadow-card: 0 0 0 1px oklch(0.85 0.18 195 / 6%),
+                 0 4px 20px -4px oklch(0.85 0.18 195 / 8%);
+  --shadow-elegant: 0 0 24px oklch(0.85 0.18 195 / 12%),
+                    0 0 60px oklch(0.85 0.18 195 / 6%);
 
   background: radial-gradient(ellipse at top, oklch(0.22 0.06 240) 0%, oklch(0.14 0.03 235) 60%);
   color: var(--foreground);
   min-height: 100%;
 }
 
-/* Card glow — subtle neon outline + inner darkness */
+/* Card glow — dimmed neon outline (~70% less) */
 .neon-theme [class*="bg-card"],
 .neon-theme [class*="rounded-xl"][class*="border"],
 .neon-theme [class*="rounded-lg"][class*="border"] {
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 4%),
-    0 0 0 1px oklch(0.85 0.18 195 / 15%),
-    0 4px 24px -8px oklch(0.85 0.18 195 / 25%);
+    inset 0 1px 0 oklch(1 0 0 / 2%),
+    0 0 0 1px oklch(0.85 0.18 195 / 5%),
+    0 4px 24px -8px oklch(0.85 0.18 195 / 8%);
 }
 
 /* Neon focus ring */
@@ -205,19 +205,40 @@
 /* Neon text accent for headings inside the scope */
 .neon-theme h1,
 .neon-theme h2 {
-  text-shadow: 0 0 18px oklch(0.85 0.18 195 / 35%);
+  text-shadow: 0 0 18px oklch(0.85 0.18 195 / 25%);
 }
 
 /* Tabs / buttons glow on active state */
 .neon-theme [data-state="active"] {
-  box-shadow: 0 0 0 1px oklch(0.85 0.18 195 / 60%),
-              0 0 16px oklch(0.85 0.18 195 / 45%);
+  box-shadow: 0 0 0 1px oklch(0.85 0.18 195 / 45%),
+              0 0 16px oklch(0.85 0.18 195 / 30%);
 }
 
 /* Chart gridlines softer on dark */
 .neon-theme .recharts-cartesian-grid line {
-  stroke: oklch(0.85 0.18 195 / 12%);
+  stroke: oklch(0.85 0.18 195 / 10%);
 }
+
+/* Bar chart: fade bars from bright top to soft bottom (light→dark gradient look) */
+.neon-theme .recharts-layer.recharts-bar path,
+.neon-theme .recharts-bar-rectangle path {
+  -webkit-mask-image: linear-gradient(to bottom, oklch(0 0 0 / 1) 15%, oklch(0 0 0 / 0.35));
+          mask-image: linear-gradient(to bottom, oklch(0 0 0 / 1) 15%, oklch(0 0 0 / 0.35));
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+/* Line chart strokes: soft neon glow */
+.neon-theme .recharts-line .recharts-line-curve {
+  filter: drop-shadow(0 0 4px oklch(0.85 0.18 195 / 45%))
+          drop-shadow(0 0 10px oklch(0.85 0.18 195 / 20%));
+}
+
+/* Area chart fill: gradient fade */
+.neon-theme .recharts-area-area {
+  -webkit-mask-image: linear-gradient(to top, oklch(0 0 0 / 0.1), oklch(0 0 0 / 0.9));
+          mask-image: linear-gradient(to top, oklch(0 0 0 / 0.1), oklch(0 0 0 / 0.9));
+}
+
 
 
 @layer base {

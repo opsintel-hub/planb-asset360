@@ -455,36 +455,13 @@ function SearchPage() {
   }, [assets]);
 
   // ---------- Tab content ----------
-  // ---------- Neon theme toggle (scoped to this page) ----------
-  const [neon, setNeon] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("search:neon") === "1";
-  });
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("search:neon", neon ? "1" : "0");
-    }
-  }, [neon]);
-
   return (
-    <div className={cn("space-y-6", neon && "neon-theme -m-4 sm:-m-6 p-4 sm:p-6 rounded-2xl")}>
+    <div className="space-y-6">
       <PageHeader
         title="Asset history"
         subtitle="เปรียบเทียบประวัติงานสูงสุด 5 ป้าย — PM / Claim / Monitoring / Asset Health"
         actions={
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setNeon((v) => !v)}
-              className={cn(
-                "inline-flex items-center gap-2 text-sm h-9 px-3 rounded-lg border transition",
-                neon
-                  ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_var(--primary)]"
-                  : "hover:bg-accent",
-              )}
-              title="สลับธีม Neon / ปกติ"
-            >
-              <Activity className="size-4" /> {neon ? "Neon: On" : "Neon: Off"}
-            </button>
             {codes.length > 0 && (
               <button
                 onClick={handleResync}
@@ -496,6 +473,7 @@ function SearchPage() {
           </div>
         }
       />
+
 
 
       {/* Filters (กรองก่อนค้น) */}

@@ -170,6 +170,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
+            {!excludeNeon && (
+              <button
+                onClick={() => setNeon((v) => !v)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 text-xs sm:text-sm h-9 px-2.5 sm:px-3 rounded-lg border transition",
+                  neon
+                    ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_var(--primary)]"
+                    : "hover:bg-accent",
+                )}
+                title="สลับธีม Neon / ปกติ"
+              >
+                <Sparkles className="size-4" />
+                <span className="hidden sm:inline">{neon ? "Neon: On" : "Neon: Off"}</span>
+              </button>
+            )}
             <button className="relative size-9 rounded-lg hover:bg-accent grid place-items-center text-muted-foreground hover:text-foreground transition">
               <Bell className="size-4" />
               <span className="absolute top-2 right-2 size-2 rounded-full bg-destructive" />
@@ -183,7 +198,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
-        <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 min-w-0">{children}</main>
+        <main className={cn("flex-1 p-3 sm:p-4 md:p-6 lg:p-8 min-w-0", neonActive && "neon-theme")}>{children}</main>
+
       </div>
     </div>
   );

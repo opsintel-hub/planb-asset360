@@ -52,13 +52,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("app:neon") === "1";
   });
+  const excludeNeon = pathname.startsWith("/settings") || pathname.startsWith("/permissions");
+  const neonActive = neon && !excludeNeon;
   useEffect(() => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem("app:neon", neon ? "1" : "0");
     }
-  }, [neon]);
-  const excludeNeon = pathname.startsWith("/settings") || pathname.startsWith("/permissions");
-  const neonActive = neon && !excludeNeon;
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.toggle("neon-theme", neonActive);
+      document.body.classList.toggle("neon-theme", neonActive);
+    }
+  }, [neon, neonActive]);
 
 
   const SidebarContent = (

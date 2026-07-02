@@ -47,6 +47,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
+  // ---------- Global Neon theme toggle ----------
+  const [neon, setNeon] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("app:neon") === "1";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("app:neon", neon ? "1" : "0");
+    }
+  }, [neon]);
+  const excludeNeon = pathname.startsWith("/settings") || pathname.startsWith("/permissions");
+  const neonActive = neon && !excludeNeon;
+
+
   const SidebarContent = (
     <>
       <div className="px-6 py-6 border-b border-sidebar-border flex items-center justify-between">

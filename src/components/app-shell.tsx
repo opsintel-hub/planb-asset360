@@ -126,7 +126,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className={cn("min-h-screen flex bg-background", neonActive && "neon-theme")}>
+
       {/* Desktop sidebar */}
       <aside
         className="hidden md:flex w-64 shrink-0 text-sidebar-foreground flex-col"

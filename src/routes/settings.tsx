@@ -36,9 +36,10 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const [active, setActive] = useState<"main" | "airtable" | "mappings" | "informed">("main");
+  const [active, setActive] = useState<"main" | "schema" | "airtable" | "mappings" | "informed">("main");
   const sections = [
     { id: "main", label: "การเชื่อมต่อหลัก", icon: Server },
+    { id: "schema", label: "Database Schema", icon: Database },
     { id: "airtable", label: "Airtable Connections", icon: Database },
     { id: "mappings", label: "Diagram Mappings", icon: Tag },
     { id: "informed", label: "Informed Mapping (PM Insights)", icon: FileSpreadsheet },
@@ -68,6 +69,8 @@ function SettingsPage() {
 
       {active === "main" ? (
         <MainSettings />
+      ) : active === "schema" ? (
+        <DatabaseSchemaSection />
       ) : active === "airtable" ? (
         <AirtableSection />
       ) : active === "mappings" ? (

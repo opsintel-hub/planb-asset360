@@ -627,6 +627,26 @@ export const getSchemaStatus = createServerFn({ method: "GET" })
     };
   });
 
+// ---------- Database schema info (Settings → Database Schema tab) ----------
+export type SchemaTableInfo = {
+  name: string;
+  kind: string;
+  primary_key: string[];
+  foreign_keys: Array<{ column: string; references_table: string; references_column: string }>;
+  columns: Array<{ name: string; type: string; nullable: boolean }>;
+  column_count: number;
+  est_rows: number;
+};
+
+export const getDatabaseSchema = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase.rpc("get_public_schema_info");
+    if (error) throw new Error(error.message);
+    const payload = (data ?? {}) as { tables?: SchemaTableInfo[] };
+    return { tables: payload.tables ?? [], fetchedAt: new Date().toISOString() };
+  });
+
 // ---------- Asset Profile (for Profile tab in Search) ----------
 export const getAssetProfile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

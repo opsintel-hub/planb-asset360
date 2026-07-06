@@ -22,6 +22,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { DiagramMappingsSection } from "@/components/diagram-mappings-section";
 import { MappingImportExport } from "@/components/mapping-import-export";
+import { DatabaseSchemaSection } from "@/components/database-schema-section";
 import { MssqlTableControls, type TablesEnabled } from "@/components/mssql-table-controls";
 
 export const Route = createFileRoute("/settings")({

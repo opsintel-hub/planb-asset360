@@ -663,6 +663,7 @@ export type Database = {
           schedule: string
         }[]
       }
+      get_public_schema_info: { Args: never; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

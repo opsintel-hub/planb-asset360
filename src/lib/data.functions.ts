@@ -641,7 +641,10 @@ export type SchemaTableInfo = {
 export const getDatabaseSchema = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.rpc("get_public_schema_info");
+    const sb = context.supabase as unknown as {
+      rpc: (name: string) => Promise<{ data: unknown; error: { message: string } | null }>;
+    };
+    const { data, error } = await sb.rpc("get_public_schema_info");
     if (error) throw new Error(error.message);
     const payload = (data ?? {}) as { tables?: SchemaTableInfo[] };
     return { tables: payload.tables ?? [], fetchedAt: new Date().toISOString() };

@@ -1,30 +1,47 @@
-## สรุป
-ทำได้ครับ และไม่เสียเวลามาก (~5 นาที) เพราะระบบมีการเชื่อมต่อ MSSQL ต้นทาง (`magicticket.magicsigncloud.com` / `planb.AssetHistory`) พร้อม credential อยู่แล้วใน `MODERN_CORP_DB_PASSWORD`
+## เพิ่ม ERD Diagram (แผนผังความสัมพันธ์ฐานข้อมูล) ในเมนูตั้งค่าระบบ
 
-## สิ่งที่จะทำ
+### สิ่งที่จะทำ
 
-1. **สร้าง edge function ชั่วคราว** `supabase/functions/debug-mssql-query/index.ts`
-   - เชื่อมต่อ MSSQL ด้วย config เดียวกับ `sync-asset-history`
-   - รับ parameter: `oldCode`, `category`, `fromDate`, `toDate`
-   - Query ตรงจาก `AssetHistory` table:
-     ```sql
-     SELECT RefNumber, OldCode, Category, Status, AssetStatus, 
-            CreatedDate, UpdatedDate, Project, MediaType, ...
-     FROM AssetHistory
-     WHERE OldCode = @oldCode
-       AND Category = @category
-       AND CreatedDate BETWEEN @from AND @to
-     ORDER BY CreatedDate DESC
-     ```
-   - คืนผลเป็น JSON ทั้งหมดให้ดูว่า `RefNumber` ที่ต้นทางเป็นอะไรจริงๆ (ว่าง / null / มีค่าแต่ sync ไม่ได้)
+เพิ่ม **Sub-tab** ใน `ตั้งค่าระบบ > Database Schema` แบ่งเป็น 2 tab ย่อย:
+1. **List View** — มุมมองรายการแบบเดิม
+2. **ERD Diagram** — มุมมองแผนผังแบบภาพตัวอย่างที่ส่งมา (ใหม่)
 
-2. **เรียกใช้ function** ด้วย `OldCode='DP911'`, `Category='Monitoring'`, ช่วง `2026-06-01` ถึง `2026-06-21` แล้วเทียบกับข้อมูลใน `mssql_asset_history` ปัจจุบัน
+### ERD Diagram จะแสดงอะไรบ้าง
 
-3. **สรุปผล** ให้ดูว่า:
-   - ต้นทางมี `RefNumber` หรือไม่ → ถ้ามีแสดงว่า sync ทิ้งค่าไป (bug ใน sync)
-   - ต้นทางไม่มี `RefNumber` → ข้อมูลต้นทางผิดพลาดจริง ต้องไปแก้ที่ระบบต้นทาง
+- **การ์ดตาราง** แต่ละตารางเป็นกล่องมีหัวสี บอกชื่อตาราง + คอลัมน์ทั้งหมด (มี icon PK/FK) + ชนิดข้อมูล
+- **สีหัวการ์ดแยกประเภทอัตโนมัติ:**
+  - 🔵 ฟ้า = Source table ปกติ
+  - 🟢 เขียว = View / Materialized View (ตรวจจากชื่อขึ้นต้น `mv_` หรือ `kind = 'v'/'m'`)
+  - 🟣 ม่วง = Config / Mapping (ชื่อลงท้าย `_mapping`, `_settings`, `_connections`)
+  - ⚪ เทา = Auth (`profiles`, `user_roles`)
+- **เส้นความสัมพันธ์** ระหว่างตาราง (ดึงจาก Foreign Keys จริงใน `pg_catalog`) พร้อม label `1` / `n`
+- **กล่อง "Computed From"** สำหรับ `mv_*` แสดงว่าคำนวณมาจากตารางไหน (เส้นประ) — parse จาก source ของ view/function ที่มีอยู่แล้ว (`refresh_pm_views`) หรือ fallback mapping ในโค้ด
+- **Zoom / Pan / Drag** เลื่อนดูได้เพราะตารางเยอะ
+- **Legend** อธิบายสีและสัญลักษณ์
 
-4. **ลบ function ทิ้ง** เมื่อตรวจสอบเสร็จ (เพื่อไม่ให้เหลือ endpoint debug ค้าง)
+### Auto-update เมื่อมีตารางใหม่ (จุดที่ user เน้น)
 
-## ค่าใช้จ่ายเวลา
-ประมาณ 3–5 นาที (สร้าง function + deploy + ยิงดูผล + ลบ)
+- ใช้ `getDatabaseSchema` (server fn ที่มีอยู่แล้ว) ซึ่ง query `pg_catalog` แบบสด → **ตารางใหม่ทุกตารางจะขึ้นในแผนผังเองอัตโนมัติ** โดยไม่ต้องแก้โค้ด
+- ประเภทสี/กลุ่มจะ detect จาก naming pattern (prefix/suffix) → ตารางใหม่ที่ตั้งชื่อตาม convention จะได้สีถูกกลุ่มเอง
+- เส้น FK ก็ดึงจาก `pg_catalog` เช่นกัน → ความสัมพันธ์ใหม่ขึ้นเองเมื่อ migration เพิ่ม FK
+- ปุ่ม **Refresh** (มีอยู่แล้ว) + `staleTime: 30s` ให้ query re-fetch เมื่อกลับมาที่หน้านี้
+- Layout เป็น **auto-layout algorithm** (จัดกลุ่มตามสี, วางเป็น grid) → ตารางใหม่ถูกวางอัตโนมัติ ไม่ต้อง hardcode ตำแหน่ง
+- ถ้าตารางใหม่ยังไม่ถูก map เข้าเมนูใน `TABLE_USAGE` → แสดง badge "ยังไม่ถูกใช้งาน" (มีอยู่แล้ว)
+
+### เทคนิคที่จะใช้
+
+- ใช้ **React Flow** (`@xyflow/react`) — ไลบรารีมาตรฐานสำหรับวาด ERD รองรับ zoom/pan/drag
+- Custom node สำหรับกล่องตาราง (คล้าย dbdiagram.io / ภาพตัวอย่าง)
+- Auto-layout ด้วย algorithm ง่ายๆ (จัดคอลัมน์ตามกลุ่มสี, เรียงในคอลัมน์ตามจำนวน FK)
+
+### ไฟล์ที่จะแก้
+
+- `bun add @xyflow/react`
+- สร้าง `src/components/database-erd-diagram.tsx` — component ERD ใหม่
+- แก้ `src/components/database-schema-section.tsx` — ครอบด้วย shadcn Tabs (List / ERD)
+
+### วิธีสั่งงานครั้งหน้า (จำง่ายๆ)
+
+- "เพิ่ม/แก้ ERD diagram" — สำหรับปรับแผนผัง
+- "อัปเดต computed-from mapping ของ mv_xxx" — เฉพาะกรณีเพิ่ม MV ใหม่ที่ parser detect ไม่เจอ
+- **ตารางใหม่ทั่วไป** — ไม่ต้องสั่งอะไร ระบบดึงจาก database ให้เอง

@@ -1,11 +1,13 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Database, KeyRound, Link2, RefreshCw, AlertTriangle, CheckCircle2, Table as TableIcon } from "lucide-react";
+import { Database, KeyRound, Link2, RefreshCw, AlertTriangle, CheckCircle2, Table as TableIcon, List, Network } from "lucide-react";
 import { Badge } from "@/components/ui-bits";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { getDatabaseSchema, type SchemaTableInfo } from "@/lib/data.functions";
+import { DatabaseErdDiagram } from "@/components/database-erd-diagram";
 
 // Mapping ตารางในระบบ → เมนู/หน้าที่ใช้งานจริง
 // อัปเดตทุกครั้งที่มีเมนูใหม่หรือ query ตารางเพิ่ม
@@ -166,16 +168,31 @@ export function DatabaseSchemaSection() {
               </div>
             )}
 
-            <div className="space-y-3">
-              {tables.map((t) => (
-                <TableCard
-                  key={t.name}
-                  table={t}
-                  usage={TABLE_USAGE[t.name]}
-                  inbound={inboundByTable.get(t.name) ?? []}
-                />
-              ))}
-            </div>
+            <Tabs defaultValue="list" className="w-full">
+              <TabsList>
+                <TabsTrigger value="list">
+                  <List className="size-3.5 mr-1.5" /> รายการ (List)
+                </TabsTrigger>
+                <TabsTrigger value="erd">
+                  <Network className="size-3.5 mr-1.5" /> แผนผัง (ERD)
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="list" className="space-y-3">
+                {tables.map((t) => (
+                  <TableCard
+                    key={t.name}
+                    table={t}
+                    usage={TABLE_USAGE[t.name]}
+                    inbound={inboundByTable.get(t.name) ?? []}
+                  />
+                ))}
+              </TabsContent>
+
+              <TabsContent value="erd">
+                <DatabaseErdDiagram tables={tables} />
+              </TabsContent>
+            </Tabs>
           </>
         )}
       </div>

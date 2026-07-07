@@ -168,16 +168,31 @@ export function DatabaseSchemaSection() {
               </div>
             )}
 
-            <div className="space-y-3">
-              {tables.map((t) => (
-                <TableCard
-                  key={t.name}
-                  table={t}
-                  usage={TABLE_USAGE[t.name]}
-                  inbound={inboundByTable.get(t.name) ?? []}
-                />
-              ))}
-            </div>
+            <Tabs defaultValue="list" className="w-full">
+              <TabsList>
+                <TabsTrigger value="list">
+                  <List className="size-3.5 mr-1.5" /> รายการ (List)
+                </TabsTrigger>
+                <TabsTrigger value="erd">
+                  <Network className="size-3.5 mr-1.5" /> แผนผัง (ERD)
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="list" className="space-y-3">
+                {tables.map((t) => (
+                  <TableCard
+                    key={t.name}
+                    table={t}
+                    usage={TABLE_USAGE[t.name]}
+                    inbound={inboundByTable.get(t.name) ?? []}
+                  />
+                ))}
+              </TabsContent>
+
+              <TabsContent value="erd">
+                <DatabaseErdDiagram tables={tables} />
+              </TabsContent>
+            </Tabs>
           </>
         )}
       </div>

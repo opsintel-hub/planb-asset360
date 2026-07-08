@@ -177,6 +177,9 @@ export function DatabaseSchemaSection() {
                 <TabsTrigger value="erd">
                   <Network className="size-3.5 mr-1.5" /> แผนผัง (ERD)
                 </TabsTrigger>
+                <TabsTrigger value="sql">
+                  <FileCode className="size-3.5 mr-1.5" /> SQL DDL
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="list" className="space-y-3">
@@ -192,6 +195,10 @@ export function DatabaseSchemaSection() {
 
               <TabsContent value="erd">
                 <DatabaseErdDiagram tables={tables} />
+              </TabsContent>
+
+              <TabsContent value="sql">
+                <DatabaseSqlDdl tables={tables} />
               </TabsContent>
             </Tabs>
           </>

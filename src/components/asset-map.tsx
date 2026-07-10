@@ -150,10 +150,10 @@ export default function AssetMap({ assets, claimedCodes, focusId }: Props) {
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full rounded-lg overflow-hidden" />
-      <div className="absolute bottom-3 right-3 z-[400] bg-white/95 dark:bg-slate-900/95 border rounded-lg shadow-md p-3 text-xs max-w-[240px]">
+      <div className="absolute bottom-3 right-3 z-[400] bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-slate-100 border rounded-lg shadow-md p-3 text-xs max-w-[240px]">
         <div className="font-semibold mb-2">คำอธิบายสัญลักษณ์</div>
         <div className="flex items-center gap-2 mb-2">
-          <span className="inline-block w-4 h-4 rounded-full bg-yellow-400 text-[10px] font-bold grid place-items-center border">!</span>
+          <span className="inline-block w-4 h-4 rounded-full bg-yellow-400 text-slate-900 text-[10px] font-bold grid place-items-center border">!</span>
           <span>กำลังซ่อม</span>
         </div>
         <div className="space-y-1">
@@ -164,7 +164,7 @@ export default function AssetMap({ assets, claimedCodes, focusId }: Props) {
             </div>
           ))}
           {legendItems.length === 0 && (
-            <div className="text-muted-foreground">—</div>
+            <div className="opacity-60">—</div>
           )}
         </div>
       </div>

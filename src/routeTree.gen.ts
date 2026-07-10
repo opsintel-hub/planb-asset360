@@ -15,6 +15,7 @@ import { Route as RcaRouteImport } from './routes/rca'
 import { Route as PmInsightsRouteImport } from './routes/pm-insights'
 import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as MonitoringRouteImport } from './routes/monitoring'
+import { Route as MapRouteImport } from './routes/map'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ClaimsRouteImport } from './routes/claims'
 import { Route as IndexRouteImport } from './routes/index'
@@ -51,6 +52,11 @@ const MonitoringRoute = MonitoringRouteImport.update({
   path: '/monitoring',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MapRoute = MapRouteImport.update({
+  id: '/map',
+  path: '/map',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/claims': typeof ClaimsRoute
   '/login': typeof LoginRoute
+  '/map': typeof MapRoute
   '/monitoring': typeof MonitoringRoute
   '/permissions': typeof PermissionsRoute
   '/pm-insights': typeof PmInsightsRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/claims': typeof ClaimsRoute
   '/login': typeof LoginRoute
+  '/map': typeof MapRoute
   '/monitoring': typeof MonitoringRoute
   '/permissions': typeof PermissionsRoute
   '/pm-insights': typeof PmInsightsRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/claims': typeof ClaimsRoute
   '/login': typeof LoginRoute
+  '/map': typeof MapRoute
   '/monitoring': typeof MonitoringRoute
   '/permissions': typeof PermissionsRoute
   '/pm-insights': typeof PmInsightsRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/'
     | '/claims'
     | '/login'
+    | '/map'
     | '/monitoring'
     | '/permissions'
     | '/pm-insights'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/'
     | '/claims'
     | '/login'
+    | '/map'
     | '/monitoring'
     | '/permissions'
     | '/pm-insights'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/'
     | '/claims'
     | '/login'
+    | '/map'
     | '/monitoring'
     | '/permissions'
     | '/pm-insights'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClaimsRoute: typeof ClaimsRoute
   LoginRoute: typeof LoginRoute
+  MapRoute: typeof MapRoute
   MonitoringRoute: typeof MonitoringRoute
   PermissionsRoute: typeof PermissionsRoute
   PmInsightsRoute: typeof PmInsightsRoute
@@ -219,6 +232,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MonitoringRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/map': {
+      id: '/map'
+      path: '/map'
+      fullPath: '/map'
+      preLoaderRoute: typeof MapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -261,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClaimsRoute: ClaimsRoute,
   LoginRoute: LoginRoute,
+  MapRoute: MapRoute,
   MonitoringRoute: MonitoringRoute,
   PermissionsRoute: PermissionsRoute,
   PmInsightsRoute: PmInsightsRoute,

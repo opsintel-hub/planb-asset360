@@ -11,6 +11,8 @@ import {
   Microscope,
   Menu,
   X,
+  MapPin,
+  Sparkles,
   Sparkles,
 } from "lucide-react";
 

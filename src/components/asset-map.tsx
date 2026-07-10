@@ -5,25 +5,21 @@ import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import type { MapAsset } from "@/lib/map.functions";
+import { projectForDepartment } from "@/lib/project-department-map";
 
-// Department -> hex color
-const DEPT_COLORS: Record<string, string> = {
-  "Operation 7-Eleven": "#ef4444",
-  "Airport Media": "#3b82f6",
-  "Airport Static Media": "#60a5fa",
-  "Airport Digital Network": "#1d4ed8",
-  "Billboard Media": "#f97316",
-  "Digital Media": "#a855f7",
-  "Digital Gateway X": "#7c3aed",
-  Digital: "#c084fc",
+// Project -> hex color
+export const PROJECT_COLORS: Record<string, string> = {
+  "7-Eleven": "#ef4444",
+  Airport: "#3b82f6",
+  Billboard: "#f97316",
+  Digital: "#a855f7",
   Static: "#14b8a6",
-  "Static Media": "#0d9488",
-  "Bus Media": "#eab308",
 };
 const DEFAULT_COLOR = "#6b7280";
 
-function colorFor(dept: string | null): string {
-  return (dept && DEPT_COLORS[dept]) || DEFAULT_COLOR;
+export function projectColorFor(dept: string | null): string {
+  const p = projectForDepartment(dept);
+  return (p && PROJECT_COLORS[p]) || DEFAULT_COLOR;
 }
 
 function pinIcon(color: string, warning: boolean): L.DivIcon {
@@ -50,19 +46,20 @@ function pinIcon(color: string, warning: boolean): L.DivIcon {
 type Props = {
   assets: MapAsset[];
   claimedCodes: Set<string>;
+  focusId?: string | null;
 };
 
-export default function AssetMap({ assets, claimedCodes }: Props) {
+export default function AssetMap({ assets, claimedCodes, focusId }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
+  const markerByIdRef = useRef<Map<string, L.Marker>>(new Map());
   const [ready, setReady] = useState(false);
 
-  // init once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current, {
-      center: [13.7563, 100.5018], // Bangkok
+      center: [13.7563, 100.5018],
       zoom: 11,
       preferCanvas: true,
     });
@@ -89,18 +86,18 @@ export default function AssetMap({ assets, claimedCodes }: Props) {
     };
   }, []);
 
-  // update markers when assets/claims change
   useEffect(() => {
     if (!ready) return;
     const cluster = clusterRef.current;
     const map = mapRef.current;
     if (!cluster || !map) return;
     cluster.clearLayers();
+    markerByIdRef.current.clear();
 
     const markers: L.Marker[] = [];
     for (const a of assets) {
       const warning = a.old_code ? claimedCodes.has(a.old_code) : false;
-      const icon = pinIcon(colorFor(a.department), warning);
+      const icon = pinIcon(projectColorFor(a.department), warning);
       const m = L.marker([a.lat, a.lng], { icon });
       const html = `
         <div style="min-width:220px;font-size:12px;">
@@ -117,37 +114,58 @@ export default function AssetMap({ assets, claimedCodes }: Props) {
         </div>`;
       m.bindPopup(html);
       markers.push(m);
+      markerByIdRef.current.set(a.id, m);
     }
     cluster.addLayers(markers);
 
-    if (markers.length > 0) {
+    if (markers.length > 0 && !focusId) {
       const bounds = L.latLngBounds(markers.map((m) => m.getLatLng()));
       if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
     }
-  }, [assets, claimedCodes, ready]);
+  }, [assets, claimedCodes, ready, focusId]);
+
+  // Focus a specific asset when requested
+  useEffect(() => {
+    if (!ready || !focusId) return;
+    const map = mapRef.current;
+    const cluster = clusterRef.current;
+    const marker = markerByIdRef.current.get(focusId);
+    if (!map || !cluster || !marker) return;
+    map.setView(marker.getLatLng(), 17, { animate: true });
+    // ensure it's un-clustered before popup
+    setTimeout(() => {
+      cluster.zoomToShowLayer(marker, () => marker.openPopup());
+    }, 200);
+  }, [focusId, ready, assets]);
 
   const legendItems = useMemo(() => {
     const shown = new Set<string>();
-    for (const a of assets) if (a.department) shown.add(a.department);
+    for (const a of assets) {
+      const p = projectForDepartment(a.department);
+      if (p) shown.add(p);
+    }
     return Array.from(shown).sort();
   }, [assets]);
 
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full rounded-lg overflow-hidden" />
-      <div className="absolute bottom-3 right-3 z-[400] bg-white/95 dark:bg-slate-900/95 border rounded-lg shadow-md p-3 text-xs max-w-[240px] max-h-[50vh] overflow-y-auto">
+      <div className="absolute bottom-3 right-3 z-[400] bg-white/95 dark:bg-slate-900/95 border rounded-lg shadow-md p-3 text-xs max-w-[240px]">
         <div className="font-semibold mb-2">คำอธิบายสัญลักษณ์</div>
         <div className="flex items-center gap-2 mb-2">
           <span className="inline-block w-4 h-4 rounded-full bg-yellow-400 text-[10px] font-bold grid place-items-center border">!</span>
           <span>กำลังซ่อม</span>
         </div>
         <div className="space-y-1">
-          {legendItems.map((d) => (
-            <div key={d} className="flex items-center gap-2">
-              <span className="inline-block w-3 h-3 rounded-full" style={{ background: colorFor(d) }} />
-              <span className="truncate">{d}</span>
+          {legendItems.map((p) => (
+            <div key={p} className="flex items-center gap-2">
+              <span className="inline-block w-3 h-3 rounded-full" style={{ background: PROJECT_COLORS[p] ?? DEFAULT_COLOR }} />
+              <span className="truncate">{p}</span>
             </div>
           ))}
+          {legendItems.length === 0 && (
+            <div className="text-muted-foreground">—</div>
+          )}
         </div>
       </div>
     </div>

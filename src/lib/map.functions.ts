@@ -89,11 +89,11 @@ export const listAssetsForMap = createServerFn({ method: "GET" })
 export const listOpenClaimOldCodes = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data } = await context.supabase
+    const { data, count } = await context.supabase
       .from("claim_tickets")
-      .select("asset_old_code")
+      .select("asset_old_code", { count: "exact" })
       .limit(5000);
     const codes = new Set<string>();
     for (const r of data ?? []) if (r.asset_old_code) codes.add(r.asset_old_code);
-    return { oldCodes: Array.from(codes) };
+    return { oldCodes: Array.from(codes), totalTickets: count ?? (data?.length ?? 0) };
   });

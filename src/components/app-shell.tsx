@@ -13,7 +13,6 @@ import {
   X,
   MapPin,
   Sparkles,
-  Sparkles,
 } from "lucide-react";
 
 import { useState, useEffect } from "react";

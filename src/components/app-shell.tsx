@@ -11,6 +11,7 @@ import {
   Microscope,
   Menu,
   X,
+  MapPin,
   Sparkles,
 } from "lucide-react";
 
@@ -26,6 +27,7 @@ const NAV_ALL = [
   { to: "/pm-insights", label: "PM Insights", icon: BarChart3 },
   { to: "/monitoring", label: "Monitoring", icon: Activity },
   { to: "/rca", label: "Root Cause Analysis", icon: Microscope },
+  { to: "/map", label: "แผนที่ป้าย", icon: MapPin },
   { to: "/settings", label: "ตั้งค่าระบบ", icon: Settings },
   { to: "/permissions", label: "จัดการสิทธิ์", icon: Users },
 ] as const;

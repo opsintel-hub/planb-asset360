@@ -1,47 +1,81 @@
-## เพิ่ม ERD Diagram (แผนผังความสัมพันธ์ฐานข้อมูล) ในเมนูตั้งค่าระบบ
+## เมนูใหม่: Asset Map (แผนที่ป้าย)
 
-### สิ่งที่จะทำ
+สร้างเมนู "แผนที่ป้าย" ใน sidebar โดยใช้ Leaflet + OSRM (ฟรี ไม่ต้องใช้ API key) ส่งมอบแบบ 3 เฟส
 
-เพิ่ม **Sub-tab** ใน `ตั้งค่าระบบ > Database Schema` แบ่งเป็น 2 tab ย่อย:
-1. **List View** — มุมมองรายการแบบเดิม
-2. **ERD Diagram** — มุมมองแผนผังแบบภาพตัวอย่างที่ส่งมา (ใหม่)
+---
 
-### ERD Diagram จะแสดงอะไรบ้าง
+### เฟส 1 — Map + Filter + Claim Badge (ส่งก่อน)
 
-- **การ์ดตาราง** แต่ละตารางเป็นกล่องมีหัวสี บอกชื่อตาราง + คอลัมน์ทั้งหมด (มี icon PK/FK) + ชนิดข้อมูล
-- **สีหัวการ์ดแยกประเภทอัตโนมัติ:**
-  - 🔵 ฟ้า = Source table ปกติ
-  - 🟢 เขียว = View / Materialized View (ตรวจจากชื่อขึ้นต้น `mv_` หรือ `kind = 'v'/'m'`)
-  - 🟣 ม่วง = Config / Mapping (ชื่อลงท้าย `_mapping`, `_settings`, `_connections`)
-  - ⚪ เทา = Auth (`profiles`, `user_roles`)
-- **เส้นความสัมพันธ์** ระหว่างตาราง (ดึงจาก Foreign Keys จริงใน `pg_catalog`) พร้อม label `1` / `n`
-- **กล่อง "Computed From"** สำหรับ `mv_*` แสดงว่าคำนวณมาจากตารางไหน (เส้นประ) — parse จาก source ของ view/function ที่มีอยู่แล้ว (`refresh_pm_views`) หรือ fallback mapping ในโค้ด
-- **Zoom / Pan / Drag** เลื่อนดูได้เพราะตารางเยอะ
-- **Legend** อธิบายสีและสัญลักษณ์
+**เมนูใหม่** `/map` เพิ่มใน `src/components/app-shell.tsx` (icon: MapPin)
 
-### Auto-update เมื่อมีตารางใหม่ (จุดที่ user เน้น)
+**หน้า** `src/routes/map.tsx`
+- โหลด assets ทั้งหมดที่มี lat/lng ผ่าน server fn ใหม่ `listAssetsForMap` ใน `src/lib/map.functions.ts` (คืน id, old_code, department, media_type, lat, lng, status)
+- โหลดรายการ old_code ที่มี claim เปิดอยู่ ผ่าน server fn `listOpenClaimOldCodes` (reuse ตรรกะจาก `listClaims`)
+- แสดง Leaflet map เต็มจอ (OpenStreetMap tiles) พร้อม `MarkerClusterGroup` เพื่อไม่ให้ค้างเมื่อหมุดเยอะ
+- **สีหมุดตาม Department** (ใช้ divIcon SVG สีต่างกัน 11 สี ตาม `PROJECT_TO_DEPARTMENTS`)
+- **Badge สีเหลืองมุมบนหมุด** เมื่อ old_code นั้นมีในรายการ claim ที่ยังเปิด (ใช้ divIcon ซ้อน)
+- **Popup** เมื่อคลิกหมุด: old_code, department, media_type, status, ปุ่ม "ดู Asset History"
+- **Filter Bar** ด้านบน: Department (multi), Media Type (multi), Project, ช่อง search old_code, toggle "เฉพาะที่กำลังซ่อม"
+- **Legend** มุมล่างขวา: สี = department, ⚠️ = กำลังซ่อม
+- **Stats แถบบน**: จำนวนหมุดที่แสดง / กำลังซ่อม
 
-- ใช้ `getDatabaseSchema` (server fn ที่มีอยู่แล้ว) ซึ่ง query `pg_catalog` แบบสด → **ตารางใหม่ทุกตารางจะขึ้นในแผนผังเองอัตโนมัติ** โดยไม่ต้องแก้โค้ด
-- ประเภทสี/กลุ่มจะ detect จาก naming pattern (prefix/suffix) → ตารางใหม่ที่ตั้งชื่อตาม convention จะได้สีถูกกลุ่มเอง
-- เส้น FK ก็ดึงจาก `pg_catalog` เช่นกัน → ความสัมพันธ์ใหม่ขึ้นเองเมื่อ migration เพิ่ม FK
-- ปุ่ม **Refresh** (มีอยู่แล้ว) + `staleTime: 30s` ให้ query re-fetch เมื่อกลับมาที่หน้านี้
-- Layout เป็น **auto-layout algorithm** (จัดกลุ่มตามสี, วางเป็น grid) → ตารางใหม่ถูกวางอัตโนมัติ ไม่ต้อง hardcode ตำแหน่ง
-- ถ้าตารางใหม่ยังไม่ถูก map เข้าเมนูใน `TABLE_USAGE` → แสดง badge "ยังไม่ถูกใช้งาน" (มีอยู่แล้ว)
+**เทคนิค TanStack Start**
+- Leaflet เป็น browser-only library → หน้า `/map` ใช้ `React.lazy` โหลดคอมโพเนนต์แผนที่ ครอบด้วย `<ClientOnly>` เพื่อไม่ให้ SSR crash
+- Route ตั้ง `head()` มี title/description เฉพาะ
 
-### เทคนิคที่จะใช้
+**Dependencies**: `bun add leaflet react-leaflet leaflet.markercluster @types/leaflet`
 
-- ใช้ **React Flow** (`@xyflow/react`) — ไลบรารีมาตรฐานสำหรับวาด ERD รองรับ zoom/pan/drag
-- Custom node สำหรับกล่องตาราง (คล้าย dbdiagram.io / ภาพตัวอย่าง)
-- Auto-layout ด้วย algorithm ง่ายๆ (จัดคอลัมน์ตามกลุ่มสี, เรียงในคอลัมน์ตามจำนวน FK)
+---
 
-### ไฟล์ที่จะแก้
+### เฟส 2 — ลากเส้นทาง + ค้นป้ายในรัศมี + Export
 
-- `bun add @xyflow/react`
-- สร้าง `src/components/database-erd-diagram.tsx` — component ERD ใหม่
-- แก้ `src/components/database-schema-section.tsx` — ครอบด้วย shadcn Tabs (List / ERD)
+- เพิ่ม tab "ค้นตามเส้นทาง" ในหน้า `/map`
+- ใช้ `leaflet-draw` (หรือวาด polyline เอง) ให้ผู้ใช้คลิกจุดต่อจุดบนแผนที่เพื่อสร้างเส้นทาง
+- Slider เลือกรัศมี: 50 / 100 / 200 / 500 ม. (custom ได้)
+- คำนวณระยะจากป้ายถึงเส้น polyline (Haversine + จุด-ต่อ-segment) ทำฝั่ง client จากข้อมูล assets ที่โหลดไว้แล้ว
+- ตาราง "ป้ายในรัศมี" เรียงตามลำดับตามเส้นทาง แสดง old_code, department, ระยะห่าง (m), สถานะซ่อม
+- **Export CSV/Excel** (ใช้ SheetJS) และ **Export GeoJSON** ของเส้นทาง + ป้าย
+- ปุ่ม "บันทึกเส้นทาง" → เก็บลงตาราง `saved_routes` (ดูตารางใหม่ด้านล่าง)
 
-### วิธีสั่งงานครั้งหน้า (จำง่ายๆ)
+---
 
-- "เพิ่ม/แก้ ERD diagram" — สำหรับปรับแผนผัง
-- "อัปเดต computed-from mapping ของ mv_xxx" — เฉพาะกรณีเพิ่ม MV ใหม่ที่ parser detect ไม่เจอ
-- **ตารางใหม่ทั่วไป** — ไม่ต้องสั่งอะไร ระบบดึงจาก database ให้เอง
+### เฟส 3 — Route Planner ต้นทาง→ปลายทาง (งานตรวจสื่อ)
+
+- tab "วางแผนตรวจสื่อ"
+- **จัดการต้นทาง Default** (CRUD) — ทั้ง **Shared** (admin สร้าง ทุกคนใช้) และ **Per-user** (ของตัวเอง) ในตารางเดียว มี field `is_shared`
+- ฟอร์ม: เลือกต้นทาง (จาก default หรือปักบนแผนที่), เลือกป้ายปลายทางหลายป้าย (คลิกบนแผนที่ / search / เลือกจาก filter)
+- 2 โหมด:
+  - **Manual**: ผู้ใช้กำหนดลำดับเอง (drag reorder)
+  - **Auto**: เรียกใช้ OSRM `/trip` service (nearest-neighbor TSP ฟรี) เพื่อหาลำดับที่เร็วที่สุด
+- OSRM ใช้ public demo server (`router.project-osrm.org`) — ใส่ note ให้ผู้ใช้ทราบข้อจำกัด rate limit ในเอกสาร
+- แสดงเส้นทางจริง (route polyline) บนแผนที่ + รายการลำดับป้าย + ระยะทาง/เวลาโดยประมาณ
+- **บันทึกแผนงาน** ลงตาราง `saved_routes`
+- **Export**: CSV (ลำดับ, old_code, department, address, lat, lng, ETA), และลิงก์เปิด Google Maps navigation
+
+---
+
+### ข้อ 4 — คำแนะนำเพิ่มเติม (เลือกทำภายหลัง)
+
+- **Heatmap layer** สลับเปิด แสดงความหนาแน่นของ claim/PM fail รายพื้นที่ → เห็น hotspot ปัญหา
+- **Cluster โดย department** พร้อม donut chart ในไอคอน cluster
+- **แชร์ลิงก์** เส้นทางที่บันทึก (URL param encode)
+- **Realtime claim badge** — subscribe Supabase realtime บน `claim_tickets` เพื่อขึ้น ⚠️ ทันทีเมื่อมี claim ใหม่
+- **Offline print view** — หน้าพร้อมพิมพ์สำหรับทีมภาคสนาม
+
+---
+
+### เทคนิค (Database & Backend)
+
+**ตารางใหม่** (migration แยก ทำตอนเข้าเฟส 2/3):
+- `map_default_origins` — id, user_id (nullable = shared), name, lat, lng, address, is_shared, created_at
+- `saved_routes` — id, user_id, name, kind ('corridor' | 'inspection'), origin jsonb, waypoints jsonb, radius_m, polyline text, created_at, updated_at
+- ทั้ง 2 ตารางเปิด RLS: อ่าน = shared OR own, เขียน = own (shared เขียนได้เฉพาะ admin)
+- GRANT + policies ครบตามมาตรฐาน
+
+**เมนู access control** — เพิ่ม `/map` ลง `NAV_ALL` และเข้ากับระบบ `getMyMenuAccess` ที่มีอยู่แล้ว
+
+---
+
+### ลำดับส่งมอบ
+
+จะเริ่มจาก **เฟส 1** ก่อนตามที่ตอบไว้ (แผนที่ + filter + claim badge) เมื่อ user รีวิว OK ค่อยต่อเฟส 2 และ 3 ทีละเฟส

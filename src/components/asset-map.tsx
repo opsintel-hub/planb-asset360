@@ -22,12 +22,13 @@ export function projectColorFor(dept: string | null): string {
   return (p && PROJECT_COLORS[p]) || DEFAULT_COLOR;
 }
 
-function pinIcon(color: string, warning: boolean): L.DivIcon {
+function pinIcon(color: string, warning: boolean, dim: boolean): L.DivIcon {
   const warn = warning
     ? `<div style="position:absolute;top:-6px;right:-6px;background:#facc15;color:#111;border-radius:9999px;width:16px;height:16px;display:grid;place-items:center;font-size:11px;font-weight:800;box-shadow:0 0 0 2px white;">!</div>`
     : "";
+  const opacity = dim ? 0.25 : 1;
   const html = `
-    <div style="position:relative;width:22px;height:30px;">
+    <div style="position:relative;width:22px;height:30px;opacity:${opacity};">
       <svg width="22" height="30" viewBox="0 0 22 30" xmlns="http://www.w3.org/2000/svg">
         <path d="M11 0C4.9 0 0 4.9 0 11c0 8.2 11 19 11 19s11-10.8 11-19C22 4.9 17.1 0 11 0z" fill="${color}" stroke="white" stroke-width="1.5"/>
         <circle cx="11" cy="11" r="4" fill="white"/>
@@ -43,17 +44,34 @@ function pinIcon(color: string, warning: boolean): L.DivIcon {
   });
 }
 
+type LatLng = [number, number];
+
 type Props = {
   assets: MapAsset[];
   claimedCodes: Set<string>;
   focusId?: string | null;
+  drawMode?: boolean;
+  polyline?: LatLng[];
+  onPolylineChange?: (pts: LatLng[]) => void;
+  radiusMeters?: number;
+  nearbyIds?: Set<string> | null;
 };
 
-export default function AssetMap({ assets, claimedCodes, focusId }: Props) {
+export default function AssetMap({
+  assets,
+  claimedCodes,
+  focusId,
+  drawMode = false,
+  polyline = [],
+  onPolylineChange,
+  radiusMeters = 200,
+  nearbyIds = null,
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const markerByIdRef = useRef<Map<string, L.Marker>>(new Map());
+  const drawLayerRef = useRef<L.LayerGroup | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -62,6 +80,7 @@ export default function AssetMap({ assets, claimedCodes, focusId }: Props) {
       center: [13.7563, 100.5018],
       zoom: 11,
       preferCanvas: true,
+      doubleClickZoom: false,
     });
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
@@ -75,17 +94,81 @@ export default function AssetMap({ assets, claimedCodes, focusId }: Props) {
     });
     map.addLayer(cluster);
 
+    const drawLayer = L.layerGroup().addTo(map);
+
     mapRef.current = map;
     clusterRef.current = cluster;
+    drawLayerRef.current = drawLayer;
     setReady(true);
 
     return () => {
       map.remove();
       mapRef.current = null;
       clusterRef.current = null;
+      drawLayerRef.current = null;
     };
   }, []);
 
+  // Drawing interactions
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map) return;
+    const container = map.getContainer();
+    container.style.cursor = drawMode ? "crosshair" : "";
+
+    if (!drawMode) return;
+    const onClick = (e: L.LeafletMouseEvent) => {
+      const next: LatLng[] = [...polyline, [e.latlng.lat, e.latlng.lng]];
+      onPolylineChange?.(next);
+    };
+    const onRightClick = (e: L.LeafletMouseEvent) => {
+      e.originalEvent?.preventDefault?.();
+      if (polyline.length === 0) return;
+      onPolylineChange?.(polyline.slice(0, -1));
+    };
+    map.on("click", onClick);
+    map.on("contextmenu", onRightClick);
+    return () => {
+      map.off("click", onClick);
+      map.off("contextmenu", onRightClick);
+      container.style.cursor = "";
+    };
+  }, [drawMode, polyline, onPolylineChange, ready]);
+
+  // Render polyline + radius buffer
+  useEffect(() => {
+    const layer = drawLayerRef.current;
+    if (!ready || !layer) return;
+    layer.clearLayers();
+    if (polyline.length === 0) return;
+
+    // Vertex circles (radius buffer visualization)
+    for (const [lat, lng] of polyline) {
+      L.circle([lat, lng], {
+        radius: radiusMeters,
+        color: "#2563eb",
+        weight: 1,
+        fillColor: "#3b82f6",
+        fillOpacity: 0.1,
+      }).addTo(layer);
+      L.circleMarker([lat, lng], {
+        radius: 5,
+        color: "#1d4ed8",
+        weight: 2,
+        fillColor: "#ffffff",
+        fillOpacity: 1,
+      }).addTo(layer);
+    }
+    if (polyline.length >= 2) {
+      L.polyline(polyline, {
+        color: "#1d4ed8",
+        weight: 4,
+        opacity: 0.9,
+      }).addTo(layer);
+    }
+  }, [polyline, radiusMeters, ready]);
+
+  // Render markers
   useEffect(() => {
     if (!ready) return;
     const cluster = clusterRef.current;
@@ -97,7 +180,8 @@ export default function AssetMap({ assets, claimedCodes, focusId }: Props) {
     const markers: L.Marker[] = [];
     for (const a of assets) {
       const warning = a.old_code ? claimedCodes.has(a.old_code) : false;
-      const icon = pinIcon(projectColorFor(a.department), warning);
+      const dim = nearbyIds ? !nearbyIds.has(a.id) : false;
+      const icon = pinIcon(projectColorFor(a.department), warning, dim);
       const m = L.marker([a.lat, a.lng], { icon });
       const html = `
         <div style="min-width:220px;font-size:12px;">
@@ -118,11 +202,11 @@ export default function AssetMap({ assets, claimedCodes, focusId }: Props) {
     }
     cluster.addLayers(markers);
 
-    if (markers.length > 0 && !focusId) {
+    if (markers.length > 0 && !focusId && polyline.length === 0) {
       const bounds = L.latLngBounds(markers.map((m) => m.getLatLng()));
       if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
     }
-  }, [assets, claimedCodes, ready, focusId]);
+  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length]);
 
   // Focus a specific asset when requested
   useEffect(() => {
@@ -132,7 +216,6 @@ export default function AssetMap({ assets, claimedCodes, focusId }: Props) {
     const marker = markerByIdRef.current.get(focusId);
     if (!map || !cluster || !marker) return;
     map.setView(marker.getLatLng(), 17, { animate: true });
-    // ensure it's un-clustered before popup
     setTimeout(() => {
       cluster.zoomToShowLayer(marker, () => marker.openPopup());
     }, 200);

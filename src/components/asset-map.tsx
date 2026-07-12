@@ -97,7 +97,10 @@ type Props = {
   poiRadiusMeters?: number;
   focusPoiId?: string | null;
   onBboxChange?: (bbox: [south: number, west: number, north: number, east: number]) => void;
+  // Phase 3 — Billboard Analytics: fires when user clicks a billboard marker.
+  onSelectAsset?: (asset: MapAsset) => void;
 };
+
 
 export default function AssetMap({
   assets,

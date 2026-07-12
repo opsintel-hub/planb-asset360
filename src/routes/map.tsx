@@ -487,12 +487,24 @@ function MapPage() {
     }
     downloadText(`map-${mode}.kml`, "application/vnd.google-earth.kml+xml", buildKml(`Route ${mode}`, track, wpts));
   }
-  const hasRoute = mode === "inspection" && routePoints.length >= 2;
-  const gmapsUrl = hasRoute ? googleMapsDirectionsUrl(routePoints) : "";
-  const gmapsAltUrl = hasRoute ? googleMapsAltDirectionsUrl(routePoints) : "";
-  const appleUrl = hasRoute ? appleMapsDirectionsUrl(routePoints) : "";
-  const osmUrl = hasRoute ? osmDirectionsUrl(routePoints) : "";
-  const wazeUrl = hasRoute ? wazeNavigateUrl(routePoints) : "";
+  // For Corridor mode: sample the drawn polyline down to ≤10 points (Google Maps waypoint cap).
+  const mapsPoints = (() => {
+    if (mode === "inspection") return routePoints;
+    if (polyline.length < 2) return [] as typeof polyline;
+    const MAX = 10;
+    if (polyline.length <= MAX) return polyline;
+    const out: typeof polyline = [polyline[0]];
+    const step = (polyline.length - 1) / (MAX - 1);
+    for (let i = 1; i < MAX - 1; i++) out.push(polyline[Math.round(i * step)]);
+    out.push(polyline[polyline.length - 1]);
+    return out;
+  })();
+  const hasRoute = mapsPoints.length >= 2;
+  const gmapsUrl = hasRoute ? googleMapsDirectionsUrl(mapsPoints) : "";
+  const gmapsAltUrl = hasRoute ? googleMapsAltDirectionsUrl(mapsPoints) : "";
+  const appleUrl = hasRoute ? appleMapsDirectionsUrl(mapsPoints) : "";
+  const osmUrl = hasRoute ? osmDirectionsUrl(mapsPoints) : "";
+  const wazeUrl = hasRoute ? wazeNavigateUrl(mapsPoints) : "";
   const copyGmapsUrl = async () => {
     if (!gmapsUrl) return;
     try {

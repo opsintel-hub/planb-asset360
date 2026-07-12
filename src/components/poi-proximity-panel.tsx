@@ -60,6 +60,7 @@ export default function PoiProximityPanel({
           matchMode,
           territories: selectedTerritories,
           regions: selectedRegions,
+          districts: selectedDistricts,
         },
       });
     },

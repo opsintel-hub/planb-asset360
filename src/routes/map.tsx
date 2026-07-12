@@ -259,6 +259,38 @@ function MapPage() {
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
   const [routing, setRouting] = useState(false);
 
+  // ---------- POI proximity state ----------
+  const [mapBbox, setMapBbox] = useState<[number, number, number, number] | null>(null);
+  const [poiResult, setPoiResult] = useState<{ pois: POI[]; matches: POIMatch[]; radiusM: number } | null>(null);
+  const [focusPoiId, setFocusPoiId] = useState<string | null>(null);
+
+  const assetIndexById = useMemo(() => {
+    const m = new Map<string, { old_code: string | null; name: string | null }>();
+    for (const a of allAssets) m.set(a.id, { old_code: a.old_code, name: a.name });
+    return m;
+  }, [allAssets]);
+
+  const poiMarkers = useMemo<PoiMarker[]>(() => {
+    if (mode !== "poi" || !poiResult) return [];
+    return poiResult.pois.map((p) => {
+      const preset = PRESET_BY_KEY[p.presetKey];
+      return {
+        id: p.id,
+        lat: p.lat,
+        lng: p.lng,
+        name: p.name,
+        icon: preset?.icon ?? "📍",
+        color: preset?.color ?? "#a855f7",
+        categoryLabel: preset?.label ?? p.presetKey,
+      };
+    });
+  }, [mode, poiResult]);
+
+  const poiMatchedAssetIds = useMemo(() => {
+    if (mode !== "poi" || !poiResult) return null;
+    return new Set(poiResult.matches.map((m) => m.assetId));
+  }, [mode, poiResult]);
+
   // ---------- Filters ----------
   const filtered = useMemo(() => {
     const projectDepts = fProject !== "all" ? new Set(PROJECT_TO_DEPARTMENTS[fProject] ?? []) : null;

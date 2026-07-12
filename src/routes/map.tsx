@@ -812,8 +812,8 @@ function MapPage() {
     </div>
   );
 
-  // Mode-specific action bar
-  const modeBar = (
+  // Mode-specific action bar (hidden in POI mode — panel has its own controls)
+  const modeBar = mode === "poi" ? null : (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card/50 p-2 text-xs">
       {mode === "corridor" ? (
         <>

@@ -80,6 +80,8 @@ import { PRESET_BY_KEY } from "@/lib/overpass";
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
 const PoiProximityPanel = lazy(() => import("@/components/poi-proximity-panel"));
+const BillboardAnalyticsPanel = lazy(() => import("@/components/billboard-analytics-panel"));
+
 
 export const Route = createFileRoute("/map")({
   head: () => ({
@@ -263,6 +265,8 @@ function MapPage() {
   const [mapBbox, setMapBbox] = useState<[number, number, number, number] | null>(null);
   const [poiResult, setPoiResult] = useState<{ pois: POI[]; matches: POIMatch[]; radiusM: number } | null>(null);
   const [focusPoiId, setFocusPoiId] = useState<string | null>(null);
+  const [analyticsAsset, setAnalyticsAsset] = useState<MapAsset | null>(null);
+
 
   const assetIndexById = useMemo(() => {
     const m = new Map<string, { old_code: string | null; name: string | null }>();
@@ -1148,6 +1152,8 @@ function MapPage() {
                 poiRadiusMeters={mode === "poi" && poiResult ? poiResult.radiusM : 0}
                 focusPoiId={focusPoiId}
                 onBboxChange={setMapBbox}
+                onSelectAsset={mode === "inspection" ? undefined : setAnalyticsAsset}
+
               />
             </Suspense>
           </ClientOnly>
@@ -1268,9 +1274,15 @@ function MapPage() {
         {routeInfoBar}
         {mapAndPanel}
         {savedDialogs}
+        {analyticsAsset && (
+          <Suspense fallback={null}>
+            <BillboardAnalyticsPanel asset={analyticsAsset} onClose={() => setAnalyticsAsset(null)} />
+          </Suspense>
+        )}
       </div>
     );
   }
+
 
   return (
     <div className="space-y-3">
@@ -1283,7 +1295,13 @@ function MapPage() {
       {routeInfoBar}
       {mapAndPanel}
       {savedDialogs}
+      {analyticsAsset && (
+        <Suspense fallback={null}>
+          <BillboardAnalyticsPanel asset={analyticsAsset} onClose={() => setAnalyticsAsset(null)} />
+        </Suspense>
+      )}
     </div>
+
   );
 }
 

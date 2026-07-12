@@ -97,7 +97,10 @@ type Props = {
   poiRadiusMeters?: number;
   focusPoiId?: string | null;
   onBboxChange?: (bbox: [south: number, west: number, north: number, east: number]) => void;
+  // Phase 3 — Billboard Analytics: fires when user clicks a billboard marker.
+  onSelectAsset?: (asset: MapAsset) => void;
 };
+
 
 export default function AssetMap({
   assets,
@@ -117,7 +120,9 @@ export default function AssetMap({
   poiRadiusMeters = 0,
   focusPoiId = null,
   onBboxChange,
+  onSelectAsset,
 }: Props) {
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
@@ -362,6 +367,9 @@ export default function AssetMap({
           ${a.old_code ? `<a href="/search?q=${encodeURIComponent(a.old_code)}" style="display:inline-block;margin-top:8px;color:#2563eb;text-decoration:underline;">ดูประวัติป้าย →</a>` : ""}
         </div>`;
       m.bindPopup(html);
+      if (onSelectAsset) {
+        m.on("click", () => onSelectAsset(a));
+      }
       markers.push(m);
       markerByIdRef.current.set(a.id, m);
     }
@@ -371,7 +379,8 @@ export default function AssetMap({
       const bounds = L.latLngBounds(markers.map((m) => m.getLatLng()));
       if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
     }
-  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline]);
+  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline, onSelectAsset]);
+
 
   // Focus a specific asset when requested
   useEffect(() => {

@@ -367,6 +367,9 @@ export default function AssetMap({
           ${a.old_code ? `<a href="/search?q=${encodeURIComponent(a.old_code)}" style="display:inline-block;margin-top:8px;color:#2563eb;text-decoration:underline;">ดูประวัติป้าย →</a>` : ""}
         </div>`;
       m.bindPopup(html);
+      if (onSelectAsset) {
+        m.on("click", () => onSelectAsset(a));
+      }
       markers.push(m);
       markerByIdRef.current.set(a.id, m);
     }
@@ -376,7 +379,8 @@ export default function AssetMap({
       const bounds = L.latLngBounds(markers.map((m) => m.getLatLng()));
       if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
     }
-  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline]);
+  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline, onSelectAsset]);
+
 
   // Focus a specific asset when requested
   useEffect(() => {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, ChevronsUpDown, Search, Loader2, X, MapPin, Download } from "lucide-react";
+import { Check, ChevronsUpDown, Search, Loader2, X, MapPin, Download, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { POI_PRESETS, PRESET_BY_KEY, type Bbox } from "@/lib/overpass";
-import { searchPOIsNearAssets, type POI, type POIMatch } from "@/lib/poi-search.functions";
+import { searchPOIsNearAssets, getPOIFilterOptions, type POI, type POIMatch } from "@/lib/poi-search.functions";
 
 const RADIUS_OPTIONS = [50, 100, 200, 500, 1000];
 

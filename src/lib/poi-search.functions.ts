@@ -49,6 +49,7 @@ export type POISearchResult = {
 export type POIFilterOptions = {
   territories: Array<{ value: string; count: number }>;
   regions: Array<{ value: string; count: number }>;
+  districts: Array<{ value: string; count: number }>;
 };
 
 export const getPOIFilterOptions = createServerFn({ method: "GET" })

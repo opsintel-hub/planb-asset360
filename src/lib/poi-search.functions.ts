@@ -113,6 +113,7 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
     const [s, w, n, e] = data.bbox;
     const territories = (data.territories ?? []).filter((x) => typeof x === "string" && x);
     const regions = (data.regions ?? []).filter((x) => typeof x === "string" && x);
+    const districts = (data.districts ?? []).filter((x) => typeof x === "string" && x);
 
     const rows: Array<{ id: string; latitude: number | null; longitude: number | null }> = [];
     const pageSize = 1000;
@@ -127,6 +128,7 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
         .gte("longitude", w).lte("longitude", e);
       if (territories.length > 0) q = q.in("payload->>Territory", territories);
       if (regions.length > 0) q = q.in("payload->>Region", regions);
+      if (districts.length > 0) q = q.in("payload->>District", districts);
       const { data: rowsPage, error } = await q.range(from, from + pageSize - 1);
       if (error) return { ok: false, error: error.message, pois: [], matches: [], assetCount: 0, poiCount: 0, matchedAssetCount: 0 };
       if (!rowsPage || rowsPage.length === 0) break;

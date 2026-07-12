@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { OVERPASS_ENDPOINT } from "./overpass";
+import { fetchOverpass } from "./overpass";
 
 export type PingResult = {
   ok: boolean;

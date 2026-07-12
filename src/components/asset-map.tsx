@@ -366,9 +366,11 @@ export default function AssetMap({
           </div>
           ${a.old_code ? `<a href="/search?q=${encodeURIComponent(a.old_code)}" style="display:inline-block;margin-top:8px;color:#2563eb;text-decoration:underline;">ดูประวัติป้าย →</a>` : ""}
         </div>`;
-      m.bindPopup(html);
       if (onSelectAsset) {
+        // Popup is replaced by the Analytics modal; skip Leaflet popup to avoid duplicate UI.
         m.on("click", () => onSelectAsset(a));
+      } else {
+        m.bindPopup(html);
       }
       markers.push(m);
       markerByIdRef.current.set(a.id, m);

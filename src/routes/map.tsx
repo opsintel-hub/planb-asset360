@@ -1276,7 +1276,7 @@ function MapPage() {
     <div className="space-y-3">
       <PageHeader
         title="Asset Map"
-        subtitle="Corridor: วาดเส้นทาง ค้นป้ายในรัศมี · Inspection: วางแผนตรวจสื่อด้วย auto-routing (OSRM)"
+        subtitle="Corridor: วาดเส้นทาง · Inspection: วางแผนตรวจสื่อ (OSRM) · POI Search: หาป้ายใกล้ห้าง/โชว์รูม/BTS (Overpass)"
       />
       {toolbar}
       {modeBar}

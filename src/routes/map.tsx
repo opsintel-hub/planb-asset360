@@ -1295,7 +1295,13 @@ function MapPage() {
       {routeInfoBar}
       {mapAndPanel}
       {savedDialogs}
+      {analyticsAsset && (
+        <Suspense fallback={null}>
+          <BillboardAnalyticsPanel asset={analyticsAsset} onClose={() => setAnalyticsAsset(null)} />
+        </Suspense>
+      )}
     </div>
+
   );
 }
 

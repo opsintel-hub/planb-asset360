@@ -1095,10 +1095,28 @@ function MapPage() {
       </div>
     ) : null;
 
-  const showRightPanel = (mode === "corridor" && polyline.length > 0) || mode === "inspection";
+  const poiPanel =
+    mode === "poi" ? (
+      <div style={panelStyle(fullscreen)}>
+        <Suspense fallback={<Skeleton className="w-full h-full" />}>
+          <PoiProximityPanel
+            bbox={mapBbox}
+            onResult={(r) => {
+              setPoiResult(r);
+              setFocusPoiId(null);
+            }}
+            onFocusAsset={(id) => setFocusId(id)}
+            onFocusPOI={(p) => setFocusPoiId(p.id)}
+            assetIndexById={assetIndexById}
+          />
+        </Suspense>
+      </div>
+    ) : null;
+
+  const showRightPanel = (mode === "corridor" && polyline.length > 0) || mode === "inspection" || mode === "poi";
 
   const mapAndPanel = (
-    <div className="grid gap-3" style={{ gridTemplateColumns: showRightPanel ? "1fr 320px" : "1fr" }}>
+    <div className="grid gap-3" style={{ gridTemplateColumns: showRightPanel ? "1fr 340px" : "1fr" }}>
       <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden relative z-0"
         style={fullscreen ? { height: "calc(100vh - 200px)" } : { height: "calc(100vh - 280px)", minHeight: 480 }}>
         {loadingAssets ? (
@@ -1126,12 +1144,16 @@ function MapPage() {
                   setRouteInfo(null);
                 }}
                 showRadiusRings={mode === "corridor"}
+                poiMarkers={poiMarkers}
+                poiRadiusMeters={mode === "poi" && poiResult ? poiResult.radiusM : 0}
+                focusPoiId={focusPoiId}
+                onBboxChange={setMapBbox}
               />
             </Suspense>
           </ClientOnly>
         )}
       </div>
-      {showRightPanel && rightPanel}
+      {mode === "poi" ? poiPanel : (showRightPanel && rightPanel)}
     </div>
   );
 

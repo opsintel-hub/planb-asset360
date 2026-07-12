@@ -21,11 +21,7 @@ export const pingOverpass = createServerFn({ method: "POST" })
     try {
       const query = `[out:json][timeout:10];node["amenity"="cafe"](13.74,100.53,13.76,100.55);out 3;`;
       const { res, ms } = await timed(async () => {
-        const r = await fetch(OVERPASS_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: "data=" + encodeURIComponent(query),
-        });
+        const r = await fetchOverpass(query);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return (await r.json()) as { elements?: unknown[] };
       });

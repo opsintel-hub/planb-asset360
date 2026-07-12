@@ -619,14 +619,14 @@ function MapPage() {
   const [pendingOriginLatLng, setPendingOriginLatLng] = useState<{ lat: number; lng: number } | null>(null);
 
   const saveLocMut = useMutation({
-    mutationFn: async () => {
-      if (!newLocName.trim() || !pendingOriginLatLng) throw new Error("ตั้งชื่อและเลือกพิกัดก่อน");
+    mutationFn: async (arg: { lat: number; lng: number }) => {
+      if (!newLocName.trim()) throw new Error("กรุณาตั้งชื่อ");
       return upsertLocFn({
         data: {
           name: newLocName,
           address: newLocAddr || null,
-          lat: pendingOriginLatLng.lat,
-          lng: pendingOriginLatLng.lng,
+          lat: arg.lat,
+          lng: arg.lng,
           is_shared: newLocShared,
         },
       });

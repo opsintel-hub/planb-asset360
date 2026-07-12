@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ClientOnly } from "@tanstack/react-router";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/ui-bits";
 import {
   MapPin,
@@ -16,6 +16,18 @@ import {
   Trash2,
   Download,
   Route as RouteIcon,
+  Undo2,
+  Redo2,
+  Save,
+  FolderOpen,
+  Plus,
+  Star,
+  Wand2,
+  Navigation,
+  ArrowUp,
+  ArrowDown,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -27,17 +39,39 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { listAssetsForMap, listOpenClaimOldCodes, type MapAsset } from "@/lib/map.functions";
+import {
+  listSavedLocations,
+  upsertSavedLocation,
+  deleteSavedLocation,
+  listSavedRoutes,
+  upsertSavedRoute,
+  deleteSavedRoute,
+  type SavedLocation,
+  type SavedRoute,
+} from "@/lib/map-store.functions";
 import { PROJECT_TO_DEPARTMENTS, projectForDepartment } from "@/lib/project-department-map";
+import {
+  osrmRoute,
+  osrmTrip,
+  buildGpx,
+  buildKml,
+  downloadText,
+  googleMapsDirectionsUrl,
+  type LatLng,
+} from "@/lib/osrm";
+import { toast } from "sonner";
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
-
-type LatLng = [number, number];
 
 export const Route = createFileRoute("/map")({
   head: () => ({
     meta: [
       { title: "Asset Map — Asset History 360" },
-      { name: "description", content: "แผนที่ป้ายโฆษณาทั้งหมด กรองตาม Project / Media Type พร้อมสัญลักษณ์เตือนป้ายที่กำลังซ่อม" },
+      {
+        name: "description",
+        content:
+          "แผนที่ป้ายโฆษณา วาดเส้นทาง ค้นป้ายใกล้เคียง วางแผนงานตรวจสื่อ พร้อม auto-routing ผ่าน OSRM",
+      },
     ],
   }),
   component: MapPage,
@@ -45,7 +79,7 @@ export const Route = createFileRoute("/map")({
 
 const RADIUS_PRESETS = [50, 100, 200, 500, 1000];
 
-// Great-circle distance between two lat/lng in meters (Haversine)
+// ---------- geometry helpers ----------
 function haversine(a: LatLng, b: LatLng): number {
   const R = 6371000;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -56,28 +90,21 @@ function haversine(a: LatLng, b: LatLng): number {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-
-// Distance from point p to segment [a,b] in meters, using local equirectangular approx.
 function distanceToSegment(p: LatLng, a: LatLng, b: LatLng): number {
   const lat0 = ((a[0] + b[0]) / 2) * (Math.PI / 180);
-  const mPerDegLat = 111_320;
-  const mPerDegLng = 111_320 * Math.cos(lat0);
-  const ax = 0;
-  const ay = 0;
-  const bx = (b[1] - a[1]) * mPerDegLng;
-  const by = (b[0] - a[0]) * mPerDegLat;
-  const px = (p[1] - a[1]) * mPerDegLng;
-  const py = (p[0] - a[0]) * mPerDegLat;
-  const dx = bx - ax;
-  const dy = by - ay;
-  const len2 = dx * dx + dy * dy;
-  let t = len2 === 0 ? 0 : ((px - ax) * dx + (py - ay) * dy) / len2;
+  const mLat = 111_320;
+  const mLng = 111_320 * Math.cos(lat0);
+  const bx = (b[1] - a[1]) * mLng;
+  const by = (b[0] - a[0]) * mLat;
+  const px = (p[1] - a[1]) * mLng;
+  const py = (p[0] - a[0]) * mLat;
+  const len2 = bx * bx + by * by;
+  let t = len2 === 0 ? 0 : (px * bx + py * by) / len2;
   t = Math.max(0, Math.min(1, t));
-  const cx = ax + t * dx;
-  const cy = ay + t * dy;
+  const cx = t * bx;
+  const cy = t * by;
   return Math.hypot(px - cx, py - cy);
 }
-
 function distanceToPolyline(p: LatLng, line: LatLng[]): number {
   if (line.length === 0) return Infinity;
   if (line.length === 1) return haversine(p, line[0]);
@@ -88,16 +115,44 @@ function distanceToPolyline(p: LatLng, line: LatLng[]): number {
   }
   return min;
 }
-
 function polylineLength(line: LatLng[]): number {
   let total = 0;
   for (let i = 0; i < line.length - 1; i++) total += haversine(line[i], line[i + 1]);
   return total;
 }
+function fmtDist(m: number) {
+  return m < 1000 ? `${m.toFixed(0)} m` : `${(m / 1000).toFixed(2)} km`;
+}
+function fmtDur(sec: number) {
+  const m = Math.round(sec / 60);
+  if (m < 60) return `${m} นาที`;
+  const h = Math.floor(m / 60);
+  return `${h} ชม ${m % 60} นาที`;
+}
+
+// ---------- Types ----------
+type Mode = "corridor" | "inspection";
+
+type Stop = {
+  key: string; // client key
+  asset_id?: string | null;
+  old_code?: string | null;
+  name?: string | null;
+  lat: number;
+  lng: number;
+};
 
 function MapPage() {
+  // ---------- data ----------
   const assetsFn = useServerFn(listAssetsForMap);
   const claimsFn = useServerFn(listOpenClaimOldCodes);
+  const listLocFn = useServerFn(listSavedLocations);
+  const listRouteFn = useServerFn(listSavedRoutes);
+  const upsertLocFn = useServerFn(upsertSavedLocation);
+  const deleteLocFn = useServerFn(deleteSavedLocation);
+  const upsertRouteFn = useServerFn(upsertSavedRoute);
+  const deleteRouteFn = useServerFn(deleteSavedRoute);
+  const qc = useQueryClient();
 
   const { data: assetsData, isLoading: loadingAssets } = useQuery({
     queryKey: ["map", "assets"],
@@ -109,6 +164,16 @@ function MapPage() {
     queryFn: () => claimsFn({}),
     staleTime: 60_000,
   });
+  const { data: locsData } = useQuery({
+    queryKey: ["map", "saved-locations"],
+    queryFn: () => listLocFn({}),
+    staleTime: 60_000,
+  });
+  const { data: routesData } = useQuery({
+    queryKey: ["map", "saved-routes"],
+    queryFn: () => listRouteFn({}),
+    staleTime: 60_000,
+  });
 
   const allAssets = assetsData?.assets ?? [];
   const mediaTypes = assetsData?.mediaTypes ?? [];
@@ -117,7 +182,11 @@ function MapPage() {
     [claimsData?.oldCodes],
   );
   const totalTickets = claimsData?.totalTickets ?? 0;
+  const savedLocations = locsData?.rows ?? [];
+  const savedRoutes = routesData?.rows ?? [];
 
+  // ---------- shared UI state ----------
+  const [mode, setMode] = useState<Mode>("corridor");
   const [fProject, setFProject] = useState("all");
   const [fMedia, setFMedia] = useState("all");
   const [q, setQ] = useState("");
@@ -127,15 +196,54 @@ function MapPage() {
   const [fullscreen, setFullscreen] = useState(false);
   const searchWrapRef = useRef<HTMLDivElement | null>(null);
 
-  // Draw / route state
+  // ---------- Corridor state (with undo/redo) ----------
   const [drawMode, setDrawMode] = useState(false);
   const [polyline, setPolyline] = useState<LatLng[]>([]);
   const [radius, setRadius] = useState<number>(200);
+  const historyRef = useRef<{ past: LatLng[][]; future: LatLng[][] }>({ past: [], future: [] });
+  const [, forceHistoryRerender] = useState(0);
+  const setPolylineTracked = useCallback((next: LatLng[] | ((p: LatLng[]) => LatLng[])) => {
+    setPolyline((prev) => {
+      const value = typeof next === "function" ? (next as (p: LatLng[]) => LatLng[])(prev) : next;
+      historyRef.current.past.push(prev);
+      if (historyRef.current.past.length > 50) historyRef.current.past.shift();
+      historyRef.current.future = [];
+      forceHistoryRerender((n) => n + 1);
+      return value;
+    });
+  }, []);
+  const undo = () => {
+    setPolyline((prev) => {
+      const p = historyRef.current.past.pop();
+      if (!p) return prev;
+      historyRef.current.future.push(prev);
+      forceHistoryRerender((n) => n + 1);
+      return p;
+    });
+  };
+  const redo = () => {
+    setPolyline((prev) => {
+      const f = historyRef.current.future.pop();
+      if (!f) return prev;
+      historyRef.current.past.push(prev);
+      forceHistoryRerender((n) => n + 1);
+      return f;
+    });
+  };
+  const canUndo = historyRef.current.past.length > 0;
+  const canRedo = historyRef.current.future.length > 0;
 
+  // ---------- Inspection (trip) state ----------
+  const [origin, setOrigin] = useState<{ lat: number; lng: number; name?: string } | null>(null);
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [originPickMode, setOriginPickMode] = useState(false);
+  const [roadPolyline, setRoadPolyline] = useState<LatLng[] | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
+  const [routing, setRouting] = useState(false);
+
+  // ---------- Filters ----------
   const filtered = useMemo(() => {
-    const projectDepts = fProject !== "all"
-      ? new Set(PROJECT_TO_DEPARTMENTS[fProject] ?? [])
-      : null;
+    const projectDepts = fProject !== "all" ? new Set(PROJECT_TO_DEPARTMENTS[fProject] ?? []) : null;
     return allAssets.filter((a) => {
       if (projectDepts && (!a.department || !projectDepts.has(a.department))) return false;
       if (fMedia !== "all" && a.media_type !== fMedia) return false;
@@ -144,9 +252,9 @@ function MapPage() {
     });
   }, [allAssets, fProject, fMedia, onlyClaimed, claimedCodes]);
 
-  // Nearby assets along polyline (within radius)
+  // Corridor: nearby along drawn polyline
   const nearby = useMemo(() => {
-    if (polyline.length === 0) return [] as Array<MapAsset & { dist: number }>;
+    if (mode !== "corridor" || polyline.length === 0) return [] as Array<MapAsset & { dist: number }>;
     const out: Array<MapAsset & { dist: number }> = [];
     for (const a of filtered) {
       const d = distanceToPolyline([a.lat, a.lng], polyline);
@@ -154,17 +262,20 @@ function MapPage() {
     }
     out.sort((a, b) => a.dist - b.dist);
     return out;
-  }, [filtered, polyline, radius]);
+  }, [mode, filtered, polyline, radius]);
 
-  const nearbyIds = useMemo(
-    () => (polyline.length >= 1 ? new Set(nearby.map((a) => a.id)) : null),
-    [nearby, polyline.length],
-  );
+  // Highlight set on the map
+  const highlightIds = useMemo(() => {
+    if (mode === "corridor" && polyline.length > 0) return new Set(nearby.map((a) => a.id));
+    if (mode === "inspection" && stops.length > 0)
+      return new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
+    return null;
+  }, [mode, polyline.length, nearby, stops]);
 
   const suggestions = useMemo(() => {
     const qq = q.trim().toLowerCase();
     if (!qq) return [];
-    const out: typeof filtered = [];
+    const out: MapAsset[] = [];
     for (const a of filtered) {
       const hay = `${a.old_code ?? ""} ${a.name ?? ""} ${a.location ?? ""}`.toLowerCase();
       if (hay.includes(qq)) out.push(a);
@@ -194,23 +305,124 @@ function MapPage() {
   const projects = Object.keys(PROJECT_TO_DEPARTMENTS);
   const hasFilter = fProject !== "all" || fMedia !== "all" || q || onlyClaimed;
 
+  // ---------- Inspection actions ----------
+  const addStop = (a: MapAsset) => {
+    setStops((prev) =>
+      prev.some((s) => s.asset_id === a.id)
+        ? prev
+        : [
+            ...prev,
+            {
+              key: `${a.id}-${Date.now()}`,
+              asset_id: a.id,
+              old_code: a.old_code,
+              name: a.name,
+              lat: a.lat,
+              lng: a.lng,
+            },
+          ],
+    );
+    setRoadPolyline(null);
+    setRouteInfo(null);
+  };
+  const removeStop = (key: string) => {
+    setStops((prev) => prev.filter((s) => s.key !== key));
+    setRoadPolyline(null);
+    setRouteInfo(null);
+  };
+  const moveStop = (index: number, dir: -1 | 1) => {
+    setStops((prev) => {
+      const j = index + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = prev.slice();
+      [next[index], next[j]] = [next[j], next[index]];
+      return next;
+    });
+    setRoadPolyline(null);
+    setRouteInfo(null);
+  };
+
+  const routePoints: LatLng[] = useMemo(() => {
+    const pts: LatLng[] = [];
+    if (origin) pts.push([origin.lat, origin.lng]);
+    for (const s of stops) pts.push([s.lat, s.lng]);
+    return pts;
+  }, [origin, stops]);
+
+  const runAutoRoute = async () => {
+    if (routePoints.length < 2) {
+      toast.error("ต้องมีต้นทางและปลายทางอย่างน้อย 1 จุด");
+      return;
+    }
+    setRouting(true);
+    try {
+      const r = await osrmRoute(routePoints);
+      setRoadPolyline(r.geometry);
+      setRouteInfo({ distance: r.distance, duration: r.duration });
+      toast.success("คำนวณเส้นทางสำเร็จ");
+    } catch (e) {
+      toast.error(`คำนวณเส้นทางล้มเหลว: ${(e as Error).message}`);
+    } finally {
+      setRouting(false);
+    }
+  };
+
+  const runOptimize = async () => {
+    if (!origin || stops.length < 2) {
+      toast.error("ต้องมีต้นทาง และปลายทางอย่างน้อย 2 จุด เพื่อจัดลำดับ");
+      return;
+    }
+    setRouting(true);
+    try {
+      const r = await osrmTrip(routePoints, { fixedStart: true, roundtrip: false });
+      // r.waypointOrder[i] = visit order for input i. Input 0 = origin.
+      // Sort stops by their visit order.
+      const pairs = stops.map((s, i) => ({ s, order: r.waypointOrder[i + 1] }));
+      pairs.sort((a, b) => a.order - b.order);
+      setStops(pairs.map((p) => p.s));
+      setRoadPolyline(r.geometry);
+      setRouteInfo({ distance: r.distance, duration: r.duration });
+      toast.success("จัดลำดับสั้นที่สุดสำเร็จ");
+    } catch (e) {
+      toast.error(`จัดลำดับล้มเหลว: ${(e as Error).message}`);
+    } finally {
+      setRouting(false);
+    }
+  };
+
+  const clearInspection = () => {
+    setStops([]);
+    setOrigin(null);
+    setRoadPolyline(null);
+    setRouteInfo(null);
+    setOriginPickMode(false);
+  };
+
+  // ---------- Exports ----------
   function exportCsv() {
-    const rows = [
-      ["#", "Old Code", "Name", "Project", "Department", "Media Type", "Location", "Status", "Distance (m)", "Latitude", "Longitude"],
-      ...nearby.map((a, i) => [
-        String(i + 1),
-        a.old_code ?? "",
-        a.name ?? "",
-        projectForDepartment(a.department) ?? "",
-        a.department ?? "",
-        a.media_type ?? "",
-        a.location ?? "",
-        a.status ?? "",
-        a.dist.toFixed(1),
-        String(a.lat),
-        String(a.lng),
-      ]),
-    ];
+    const rows =
+      mode === "corridor"
+        ? [
+            ["#", "Old Code", "Name", "Project", "Department", "Media Type", "Location", "Status", "Distance (m)", "Latitude", "Longitude"],
+            ...nearby.map((a, i) => [
+              String(i + 1),
+              a.old_code ?? "",
+              a.name ?? "",
+              projectForDepartment(a.department) ?? "",
+              a.department ?? "",
+              a.media_type ?? "",
+              a.location ?? "",
+              a.status ?? "",
+              a.dist.toFixed(1),
+              String(a.lat),
+              String(a.lng),
+            ]),
+          ]
+        : [
+            ["ลำดับ", "Old Code", "Name", "Latitude", "Longitude"],
+            ...(origin ? [["0 (ต้นทาง)", "", origin.name ?? "Origin", String(origin.lat), String(origin.lng)]] : []),
+            ...stops.map((s, i) => [String(i + 1), s.old_code ?? "", s.name ?? "", String(s.lat), String(s.lng)]),
+          ];
     const csv = rows
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
       .join("\n");
@@ -218,11 +430,195 @@ function MapPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `route-nearby-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`;
+    a.download = `map-${mode}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
+  function exportGpx() {
+    const track: LatLng[] =
+      mode === "corridor"
+        ? polyline
+        : roadPolyline && roadPolyline.length >= 2
+        ? roadPolyline
+        : routePoints;
+    const wpts =
+      mode === "corridor"
+        ? nearby.map((a) => ({ lat: a.lat, lng: a.lng, name: a.old_code ?? a.name ?? "", description: a.name ?? "" }))
+        : [
+            ...(origin ? [{ lat: origin.lat, lng: origin.lng, name: origin.name ?? "Origin" }] : []),
+            ...stops.map((s, i) => ({ lat: s.lat, lng: s.lng, name: `${i + 1}. ${s.old_code ?? s.name ?? ""}` })),
+          ];
+    if (track.length < 2) {
+      toast.error("ต้องมีเส้นทางอย่างน้อย 2 จุด");
+      return;
+    }
+    downloadText(`map-${mode}.gpx`, "application/gpx+xml", buildGpx(`Route ${mode}`, track, wpts));
+  }
+  function exportKml() {
+    const track: LatLng[] =
+      mode === "corridor"
+        ? polyline
+        : roadPolyline && roadPolyline.length >= 2
+        ? roadPolyline
+        : routePoints;
+    const wpts =
+      mode === "corridor"
+        ? nearby.map((a) => ({ lat: a.lat, lng: a.lng, name: a.old_code ?? a.name ?? "", description: a.name ?? "" }))
+        : [
+            ...(origin ? [{ lat: origin.lat, lng: origin.lng, name: origin.name ?? "Origin" }] : []),
+            ...stops.map((s, i) => ({ lat: s.lat, lng: s.lng, name: `${i + 1}. ${s.old_code ?? s.name ?? ""}` })),
+          ];
+    if (track.length < 2) {
+      toast.error("ต้องมีเส้นทางอย่างน้อย 2 จุด");
+      return;
+    }
+    downloadText(`map-${mode}.kml`, "application/vnd.google-earth.kml+xml", buildKml(`Route ${mode}`, track, wpts));
+  }
+  const gmapsUrl = mode === "inspection" && routePoints.length >= 2 ? googleMapsDirectionsUrl(routePoints) : "";
+
+  // ---------- Save/Load routes ----------
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [loadOpen, setLoadOpen] = useState(false);
+  const [locOpen, setLocOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [saveShared, setSaveShared] = useState(false);
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (!saveName.trim()) throw new Error("ตั้งชื่อก่อน");
+      const payload =
+        mode === "corridor"
+          ? {
+              name: saveName,
+              kind: "corridor" as const,
+              origin: null,
+              waypoints: polyline.map(([lat, lng]) => ({ lat, lng })),
+              road_polyline: null,
+              radius_m: radius,
+              is_shared: saveShared,
+            }
+          : {
+              name: saveName,
+              kind: "inspection" as const,
+              origin: origin ? { lat: origin.lat, lng: origin.lng, name: origin.name ?? null } : null,
+              waypoints: stops.map((s) => ({
+                lat: s.lat,
+                lng: s.lng,
+                asset_id: s.asset_id ?? null,
+                old_code: s.old_code ?? null,
+                name: s.name ?? null,
+              })),
+              road_polyline: roadPolyline,
+              radius_m: radius,
+              is_shared: saveShared,
+            };
+      return upsertRouteFn({ data: payload });
+    },
+    onSuccess: () => {
+      toast.success("บันทึกเส้นทางแล้ว");
+      qc.invalidateQueries({ queryKey: ["map", "saved-routes"] });
+      setSaveOpen(false);
+      setSaveName("");
+      setSaveShared(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const loadRoute = (r: SavedRoute) => {
+    setMode(r.kind);
+    if (r.kind === "corridor") {
+      setPolyline(r.waypoints.map((w) => [w.lat, w.lng] as LatLng));
+      historyRef.current = { past: [], future: [] };
+      setRadius(r.radius_m);
+      setStops([]);
+      setOrigin(null);
+      setRoadPolyline(null);
+    } else {
+      setOrigin(r.origin ? { lat: r.origin.lat, lng: r.origin.lng, name: r.origin.name ?? undefined } : null);
+      setStops(
+        r.waypoints.map((w, i) => ({
+          key: `loaded-${i}-${Date.now()}`,
+          asset_id: w.asset_id ?? null,
+          old_code: w.old_code ?? null,
+          name: w.name ?? null,
+          lat: w.lat,
+          lng: w.lng,
+        })),
+      );
+      setRoadPolyline(r.road_polyline);
+      setPolyline([]);
+    }
+    setLoadOpen(false);
+    toast.success(`โหลด: ${r.name}`);
+  };
+
+  const deleteRouteMut = useMutation({
+    mutationFn: (id: string) => deleteRouteFn({ data: { id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["map", "saved-routes"] });
+      toast.success("ลบแล้ว");
+    },
+  });
+
+  // Saved location handlers
+  const [newLocName, setNewLocName] = useState("");
+  const [newLocAddr, setNewLocAddr] = useState("");
+  const [newLocShared, setNewLocShared] = useState(false);
+  const [pendingOriginLatLng, setPendingOriginLatLng] = useState<{ lat: number; lng: number } | null>(null);
+
+  const saveLocMut = useMutation({
+    mutationFn: async () => {
+      if (!newLocName.trim() || !pendingOriginLatLng) throw new Error("ตั้งชื่อและเลือกพิกัดก่อน");
+      return upsertLocFn({
+        data: {
+          name: newLocName,
+          address: newLocAddr || null,
+          lat: pendingOriginLatLng.lat,
+          lng: pendingOriginLatLng.lng,
+          is_shared: newLocShared,
+        },
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["map", "saved-locations"] });
+      setNewLocName("");
+      setNewLocAddr("");
+      setNewLocShared(false);
+      setPendingOriginLatLng(null);
+      toast.success("บันทึกต้นทางแล้ว");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteLocMut = useMutation({
+    mutationFn: (id: string) => deleteLocFn({ data: { id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["map", "saved-locations"] }),
+  });
+
+  const useSavedLocation = (l: SavedLocation) => {
+    setOrigin({ lat: l.lat, lng: l.lng, name: l.name });
+    setLocOpen(false);
+    setRoadPolyline(null);
+    setRouteInfo(null);
+    toast.success(`เลือกต้นทาง: ${l.name}`);
+  };
+
+  // ---------- Search suggestion click behavior differs per mode ----------
+  const handleSuggestionClick = (a: MapAsset) => {
+    if (mode === "inspection") {
+      addStop(a);
+      setQ("");
+      setSuggestOpen(false);
+      toast.success(`เพิ่มปลายทาง: ${a.old_code ?? a.name}`);
+    } else {
+      setFocusId(a.id);
+      setQ(a.old_code ?? a.name ?? "");
+      setSuggestOpen(false);
+    }
+  };
+
+  // ---------- Render ----------
   const toolbar = (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-2">
       <div className="flex items-center gap-3 px-2 border-r pr-3">
@@ -231,13 +627,34 @@ function MapPage() {
         <Stat icon={<Layers className="size-4 text-muted-foreground" />} label="Total" value={allAssets.length} />
       </div>
 
+      {/* Mode tabs */}
+      <div className="inline-flex rounded-md border overflow-hidden text-xs">
+        <button
+          className={cn("px-3 h-9", mode === "corridor" ? "bg-primary text-primary-foreground" : "hover:bg-accent")}
+          onClick={() => setMode("corridor")}
+          title="วาดเส้นทางค้นหาป้ายในรัศมี"
+        >
+          <Pencil className="size-3.5 inline mr-1" /> Corridor
+        </button>
+        <button
+          className={cn("px-3 h-9 border-l", mode === "inspection" ? "bg-primary text-primary-foreground" : "hover:bg-accent")}
+          onClick={() => setMode("inspection")}
+          title="วางแผนตรวจสื่อ (ต้นทาง → ปลายทางหลายจุด)"
+        >
+          <Navigation className="size-3.5 inline mr-1" /> Inspection
+        </button>
+      </div>
+
       <div ref={searchWrapRef} className="relative flex-1 min-w-[220px]">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <input
           value={q}
-          onChange={(e) => { setQ(e.target.value); setSuggestOpen(true); }}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setSuggestOpen(true);
+          }}
           onFocus={() => setSuggestOpen(true)}
-          placeholder="ค้นหา Old Code / ชื่อ / ทำเล"
+          placeholder={mode === "inspection" ? "ค้นหาป้ายเพื่อเพิ่มปลายทาง…" : "ค้นหา Old Code / ชื่อ / ทำเล"}
           className="h-9 w-full rounded-md border bg-background pl-8 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
         />
         {suggestOpen && suggestions.length > 0 && (
@@ -245,11 +662,7 @@ function MapPage() {
             {suggestions.map((a) => (
               <button
                 key={a.id}
-                onClick={() => {
-                  setFocusId(a.id);
-                  setQ(a.old_code ?? a.name ?? "");
-                  setSuggestOpen(false);
-                }}
+                onClick={() => handleSuggestionClick(a)}
                 className="w-full text-left px-3 py-2 text-sm hover:bg-accent border-b last:border-b-0"
               >
                 <div className="font-semibold truncate">{a.old_code ?? "—"}</div>
@@ -272,81 +685,25 @@ function MapPage() {
       <CompactSelect placeholder="Media Type" value={fMedia} onChange={setFMedia} options={mediaTypes} />
 
       <label className="flex items-center gap-2 h-9 px-3 rounded-md border cursor-pointer hover:bg-accent text-xs">
-        <input
-          type="checkbox"
-          checked={onlyClaimed}
-          onChange={(e) => setOnlyClaimed(e.target.checked)}
-        />
+        <input type="checkbox" checked={onlyClaimed} onChange={(e) => setOnlyClaimed(e.target.checked)} />
         <span>เฉพาะที่กำลังซ่อม</span>
       </label>
 
       {hasFilter && (
         <button
-          onClick={() => { setFProject("all"); setFMedia("all"); setQ(""); setOnlyClaimed(false); setFocusId(null); }}
+          onClick={() => {
+            setFProject("all");
+            setFMedia("all");
+            setQ("");
+            setOnlyClaimed(false);
+            setFocusId(null);
+          }}
           className="text-xs px-2.5 h-9 rounded-md border hover:bg-accent inline-flex items-center gap-1"
           title="ล้างตัวกรอง"
         >
           <X className="size-3.5" /> Clear
         </button>
       )}
-
-      <div className="flex items-center gap-1 border-l pl-2 ml-1">
-        <button
-          onClick={() => setDrawMode((v) => !v)}
-          className={cn(
-            "h-9 px-2.5 rounded-md border inline-flex items-center gap-1 text-xs",
-            drawMode ? "bg-primary text-primary-foreground border-primary" : "hover:bg-accent",
-          )}
-          title="โหมดวาดเส้นทาง (คลิกบนแผนที่เพื่อเพิ่มจุด, คลิกขวาเพื่อลบจุดล่าสุด)"
-        >
-          <Pencil className="size-4" />
-          <span className="hidden sm:inline">{drawMode ? "Drawing…" : "Draw Route"}</span>
-        </button>
-
-        <Select value={String(radius)} onValueChange={(v) => setRadius(Number(v))}>
-          <SelectTrigger className="h-9 w-[110px] text-xs" title="รัศมีค้นหา">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="z-[1100]">
-            {RADIUS_PRESETS.map((r) => (
-              <SelectItem key={r} value={String(r)}>
-                {r >= 1000 ? `${r / 1000} km` : `${r} m`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <input
-          type="number"
-          min={10}
-          step={10}
-          value={radius}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            if (Number.isFinite(n) && n > 0) setRadius(n);
-          }}
-          className="h-9 w-[72px] rounded-md border bg-background px-2 text-xs"
-          title="รัศมี (เมตร)"
-        />
-
-        {polyline.length > 0 && (
-          <button
-            onClick={() => { setPolyline([]); setDrawMode(false); }}
-            className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 text-xs"
-            title="ล้างเส้นทาง"
-          >
-            <Trash2 className="size-4" /> <span className="hidden sm:inline">Clear Route</span>
-          </button>
-        )}
-        {nearby.length > 0 && (
-          <button
-            onClick={exportCsv}
-            className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 text-xs"
-            title="Export CSV"
-          >
-            <Download className="size-4" /> <span className="hidden sm:inline">Export</span>
-          </button>
-        )}
-      </div>
 
       <button
         onClick={() => setFullscreen((v) => !v)}
@@ -359,38 +716,252 @@ function MapPage() {
     </div>
   );
 
-  const routeInfo = polyline.length > 0 && (
-    <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100 px-3 py-2 text-xs flex flex-wrap items-center gap-x-4 gap-y-1">
-      <div className="inline-flex items-center gap-1.5 font-semibold">
-        <RouteIcon className="size-4" /> เส้นทางที่วาด
-      </div>
-      <div><span className="opacity-70">จุด:</span> <b>{polyline.length}</b></div>
-      <div><span className="opacity-70">ระยะทางรวม:</span> <b>{(polylineLength(polyline) / 1000).toFixed(2)} km</b></div>
-      <div><span className="opacity-70">รัศมี:</span> <b>{radius >= 1000 ? `${radius / 1000} km` : `${radius} m`}</b></div>
-      <div><span className="opacity-70">ป้ายใกล้เส้นทาง:</span> <b>{nearby.length}</b></div>
-      {drawMode && (
-        <div className="ml-auto opacity-80">คลิกบนแผนที่เพื่อเพิ่มจุด • คลิกขวาเพื่อลบจุดล่าสุด</div>
+  // Mode-specific action bar
+  const modeBar = (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card/50 p-2 text-xs">
+      {mode === "corridor" ? (
+        <>
+          <button
+            onClick={() => setDrawMode((v) => !v)}
+            className={cn(
+              "h-9 px-2.5 rounded-md border inline-flex items-center gap-1",
+              drawMode ? "bg-primary text-primary-foreground border-primary" : "hover:bg-accent",
+            )}
+            title="โหมดวาดเส้นทาง (คลิกเพื่อเพิ่มจุด, คลิกขวาบนหมุดเพื่อลบจุด, ลากหมุดเพื่อขยับ)"
+          >
+            <Pencil className="size-4" />
+            <span>{drawMode ? "Drawing…" : "Draw Route"}</span>
+          </button>
+          <button onClick={undo} disabled={!canUndo} className="h-9 w-9 rounded-md border hover:bg-accent disabled:opacity-40 grid place-items-center" title="Undo (Ctrl+Z)">
+            <Undo2 className="size-4" />
+          </button>
+          <button onClick={redo} disabled={!canRedo} className="h-9 w-9 rounded-md border hover:bg-accent disabled:opacity-40 grid place-items-center" title="Redo">
+            <Redo2 className="size-4" />
+          </button>
+
+          <div className="flex items-center gap-1">
+            <Select value={String(radius)} onValueChange={(v) => setRadius(Number(v))}>
+              <SelectTrigger className="h-9 w-[110px] text-xs" title="รัศมีค้นหา">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[1100]">
+                {RADIUS_PRESETS.map((r) => (
+                  <SelectItem key={r} value={String(r)}>
+                    {r >= 1000 ? `${r / 1000} km` : `${r} m`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <input
+              type="number"
+              min={10}
+              step={10}
+              value={radius}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isFinite(n) && n > 0) setRadius(n);
+              }}
+              className="h-9 w-[72px] rounded-md border bg-background px-2 text-xs"
+              title="รัศมี (เมตร)"
+            />
+          </div>
+
+          {polyline.length > 0 && (
+            <button
+              onClick={() => setPolylineTracked([])}
+              className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1"
+            >
+              <Trash2 className="size-4" /> Clear
+            </button>
+          )}
+        </>
+      ) : (
+        <>
+          <button
+            onClick={() => setLocOpen((v) => !v)}
+            className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1"
+            title="เลือกต้นทางจากที่บันทึกไว้"
+          >
+            <Star className="size-4" /> Origins
+          </button>
+          <button
+            onClick={() => setOriginPickMode((v) => !v)}
+            className={cn(
+              "h-9 px-2.5 rounded-md border inline-flex items-center gap-1",
+              originPickMode ? "bg-primary text-primary-foreground border-primary" : "hover:bg-accent",
+            )}
+            title="คลิกบนแผนที่เพื่อกำหนดต้นทาง"
+          >
+            <MapPin className="size-4" /> {originPickMode ? "Click map…" : "Pick Origin"}
+          </button>
+          {origin && (
+            <span className="inline-flex items-center gap-2 h-9 px-2.5 rounded-md border bg-green-50 dark:bg-green-950/40 text-green-800 dark:text-green-200">
+              <Star className="size-3.5" /> {origin.name ?? "Origin"}
+              <button onClick={() => setOrigin(null)} className="opacity-70 hover:opacity-100">
+                <X className="size-3" />
+              </button>
+            </span>
+          )}
+          <button
+            onClick={runAutoRoute}
+            disabled={routing || routePoints.length < 2}
+            className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 disabled:opacity-40"
+            title="คำนวณเส้นทางบนถนนจริง (OSRM)"
+          >
+            {routing ? <Loader2 className="size-4 animate-spin" /> : <RouteIcon className="size-4" />} Auto Route
+          </button>
+          <button
+            onClick={runOptimize}
+            disabled={routing || !origin || stops.length < 2}
+            className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 disabled:opacity-40"
+            title="จัดลำดับปลายทางให้สั้นที่สุด (TSP ผ่าน OSRM /trip)"
+          >
+            <Wand2 className="size-4" /> Optimize
+          </button>
+          {(stops.length > 0 || origin) && (
+            <button
+              onClick={clearInspection}
+              className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1"
+            >
+              <Trash2 className="size-4" /> Clear
+            </button>
+          )}
+        </>
       )}
+
+      <div className="ml-auto flex items-center gap-1">
+        <button
+          onClick={() => setLoadOpen((v) => !v)}
+          className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1"
+          title="โหลดเส้นทางที่บันทึก"
+        >
+          <FolderOpen className="size-4" /> Load
+        </button>
+        <button
+          onClick={() => setSaveOpen((v) => !v)}
+          disabled={mode === "corridor" ? polyline.length < 2 : !origin && stops.length === 0}
+          className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 disabled:opacity-40"
+          title="บันทึกเส้นทาง"
+        >
+          <Save className="size-4" /> Save
+        </button>
+        <button onClick={exportCsv} disabled={mode === "corridor" ? nearby.length === 0 : stops.length === 0}
+          className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 disabled:opacity-40" title="Export CSV">
+          <Download className="size-4" /> CSV
+        </button>
+        <button onClick={exportGpx} className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1" title="Export GPX (มือถือ)">
+          GPX
+        </button>
+        <button onClick={exportKml} className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1" title="Export KML (Google Earth)">
+          KML
+        </button>
+        {gmapsUrl && (
+          <a href={gmapsUrl} target="_blank" rel="noreferrer" className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 text-blue-700 dark:text-blue-300" title="เปิดใน Google Maps">
+            <ExternalLink className="size-4" /> Maps
+          </a>
+        )}
+      </div>
     </div>
   );
 
+  const routeInfoBar =
+    mode === "corridor" && polyline.length > 0 ? (
+      <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100 px-3 py-2 text-xs flex flex-wrap items-center gap-x-4 gap-y-1">
+        <div className="inline-flex items-center gap-1.5 font-semibold">
+          <RouteIcon className="size-4" /> Corridor
+        </div>
+        <div>จุด: <b>{polyline.length}</b></div>
+        <div>ระยะทางรวม: <b>{fmtDist(polylineLength(polyline))}</b></div>
+        <div>รัศมี: <b>{radius >= 1000 ? `${radius / 1000} km` : `${radius} m`}</b></div>
+        <div>ป้ายใกล้เส้นทาง: <b>{nearby.length}</b></div>
+        {drawMode && <div className="ml-auto opacity-80">คลิก = เพิ่มจุด • ลากหมุด = ขยับ • คลิกขวาบนหมุด = ลบ</div>}
+      </div>
+    ) : mode === "inspection" && routeInfo ? (
+      <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 text-blue-900 dark:text-blue-100 px-3 py-2 text-xs flex flex-wrap items-center gap-x-4 gap-y-1">
+        <div className="inline-flex items-center gap-1.5 font-semibold">
+          <Navigation className="size-4" /> Inspection Trip
+        </div>
+        <div>จุดหมาย: <b>{stops.length}</b></div>
+        <div>ระยะทางถนน: <b>{fmtDist(routeInfo.distance)}</b></div>
+        <div>เวลาโดยประมาณ: <b>{fmtDur(routeInfo.duration)}</b></div>
+        {originPickMode && <div className="ml-auto opacity-80">คลิกบนแผนที่เพื่อกำหนดต้นทาง</div>}
+      </div>
+    ) : null;
+
+  const rightPanel =
+    mode === "corridor" && polyline.length > 0 ? (
+      <div className="rounded-xl border bg-card overflow-hidden flex flex-col" style={panelStyle(fullscreen)}>
+        <div className="px-3 py-2 border-b flex items-center justify-between">
+          <div className="text-sm font-semibold">Nearby Assets ({nearby.length})</div>
+        </div>
+        <div className="flex-1 overflow-y-auto divide-y">
+          {nearby.length === 0 ? (
+            <div className="p-4 text-xs text-muted-foreground">ไม่มีป้ายในรัศมี {radius} m</div>
+          ) : (
+            nearby.map((a, i) => (
+              <button key={a.id} onClick={() => setFocusId(a.id)} className="w-full text-left px-3 py-2 hover:bg-accent">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-semibold truncate">{i + 1}. {a.old_code ?? "—"}</div>
+                  <div className="text-[11px] text-muted-foreground tabular-nums shrink-0">{fmtDist(a.dist)}</div>
+                </div>
+                <div className="text-[11px] text-muted-foreground truncate">{a.name ?? "—"}</div>
+                <div className="text-[10px] text-muted-foreground truncate">
+                  {[projectForDepartment(a.department) ?? a.department, a.media_type, a.location].filter(Boolean).join(" • ")}
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    ) : mode === "inspection" ? (
+      <div className="rounded-xl border bg-card overflow-hidden flex flex-col" style={panelStyle(fullscreen)}>
+        <div className="px-3 py-2 border-b text-sm font-semibold">
+          Plan · {stops.length} จุดหมาย {origin ? "" : "· ยังไม่ได้เลือกต้นทาง"}
+        </div>
+        <div className="flex-1 overflow-y-auto divide-y">
+          {origin && (
+            <div className="px-3 py-2 bg-green-50 dark:bg-green-950/30">
+              <div className="text-[10px] uppercase font-semibold text-green-700 dark:text-green-300">ต้นทาง</div>
+              <div className="text-xs font-semibold">{origin.name ?? "Origin"}</div>
+              <div className="text-[10px] text-muted-foreground">{origin.lat.toFixed(5)}, {origin.lng.toFixed(5)}</div>
+            </div>
+          )}
+          {stops.length === 0 ? (
+            <div className="p-4 text-xs text-muted-foreground">
+              ยังไม่มีปลายทาง — ค้นหาป้ายจากช่องค้นหาด้านบน แล้วคลิกเพื่อเพิ่ม
+            </div>
+          ) : (
+            stops.map((s, i) => (
+              <div key={s.key} className="px-3 py-2 flex items-start gap-2 hover:bg-accent">
+                <button onClick={() => s.asset_id && setFocusId(s.asset_id)} className="flex-1 text-left">
+                  <div className="text-xs font-semibold truncate">{i + 1}. {s.old_code ?? s.name ?? "—"}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{s.name ?? ""}</div>
+                  <div className="text-[10px] text-muted-foreground">{s.lat.toFixed(5)}, {s.lng.toFixed(5)}</div>
+                </button>
+                <div className="flex flex-col gap-0.5 shrink-0">
+                  <button onClick={() => moveStop(i, -1)} disabled={i === 0} className="p-0.5 hover:bg-background rounded disabled:opacity-30">
+                    <ArrowUp className="size-3" />
+                  </button>
+                  <button onClick={() => moveStop(i, 1)} disabled={i === stops.length - 1} className="p-0.5 hover:bg-background rounded disabled:opacity-30">
+                    <ArrowDown className="size-3" />
+                  </button>
+                </div>
+                <button onClick={() => removeStop(s.key)} className="p-1 hover:bg-background rounded text-red-600" title="ลบ">
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    ) : null;
+
+  const showRightPanel = (mode === "corridor" && polyline.length > 0) || mode === "inspection";
+
   const mapAndPanel = (
-    <div
-      className="grid gap-3"
-      style={{
-        gridTemplateColumns: polyline.length > 0 ? "1fr 320px" : "1fr",
-      }}
-    >
-      <div
-        className={cn(
-          "rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden relative z-0",
-        )}
-        style={
-          fullscreen
-            ? { height: "calc(100vh - 140px)" }
-            : { height: "calc(100vh - 280px)", minHeight: 480 }
-        }
-      >
+    <div className="grid gap-3" style={{ gridTemplateColumns: showRightPanel ? "1fr 320px" : "1fr" }}>
+      <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden relative z-0"
+        style={fullscreen ? { height: "calc(100vh - 200px)" } : { height: "calc(100vh - 280px)", minHeight: 480 }}>
         {loadingAssets ? (
           <Skeleton className="w-full h-full" />
         ) : (
@@ -400,76 +971,141 @@ function MapPage() {
                 assets={filtered}
                 claimedCodes={claimedCodes}
                 focusId={focusId}
-                drawMode={drawMode}
-                polyline={polyline}
-                onPolylineChange={setPolyline}
+                drawMode={mode === "corridor" && drawMode}
+                polyline={mode === "corridor" ? polyline : []}
+                onPolylineChange={mode === "corridor" ? setPolylineTracked : undefined}
                 radiusMeters={radius}
-                nearbyIds={nearbyIds}
+                nearbyIds={highlightIds}
+                roadPolyline={mode === "inspection" ? roadPolyline : null}
+                origin={mode === "inspection" ? origin : null}
+                originPickMode={mode === "inspection" && originPickMode}
+                onOriginPick={(lat, lng) => {
+                  setOrigin({ lat, lng, name: "Origin (map pick)" });
+                  setPendingOriginLatLng({ lat, lng });
+                  setOriginPickMode(false);
+                  setRoadPolyline(null);
+                  setRouteInfo(null);
+                }}
+                showRadiusRings={mode === "corridor"}
               />
             </Suspense>
           </ClientOnly>
         )}
       </div>
+      {showRightPanel && rightPanel}
+    </div>
+  );
 
-      {polyline.length > 0 && (
-        <div
-          className="rounded-xl border bg-card overflow-hidden flex flex-col"
-          style={
-            fullscreen
-              ? { height: "calc(100vh - 140px)" }
-              : { height: "calc(100vh - 280px)", minHeight: 480 }
-          }
-        >
-          <div className="px-3 py-2 border-b flex items-center justify-between">
-            <div className="text-sm font-semibold">Nearby Assets ({nearby.length})</div>
-            {nearby.length > 0 && (
-              <button
-                onClick={exportCsv}
-                className="text-xs px-2 py-1 rounded-md border hover:bg-accent inline-flex items-center gap-1"
-              >
-                <Download className="size-3.5" /> CSV
-              </button>
-            )}
+  // ----- Save / Load / Locations dialogs (inline popovers) -----
+  const savedDialogs = (
+    <>
+      {saveOpen && (
+        <Sheet title="บันทึกเส้นทาง" onClose={() => setSaveOpen(false)}>
+          <input
+            value={saveName}
+            onChange={(e) => setSaveName(e.target.value)}
+            placeholder="ตั้งชื่อเส้นทาง"
+            className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          />
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={saveShared} onChange={(e) => setSaveShared(e.target.checked)} />
+            แชร์ให้ทุกคนในองค์กร
+          </label>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setSaveOpen(false)} className="h-9 px-3 rounded-md border text-xs">Cancel</button>
+            <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs inline-flex items-center gap-1">
+              {saveMut.isPending && <Loader2 className="size-3.5 animate-spin" />} บันทึก
+            </button>
           </div>
-          <div className="flex-1 overflow-y-auto divide-y">
-            {nearby.length === 0 ? (
-              <div className="p-4 text-xs text-muted-foreground">
-                ไม่มีป้ายภายในรัศมี {radius} m — ลองเพิ่มรัศมีหรือปรับเส้นทาง
-              </div>
+        </Sheet>
+      )}
+      {loadOpen && (
+        <Sheet title="เส้นทางที่บันทึกไว้" onClose={() => setLoadOpen(false)}>
+          {savedRoutes.length === 0 ? (
+            <div className="text-xs text-muted-foreground">ยังไม่มีเส้นทาง</div>
+          ) : (
+            <div className="max-h-[380px] overflow-y-auto divide-y border rounded-md">
+              {savedRoutes.map((r) => (
+                <div key={r.id} className="p-2 flex items-center gap-2 hover:bg-accent">
+                  <button onClick={() => loadRoute(r)} className="flex-1 text-left">
+                    <div className="text-sm font-semibold truncate">{r.name}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {r.kind} · {r.waypoints.length} จุด · {new Date(r.updated_at).toLocaleDateString()}
+                      {r.is_shared && " · shared"}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => confirm(`ลบ "${r.name}" ?`) && deleteRouteMut.mutate(r.id)}
+                    className="p-1 hover:bg-background rounded text-red-600"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Sheet>
+      )}
+      {locOpen && (
+        <Sheet title="ต้นทาง Default" onClose={() => setLocOpen(false)}>
+          <div className="max-h-[240px] overflow-y-auto divide-y border rounded-md">
+            {savedLocations.length === 0 ? (
+              <div className="p-3 text-xs text-muted-foreground">ยังไม่มีต้นทางบันทึกไว้</div>
             ) : (
-              nearby.map((a, i) => (
-                <button
-                  key={a.id}
-                  onClick={() => setFocusId(a.id)}
-                  className="w-full text-left px-3 py-2 hover:bg-accent"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs font-semibold truncate">
-                      {i + 1}. {a.old_code ?? "—"}
+              savedLocations.map((l) => (
+                <div key={l.id} className="p-2 flex items-center gap-2 hover:bg-accent">
+                  <button onClick={() => useSavedLocation(l)} className="flex-1 text-left">
+                    <div className="text-sm font-semibold truncate flex items-center gap-1">
+                      {l.name}
+                      {l.is_shared && <span className="text-[10px] px-1 py-0.5 rounded bg-blue-100 text-blue-700">shared</span>}
                     </div>
-                    <div className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                      {a.dist < 1000 ? `${a.dist.toFixed(0)} m` : `${(a.dist / 1000).toFixed(2)} km`}
-                    </div>
-                  </div>
-                  <div className="text-[11px] text-muted-foreground truncate">{a.name ?? "—"}</div>
-                  <div className="text-[10px] text-muted-foreground truncate">
-                    {[projectForDepartment(a.department) ?? a.department, a.media_type, a.location].filter(Boolean).join(" • ")}
-                  </div>
-                </button>
+                    <div className="text-[11px] text-muted-foreground truncate">{l.address ?? `${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}`}</div>
+                  </button>
+                  <button onClick={() => confirm(`ลบ "${l.name}" ?`) && deleteLocMut.mutate(l.id)} className="p-1 hover:bg-background rounded text-red-600">
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
               ))
             )}
           </div>
-        </div>
+
+          <div className="border-t pt-3 space-y-2">
+            <div className="text-xs font-semibold flex items-center gap-1"><Plus className="size-3.5" /> บันทึกต้นทางใหม่</div>
+            <div className="text-[11px] text-muted-foreground">
+              พิกัด: {pendingOriginLatLng ? `${pendingOriginLatLng.lat.toFixed(5)}, ${pendingOriginLatLng.lng.toFixed(5)}` : origin ? `${origin.lat.toFixed(5)}, ${origin.lng.toFixed(5)}` : "— ปักบนแผนที่ก่อน (ปุ่ม Pick Origin)"}
+            </div>
+            <input value={newLocName} onChange={(e) => setNewLocName(e.target.value)} placeholder="ชื่อ (เช่น สำนักงานใหญ่)" className="h-9 w-full rounded-md border bg-background px-3 text-sm" />
+            <input value={newLocAddr} onChange={(e) => setNewLocAddr(e.target.value)} placeholder="ที่อยู่ (ไม่จำเป็น)" className="h-9 w-full rounded-md border bg-background px-3 text-sm" />
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={newLocShared} onChange={(e) => setNewLocShared(e.target.checked)} />
+              แชร์ให้ทุกคน (admin เท่านั้น)
+            </label>
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  if (!pendingOriginLatLng && origin) setPendingOriginLatLng({ lat: origin.lat, lng: origin.lng });
+                  saveLocMut.mutate();
+                }}
+                disabled={saveLocMut.isPending || (!pendingOriginLatLng && !origin) || !newLocName.trim()}
+                className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs inline-flex items-center gap-1 disabled:opacity-40"
+              >
+                {saveLocMut.isPending && <Loader2 className="size-3.5 animate-spin" />} บันทึก
+              </button>
+            </div>
+          </div>
+        </Sheet>
       )}
-    </div>
+    </>
   );
 
   if (fullscreen) {
     return (
       <div className="fixed inset-0 z-[1000] bg-background p-3 flex flex-col gap-2 overflow-auto">
         {toolbar}
-        {routeInfo}
+        {modeBar}
+        {routeInfoBar}
         {mapAndPanel}
+        {savedDialogs}
       </div>
     );
   }
@@ -478,13 +1114,19 @@ function MapPage() {
     <div className="space-y-3">
       <PageHeader
         title="Asset Map"
-        subtitle="ตำแหน่งป้ายโฆษณาทั้งหมด แยกสีตาม Project • ป้ายที่มีเคลมเปิดจะขึ้นสัญลักษณ์เตือนสีเหลือง • วาดเส้นทางเพื่อค้นหาป้ายใกล้เคียง"
+        subtitle="Corridor: วาดเส้นทาง ค้นป้ายในรัศมี · Inspection: วางแผนตรวจสื่อด้วย auto-routing (OSRM)"
       />
       {toolbar}
-      {routeInfo}
+      {modeBar}
+      {routeInfoBar}
       {mapAndPanel}
+      {savedDialogs}
     </div>
   );
+}
+
+function panelStyle(fullscreen: boolean): React.CSSProperties {
+  return fullscreen ? { height: "calc(100vh - 200px)" } : { height: "calc(100vh - 280px)", minHeight: 480 };
 }
 
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
@@ -522,5 +1164,19 @@ function CompactSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="bg-card border rounded-xl shadow-xl w-full max-w-md p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-semibold">{title}</div>
+          <button onClick={onClose} className="p-1 hover:bg-accent rounded"><X className="size-4" /></button>
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }

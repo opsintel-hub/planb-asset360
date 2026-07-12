@@ -149,6 +149,41 @@ export default function PoiProximityPanel({
       </div>
 
       <div className="p-3 space-y-3 border-b">
+        {/* Geographic filters (Territory / Region) — speeds up search a lot */}
+        <div className="rounded-md border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 p-2 space-y-2">
+          <div className="text-[11px] font-medium text-amber-900 dark:text-amber-100 uppercase flex items-center gap-1">
+            <Filter className="size-3" /> ตัวกรองพื้นที่ (เพิ่มความเร็ว)
+          </div>
+          <MultiSelectDropdown
+            open={terrOpen}
+            setOpen={setTerrOpen}
+            label="Territory / เขต"
+            placeholder="เลือก Territory…"
+            options={(filterOpts.data?.territories ?? []).map((t) => ({ value: t.value, label: `${t.value} (${t.count})` }))}
+            selected={selectedTerritories}
+            onToggle={(v) => setSelectedTerritories((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+            loading={filterOpts.isLoading}
+          />
+          <MultiSelectDropdown
+            open={regionOpen}
+            setOpen={setRegionOpen}
+            label="Region / ภาค"
+            placeholder="เลือก Region…"
+            options={(filterOpts.data?.regions ?? []).slice(0, 30).map((t) => ({ value: t.value, label: `${t.value} (${t.count})` }))}
+            selected={selectedRegions}
+            onToggle={(v) => setSelectedRegions((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+            loading={filterOpts.isLoading}
+          />
+          {(selectedTerritories.length > 0 || selectedRegions.length > 0) && (
+            <button
+              onClick={() => { setSelectedTerritories([]); setSelectedRegions([]); }}
+              className="text-[10px] text-amber-800 dark:text-amber-200 hover:underline"
+            >
+              ล้างตัวกรองพื้นที่
+            </button>
+          )}
+        </div>
+
         {/* Multi-select dropdown */}
         <div>
           <label className="text-[11px] font-medium text-muted-foreground uppercase">ประเภทสถานที่</label>

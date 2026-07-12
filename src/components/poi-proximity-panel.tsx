@@ -25,15 +25,26 @@ export default function PoiProximityPanel({
   bbox, onResult, onFocusAsset, onFocusPOI, assetIndexById,
 }: Props) {
   const searchFn = useServerFn(searchPOIsNearAssets);
+  const filterOptsFn = useServerFn(getPOIFilterOptions);
 
   const [selectedPresets, setSelectedPresets] = useState<string[]>(["mall", "car_dealer", "subway"]);
   const [freeText, setFreeText] = useState("");
   const [radiusM, setRadiusM] = useState(200);
   const [matchMode, setMatchMode] = useState<"any" | "all">("any");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [terrOpen, setTerrOpen] = useState(false);
+  const [regionOpen, setRegionOpen] = useState(false);
   const [lastResult, setLastResult] = useState<{
-    pois: POI[]; matches: POIMatch[]; matchedAssetCount: number;
+    pois: POI[]; matches: POIMatch[]; matchedAssetCount: number; elapsedMs?: number;
   } | null>(null);
+
+  const filterOpts = useQuery({
+    queryKey: ["poi-filter-options"],
+    queryFn: () => filterOptsFn(),
+    staleTime: 5 * 60_000,
+  });
 
   const mut = useMutation({
     mutationFn: async () => {

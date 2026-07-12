@@ -55,27 +55,27 @@ export type POIFilterOptions = {
 export const getPOIFilterOptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<POIFilterOptions> => {
-    // Pull a large-enough sample of assets and aggregate client-side.
-    // (assets ≈ 8k rows — cheap.)
+    // Aliased select: pull only the three JSON string fields we need — light payload, fast.
     const territories = new Map<string, number>();
     const regions = new Map<string, number>();
+    const districts = new Map<string, number>();
     const pageSize = 1000;
     let from = 0;
     while (true) {
       const { data, error } = await context.supabase
         .from("assets")
-        .select("payload")
+        .select("t:payload->>Territory, r:payload->>Region, d:payload->>District")
         .not("latitude", "is", null)
         .range(from, from + pageSize - 1);
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) break;
-      for (const row of data as Array<{ payload: Record<string, unknown> | null }>) {
-        const p = row.payload;
-        if (!p) continue;
-        const t = (p["Territory"] as string | undefined)?.trim();
-        const r = (p["Region"] as string | undefined)?.trim();
+      for (const row of data as Array<{ t: string | null; r: string | null; d: string | null }>) {
+        const t = row.t?.trim();
+        const r = row.r?.trim();
+        const d = row.d?.trim();
         if (t) territories.set(t, (territories.get(t) ?? 0) + 1);
         if (r) regions.set(r, (regions.get(r) ?? 0) + 1);
+        if (d) districts.set(d, (districts.get(d) ?? 0) + 1);
       }
       if (data.length < pageSize) break;
       from += pageSize;
@@ -83,7 +83,11 @@ export const getPOIFilterOptions = createServerFn({ method: "GET" })
     const toSorted = (m: Map<string, number>) =>
       Array.from(m, ([value, count]) => ({ value, count }))
         .sort((a, b) => b.count - a.count);
-    return { territories: toSorted(territories), regions: toSorted(regions) };
+    return {
+      territories: toSorted(territories),
+      regions: toSorted(regions),
+      districts: toSorted(districts),
+    };
   });
 
 export const searchPOIsNearAssets = createServerFn({ method: "POST" })

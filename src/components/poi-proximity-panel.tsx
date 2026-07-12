@@ -34,8 +34,10 @@ export default function PoiProximityPanel({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [terrOpen, setTerrOpen] = useState(false);
   const [regionOpen, setRegionOpen] = useState(false);
+  const [districtOpen, setDistrictOpen] = useState(false);
   const [lastResult, setLastResult] = useState<{
     pois: POI[]; matches: POIMatch[]; matchedAssetCount: number; elapsedMs?: number;
   } | null>(null);

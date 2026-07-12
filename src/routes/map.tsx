@@ -265,6 +265,8 @@ function MapPage() {
   const [mapBbox, setMapBbox] = useState<[number, number, number, number] | null>(null);
   const [poiResult, setPoiResult] = useState<{ pois: POI[]; matches: POIMatch[]; radiusM: number } | null>(null);
   const [focusPoiId, setFocusPoiId] = useState<string | null>(null);
+  const [analyticsAsset, setAnalyticsAsset] = useState<MapAsset | null>(null);
+
 
   const assetIndexById = useMemo(() => {
     const m = new Map<string, { old_code: string | null; name: string | null }>();

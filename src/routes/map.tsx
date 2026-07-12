@@ -931,9 +931,30 @@ function MapPage() {
               <a href={wazeUrl} target="_blank" rel="noreferrer">Waze (ปลายทางสุดท้าย)</a>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={openQr}>
+              <QrCode className="size-3.5 mr-2" /> QR Code (สแกนเปิดบนมือถือ)
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={copyGmapsUrl}>
               <Copy className="size-3.5 mr-2" /> Copy Google Maps URL
             </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      {qrOpen && (
+        <div className="fixed inset-0 z-[1200] bg-black/60 grid place-items-center p-4" onClick={() => setQrOpen(false)}>
+          <div className="bg-background rounded-lg p-5 max-w-sm w-full shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="font-semibold">สแกนด้วยมือถือเพื่อเปิด Google Maps</div>
+              <button onClick={() => setQrOpen(false)} className="p-1 hover:bg-accent rounded"><XIcon className="size-4" /></button>
+            </div>
+            {qrDataUrl && <img src={qrDataUrl} alt="QR" className="w-full h-auto rounded border" />}
+            <p className="text-xs text-muted-foreground mt-3">เปิดกล้องมือถือ สแกน QR แล้วแตะลิงก์ที่ขึ้นมา — Google Maps บนมือถือจะเปิดเส้นทางให้เอง</p>
+            <button onClick={copyGmapsUrl} className="mt-3 w-full h-9 rounded-md border hover:bg-accent inline-flex items-center justify-center gap-2 text-sm">
+              <Copy className="size-3.5" /> คัดลอกลิงก์แทน
+            </button>
+          </div>
+        </div>
+      )}
           </DropdownMenuContent>
         </DropdownMenu>
 

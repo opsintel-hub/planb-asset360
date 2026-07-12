@@ -515,6 +515,18 @@ function MapPage() {
       toast.error("คัดลอกไม่สำเร็จ");
     }
   };
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  const openQr = async () => {
+    if (!gmapsUrl) return;
+    try {
+      const url = await QRCode.toDataURL(gmapsUrl, { width: 512, margin: 2 });
+      setQrDataUrl(url);
+      setQrOpen(true);
+    } catch {
+      toast.error("สร้าง QR ไม่สำเร็จ");
+    }
+  };
 
   // ---------- Save/Load routes ----------
   const [saveOpen, setSaveOpen] = useState(false);

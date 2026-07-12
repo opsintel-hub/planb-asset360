@@ -144,7 +144,7 @@ function fmtDur(sec: number) {
 }
 
 // ---------- Types ----------
-type Mode = "corridor" | "inspection";
+type Mode = "corridor" | "inspection" | "poi";
 
 type Stop = {
   key: string; // client key

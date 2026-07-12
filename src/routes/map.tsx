@@ -1274,9 +1274,15 @@ function MapPage() {
         {routeInfoBar}
         {mapAndPanel}
         {savedDialogs}
+        {analyticsAsset && (
+          <Suspense fallback={null}>
+            <BillboardAnalyticsPanel asset={analyticsAsset} onClose={() => setAnalyticsAsset(null)} />
+          </Suspense>
+        )}
       </div>
     );
   }
+
 
   return (
     <div className="space-y-3">

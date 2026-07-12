@@ -897,7 +897,7 @@ function MapPage() {
           <DropdownMenuTrigger
             disabled={!hasRoute}
             className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 text-blue-700 dark:text-blue-300 disabled:opacity-40 disabled:cursor-not-allowed"
-            title={hasRoute ? "เปิดในบริการแผนที่" : "ต้องมีต้นทาง + ปลายทางอย่างน้อย 1 จุด"}
+            title={hasRoute ? "เปิดในบริการแผนที่" : mode === "corridor" ? "ต้องวาดเส้นทางอย่างน้อย 2 จุด" : "ต้องมีต้นทาง + ปลายทางอย่างน้อย 1 จุด"}
           >
             <ExternalLink className="size-4" /> Maps <ChevronDown className="size-3" />
           </DropdownMenuTrigger>

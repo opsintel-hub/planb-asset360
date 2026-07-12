@@ -34,8 +34,10 @@ export default function PoiProximityPanel({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [terrOpen, setTerrOpen] = useState(false);
   const [regionOpen, setRegionOpen] = useState(false);
+  const [districtOpen, setDistrictOpen] = useState(false);
   const [lastResult, setLastResult] = useState<{
     pois: POI[]; matches: POIMatch[]; matchedAssetCount: number; elapsedMs?: number;
   } | null>(null);
@@ -58,6 +60,7 @@ export default function PoiProximityPanel({
           matchMode,
           territories: selectedTerritories,
           regions: selectedRegions,
+          districts: selectedDistricts,
         },
       });
     },
@@ -149,16 +152,29 @@ export default function PoiProximityPanel({
       </div>
 
       <div className="p-3 space-y-3 border-b">
-        {/* Geographic filters (Territory / Region) — speeds up search a lot */}
+        {/* Geographic filters — narrow the search area for faster results */}
         <div className="rounded-md border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 p-2 space-y-2">
           <div className="text-[11px] font-medium text-amber-900 dark:text-amber-100 uppercase flex items-center gap-1">
             <Filter className="size-3" /> ตัวกรองพื้นที่ (เพิ่มความเร็ว)
           </div>
+          {filterOpts.isError && (
+            <div className="text-[10px] text-destructive">โหลดตัวเลือกไม่สำเร็จ: {(filterOpts.error as Error)?.message}</div>
+          )}
+          <MultiSelectDropdown
+            open={districtOpen}
+            setOpen={setDistrictOpen}
+            label="เขต / อำเภอ (District)"
+            placeholder={filterOpts.isLoading ? "กำลังโหลด…" : "เลือกเขต/อำเภอ…"}
+            options={(filterOpts.data?.districts ?? []).map((t) => ({ value: t.value, label: `${t.value} (${t.count})` }))}
+            selected={selectedDistricts}
+            onToggle={(v) => setSelectedDistricts((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+            loading={filterOpts.isLoading}
+          />
           <MultiSelectDropdown
             open={terrOpen}
             setOpen={setTerrOpen}
-            label="Territory / เขต"
-            placeholder="เลือก Territory…"
+            label="พื้นที่ (Territory)"
+            placeholder={filterOpts.isLoading ? "กำลังโหลด…" : "เลือกพื้นที่…"}
             options={(filterOpts.data?.territories ?? []).map((t) => ({ value: t.value, label: `${t.value} (${t.count})` }))}
             selected={selectedTerritories}
             onToggle={(v) => setSelectedTerritories((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
@@ -167,22 +183,26 @@ export default function PoiProximityPanel({
           <MultiSelectDropdown
             open={regionOpen}
             setOpen={setRegionOpen}
-            label="Region / ภาค"
-            placeholder="เลือก Region…"
+            label="ภาค (Region)"
+            placeholder={filterOpts.isLoading ? "กำลังโหลด…" : "เลือกภาค…"}
             options={(filterOpts.data?.regions ?? []).slice(0, 30).map((t) => ({ value: t.value, label: `${t.value} (${t.count})` }))}
             selected={selectedRegions}
             onToggle={(v) => setSelectedRegions((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
             loading={filterOpts.isLoading}
           />
-          {(selectedTerritories.length > 0 || selectedRegions.length > 0) && (
+          {(selectedTerritories.length > 0 || selectedRegions.length > 0 || selectedDistricts.length > 0) && (
             <button
-              onClick={() => { setSelectedTerritories([]); setSelectedRegions([]); }}
+              onClick={() => { setSelectedTerritories([]); setSelectedRegions([]); setSelectedDistricts([]); }}
               className="text-[10px] text-amber-800 dark:text-amber-200 hover:underline"
             >
               ล้างตัวกรองพื้นที่
             </button>
           )}
+          <div className="text-[9.5px] text-muted-foreground leading-tight">
+            หมายเหตุ: ฐานข้อมูลไม่มีฟิลด์ &quot;จังหวัด&quot; แยก — ใช้ &quot;เขต/อำเภอ&quot; หรือ &quot;ภาค&quot; แทน
+          </div>
         </div>
+
 
         {/* Multi-select dropdown */}
         <div>

@@ -32,6 +32,7 @@ export type POISearchInput = {
   matchMode?: "any" | "all";
   territories?: string[] | null;
   regions?: string[] | null;
+  districts?: string[] | null;
 };
 
 export type POISearchResult = {
@@ -49,32 +50,33 @@ export type POISearchResult = {
 export type POIFilterOptions = {
   territories: Array<{ value: string; count: number }>;
   regions: Array<{ value: string; count: number }>;
+  districts: Array<{ value: string; count: number }>;
 };
 
 export const getPOIFilterOptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<POIFilterOptions> => {
-    // Pull a large-enough sample of assets and aggregate client-side.
-    // (assets ≈ 8k rows — cheap.)
+    // Aliased select: pull only the three JSON string fields we need — light payload, fast.
     const territories = new Map<string, number>();
     const regions = new Map<string, number>();
+    const districts = new Map<string, number>();
     const pageSize = 1000;
     let from = 0;
     while (true) {
       const { data, error } = await context.supabase
         .from("assets")
-        .select("payload")
+        .select("t:payload->>Territory, r:payload->>Region, d:payload->>District")
         .not("latitude", "is", null)
         .range(from, from + pageSize - 1);
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) break;
-      for (const row of data as Array<{ payload: Record<string, unknown> | null }>) {
-        const p = row.payload;
-        if (!p) continue;
-        const t = (p["Territory"] as string | undefined)?.trim();
-        const r = (p["Region"] as string | undefined)?.trim();
+      for (const row of data as Array<{ t: string | null; r: string | null; d: string | null }>) {
+        const t = row.t?.trim();
+        const r = row.r?.trim();
+        const d = row.d?.trim();
         if (t) territories.set(t, (territories.get(t) ?? 0) + 1);
         if (r) regions.set(r, (regions.get(r) ?? 0) + 1);
+        if (d) districts.set(d, (districts.get(d) ?? 0) + 1);
       }
       if (data.length < pageSize) break;
       from += pageSize;
@@ -82,7 +84,11 @@ export const getPOIFilterOptions = createServerFn({ method: "GET" })
     const toSorted = (m: Map<string, number>) =>
       Array.from(m, ([value, count]) => ({ value, count }))
         .sort((a, b) => b.count - a.count);
-    return { territories: toSorted(territories), regions: toSorted(regions) };
+    return {
+      territories: toSorted(territories),
+      regions: toSorted(regions),
+      districts: toSorted(districts),
+    };
   });
 
 export const searchPOIsNearAssets = createServerFn({ method: "POST" })
@@ -107,6 +113,7 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
     const [s, w, n, e] = data.bbox;
     const territories = (data.territories ?? []).filter((x) => typeof x === "string" && x);
     const regions = (data.regions ?? []).filter((x) => typeof x === "string" && x);
+    const districts = (data.districts ?? []).filter((x) => typeof x === "string" && x);
 
     const rows: Array<{ id: string; latitude: number | null; longitude: number | null }> = [];
     const pageSize = 1000;
@@ -121,6 +128,7 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
         .gte("longitude", w).lte("longitude", e);
       if (territories.length > 0) q = q.in("payload->>Territory", territories);
       if (regions.length > 0) q = q.in("payload->>Region", regions);
+      if (districts.length > 0) q = q.in("payload->>District", districts);
       const { data: rowsPage, error } = await q.range(from, from + pageSize - 1);
       if (error) return { ok: false, error: error.message, pois: [], matches: [], assetCount: 0, poiCount: 0, matchedAssetCount: 0 };
       if (!rowsPage || rowsPage.length === 0) break;

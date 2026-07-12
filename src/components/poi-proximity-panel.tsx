@@ -56,6 +56,8 @@ export default function PoiProximityPanel({
           bbox,
           radiusM,
           matchMode,
+          territories: selectedTerritories,
+          regions: selectedRegions,
         },
       });
     },
@@ -66,10 +68,11 @@ export default function PoiProximityPanel({
         onResult(null);
         return;
       }
-      const result = { pois: r.pois, matches: r.matches, matchedAssetCount: r.matchedAssetCount };
+      const result = { pois: r.pois, matches: r.matches, matchedAssetCount: r.matchedAssetCount, elapsedMs: r.elapsedMs };
       setLastResult(result);
       onResult({ pois: r.pois, matches: r.matches, radiusM });
-      toast.success(`พบ ${r.poiCount} POI · ${r.matchedAssetCount} ป้ายใกล้เคียง`);
+      const ms = r.elapsedMs ? ` · ${(r.elapsedMs / 1000).toFixed(1)}s` : "";
+      toast.success(`พบ ${r.poiCount} POI · ${r.matchedAssetCount} ป้ายใกล้เคียง${ms}`);
     },
     onError: (e: Error) => toast.error(e.message),
   });

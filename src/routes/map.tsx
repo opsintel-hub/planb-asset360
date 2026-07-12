@@ -955,10 +955,6 @@ function MapPage() {
           </div>
         </div>
       )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-      </div>
     </div>
   );
 

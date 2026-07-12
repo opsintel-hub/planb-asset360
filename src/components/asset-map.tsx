@@ -67,6 +67,16 @@ function waypointIcon(index: number): L.DivIcon {
 
 type LatLng = [number, number];
 
+export type PoiMarker = {
+  id: string;
+  lat: number;
+  lng: number;
+  name: string;
+  icon: string;
+  color: string;
+  categoryLabel?: string;
+};
+
 type Props = {
   assets: MapAsset[];
   claimedCodes: Set<string>;
@@ -82,6 +92,11 @@ type Props = {
   onOriginPick?: (lat: number, lng: number) => void; // when originPickMode is on and user clicks map
   originPickMode?: boolean;
   showRadiusRings?: boolean; // default true; hide for inspection mode
+  // Phase 4 — POI proximity mode:
+  poiMarkers?: PoiMarker[];
+  poiRadiusMeters?: number;
+  focusPoiId?: string | null;
+  onBboxChange?: (bbox: [south: number, west: number, north: number, east: number]) => void;
 };
 
 export default function AssetMap({
@@ -98,6 +113,10 @@ export default function AssetMap({
   onOriginPick,
   originPickMode = false,
   showRadiusRings = true,
+  poiMarkers = [],
+  poiRadiusMeters = 0,
+  focusPoiId = null,
+  onBboxChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -106,6 +125,8 @@ export default function AssetMap({
   const drawLayerRef = useRef<L.LayerGroup | null>(null);
   const roadLayerRef = useRef<L.LayerGroup | null>(null);
   const originLayerRef = useRef<L.LayerGroup | null>(null);
+  const poiLayerRef = useRef<L.LayerGroup | null>(null);
+  const poiMarkerByIdRef = useRef<Map<string, L.Marker>>(new Map());
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -133,6 +154,7 @@ export default function AssetMap({
     roadLayerRef.current = L.layerGroup().addTo(map);
     drawLayerRef.current = L.layerGroup().addTo(map);
     originLayerRef.current = L.layerGroup().addTo(map);
+    poiLayerRef.current = L.layerGroup().addTo(map);
     setReady(true);
 
     return () => {
@@ -142,8 +164,22 @@ export default function AssetMap({
       drawLayerRef.current = null;
       roadLayerRef.current = null;
       originLayerRef.current = null;
+      poiLayerRef.current = null;
     };
   }, []);
+
+  // Emit bbox changes (for POI search area)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !onBboxChange) return;
+    const emit = () => {
+      const b = map.getBounds();
+      onBboxChange([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]);
+    };
+    emit();
+    map.on("moveend", emit);
+    return () => { map.off("moveend", emit); };
+  }, [ready, onBboxChange]);
 
   // Map click interactions (draw mode / origin pick)
   useEffect(() => {
@@ -251,6 +287,51 @@ export default function AssetMap({
     m.bindPopup(`<div style="font-weight:700;">${escapeHtml(origin.name ?? "ต้นทาง")}</div>`);
     m.addTo(layer);
   }, [origin, ready]);
+
+  // Render POI markers + optional radius circles
+  useEffect(() => {
+    const layer = poiLayerRef.current;
+    if (!ready || !layer) return;
+    layer.clearLayers();
+    poiMarkerByIdRef.current.clear();
+    if (poiMarkers.length === 0) return;
+    for (const p of poiMarkers) {
+      const html = `
+        <div style="position:relative;width:28px;height:28px;">
+          <div style="position:absolute;inset:0;border-radius:9999px;background:${p.color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>
+          <div style="position:absolute;inset:0;display:grid;place-items:center;font-size:14px;">${p.icon}</div>
+        </div>`;
+      const icon = L.divIcon({ html, className: "poi-pin", iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+      const m = L.marker([p.lat, p.lng], { icon, zIndexOffset: 500 });
+      const popup = `<div style="min-width:180px;font-size:12px;">
+        <div style="font-weight:700;">${escapeHtml(p.name)}</div>
+        <div style="color:#6b7280;">${escapeHtml(p.categoryLabel ?? "")}</div>
+      </div>`;
+      m.bindPopup(popup);
+      m.addTo(layer);
+      poiMarkerByIdRef.current.set(p.id, m);
+      if (poiRadiusMeters > 0) {
+        L.circle([p.lat, p.lng], {
+          radius: poiRadiusMeters,
+          color: p.color,
+          weight: 1,
+          fillColor: p.color,
+          fillOpacity: 0.08,
+        }).addTo(layer);
+      }
+    }
+  }, [poiMarkers, poiRadiusMeters, ready]);
+
+  // Focus a POI when requested
+  useEffect(() => {
+    if (!ready || !focusPoiId) return;
+    const map = mapRef.current;
+    const m = poiMarkerByIdRef.current.get(focusPoiId);
+    if (!map || !m) return;
+    map.setView(m.getLatLng(), Math.max(map.getZoom(), 15), { animate: true });
+    setTimeout(() => m.openPopup(), 200);
+  }, [focusPoiId, ready, poiMarkers]);
+
 
   // Render asset markers
   useEffect(() => {

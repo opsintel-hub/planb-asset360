@@ -74,7 +74,12 @@ import { Copy, ChevronDown, QrCode, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
 import QRCode from "qrcode";
 
+import type { PoiMarker } from "@/components/asset-map";
+import type { POI, POIMatch } from "@/lib/poi-search.functions";
+import { PRESET_BY_KEY } from "@/lib/overpass";
+
 const AssetMap = lazy(() => import("@/components/asset-map"));
+const PoiProximityPanel = lazy(() => import("@/components/poi-proximity-panel"));
 
 export const Route = createFileRoute("/map")({
   head: () => ({
@@ -144,7 +149,7 @@ function fmtDur(sec: number) {
 }
 
 // ---------- Types ----------
-type Mode = "corridor" | "inspection";
+type Mode = "corridor" | "inspection" | "poi";
 
 type Stop = {
   key: string; // client key
@@ -254,6 +259,38 @@ function MapPage() {
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
   const [routing, setRouting] = useState(false);
 
+  // ---------- POI proximity state ----------
+  const [mapBbox, setMapBbox] = useState<[number, number, number, number] | null>(null);
+  const [poiResult, setPoiResult] = useState<{ pois: POI[]; matches: POIMatch[]; radiusM: number } | null>(null);
+  const [focusPoiId, setFocusPoiId] = useState<string | null>(null);
+
+  const assetIndexById = useMemo(() => {
+    const m = new Map<string, { old_code: string | null; name: string | null }>();
+    for (const a of allAssets) m.set(a.id, { old_code: a.old_code, name: a.name });
+    return m;
+  }, [allAssets]);
+
+  const poiMarkers = useMemo<PoiMarker[]>(() => {
+    if (mode !== "poi" || !poiResult) return [];
+    return poiResult.pois.map((p) => {
+      const preset = PRESET_BY_KEY[p.presetKey];
+      return {
+        id: p.id,
+        lat: p.lat,
+        lng: p.lng,
+        name: p.name,
+        icon: preset?.icon ?? "📍",
+        color: preset?.color ?? "#a855f7",
+        categoryLabel: preset?.label ?? p.presetKey,
+      };
+    });
+  }, [mode, poiResult]);
+
+  const poiMatchedAssetIds = useMemo(() => {
+    if (mode !== "poi" || !poiResult) return null;
+    return new Set(poiResult.matches.map((m) => m.assetId));
+  }, [mode, poiResult]);
+
   // ---------- Filters ----------
   const filtered = useMemo(() => {
     const projectDepts = fProject !== "all" ? new Set(PROJECT_TO_DEPARTMENTS[fProject] ?? []) : null;
@@ -282,8 +319,9 @@ function MapPage() {
     if (mode === "corridor" && polyline.length > 0) return new Set(nearby.map((a) => a.id));
     if (mode === "inspection" && stops.length > 0)
       return new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
+    if (mode === "poi" && poiMatchedAssetIds) return poiMatchedAssetIds;
     return null;
-  }, [mode, polyline.length, nearby, stops]);
+  }, [mode, polyline.length, nearby, stops, poiMatchedAssetIds]);
 
   const suggestions = useMemo(() => {
     const qq = q.trim().toLowerCase();
@@ -694,6 +732,13 @@ function MapPage() {
         >
           <Navigation className="size-3.5 inline mr-1" /> Inspection
         </button>
+        <button
+          className={cn("px-3 h-9 border-l", mode === "poi" ? "bg-primary text-primary-foreground" : "hover:bg-accent")}
+          onClick={() => setMode("poi")}
+          title="ค้นหาป้ายใกล้ POI (ห้าง โชว์รูม BTS ฯลฯ)"
+        >
+          <MapPin className="size-3.5 inline mr-1" /> POI Search
+        </button>
       </div>
 
       <div ref={searchWrapRef} className="relative flex-1 min-w-[220px]">
@@ -767,8 +812,8 @@ function MapPage() {
     </div>
   );
 
-  // Mode-specific action bar
-  const modeBar = (
+  // Mode-specific action bar (hidden in POI mode — panel has its own controls)
+  const modeBar = mode === "poi" ? null : (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card/50 p-2 text-xs">
       {mode === "corridor" ? (
         <>
@@ -1050,10 +1095,28 @@ function MapPage() {
       </div>
     ) : null;
 
-  const showRightPanel = (mode === "corridor" && polyline.length > 0) || mode === "inspection";
+  const poiPanel =
+    mode === "poi" ? (
+      <div style={panelStyle(fullscreen)}>
+        <Suspense fallback={<Skeleton className="w-full h-full" />}>
+          <PoiProximityPanel
+            bbox={mapBbox}
+            onResult={(r) => {
+              setPoiResult(r);
+              setFocusPoiId(null);
+            }}
+            onFocusAsset={(id) => setFocusId(id)}
+            onFocusPOI={(p) => setFocusPoiId(p.id)}
+            assetIndexById={assetIndexById}
+          />
+        </Suspense>
+      </div>
+    ) : null;
+
+  const showRightPanel = (mode === "corridor" && polyline.length > 0) || mode === "inspection" || mode === "poi";
 
   const mapAndPanel = (
-    <div className="grid gap-3" style={{ gridTemplateColumns: showRightPanel ? "1fr 320px" : "1fr" }}>
+    <div className="grid gap-3" style={{ gridTemplateColumns: showRightPanel ? "1fr 340px" : "1fr" }}>
       <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden relative z-0"
         style={fullscreen ? { height: "calc(100vh - 200px)" } : { height: "calc(100vh - 280px)", minHeight: 480 }}>
         {loadingAssets ? (
@@ -1081,12 +1144,16 @@ function MapPage() {
                   setRouteInfo(null);
                 }}
                 showRadiusRings={mode === "corridor"}
+                poiMarkers={poiMarkers}
+                poiRadiusMeters={mode === "poi" && poiResult ? poiResult.radiusM : 0}
+                focusPoiId={focusPoiId}
+                onBboxChange={setMapBbox}
               />
             </Suspense>
           </ClientOnly>
         )}
       </div>
-      {showRightPanel && rightPanel}
+      {mode === "poi" ? poiPanel : (showRightPanel && rightPanel)}
     </div>
   );
 
@@ -1209,7 +1276,7 @@ function MapPage() {
     <div className="space-y-3">
       <PageHeader
         title="Asset Map"
-        subtitle="Corridor: วาดเส้นทาง ค้นป้ายในรัศมี · Inspection: วางแผนตรวจสื่อด้วย auto-routing (OSRM)"
+        subtitle="Corridor: วาดเส้นทาง · Inspection: วางแผนตรวจสื่อ (OSRM) · POI Search: หาป้ายใกล้ห้าง/โชว์รูม/BTS (Overpass)"
       />
       {toolbar}
       {modeBar}

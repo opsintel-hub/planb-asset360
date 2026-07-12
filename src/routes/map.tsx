@@ -1177,8 +1177,9 @@ function MapPage() {
             <div className="flex justify-end">
               <button
                 onClick={() => {
-                  if (!pendingOriginLatLng && origin) setPendingOriginLatLng({ lat: origin.lat, lng: origin.lng });
-                  saveLocMut.mutate();
+                  const pt = pendingOriginLatLng ?? (origin ? { lat: origin.lat, lng: origin.lng } : null);
+                  if (!pt) return;
+                  saveLocMut.mutate(pt);
                 }}
                 disabled={saveLocMut.isPending || (!pendingOriginLatLng && !origin) || !newLocName.trim()}
                 className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs inline-flex items-center gap-1 disabled:opacity-40"

@@ -58,19 +58,38 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
         className="bg-card border rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
       >
         {/* Header */}
-        <div className="sticky top-0 bg-card border-b p-4 flex items-start justify-between z-10">
-          <div>
+        <div className="sticky top-0 bg-card border-b p-4 flex items-start justify-between z-10 gap-3">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <MapPin className="size-3" />
               วิเคราะห์พื้นที่รอบป้าย ({radiusM} ม.)
             </div>
-            <div className="text-base font-semibold">{asset.old_code ?? "—"}</div>
-            <div className="text-xs text-muted-foreground">{asset.name ?? asset.location ?? "—"}</div>
+            <div className="text-base font-semibold truncate">{asset.old_code ?? "—"}</div>
+            <div className="text-xs text-muted-foreground truncate">{asset.name ?? asset.location ?? "—"}</div>
+            <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px]">
+              <span className="text-muted-foreground">Department:</span>
+              <span className="truncate">{asset.department ?? "—"}</span>
+              <span className="text-muted-foreground">Media Type:</span>
+              <span className="truncate">{asset.media_type ?? "—"}</span>
+              <span className="text-muted-foreground">Location:</span>
+              <span className="truncate">{asset.location ?? "—"}</span>
+              <span className="text-muted-foreground">Status:</span>
+              <span className="truncate">{asset.status ?? "—"}</span>
+            </div>
+            {asset.old_code && (
+              <a
+                href={`/search?q=${encodeURIComponent(asset.old_code)}`}
+                className="inline-block mt-2 text-xs text-primary hover:underline"
+              >
+                ดูประวัติป้าย →
+              </a>
+            )}
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-accent rounded">
+          <button onClick={onClose} className="p-1 hover:bg-accent rounded shrink-0">
             <X className="size-4" />
           </button>
         </div>
+
 
         {/* Radius selector */}
         <div className="p-4 border-b flex items-center gap-2 flex-wrap">

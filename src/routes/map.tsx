@@ -74,11 +74,12 @@ import { Copy, ChevronDown, QrCode, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
 import QRCode from "qrcode";
 
-const AssetMap = lazy(() => import("@/components/asset-map"));
-const PoiProximityPanel = lazy(() => import("@/components/poi-proximity-panel"));
 import type { PoiMarker } from "@/components/asset-map";
 import type { POI, POIMatch } from "@/lib/poi-search.functions";
 import { PRESET_BY_KEY } from "@/lib/overpass";
+
+const AssetMap = lazy(() => import("@/components/asset-map"));
+const PoiProximityPanel = lazy(() => import("@/components/poi-proximity-panel"));
 
 export const Route = createFileRoute("/map")({
   head: () => ({

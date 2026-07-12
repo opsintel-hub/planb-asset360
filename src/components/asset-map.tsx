@@ -120,7 +120,9 @@ export default function AssetMap({
   poiRadiusMeters = 0,
   focusPoiId = null,
   onBboxChange,
+  onSelectAsset,
 }: Props) {
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);

@@ -619,14 +619,14 @@ function MapPage() {
   const [pendingOriginLatLng, setPendingOriginLatLng] = useState<{ lat: number; lng: number } | null>(null);
 
   const saveLocMut = useMutation({
-    mutationFn: async () => {
-      if (!newLocName.trim() || !pendingOriginLatLng) throw new Error("ตั้งชื่อและเลือกพิกัดก่อน");
+    mutationFn: async (arg: { lat: number; lng: number }) => {
+      if (!newLocName.trim()) throw new Error("กรุณาตั้งชื่อ");
       return upsertLocFn({
         data: {
           name: newLocName,
           address: newLocAddr || null,
-          lat: pendingOriginLatLng.lat,
-          lng: pendingOriginLatLng.lng,
+          lat: arg.lat,
+          lng: arg.lng,
           is_shared: newLocShared,
         },
       });
@@ -1177,8 +1177,9 @@ function MapPage() {
             <div className="flex justify-end">
               <button
                 onClick={() => {
-                  if (!pendingOriginLatLng && origin) setPendingOriginLatLng({ lat: origin.lat, lng: origin.lng });
-                  saveLocMut.mutate();
+                  const pt = pendingOriginLatLng ?? (origin ? { lat: origin.lat, lng: origin.lng } : null);
+                  if (!pt) return;
+                  saveLocMut.mutate(pt);
                 }}
                 disabled={saveLocMut.isPending || (!pendingOriginLatLng && !origin) || !newLocName.trim()}
                 className="h-9 px-3 rounded-md bg-primary text-primary-foreground text-xs inline-flex items-center gap-1 disabled:opacity-40"

@@ -7,7 +7,6 @@ import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import type { MapAsset } from "@/lib/map.functions";
 import { projectForDepartment } from "@/lib/project-department-map";
 
-// Project -> hex color
 export const PROJECT_COLORS: Record<string, string> = {
   "7-Eleven": "#ef4444",
   Airport: "#3b82f6",
@@ -44,6 +43,28 @@ function pinIcon(color: string, warning: boolean, dim: boolean): L.DivIcon {
   });
 }
 
+function originIcon(): L.DivIcon {
+  const html = `
+    <div style="position:relative;width:28px;height:28px;">
+      <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="14" cy="14" r="12" fill="#22c55e" stroke="white" stroke-width="2"/>
+        <path d="M14 6l2.4 5 5.6.8-4 3.9.9 5.5L14 18.5 9.1 21.2l.9-5.5-4-3.9 5.6-.8z" fill="white"/>
+      </svg>
+    </div>`;
+  return L.divIcon({ html, className: "origin-pin", iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+}
+
+function waypointIcon(index: number): L.DivIcon {
+  const html = `
+    <div style="position:relative;width:26px;height:26px;">
+      <svg width="26" height="26" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="13" cy="13" r="11" fill="#1d4ed8" stroke="white" stroke-width="2"/>
+      </svg>
+      <div style="position:absolute;inset:0;color:white;font-weight:700;font-size:12px;display:grid;place-items:center;">${index}</div>
+    </div>`;
+  return L.divIcon({ html, className: "wp-pin", iconSize: [26, 26], iconAnchor: [13, 13] });
+}
+
 type LatLng = [number, number];
 
 type Props = {
@@ -55,6 +76,12 @@ type Props = {
   onPolylineChange?: (pts: LatLng[]) => void;
   radiusMeters?: number;
   nearbyIds?: Set<string> | null;
+  // Phase 3 additions:
+  roadPolyline?: LatLng[] | null; // actual road-following route (from OSRM)
+  origin?: { lat: number; lng: number; name?: string } | null;
+  onOriginPick?: (lat: number, lng: number) => void; // when originPickMode is on and user clicks map
+  originPickMode?: boolean;
+  showRadiusRings?: boolean; // default true; hide for inspection mode
 };
 
 export default function AssetMap({
@@ -66,12 +93,19 @@ export default function AssetMap({
   onPolylineChange,
   radiusMeters = 200,
   nearbyIds = null,
+  roadPolyline = null,
+  origin = null,
+  onOriginPick,
+  originPickMode = false,
+  showRadiusRings = true,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const markerByIdRef = useRef<Map<string, L.Marker>>(new Map());
   const drawLayerRef = useRef<L.LayerGroup | null>(null);
+  const roadLayerRef = useRef<L.LayerGroup | null>(null);
+  const originLayerRef = useRef<L.LayerGroup | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -94,11 +128,11 @@ export default function AssetMap({
     });
     map.addLayer(cluster);
 
-    const drawLayer = L.layerGroup().addTo(map);
-
     mapRef.current = map;
     clusterRef.current = cluster;
-    drawLayerRef.current = drawLayer;
+    roadLayerRef.current = L.layerGroup().addTo(map);
+    drawLayerRef.current = L.layerGroup().addTo(map);
+    originLayerRef.current = L.layerGroup().addTo(map);
     setReady(true);
 
     return () => {
@@ -106,25 +140,31 @@ export default function AssetMap({
       mapRef.current = null;
       clusterRef.current = null;
       drawLayerRef.current = null;
+      roadLayerRef.current = null;
+      originLayerRef.current = null;
     };
   }, []);
 
-  // Drawing interactions
+  // Map click interactions (draw mode / origin pick)
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
     const container = map.getContainer();
-    container.style.cursor = drawMode ? "crosshair" : "";
+    container.style.cursor = drawMode || originPickMode ? "crosshair" : "";
 
-    if (!drawMode) return;
+    if (!drawMode && !originPickMode) return;
     const onClick = (e: L.LeafletMouseEvent) => {
-      const next: LatLng[] = [...polyline, [e.latlng.lat, e.latlng.lng]];
-      onPolylineChange?.(next);
+      if (originPickMode && onOriginPick) {
+        onOriginPick(e.latlng.lat, e.latlng.lng);
+        return;
+      }
+      if (drawMode && onPolylineChange) {
+        onPolylineChange([...polyline, [e.latlng.lat, e.latlng.lng]]);
+      }
     };
     const onRightClick = (e: L.LeafletMouseEvent) => {
       e.originalEvent?.preventDefault?.();
-      if (polyline.length === 0) return;
-      onPolylineChange?.(polyline.slice(0, -1));
+      if (drawMode && polyline.length > 0 && onPolylineChange) onPolylineChange(polyline.slice(0, -1));
     };
     map.on("click", onClick);
     map.on("contextmenu", onRightClick);
@@ -133,42 +173,86 @@ export default function AssetMap({
       map.off("contextmenu", onRightClick);
       container.style.cursor = "";
     };
-  }, [drawMode, polyline, onPolylineChange, ready]);
+  }, [drawMode, originPickMode, polyline, onPolylineChange, onOriginPick, ready]);
 
-  // Render polyline + radius buffer
+  // Render waypoints (draggable) + radius buffer + straight lines
   useEffect(() => {
     const layer = drawLayerRef.current;
     if (!ready || !layer) return;
     layer.clearLayers();
     if (polyline.length === 0) return;
 
-    // Vertex circles (radius buffer visualization)
-    for (const [lat, lng] of polyline) {
-      L.circle([lat, lng], {
-        radius: radiusMeters,
-        color: "#2563eb",
-        weight: 1,
-        fillColor: "#3b82f6",
-        fillOpacity: 0.1,
-      }).addTo(layer);
-      L.circleMarker([lat, lng], {
-        radius: 5,
-        color: "#1d4ed8",
-        weight: 2,
-        fillColor: "#ffffff",
-        fillOpacity: 1,
-      }).addTo(layer);
+    // Radius rings — only if requested and no road polyline covers them
+    if (showRadiusRings) {
+      for (const [lat, lng] of polyline) {
+        L.circle([lat, lng], {
+          radius: radiusMeters,
+          color: "#2563eb",
+          weight: 1,
+          fillColor: "#3b82f6",
+          fillOpacity: 0.08,
+        }).addTo(layer);
+      }
     }
-    if (polyline.length >= 2) {
+
+    // Draggable numbered waypoints
+    polyline.forEach(([lat, lng], i) => {
+      const m = L.marker([lat, lng], {
+        icon: waypointIcon(i + 1),
+        draggable: !!onPolylineChange,
+      });
+      m.on("dragend", () => {
+        const ll = m.getLatLng();
+        const next = polyline.slice();
+        next[i] = [ll.lat, ll.lng];
+        onPolylineChange?.(next);
+      });
+      // Right-click on waypoint deletes it
+      m.on("contextmenu", (e: L.LeafletMouseEvent) => {
+        e.originalEvent?.preventDefault?.();
+        const next = polyline.slice();
+        next.splice(i, 1);
+        onPolylineChange?.(next);
+      });
+      m.addTo(layer);
+    });
+
+    // Straight guide polyline (shown when no road polyline)
+    if (polyline.length >= 2 && (!roadPolyline || roadPolyline.length < 2)) {
       L.polyline(polyline, {
         color: "#1d4ed8",
-        weight: 4,
-        opacity: 0.9,
+        weight: 3,
+        opacity: 0.7,
+        dashArray: "6 6",
       }).addTo(layer);
     }
-  }, [polyline, radiusMeters, ready]);
+  }, [polyline, radiusMeters, ready, onPolylineChange, roadPolyline, showRadiusRings]);
 
-  // Render markers
+  // Render road (OSRM) polyline
+  useEffect(() => {
+    const layer = roadLayerRef.current;
+    if (!ready || !layer) return;
+    layer.clearLayers();
+    if (!roadPolyline || roadPolyline.length < 2) return;
+    L.polyline(roadPolyline, {
+      color: "#1d4ed8",
+      weight: 5,
+      opacity: 0.9,
+    }).addTo(layer);
+  }, [roadPolyline, ready]);
+
+  // Render origin marker
+  useEffect(() => {
+    const layer = originLayerRef.current;
+    if (!ready || !layer) return;
+    layer.clearLayers();
+    if (!origin) return;
+    const m = L.marker([origin.lat, origin.lng], { icon: originIcon() });
+    m.bindPopup(`<div style="font-weight:700;">${escapeHtml(origin.name ?? "ต้นทาง")}</div>`);
+    m.addTo(layer);
+  }, [origin, ready]);
+
+  // Render asset markers
   useEffect(() => {
     if (!ready) return;
     const cluster = clusterRef.current;
@@ -202,11 +286,11 @@ export default function AssetMap({
     }
     cluster.addLayers(markers);
 
-    if (markers.length > 0 && !focusId && polyline.length === 0) {
+    if (markers.length > 0 && !focusId && polyline.length === 0 && !roadPolyline) {
       const bounds = L.latLngBounds(markers.map((m) => m.getLatLng()));
       if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
     }
-  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length]);
+  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline]);
 
   // Focus a specific asset when requested
   useEffect(() => {
@@ -235,10 +319,16 @@ export default function AssetMap({
       <div ref={containerRef} className="w-full h-full rounded-lg overflow-hidden" />
       <div className="absolute bottom-3 right-3 z-[400] bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-slate-100 border rounded-lg shadow-md p-3 text-xs max-w-[240px]">
         <div className="font-semibold mb-2">คำอธิบายสัญลักษณ์</div>
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-1.5">
           <span className="inline-block w-4 h-4 rounded-full bg-yellow-400 text-slate-900 text-[10px] font-bold grid place-items-center border">!</span>
           <span>กำลังซ่อม</span>
         </div>
+        {origin && (
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="inline-block w-4 h-4 rounded-full bg-green-500 border" />
+            <span>ต้นทาง</span>
+          </div>
+        )}
         <div className="space-y-1">
           {legendItems.map((p) => (
             <div key={p} className="flex items-center gap-2">
@@ -246,9 +336,7 @@ export default function AssetMap({
               <span className="truncate">{p}</span>
             </div>
           ))}
-          {legendItems.length === 0 && (
-            <div className="opacity-60">—</div>
-          )}
+          {legendItems.length === 0 && <div className="opacity-60">—</div>}
         </div>
       </div>
     </div>

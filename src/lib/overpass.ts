@@ -66,6 +66,41 @@ export const PRESET_BY_KEY: Record<string, POIPreset> = Object.fromEntries(
 
 export const OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
 
+export const OVERPASS_ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.osm.ch/api/interpreter",
+];
+
+/**
+ * Fetch Overpass with headers required by public endpoints (User-Agent + Accept).
+ * Falls back through mirrors on 4xx/5xx.
+ */
+export async function fetchOverpass(query: string): Promise<Response> {
+  let lastErr: unknown = null;
+  let lastResp: Response | null = null;
+  for (const url of OVERPASS_ENDPOINTS) {
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Accept": "application/json",
+          "User-Agent": "AssetHistory360/1.0 (contact: admin@example.com)",
+        },
+        body: "data=" + encodeURIComponent(query),
+      });
+      if (resp.ok) return resp;
+      lastResp = resp;
+      // Try next mirror on 4xx/5xx
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  if (lastResp) return lastResp;
+  throw lastErr instanceof Error ? lastErr : new Error("Overpass unreachable");
+}
+
 export type Bbox = [south: number, west: number, north: number, east: number];
 
 function escapeRegex(s: string): string {

@@ -232,11 +232,7 @@ out center tags;`;
 
     let raw: OverpassResponse;
     try {
-      const resp = await fetch(OVERPASS_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "data=" + encodeURIComponent(query),
-      });
+      const resp = await fetchOverpass(query);
       if (!resp.ok) {
         const t = await resp.text().catch(() => "");
         return emptyResult(lat, lng, radiusM, `Overpass ${resp.status}: ${t.slice(0, 120)}`);

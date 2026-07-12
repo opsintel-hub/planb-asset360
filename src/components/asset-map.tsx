@@ -67,6 +67,16 @@ function waypointIcon(index: number): L.DivIcon {
 
 type LatLng = [number, number];
 
+export type PoiMarker = {
+  id: string;
+  lat: number;
+  lng: number;
+  name: string;
+  icon: string;
+  color: string;
+  categoryLabel?: string;
+};
+
 type Props = {
   assets: MapAsset[];
   claimedCodes: Set<string>;
@@ -82,6 +92,11 @@ type Props = {
   onOriginPick?: (lat: number, lng: number) => void; // when originPickMode is on and user clicks map
   originPickMode?: boolean;
   showRadiusRings?: boolean; // default true; hide for inspection mode
+  // Phase 4 — POI proximity mode:
+  poiMarkers?: PoiMarker[];
+  poiRadiusMeters?: number;
+  focusPoiId?: string | null;
+  onBboxChange?: (bbox: [south: number, west: number, north: number, east: number]) => void;
 };
 
 export default function AssetMap({

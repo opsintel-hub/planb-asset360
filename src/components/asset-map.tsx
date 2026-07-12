@@ -113,6 +113,10 @@ export default function AssetMap({
   onOriginPick,
   originPickMode = false,
   showRadiusRings = true,
+  poiMarkers = [],
+  poiRadiusMeters = 0,
+  focusPoiId = null,
+  onBboxChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -121,6 +125,8 @@ export default function AssetMap({
   const drawLayerRef = useRef<L.LayerGroup | null>(null);
   const roadLayerRef = useRef<L.LayerGroup | null>(null);
   const originLayerRef = useRef<L.LayerGroup | null>(null);
+  const poiLayerRef = useRef<L.LayerGroup | null>(null);
+  const poiMarkerByIdRef = useRef<Map<string, L.Marker>>(new Map());
   const [ready, setReady] = useState(false);
 
   useEffect(() => {

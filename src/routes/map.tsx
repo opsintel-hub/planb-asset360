@@ -732,6 +732,13 @@ function MapPage() {
         >
           <Navigation className="size-3.5 inline mr-1" /> Inspection
         </button>
+        <button
+          className={cn("px-3 h-9 border-l", mode === "poi" ? "bg-primary text-primary-foreground" : "hover:bg-accent")}
+          onClick={() => setMode("poi")}
+          title="ค้นหาป้ายใกล้ POI (ห้าง โชว์รูม BTS ฯลฯ)"
+        >
+          <MapPin className="size-3.5 inline mr-1" /> POI Search
+        </button>
       </div>
 
       <div ref={searchWrapRef} className="relative flex-1 min-w-[220px]">

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Database, RefreshCw, CheckCircle2, Server, AlertTriangle, Tag, FileSpreadsheet } from "lucide-react";
+import { Database, RefreshCw, CheckCircle2, Server, AlertTriangle, Tag, FileSpreadsheet, Zap } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ import { DiagramMappingsSection } from "@/components/diagram-mappings-section";
 import { MappingImportExport } from "@/components/mapping-import-export";
 import { DatabaseSchemaSection } from "@/components/database-schema-section";
 import { MssqlTableControls, type TablesEnabled } from "@/components/mssql-table-controls";
+import { ExternalApisSection } from "@/components/external-apis-section";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -36,10 +37,11 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const [active, setActive] = useState<"main" | "schema" | "airtable" | "mappings" | "informed">("main");
+  const [active, setActive] = useState<"main" | "schema" | "apis" | "airtable" | "mappings" | "informed">("main");
   const sections = [
     { id: "main", label: "การเชื่อมต่อหลัก", icon: Server },
     { id: "schema", label: "Database Schema", icon: Database },
+    { id: "apis", label: "API ภายนอก", icon: Zap },
     { id: "airtable", label: "Airtable Connections", icon: Database },
     { id: "mappings", label: "Diagram Mappings", icon: Tag },
     { id: "informed", label: "Informed Mapping (PM Insights)", icon: FileSpreadsheet },
@@ -71,6 +73,8 @@ function SettingsPage() {
         <MainSettings />
       ) : active === "schema" ? (
         <DatabaseSchemaSection />
+      ) : active === "apis" ? (
+        <ExternalApisSection />
       ) : active === "airtable" ? (
         <AirtableSection />
       ) : active === "mappings" ? (

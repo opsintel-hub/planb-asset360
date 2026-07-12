@@ -154,6 +154,7 @@ export default function AssetMap({
     roadLayerRef.current = L.layerGroup().addTo(map);
     drawLayerRef.current = L.layerGroup().addTo(map);
     originLayerRef.current = L.layerGroup().addTo(map);
+    poiLayerRef.current = L.layerGroup().addTo(map);
     setReady(true);
 
     return () => {
@@ -163,8 +164,22 @@ export default function AssetMap({
       drawLayerRef.current = null;
       roadLayerRef.current = null;
       originLayerRef.current = null;
+      poiLayerRef.current = null;
     };
   }, []);
+
+  // Emit bbox changes (for POI search area)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!ready || !map || !onBboxChange) return;
+    const emit = () => {
+      const b = map.getBounds();
+      onBboxChange([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]);
+    };
+    emit();
+    map.on("moveend", emit);
+    return () => { map.off("moveend", emit); };
+  }, [ready, onBboxChange]);
 
   // Map click interactions (draw mode / origin pick)
   useEffect(() => {

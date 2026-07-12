@@ -1152,6 +1152,8 @@ function MapPage() {
                 poiRadiusMeters={mode === "poi" && poiResult ? poiResult.radiusM : 0}
                 focusPoiId={focusPoiId}
                 onBboxChange={setMapBbox}
+                onSelectAsset={mode === "inspection" ? undefined : setAnalyticsAsset}
+
               />
             </Suspense>
           </ClientOnly>

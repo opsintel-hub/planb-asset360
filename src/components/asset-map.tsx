@@ -288,6 +288,51 @@ export default function AssetMap({
     m.addTo(layer);
   }, [origin, ready]);
 
+  // Render POI markers + optional radius circles
+  useEffect(() => {
+    const layer = poiLayerRef.current;
+    if (!ready || !layer) return;
+    layer.clearLayers();
+    poiMarkerByIdRef.current.clear();
+    if (poiMarkers.length === 0) return;
+    for (const p of poiMarkers) {
+      const html = `
+        <div style="position:relative;width:28px;height:28px;">
+          <div style="position:absolute;inset:0;border-radius:9999px;background:${p.color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>
+          <div style="position:absolute;inset:0;display:grid;place-items:center;font-size:14px;">${p.icon}</div>
+        </div>`;
+      const icon = L.divIcon({ html, className: "poi-pin", iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+      const m = L.marker([p.lat, p.lng], { icon, zIndexOffset: 500 });
+      const popup = `<div style="min-width:180px;font-size:12px;">
+        <div style="font-weight:700;">${escapeHtml(p.name)}</div>
+        <div style="color:#6b7280;">${escapeHtml(p.categoryLabel ?? "")}</div>
+      </div>`;
+      m.bindPopup(popup);
+      m.addTo(layer);
+      poiMarkerByIdRef.current.set(p.id, m);
+      if (poiRadiusMeters > 0) {
+        L.circle([p.lat, p.lng], {
+          radius: poiRadiusMeters,
+          color: p.color,
+          weight: 1,
+          fillColor: p.color,
+          fillOpacity: 0.08,
+        }).addTo(layer);
+      }
+    }
+  }, [poiMarkers, poiRadiusMeters, ready]);
+
+  // Focus a POI when requested
+  useEffect(() => {
+    if (!ready || !focusPoiId) return;
+    const map = mapRef.current;
+    const m = poiMarkerByIdRef.current.get(focusPoiId);
+    if (!map || !m) return;
+    map.setView(m.getLatLng(), Math.max(map.getZoom(), 15), { animate: true });
+    setTimeout(() => m.openPopup(), 200);
+  }, [focusPoiId, ready, poiMarkers]);
+
+
   // Render asset markers
   useEffect(() => {
     if (!ready) return;

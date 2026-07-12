@@ -57,8 +57,20 @@ import {
   buildKml,
   downloadText,
   googleMapsDirectionsUrl,
+  googleMapsAltDirectionsUrl,
+  appleMapsDirectionsUrl,
+  osmDirectionsUrl,
+  wazeNavigateUrl,
   type LatLng,
 } from "@/lib/osrm";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Copy, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
@@ -475,7 +487,21 @@ function MapPage() {
     }
     downloadText(`map-${mode}.kml`, "application/vnd.google-earth.kml+xml", buildKml(`Route ${mode}`, track, wpts));
   }
-  const gmapsUrl = mode === "inspection" && routePoints.length >= 2 ? googleMapsDirectionsUrl(routePoints) : "";
+  const hasRoute = mode === "inspection" && routePoints.length >= 2;
+  const gmapsUrl = hasRoute ? googleMapsDirectionsUrl(routePoints) : "";
+  const gmapsAltUrl = hasRoute ? googleMapsAltDirectionsUrl(routePoints) : "";
+  const appleUrl = hasRoute ? appleMapsDirectionsUrl(routePoints) : "";
+  const osmUrl = hasRoute ? osmDirectionsUrl(routePoints) : "";
+  const wazeUrl = hasRoute ? wazeNavigateUrl(routePoints) : "";
+  const copyGmapsUrl = async () => {
+    if (!gmapsUrl) return;
+    try {
+      await navigator.clipboard.writeText(gmapsUrl);
+      toast.success("คัดลอกลิงก์ Google Maps แล้ว");
+    } catch {
+      toast.error("คัดลอกไม่สำเร็จ");
+    }
+  };
 
   // ---------- Save/Load routes ----------
   const [saveOpen, setSaveOpen] = useState(false);
@@ -855,11 +881,37 @@ function MapPage() {
         <button onClick={exportKml} className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1" title="Export KML (Google Earth)">
           KML
         </button>
-        {gmapsUrl && (
-          <a href={gmapsUrl} target="_blank" rel="noreferrer" className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 text-blue-700 dark:text-blue-300" title="เปิดใน Google Maps">
-            <ExternalLink className="size-4" /> Maps
-          </a>
-        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            disabled={!hasRoute}
+            className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 text-blue-700 dark:text-blue-300 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={hasRoute ? "เปิดในบริการแผนที่" : "ต้องมีต้นทาง + ปลายทางอย่างน้อย 1 จุด"}
+          >
+            <ExternalLink className="size-4" /> Maps <ChevronDown className="size-3" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="z-[1100]">
+            <DropdownMenuItem asChild>
+              <a href={gmapsUrl} target="_blank" rel="noreferrer">Google Maps</a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={gmapsAltUrl} target="_blank" rel="noreferrer">Google Maps (google.co.th)</a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={osmUrl} target="_blank" rel="noreferrer">OpenStreetMap</a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={appleUrl} target="_blank" rel="noreferrer">Apple Maps (iOS/Mac)</a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={wazeUrl} target="_blank" rel="noreferrer">Waze (ปลายทางสุดท้าย)</a>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={copyGmapsUrl}>
+              <Copy className="size-3.5 mr-2" /> Copy Google Maps URL
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
       </div>
     </div>
   );

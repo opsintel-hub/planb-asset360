@@ -186,3 +186,39 @@ export function googleMapsDirectionsUrl(points: LatLng[]): string {
   if (via.length) params.set("waypoints", via.map(([la, ln]) => `${la},${ln}`).join("|"));
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
+
+// Alternate Google Maps host (some corporate networks block www.google.com but allow google.co.th).
+export function googleMapsAltDirectionsUrl(points: LatLng[]): string {
+  const u = googleMapsDirectionsUrl(points);
+  return u ? u.replace("www.google.com", "www.google.co.th") : "";
+}
+
+// Apple Maps directions (iOS/macOS). Only supports single origin -> destination.
+export function appleMapsDirectionsUrl(points: LatLng[]): string {
+  if (points.length < 2) return "";
+  const o = points[0];
+  const d = points[points.length - 1];
+  const params = new URLSearchParams({
+    saddr: `${o[0]},${o[1]}`,
+    daddr: `${d[0]},${d[1]}`,
+    dirflg: "d",
+  });
+  return `https://maps.apple.com/?${params.toString()}`;
+}
+
+// OpenStreetMap directions (OSRM engine).
+export function osmDirectionsUrl(points: LatLng[]): string {
+  if (points.length < 2) return "";
+  const route = points.map(([la, ln]) => `${la}%2C${ln}`).join("%3B");
+  const o = points[0];
+  const d = points[points.length - 1];
+  return `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${route}#map=13/${o[0]}/${o[1]}`;
+}
+
+// Waze — navigate to the final destination (Waze URL only supports one destination).
+export function wazeNavigateUrl(points: LatLng[]): string {
+  if (points.length < 1) return "";
+  const d = points[points.length - 1];
+  return `https://www.waze.com/ul?ll=${d[0]}%2C${d[1]}&navigate=yes`;
+}
+

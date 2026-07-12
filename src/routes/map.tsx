@@ -319,8 +319,9 @@ function MapPage() {
     if (mode === "corridor" && polyline.length > 0) return new Set(nearby.map((a) => a.id));
     if (mode === "inspection" && stops.length > 0)
       return new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
+    if (mode === "poi" && poiMatchedAssetIds) return poiMatchedAssetIds;
     return null;
-  }, [mode, polyline.length, nearby, stops]);
+  }, [mode, polyline.length, nearby, stops, poiMatchedAssetIds]);
 
   const suggestions = useMemo(() => {
     const qq = q.trim().toLowerCase();

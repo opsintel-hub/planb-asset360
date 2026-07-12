@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, ChevronsUpDown, Search, Loader2, X, MapPin, Download } from "lucide-react";
+import { Check, ChevronsUpDown, Search, Loader2, X, MapPin, Download, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { POI_PRESETS, PRESET_BY_KEY, type Bbox } from "@/lib/overpass";
-import { searchPOIsNearAssets, type POI, type POIMatch } from "@/lib/poi-search.functions";
+import { searchPOIsNearAssets, getPOIFilterOptions, type POI, type POIMatch } from "@/lib/poi-search.functions";
 
 const RADIUS_OPTIONS = [50, 100, 200, 500, 1000];
 
@@ -25,15 +25,26 @@ export default function PoiProximityPanel({
   bbox, onResult, onFocusAsset, onFocusPOI, assetIndexById,
 }: Props) {
   const searchFn = useServerFn(searchPOIsNearAssets);
+  const filterOptsFn = useServerFn(getPOIFilterOptions);
 
   const [selectedPresets, setSelectedPresets] = useState<string[]>(["mall", "car_dealer", "subway"]);
   const [freeText, setFreeText] = useState("");
   const [radiusM, setRadiusM] = useState(200);
   const [matchMode, setMatchMode] = useState<"any" | "all">("any");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  const [terrOpen, setTerrOpen] = useState(false);
+  const [regionOpen, setRegionOpen] = useState(false);
   const [lastResult, setLastResult] = useState<{
-    pois: POI[]; matches: POIMatch[]; matchedAssetCount: number;
+    pois: POI[]; matches: POIMatch[]; matchedAssetCount: number; elapsedMs?: number;
   } | null>(null);
+
+  const filterOpts = useQuery({
+    queryKey: ["poi-filter-options"],
+    queryFn: () => filterOptsFn(),
+    staleTime: 5 * 60_000,
+  });
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -45,6 +56,8 @@ export default function PoiProximityPanel({
           bbox,
           radiusM,
           matchMode,
+          territories: selectedTerritories,
+          regions: selectedRegions,
         },
       });
     },
@@ -55,10 +68,11 @@ export default function PoiProximityPanel({
         onResult(null);
         return;
       }
-      const result = { pois: r.pois, matches: r.matches, matchedAssetCount: r.matchedAssetCount };
+      const result = { pois: r.pois, matches: r.matches, matchedAssetCount: r.matchedAssetCount, elapsedMs: r.elapsedMs };
       setLastResult(result);
       onResult({ pois: r.pois, matches: r.matches, radiusM });
-      toast.success(`พบ ${r.poiCount} POI · ${r.matchedAssetCount} ป้ายใกล้เคียง`);
+      const ms = r.elapsedMs ? ` · ${(r.elapsedMs / 1000).toFixed(1)}s` : "";
+      toast.success(`พบ ${r.poiCount} POI · ${r.matchedAssetCount} ป้ายใกล้เคียง${ms}`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -135,6 +149,41 @@ export default function PoiProximityPanel({
       </div>
 
       <div className="p-3 space-y-3 border-b">
+        {/* Geographic filters (Territory / Region) — speeds up search a lot */}
+        <div className="rounded-md border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 p-2 space-y-2">
+          <div className="text-[11px] font-medium text-amber-900 dark:text-amber-100 uppercase flex items-center gap-1">
+            <Filter className="size-3" /> ตัวกรองพื้นที่ (เพิ่มความเร็ว)
+          </div>
+          <MultiSelectDropdown
+            open={terrOpen}
+            setOpen={setTerrOpen}
+            label="Territory / เขต"
+            placeholder="เลือก Territory…"
+            options={(filterOpts.data?.territories ?? []).map((t) => ({ value: t.value, label: `${t.value} (${t.count})` }))}
+            selected={selectedTerritories}
+            onToggle={(v) => setSelectedTerritories((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+            loading={filterOpts.isLoading}
+          />
+          <MultiSelectDropdown
+            open={regionOpen}
+            setOpen={setRegionOpen}
+            label="Region / ภาค"
+            placeholder="เลือก Region…"
+            options={(filterOpts.data?.regions ?? []).slice(0, 30).map((t) => ({ value: t.value, label: `${t.value} (${t.count})` }))}
+            selected={selectedRegions}
+            onToggle={(v) => setSelectedRegions((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+            loading={filterOpts.isLoading}
+          />
+          {(selectedTerritories.length > 0 || selectedRegions.length > 0) && (
+            <button
+              onClick={() => { setSelectedTerritories([]); setSelectedRegions([]); }}
+              className="text-[10px] text-amber-800 dark:text-amber-200 hover:underline"
+            >
+              ล้างตัวกรองพื้นที่
+            </button>
+          )}
+        </div>
+
         {/* Multi-select dropdown */}
         <div>
           <label className="text-[11px] font-medium text-muted-foreground uppercase">ประเภทสถานที่</label>
@@ -343,3 +392,80 @@ export default function PoiProximityPanel({
     </div>
   );
 }
+
+function MultiSelectDropdown({
+  open, setOpen, label, placeholder, options, selected, onToggle, loading,
+}: {
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  label: string;
+  placeholder: string;
+  options: Array<{ value: string; label: string }>;
+  selected: string[];
+  onToggle: (value: string) => void;
+  loading?: boolean;
+}) {
+  const summary = selected.length === 0
+    ? placeholder
+    : selected.length === 1
+      ? selected[0]
+      : `${selected.length} รายการ`;
+  return (
+    <div>
+      <div className="text-[10px] text-muted-foreground mb-1">{label}</div>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            disabled={loading}
+            className="h-8 w-full rounded-md border bg-background px-2.5 text-[11px] inline-flex items-center justify-between hover:bg-accent disabled:opacity-50"
+          >
+            <span className="truncate">{loading ? "กำลังโหลด…" : summary}</span>
+            <ChevronsUpDown className="size-3 opacity-60 shrink-0" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="p-0 w-[260px] z-[1100]" align="start">
+          <Command>
+            <CommandInput placeholder={`ค้นหา ${label}…`} />
+            <CommandList className="max-h-[240px]">
+              <CommandEmpty>ไม่พบ</CommandEmpty>
+              <CommandGroup>
+                {options.map((o) => {
+                  const sel = selected.includes(o.value);
+                  return (
+                    <CommandItem
+                      key={o.value}
+                      value={o.label}
+                      onSelect={() => onToggle(o.value)}
+                      className="cursor-pointer"
+                    >
+                      <div className={cn(
+                        "mr-2 size-4 rounded border grid place-items-center shrink-0",
+                        sel ? "bg-primary border-primary text-primary-foreground" : "bg-background",
+                      )}>
+                        {sel && <Check className="size-3" />}
+                      </div>
+                      <span className="text-xs truncate">{o.label}</span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          {selected.map((v) => (
+            <span key={v} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border bg-background">
+              {v}
+              <button onClick={() => onToggle(v)} className="opacity-60 hover:opacity-100">
+                <X className="size-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+

@@ -70,8 +70,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Copy, ChevronDown } from "lucide-react";
+import { Copy, ChevronDown, QrCode, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
+import QRCode from "qrcode";
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
 

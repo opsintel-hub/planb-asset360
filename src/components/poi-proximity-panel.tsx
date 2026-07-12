@@ -392,3 +392,80 @@ export default function PoiProximityPanel({
     </div>
   );
 }
+
+function MultiSelectDropdown({
+  open, setOpen, label, placeholder, options, selected, onToggle, loading,
+}: {
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  label: string;
+  placeholder: string;
+  options: Array<{ value: string; label: string }>;
+  selected: string[];
+  onToggle: (value: string) => void;
+  loading?: boolean;
+}) {
+  const summary = selected.length === 0
+    ? placeholder
+    : selected.length === 1
+      ? selected[0]
+      : `${selected.length} รายการ`;
+  return (
+    <div>
+      <div className="text-[10px] text-muted-foreground mb-1">{label}</div>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            disabled={loading}
+            className="h-8 w-full rounded-md border bg-background px-2.5 text-[11px] inline-flex items-center justify-between hover:bg-accent disabled:opacity-50"
+          >
+            <span className="truncate">{loading ? "กำลังโหลด…" : summary}</span>
+            <ChevronsUpDown className="size-3 opacity-60 shrink-0" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="p-0 w-[260px] z-[1100]" align="start">
+          <Command>
+            <CommandInput placeholder={`ค้นหา ${label}…`} />
+            <CommandList className="max-h-[240px]">
+              <CommandEmpty>ไม่พบ</CommandEmpty>
+              <CommandGroup>
+                {options.map((o) => {
+                  const sel = selected.includes(o.value);
+                  return (
+                    <CommandItem
+                      key={o.value}
+                      value={o.label}
+                      onSelect={() => onToggle(o.value)}
+                      className="cursor-pointer"
+                    >
+                      <div className={cn(
+                        "mr-2 size-4 rounded border grid place-items-center shrink-0",
+                        sel ? "bg-primary border-primary text-primary-foreground" : "bg-background",
+                      )}>
+                        {sel && <Check className="size-3" />}
+                      </div>
+                      <span className="text-xs truncate">{o.label}</span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          {selected.map((v) => (
+            <span key={v} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border bg-background">
+              {v}
+              <button onClick={() => onToggle(v)} className="opacity-60 hover:opacity-100">
+                <X className="size-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+

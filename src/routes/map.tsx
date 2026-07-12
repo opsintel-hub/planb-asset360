@@ -57,8 +57,20 @@ import {
   buildKml,
   downloadText,
   googleMapsDirectionsUrl,
+  googleMapsAltDirectionsUrl,
+  appleMapsDirectionsUrl,
+  osmDirectionsUrl,
+  wazeNavigateUrl,
   type LatLng,
 } from "@/lib/osrm";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Copy, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 const AssetMap = lazy(() => import("@/components/asset-map"));

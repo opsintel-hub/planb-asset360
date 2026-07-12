@@ -32,6 +32,7 @@ export type POISearchInput = {
   matchMode?: "any" | "all";
   territories?: string[] | null;
   regions?: string[] | null;
+  districts?: string[] | null;
 };
 
 export type POISearchResult = {

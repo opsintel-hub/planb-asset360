@@ -487,7 +487,21 @@ function MapPage() {
     }
     downloadText(`map-${mode}.kml`, "application/vnd.google-earth.kml+xml", buildKml(`Route ${mode}`, track, wpts));
   }
-  const gmapsUrl = mode === "inspection" && routePoints.length >= 2 ? googleMapsDirectionsUrl(routePoints) : "";
+  const hasRoute = mode === "inspection" && routePoints.length >= 2;
+  const gmapsUrl = hasRoute ? googleMapsDirectionsUrl(routePoints) : "";
+  const gmapsAltUrl = hasRoute ? googleMapsAltDirectionsUrl(routePoints) : "";
+  const appleUrl = hasRoute ? appleMapsDirectionsUrl(routePoints) : "";
+  const osmUrl = hasRoute ? osmDirectionsUrl(routePoints) : "";
+  const wazeUrl = hasRoute ? wazeNavigateUrl(routePoints) : "";
+  const copyGmapsUrl = async () => {
+    if (!gmapsUrl) return;
+    try {
+      await navigator.clipboard.writeText(gmapsUrl);
+      toast.success("คัดลอกลิงก์ Google Maps แล้ว");
+    } catch {
+      toast.error("คัดลอกไม่สำเร็จ");
+    }
+  };
 
   // ---------- Save/Load routes ----------
   const [saveOpen, setSaveOpen] = useState(false);

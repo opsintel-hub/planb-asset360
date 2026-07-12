@@ -328,6 +328,87 @@ export type Database = {
         }
         Relationships: []
       }
+      map_saved_locations: {
+        Row: {
+          address: string | null
+          created_at: string
+          id: string
+          is_shared: boolean
+          lat: number
+          lng: number
+          name: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          is_shared?: boolean
+          lat: number
+          lng: number
+          name: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          is_shared?: boolean
+          lat?: number
+          lng?: number
+          name?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      map_saved_routes: {
+        Row: {
+          created_at: string
+          id: string
+          is_shared: boolean
+          kind: string
+          name: string
+          notes: string | null
+          origin: Json | null
+          radius_m: number
+          road_polyline: Json | null
+          updated_at: string
+          user_id: string
+          waypoints: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_shared?: boolean
+          kind?: string
+          name: string
+          notes?: string | null
+          origin?: Json | null
+          radius_m?: number
+          road_polyline?: Json | null
+          updated_at?: string
+          user_id: string
+          waypoints?: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_shared?: boolean
+          kind?: string
+          name?: string
+          notes?: string | null
+          origin?: Json | null
+          radius_m?: number
+          road_polyline?: Json | null
+          updated_at?: string
+          user_id?: string
+          waypoints?: Json
+        }
+        Relationships: []
+      }
       monitoring_status: {
         Row: {
           asset_id: string

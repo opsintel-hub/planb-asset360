@@ -412,7 +412,7 @@ export default function AssetMap({
       <div className="absolute bottom-3 right-3 z-[400] bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-slate-100 border rounded-lg shadow-md p-3 text-xs max-w-[240px]">
         <div className="font-semibold mb-2">คำอธิบายสัญลักษณ์</div>
         <div className="flex items-center gap-2 mb-1.5">
-          <span className="inline-block w-4 h-4 rounded-full bg-yellow-400 text-slate-900 text-[10px] font-bold grid place-items-center border">!</span>
+          <span className="inline-flex w-4 h-4 rounded-full bg-yellow-400 text-slate-900 text-[11px] font-bold leading-none items-center justify-center border shrink-0">!</span>
           <span>กำลังซ่อม</span>
         </div>
         {origin && (

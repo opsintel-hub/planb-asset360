@@ -175,8 +175,8 @@ Deno.serve(async (req: Request) => {
           department: pickStr(item, ["department", "Department"]),
           area: pickStr(item, ["area", "Area", "location", "Location"]),
           status: pickStr(item, ["status", "Status"]),
-          latitude: pickNum(item, ["latitude", "Latitude", "lat", "Lat"]),
-          longitude: pickNum(item, ["longitude", "Longitude", "lng", "Lng"]),
+          latitude: pickNum(item, ["latitude", "Latitude", "lat", "Lat"]) ?? parseLatLng(pickStr(item, ["LatitudeLongitude", "latitudeLongitude"]))?.[0] ?? null,
+          longitude: pickNum(item, ["longitude", "Longitude", "lng", "Lng"]) ?? parseLatLng(pickStr(item, ["LatitudeLongitude", "latitudeLongitude"]))?.[1] ?? null,
           installed_at: pickStr(item, ["installedAt", "InstalledAt", "installed_at", "InstallDate"]),
           // Phase A2: promote key payload fields to real columns for fast filtering.
           bkkupc: pickStr(item, ["BKKUPC", "bkkupc", "BkkUpc"]),

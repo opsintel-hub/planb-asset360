@@ -151,7 +151,7 @@ export default function PoiProximityPanel({
     || selectedDistricts.length > 0
     || selectedTerritories.length > 0
     || selectedLocations.length > 0
-    || selectedDepartments.length > 0
+    || selectedProjects.length > 0
     || selectedMediaTypes.length > 0;
 
   const matchesByPoi = useMemo(() => {

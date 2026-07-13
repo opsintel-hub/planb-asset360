@@ -46,12 +46,12 @@ export default function PoiProximityPanel({
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [selectedMediaTypes, setSelectedMediaTypes] = useState<string[]>([]);
   const [districtOpen, setDistrictOpen] = useState(false);
   const [terrOpen, setTerrOpen] = useState(false);
   const [locOpen, setLocOpen] = useState(false);
-  const [deptOpen, setDeptOpen] = useState(false);
+  const [projOpen, setProjOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [locQuery, setLocQuery] = useState("");
 

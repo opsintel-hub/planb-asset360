@@ -887,7 +887,7 @@ function MapPage() {
             <Star className="size-4" /> Origins
           </button>
           <button
-            onClick={() => setOriginPickMode((v) => !v)}
+            onClick={() => { setOriginPickMode((v) => !v); setStopPickMode(false); }}
             className={cn(
               "h-9 px-2.5 rounded-md border inline-flex items-center gap-1",
               originPickMode ? "bg-primary text-primary-foreground border-primary" : "hover:bg-accent",

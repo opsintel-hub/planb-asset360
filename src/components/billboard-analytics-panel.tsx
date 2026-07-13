@@ -270,19 +270,49 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                       {Math.round(overlay.opacity * 100)}%
                     </span>
                   </label>
+                  <label className="inline-flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={overlay.keepAspect ?? true}
+                      onChange={(e) => setOverlay({ ...overlay, keepAspect: e.target.checked })}
+                    />
+                    ล็อคสัดส่วน
+                  </label>
                   <label className="inline-flex items-center gap-2">
                     หมุน
+                    <input
+                      type="range"
+                      min={-45}
+                      max={45}
+                      step={1}
+                      value={overlay.rotation}
+                      onChange={(e) => setOverlay({ ...overlay, rotation: parseInt(e.target.value, 10) })}
+                    />
+                    <span className="w-9 tabular-nums text-right">{overlay.rotation}°</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    เอียง X
                     <input
                       type="range"
                       min={-30}
                       max={30}
                       step={1}
-                      value={overlay.rotation}
-                      onChange={(e) =>
-                        setOverlay({ ...overlay, rotation: parseInt(e.target.value, 10) })
-                      }
+                      value={overlay.skewX ?? 0}
+                      onChange={(e) => setOverlay({ ...overlay, skewX: parseInt(e.target.value, 10) })}
                     />
-                    <span className="w-8 tabular-nums text-right">{overlay.rotation}°</span>
+                    <span className="w-9 tabular-nums text-right">{overlay.skewX ?? 0}°</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    เอียง Y
+                    <input
+                      type="range"
+                      min={-30}
+                      max={30}
+                      step={1}
+                      value={overlay.skewY ?? 0}
+                      onChange={(e) => setOverlay({ ...overlay, skewY: parseInt(e.target.value, 10) })}
+                    />
+                    <span className="w-9 tabular-nums text-right">{overlay.skewY ?? 0}°</span>
                   </label>
                 </div>
               )}

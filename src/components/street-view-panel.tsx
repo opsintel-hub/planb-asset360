@@ -1,6 +1,7 @@
 /// <reference types="google.maps" />
 import { useEffect, useRef, useState } from "react";
-import { Loader2, ExternalLink, AlertCircle } from "lucide-react";
+import { Loader2, ExternalLink, AlertCircle, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { loadGoogleMaps } from "@/lib/google-maps-loader";
 import type { BillboardMockupOverlay } from "@/lib/billboard-mockups.functions";
 

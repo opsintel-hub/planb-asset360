@@ -13,6 +13,7 @@ import {
   haversineMeters,
   type OverpassResponse,
 } from "./overpass";
+import { analyzeWithGooglePlacesFallback } from "./billboard-analytics-fallback";
 
 export type AnalyticsInput = {
   lat: number;
@@ -239,7 +240,14 @@ out center tags;`;
       }
       raw = (await resp.json()) as OverpassResponse;
     } catch (err) {
-      const fallback = await analyzeWithGooglePlaces(lat, lng, radiusM, (err as Error).message);
+      const fallback = await analyzeWithGooglePlacesFallback({
+        lat,
+        lng,
+        radiusM,
+        overpassError: (err as Error).message,
+        buckets: BUCKETS,
+        peaksFor,
+      });
       if (fallback) return fallback;
       return emptyResult(lat, lng, radiusM, `Overpass ล้มเหลว: ${(err as Error).message}`);
     }
@@ -357,131 +365,6 @@ out center tags;`;
       notes,
     };
   });
-
-type GooglePlace = {
-  id?: string;
-  displayName?: { text?: string };
-  primaryType?: string;
-  types?: string[];
-  location?: { latitude?: number; longitude?: number };
-};
-
-async function analyzeWithGooglePlaces(
-  lat: number,
-  lng: number,
-  radiusM: number,
-  overpassError: string,
-): Promise<BillboardAnalytics | null> {
-  const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
-  const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
-  if (!LOVABLE_API_KEY || !GOOGLE_MAPS_API_KEY) return null;
-  const includedTypes = [
-    "shopping_mall",
-    "department_store",
-    "store",
-    "convenience_store",
-    "restaurant",
-    "cafe",
-    "school",
-    "university",
-    "hospital",
-    "bus_station",
-    "subway_station",
-    "lodging",
-    "tourist_attraction",
-    "gas_station",
-    "car_dealer",
-  ];
-  try {
-    const resp = await fetch("https://connector-gateway.lovable.dev/google_maps/places/v1/places:searchNearby", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "X-Connection-Api-Key": GOOGLE_MAPS_API_KEY,
-        "Content-Type": "application/json",
-        "X-Goog-FieldMask": "places.id,places.displayName,places.primaryType,places.types,places.location",
-      },
-      body: JSON.stringify({
-        includedTypes,
-        maxResultCount: 20,
-        locationRestriction: {
-          circle: { center: { latitude: lat, longitude: lng }, radius: radiusM },
-        },
-      }),
-    });
-    if (!resp.ok) return null;
-    const payload = (await resp.json()) as { places?: GooglePlace[] };
-    const places = payload.places ?? [];
-    const bucketCounts = new Map<string, number>();
-    const demographics: DemographicsMix = { office: 0, student: 0, shopper: 0, resident: 0, tourist: 0 };
-    const nearbyPOIs: NearbyPOI[] = [];
-    for (const p of places) {
-      const pLat = p.location?.latitude;
-      const pLng = p.location?.longitude;
-      if (typeof pLat !== "number" || typeof pLng !== "number") continue;
-      const type = p.primaryType ?? p.types?.[0] ?? "store";
-      const bucket = bucketForGoogleType(type);
-      const def = BUCKETS.find((b) => b.key === bucket) ?? BUCKETS[2];
-      bucketCounts.set(def.key, (bucketCounts.get(def.key) ?? 0) + 1);
-      for (const [k, v] of Object.entries(def.demographicsWeight)) {
-        demographics[k as keyof DemographicsMix] += v as number;
-      }
-      nearbyPOIs.push({
-        id: p.id ?? `${type}-${nearbyPOIs.length}`,
-        name: p.displayName?.text ?? "(ไม่มีชื่อ)",
-        category: def.label,
-        distanceM: Math.round(haversineMeters(lat, lng, pLat, pLng)),
-      });
-    }
-    const totalWeight = Object.values(demographics).reduce((a, b) => a + b, 0);
-    const demoPct: DemographicsMix = totalWeight === 0
-      ? { office: 20, student: 20, shopper: 20, resident: 20, tourist: 20 }
-      : {
-          office: Math.round((demographics.office / totalWeight) * 100),
-          student: Math.round((demographics.student / totalWeight) * 100),
-          shopper: Math.round((demographics.shopper / totalWeight) * 100),
-          resident: Math.round((demographics.resident / totalWeight) * 100),
-          tourist: Math.round((demographics.tourist / totalWeight) * 100),
-        };
-    const buckets: POIBucket[] = BUCKETS.map((b) => ({ ...b, count: bucketCounts.get(b.key) ?? 0 }))
-      .filter((b) => b.count > 0)
-      .map(({ key, label, icon, color, count }) => ({ key, label, icon, color, count }))
-      .sort((a, b) => b.count - a.count);
-    const trafficScore = Math.min(100, Math.max(10, Math.round(nearbyPOIs.length * 4)));
-    const dominant = (Object.entries(demoPct) as Array<[keyof DemographicsMix, number]>).sort((a, b) => b[1] - a[1])[0][0];
-    return {
-      ok: true,
-      center: { lat, lng },
-      radiusM,
-      totalPOIs: nearbyPOIs.length,
-      buckets,
-      topPOIs: nearbyPOIs.sort((a, b) => a.distanceM - b.distanceM).slice(0, 12),
-      nearestRoad: null,
-      roadClasses: {},
-      demographics: demoPct,
-      trafficScore,
-      trafficLabel: trafficScore >= 75 ? "สูงมาก" : trafficScore >= 55 ? "สูง" : trafficScore >= 30 ? "ปานกลาง" : "ต่ำ",
-      peakHours: peaksFor(dominant),
-      estimatedDailyImpressions: { min: trafficScore * 180, max: trafficScore * 520 },
-      notes: [`Overpass ไม่พร้อม จึงใช้ Google Places สำรอง`, overpassError.slice(0, 120)],
-    };
-  } catch {
-    return null;
-  }
-}
-
-function bucketForGoogleType(type: string): string {
-  if (["shopping_mall", "department_store"].includes(type)) return "mall";
-  if (["store", "convenience_store", "supermarket"].includes(type)) return "shop";
-  if (["restaurant", "cafe", "fast_food"].includes(type)) return "food";
-  if (["school", "university"].includes(type)) return "school";
-  if (["bus_station", "subway_station", "train_station", "transit_station"].includes(type)) return "transit";
-  if (["hospital", "doctor", "clinic"].includes(type)) return "hospital";
-  if (["lodging", "hotel"].includes(type)) return "hotel";
-  if (["tourist_attraction", "museum"].includes(type)) return "tourist";
-  if (["gas_station", "car_dealer"].includes(type)) return "car";
-  return "shop";
-}
 
 function peaksFor(dom: keyof DemographicsMix): string[] {
   switch (dom) {

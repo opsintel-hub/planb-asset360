@@ -84,6 +84,7 @@ export function ExternalApisSection() {
   const overpassFn = useServerFn(pingOverpass);
   const osrmFn = useServerFn(pingOsrm);
   const nominatimFn = useServerFn(pingNominatim);
+  const gmapsFn = useServerFn(pingGoogleMaps);
 
   const [results, setResults] = useState<Record<string, PingResult>>({});
 

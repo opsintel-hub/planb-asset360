@@ -194,8 +194,15 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
     }
 
     if (rows.length === 0) {
+      const hasFilter =
+        !!bkkupc || districts.length > 0 || territories.length > 0
+        || locations.length > 0 || departments.length > 0 || mediaTypes.length > 0;
       return {
-        ok: true, pois: [], matches: [], assetCount: 0, poiCount: 0, matchedAssetCount: 0,
+        ok: false,
+        error: hasFilter
+          ? "ไม่มีป้ายในขอบเขตแผนที่ปัจจุบันที่ตรงกับตัวกรอง — ลองล้างตัวกรอง หรือเลื่อน/ซูมแผนที่"
+          : "ไม่มีป้ายในขอบเขตแผนที่ปัจจุบัน — กรุณาเลื่อน/ซูมแผนที่ไปยังบริเวณที่มีป้าย",
+        pois: [], matches: [], assetCount: 0, poiCount: 0, matchedAssetCount: 0,
         elapsedMs: Date.now() - t0,
       };
     }

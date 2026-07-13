@@ -257,6 +257,7 @@ function MapPage() {
   const [origin, setOrigin] = useState<{ lat: number; lng: number; name?: string } | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [originPickMode, setOriginPickMode] = useState(false);
+  const [stopPickMode, setStopPickMode] = useState(false);
   const [roadPolyline, setRoadPolyline] = useState<LatLng[] | null>(null);
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
   const [routing, setRouting] = useState(false);
@@ -451,6 +452,7 @@ function MapPage() {
     setRoadPolyline(null);
     setRouteInfo(null);
     setOriginPickMode(false);
+    setStopPickMode(false);
   };
 
   // ---------- Exports ----------
@@ -885,7 +887,7 @@ function MapPage() {
             <Star className="size-4" /> Origins
           </button>
           <button
-            onClick={() => setOriginPickMode((v) => !v)}
+            onClick={() => { setOriginPickMode((v) => !v); setStopPickMode(false); }}
             className={cn(
               "h-9 px-2.5 rounded-md border inline-flex items-center gap-1",
               originPickMode ? "bg-primary text-primary-foreground border-primary" : "hover:bg-accent",
@@ -893,6 +895,16 @@ function MapPage() {
             title="คลิกบนแผนที่เพื่อกำหนดต้นทาง"
           >
             <MapPin className="size-4" /> {originPickMode ? "Click map…" : "Pick Origin"}
+          </button>
+          <button
+            onClick={() => { setStopPickMode((v) => !v); setOriginPickMode(false); }}
+            className={cn(
+              "h-9 px-2.5 rounded-md border inline-flex items-center gap-1",
+              stopPickMode ? "bg-primary text-primary-foreground border-primary" : "hover:bg-accent",
+            )}
+            title="คลิกบนแผนที่เพื่อเพิ่มปลายทาง (จุดที่คลิกจะกลายเป็นปลายทางใหม่)"
+          >
+            <Plus className="size-4" /> {stopPickMode ? "Click map…" : "Pick Stop"}
           </button>
           {origin && (
             <span className="inline-flex items-center gap-2 h-9 px-2.5 rounded-md border bg-green-50 dark:bg-green-950/40 text-green-800 dark:text-green-200">
@@ -1144,6 +1156,22 @@ function MapPage() {
                   setOrigin({ lat, lng, name: "Origin (map pick)" });
                   setPendingOriginLatLng({ lat, lng });
                   setOriginPickMode(false);
+                  setRoadPolyline(null);
+                  setRouteInfo(null);
+                }}
+                stopPickMode={mode === "inspection" && stopPickMode}
+                onStopPick={(lat, lng) => {
+                  setStops((prev) => [
+                    ...prev,
+                    {
+                      key: `pin-${Date.now()}`,
+                      asset_id: null,
+                      old_code: null,
+                      name: `จุด (${lat.toFixed(5)}, ${lng.toFixed(5)})`,
+                      lat,
+                      lng,
+                    },
+                  ]);
                   setRoadPolyline(null);
                   setRouteInfo(null);
                 }}

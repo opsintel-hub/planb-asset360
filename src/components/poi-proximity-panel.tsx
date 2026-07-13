@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { POI_PRESETS, PRESET_BY_KEY, type Bbox } from "@/lib/overpass";
+import { PROJECT_TO_DEPARTMENTS } from "@/lib/project-department-map";
 import {
   searchPOIsNearAssets, getPOIFilterOptions, searchLocations,
   type POI, type POIMatch,
@@ -45,12 +46,12 @@ export default function PoiProximityPanel({
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [selectedMediaTypes, setSelectedMediaTypes] = useState<string[]>([]);
   const [districtOpen, setDistrictOpen] = useState(false);
   const [terrOpen, setTerrOpen] = useState(false);
   const [locOpen, setLocOpen] = useState(false);
-  const [deptOpen, setDeptOpen] = useState(false);
+  const [projOpen, setProjOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [locQuery, setLocQuery] = useState("");
 
@@ -90,7 +91,7 @@ export default function PoiProximityPanel({
           districts: selectedDistricts,
           territories: selectedTerritories,
           locations: selectedLocations,
-          departments: selectedDepartments,
+          departments: selectedProjects.flatMap((p) => PROJECT_TO_DEPARTMENTS[p] ?? []),
           mediaTypes: selectedMediaTypes,
         },
       });
@@ -142,7 +143,7 @@ export default function PoiProximityPanel({
     setSelectedDistricts([]);
     setSelectedTerritories([]);
     setSelectedLocations([]);
-    setSelectedDepartments([]);
+    setSelectedProjects([]);
     setSelectedMediaTypes([]);
   };
 
@@ -150,7 +151,7 @@ export default function PoiProximityPanel({
     || selectedDistricts.length > 0
     || selectedTerritories.length > 0
     || selectedLocations.length > 0
-    || selectedDepartments.length > 0
+    || selectedProjects.length > 0
     || selectedMediaTypes.length > 0;
 
   const matchesByPoi = useMemo(() => {
@@ -347,13 +348,19 @@ export default function PoiProximityPanel({
           </div>
 
           <MultiSelectDropdown
-            open={deptOpen}
-            setOpen={setDeptOpen}
-            label="แผนก (Department)"
-            placeholder={filterOpts.isLoading ? "กำลังโหลด…" : "เลือกแผนก…"}
-            options={(filterOpts.data?.departments ?? []).map((t) => ({ value: t.value, label: `${t.value} (${t.count})` }))}
-            selected={selectedDepartments}
-            onToggle={(v) => setSelectedDepartments((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+            open={projOpen}
+            setOpen={setProjOpen}
+            label="Project"
+            placeholder={filterOpts.isLoading ? "กำลังโหลด…" : "เลือก Project…"}
+            options={Object.keys(PROJECT_TO_DEPARTMENTS).map((proj) => {
+              const depts = new Set(PROJECT_TO_DEPARTMENTS[proj]);
+              const count = (filterOpts.data?.departments ?? [])
+                .filter((d) => depts.has(d.value))
+                .reduce((s, d) => s + d.count, 0);
+              return { value: proj, label: count ? `${proj} (${count})` : proj };
+            })}
+            selected={selectedProjects}
+            onToggle={(v) => setSelectedProjects((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
             loading={filterOpts.isLoading}
           />
           <MultiSelectDropdown

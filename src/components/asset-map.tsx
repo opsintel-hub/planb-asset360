@@ -91,6 +91,8 @@ type Props = {
   origin?: { lat: number; lng: number; name?: string } | null;
   onOriginPick?: (lat: number, lng: number) => void; // when originPickMode is on and user clicks map
   originPickMode?: boolean;
+  stopPickMode?: boolean;
+  onStopPick?: (lat: number, lng: number) => void;
   showRadiusRings?: boolean; // default true; hide for inspection mode
   // Phase 4 — POI proximity mode:
   poiMarkers?: PoiMarker[];
@@ -115,6 +117,8 @@ export default function AssetMap({
   origin = null,
   onOriginPick,
   originPickMode = false,
+  stopPickMode = false,
+  onStopPick,
   showRadiusRings = true,
   poiMarkers = [],
   poiRadiusMeters = 0,
@@ -192,12 +196,16 @@ export default function AssetMap({
     const map = mapRef.current;
     if (!ready || !map) return;
     const container = map.getContainer();
-    container.style.cursor = drawMode || originPickMode ? "crosshair" : "";
+    container.style.cursor = drawMode || originPickMode || stopPickMode ? "crosshair" : "";
 
-    if (!drawMode && !originPickMode) return;
+    if (!drawMode && !originPickMode && !stopPickMode) return;
     const onClick = (e: L.LeafletMouseEvent) => {
       if (originPickMode && onOriginPick) {
         onOriginPick(e.latlng.lat, e.latlng.lng);
+        return;
+      }
+      if (stopPickMode && onStopPick) {
+        onStopPick(e.latlng.lat, e.latlng.lng);
         return;
       }
       if (drawMode && onPolylineChange) {
@@ -215,7 +223,7 @@ export default function AssetMap({
       map.off("contextmenu", onRightClick);
       container.style.cursor = "";
     };
-  }, [drawMode, originPickMode, polyline, onPolylineChange, onOriginPick, ready]);
+  }, [drawMode, originPickMode, stopPickMode, polyline, onPolylineChange, onOriginPick, onStopPick, ready]);
 
   // Render waypoints (draggable) + radius buffer + straight lines
   useEffect(() => {

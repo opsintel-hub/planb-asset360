@@ -39,10 +39,13 @@ export function decodePolyline(str: string, precision = 5): LatLng[] {
   return coords;
 }
 
+export type OsrmLeg = { distance: number; duration: number };
+
 export type OsrmRouteResult = {
   geometry: LatLng[]; // decoded polyline
   distance: number; // meters
   duration: number; // seconds
+  legs: OsrmLeg[]; // per-segment distance/duration (length = points.length - 1)
 };
 
 // Fetch a driving route through the given waypoints in the given order.
@@ -59,6 +62,7 @@ export async function osrmRoute(points: LatLng[]): Promise<OsrmRouteResult> {
     geometry: decodePolyline(r.geometry, 5),
     distance: r.distance,
     duration: r.duration,
+    legs: (r.legs ?? []).map((l: { distance: number; duration: number }) => ({ distance: l.distance, duration: l.duration })),
   };
 }
 

@@ -15,6 +15,7 @@ type Props = {
 };
 
 type Status = "loading" | "ready" | "no-imagery" | "error";
+type Handle = "move" | "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
 export default function StreetViewPanel({
   lat,
@@ -34,7 +35,6 @@ export default function StreetViewPanel({
     let cancelled = false;
     setStatus("loading");
     setMsg("");
-
     loadGoogleMaps()
       .then((google) => {
         if (cancelled || !svRef.current) return;
@@ -68,22 +68,26 @@ export default function StreetViewPanel({
         setStatus("error");
         setMsg(e.message);
       });
-
     return () => {
       cancelled = true;
     };
   }, [lat, lng, heading]);
 
-  // Drag / resize handling for overlay
   const dragState = useRef<{
-    mode: "move" | "resize" | null;
+    mode: Handle | null;
     startX: number;
     startY: number;
-    startOverlay: BillboardMockupOverlay;
+    start: BillboardMockupOverlay;
     box: DOMRect;
-  }>({ mode: null, startX: 0, startY: 0, startOverlay: overlay ?? { x: 25, y: 30, w: 50, h: 25, opacity: 0.85, rotation: 0 }, box: new DOMRect() });
+  }>({
+    mode: null,
+    startX: 0,
+    startY: 0,
+    start: overlay ?? { x: 25, y: 30, w: 50, h: 25, opacity: 0.85, rotation: 0 },
+    box: new DOMRect(),
+  });
 
-  const onPointerDown = (mode: "move" | "resize", e: React.PointerEvent) => {
+  const onPointerDown = (mode: Handle, e: React.PointerEvent) => {
     if (!editable || !overlay || !onOverlayChange || !containerRef.current) return;
     e.preventDefault();
     e.stopPropagation();
@@ -92,7 +96,7 @@ export default function StreetViewPanel({
       mode,
       startX: e.clientX,
       startY: e.clientY,
-      startOverlay: { ...overlay },
+      start: { ...overlay },
       box: containerRef.current.getBoundingClientRect(),
     };
   };
@@ -102,24 +106,53 @@ export default function StreetViewPanel({
     if (!s.mode || !onOverlayChange) return;
     const dxPct = ((e.clientX - s.startX) / s.box.width) * 100;
     const dyPct = ((e.clientY - s.startY) / s.box.height) * 100;
+    const st = s.start;
+    const aspect = st.keepAspect && st.naturalAspect ? st.naturalAspect : null;
+    const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
     if (s.mode === "move") {
       onOverlayChange({
-        ...s.startOverlay,
-        x: Math.min(100 - s.startOverlay.w, Math.max(0, s.startOverlay.x + dxPct)),
-        y: Math.min(100 - s.startOverlay.h, Math.max(0, s.startOverlay.y + dyPct)),
+        ...st,
+        x: clamp(st.x + dxPct, 0, 100 - st.w),
+        y: clamp(st.y + dyPct, 0, 100 - st.h),
       });
-    } else {
-      onOverlayChange({
-        ...s.startOverlay,
-        w: Math.min(100 - s.startOverlay.x, Math.max(5, s.startOverlay.w + dxPct)),
-        h: Math.min(100 - s.startOverlay.y, Math.max(5, s.startOverlay.h + dyPct)),
-      });
+      return;
     }
+    let { x, y, w, h } = st;
+    if (s.mode.includes("e")) w = clamp(st.w + dxPct, 3, 100 - st.x);
+    if (s.mode.includes("w")) {
+      const nw = clamp(st.w - dxPct, 3, st.x + st.w);
+      x = st.x + (st.w - nw);
+      w = nw;
+    }
+    if (s.mode.includes("s")) h = clamp(st.h + dyPct, 3, 100 - st.y);
+    if (s.mode.includes("n")) {
+      const nh = clamp(st.h - dyPct, 3, st.y + st.h);
+      y = st.y + (st.h - nh);
+      h = nh;
+    }
+    if (aspect) {
+      // adjust h to match aspect (using box pixel aspect to keep image ratio truly)
+      const pxAspect = (w / 100) * s.box.width / ((h / 100) * s.box.height);
+      // Simpler: force h so displayed image ratio matches aspect
+      const targetHpx = ((w / 100) * s.box.width) / aspect;
+      const targetHpct = (targetHpx / s.box.height) * 100;
+      if (s.mode.includes("n")) {
+        y = st.y + st.h - targetHpct;
+      }
+      h = clamp(targetHpct, 3, 100 - y);
+      void pxAspect;
+    }
+    onOverlayChange({ ...st, x, y, w, h });
   };
 
   const onPointerUp = () => {
     dragState.current.mode = null;
   };
+
+  const overlayTransform = overlay
+    ? `rotate(${overlay.rotation}deg) skew(${overlay.skewX ?? 0}deg, ${overlay.skewY ?? 0}deg)`
+    : undefined;
 
   return (
     <div
@@ -139,7 +172,7 @@ export default function StreetViewPanel({
             width: `${overlay.w}%`,
             height: `${overlay.h}%`,
             opacity: overlay.opacity,
-            transform: `rotate(${overlay.rotation}deg)`,
+            transform: overlayTransform,
             transformOrigin: "center",
           }}
         >
@@ -151,15 +184,42 @@ export default function StreetViewPanel({
           />
           {editable && (
             <>
-              <div
-                className="absolute inset-0 cursor-move"
-                onPointerDown={(e) => onPointerDown("move", e)}
-              />
-              <div
-                className="absolute -right-2 -bottom-2 size-4 rounded-sm bg-primary cursor-nwse-resize shadow"
-                onPointerDown={(e) => onPointerDown("resize", e)}
-                title="Drag to resize"
-              />
+              <div className="absolute inset-0 cursor-move" onPointerDown={(e) => onPointerDown("move", e)} />
+              {/* Corner handles */}
+              {(["nw", "ne", "sw", "se"] as Handle[]).map((h) => (
+                <div
+                  key={h}
+                  onPointerDown={(e) => onPointerDown(h, e)}
+                  className="absolute size-3 rounded-sm bg-primary shadow border border-white cursor-nwse-resize"
+                  style={{
+                    left: h.includes("w") ? -6 : undefined,
+                    right: h.includes("e") ? -6 : undefined,
+                    top: h.includes("n") ? -6 : undefined,
+                    bottom: h.includes("s") ? -6 : undefined,
+                    cursor: h === "ne" || h === "sw" ? "nesw-resize" : "nwse-resize",
+                  }}
+                />
+              ))}
+              {/* Edge handles */}
+              {(["n", "s", "e", "w"] as Handle[]).map((h) => (
+                <div
+                  key={h}
+                  onPointerDown={(e) => onPointerDown(h, e)}
+                  className="absolute bg-primary/80 shadow border border-white"
+                  style={{
+                    width: h === "n" || h === "s" ? 14 : 6,
+                    height: h === "e" || h === "w" ? 14 : 6,
+                    left: h === "w" ? -3 : h === "e" ? undefined : "50%",
+                    right: h === "e" ? -3 : undefined,
+                    top: h === "n" ? -3 : h === "s" ? undefined : "50%",
+                    bottom: h === "s" ? -3 : undefined,
+                    transform:
+                      h === "n" || h === "s" ? "translateX(-50%)" : "translateY(-50%)",
+                    cursor: h === "n" || h === "s" ? "ns-resize" : "ew-resize",
+                    borderRadius: 2,
+                  }}
+                />
+              ))}
             </>
           )}
         </div>

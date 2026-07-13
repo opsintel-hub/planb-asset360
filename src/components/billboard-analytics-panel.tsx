@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Camera, ChevronDown, Image as ImageIcon, FileDown, FileText } from "lucide-react";
 import { toast } from "sonner";
@@ -65,14 +65,40 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset.id]);
 
-  // Sync overlay when mockup selection changes.
+  const reportRef = useRef<HTMLDivElement | null>(null);
+
+  // When mockup selection changes: hydrate overlay + measure natural aspect
+  // so the on-screen size matches the source image (no more distortion).
   useEffect(() => {
-    if (selectedMockup) {
-      setOverlay(selectedMockup.overlay);
-      setShowStreet(true);
-    } else {
+    if (!selectedMockup) {
       setOverlay(null);
+      return;
     }
+    setShowStreet(true);
+    const base: BillboardMockupOverlay = {
+      keepAspect: true,
+      skewX: 0,
+      skewY: 0,
+      ...selectedMockup.overlay,
+    };
+    setOverlay(base);
+    // Measure natural aspect from the image and adjust h to match w.
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const aspect = img.naturalWidth / Math.max(1, img.naturalHeight);
+      // Assume Street View container is 16:9-ish; adjust h percentage from w.
+      // Container aspect estimated dynamically at drag time; here just use 320px height.
+      setOverlay((cur) => {
+        if (!cur) return cur;
+        // We don't know container size here; store aspect and let user resize.
+        // Also set h so displayed size follows the mockup aspect using approx 16:9 container.
+        const containerAspect = 16 / 9;
+        const h = (cur.w / aspect) * containerAspect;
+        return { ...cur, naturalAspect: aspect, h: Math.min(Math.max(h, 5), 100 - cur.y) };
+      });
+    };
+    img.src = selectedMockup.image_url;
   }, [selectedMockup]);
 
   // Debounced persist of overlay position.
@@ -110,6 +136,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
         mockup: selectedMockup,
         mockupDataUrl,
         overlay: overlay ?? selectedMockup?.overlay ?? null,
+        analyticsNode: reportRef.current,
       };
       if (kind === "pptx") await exportBillboardPptx(payload);
       else await exportBillboardPdf(payload);
@@ -243,19 +270,49 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                       {Math.round(overlay.opacity * 100)}%
                     </span>
                   </label>
+                  <label className="inline-flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={overlay.keepAspect ?? true}
+                      onChange={(e) => setOverlay({ ...overlay, keepAspect: e.target.checked })}
+                    />
+                    ล็อคสัดส่วน
+                  </label>
                   <label className="inline-flex items-center gap-2">
                     หมุน
+                    <input
+                      type="range"
+                      min={-45}
+                      max={45}
+                      step={1}
+                      value={overlay.rotation}
+                      onChange={(e) => setOverlay({ ...overlay, rotation: parseInt(e.target.value, 10) })}
+                    />
+                    <span className="w-9 tabular-nums text-right">{overlay.rotation}°</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    เอียง X
                     <input
                       type="range"
                       min={-30}
                       max={30}
                       step={1}
-                      value={overlay.rotation}
-                      onChange={(e) =>
-                        setOverlay({ ...overlay, rotation: parseInt(e.target.value, 10) })
-                      }
+                      value={overlay.skewX ?? 0}
+                      onChange={(e) => setOverlay({ ...overlay, skewX: parseInt(e.target.value, 10) })}
                     />
-                    <span className="w-8 tabular-nums text-right">{overlay.rotation}°</span>
+                    <span className="w-9 tabular-nums text-right">{overlay.skewX ?? 0}°</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    เอียง Y
+                    <input
+                      type="range"
+                      min={-30}
+                      max={30}
+                      step={1}
+                      value={overlay.skewY ?? 0}
+                      onChange={(e) => setOverlay({ ...overlay, skewY: parseInt(e.target.value, 10) })}
+                    />
+                    <span className="w-9 tabular-nums text-right">{overlay.skewY ?? 0}°</span>
                   </label>
                 </div>
               )}
@@ -315,7 +372,8 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
         </div>
 
         {/* Body */}
-        <div className="p-4 space-y-4">
+        <div ref={reportRef} className="p-4 space-y-4">
+
           {loading && (
             <div className="flex items-center justify-center py-12 text-muted-foreground text-sm gap-2">
               <Loader2 className="size-4 animate-spin" />

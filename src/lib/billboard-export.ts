@@ -21,6 +21,31 @@ export type ExportInput = {
 type CornerPoint = { x: number; y: number };
 
 export async function captureStreetViewNode(node: HTMLElement): Promise<string | null> {
+  // Prefer capturing Google's Street View WebGL canvas directly — html2canvas
+  // cannot read WebGL pixels, but canvas.toDataURL() can when preserveDrawingBuffer
+  // is enabled (see google-maps-loader.ts).
+  try {
+    const canvases = Array.from(node.querySelectorAll("canvas")) as HTMLCanvasElement[];
+    let best: HTMLCanvasElement | null = null;
+    for (const c of canvases) {
+      if (!c.width || !c.height) continue;
+      if (!best || c.width * c.height > best.width * best.height) best = c;
+    }
+    if (best) {
+      // Force a fresh render — Street View draws on rAF; wait one frame so we
+      // capture the current pose rather than a cleared buffer.
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      try {
+        const url = best.toDataURL("image/jpeg", 0.92);
+        // Guard against blank/transparent buffers (all-black tiny result).
+        if (url && url.length > 5000) return url;
+      } catch {
+        // Fall through to html2canvas below.
+      }
+    }
+  } catch {
+    // Fall through.
+  }
   try {
     const canvas = await html2canvas(node, {
       backgroundColor: "#ffffff",
@@ -334,12 +359,15 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
     });
   }
 
-  // Info block as image (Thai renders perfectly)
+  // Info block as image (Thai renders perfectly). Cap the height so it does
+  // not overlap the Analytics block below (which starts at y=3.35).
   const info = await renderInfoBlock(input);
+  const infoTop = 1.0;
+  const infoMaxH = 2.15; // leaves ~0.2" gap before analytics
   if (info) {
     const infoW = 4.7;
-    const infoH = infoW / info.ratio;
-    s1.addImage({ data: info.dataUrl, x: 8.2, y: 1.0, w: infoW, h: Math.min(infoH, 6.0) });
+    const naturalH = infoW / info.ratio;
+    s1.addImage({ data: info.dataUrl, x: 8.2, y: infoTop, w: infoW, h: Math.min(naturalH, infoMaxH) });
   }
 
   s1.addText(
@@ -350,8 +378,9 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
   const analytics = await renderAnalyticsBlock(input);
   if (analytics) {
     const analyticsW = 4.7;
-    const analyticsH = Math.min(analyticsW / analytics.ratio, 3.85);
-    s1.addImage({ data: analytics.dataUrl, x: 8.2, y: 3.05, w: analyticsW, h: analyticsH });
+    const analyticsTop = 3.35;
+    const analyticsH = Math.min(analyticsW / analytics.ratio, 7.15 - analyticsTop - 0.1);
+    s1.addImage({ data: analytics.dataUrl, x: 8.2, y: analyticsTop, w: analyticsW, h: analyticsH });
   }
 
   await pres.writeFile({ fileName: `billboard-${input.asset.old_code ?? "report"}.pptx` });

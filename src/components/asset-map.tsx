@@ -91,6 +91,8 @@ type Props = {
   origin?: { lat: number; lng: number; name?: string } | null;
   onOriginPick?: (lat: number, lng: number) => void; // when originPickMode is on and user clicks map
   originPickMode?: boolean;
+  stopPickMode?: boolean;
+  onStopPick?: (lat: number, lng: number) => void;
   showRadiusRings?: boolean; // default true; hide for inspection mode
   // Phase 4 — POI proximity mode:
   poiMarkers?: PoiMarker[];

@@ -132,6 +132,7 @@ export default function AssetMap({
   const originLayerRef = useRef<L.LayerGroup | null>(null);
   const poiLayerRef = useRef<L.LayerGroup | null>(null);
   const poiMarkerByIdRef = useRef<Map<string, L.Marker>>(new Map());
+  const initialFitDoneRef = useRef(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -377,9 +378,12 @@ export default function AssetMap({
     }
     cluster.addLayers(markers);
 
-    if (markers.length > 0 && !focusId && polyline.length === 0 && !roadPolyline) {
+    if (!initialFitDoneRef.current && markers.length > 0 && !focusId && polyline.length === 0 && !roadPolyline) {
       const bounds = L.latLngBounds(markers.map((m) => m.getLatLng()));
-      if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+      if (bounds.isValid()) {
+        initialFitDoneRef.current = true;
+        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+      }
     }
   }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline, onSelectAsset]);
 

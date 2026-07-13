@@ -117,6 +117,8 @@ export default function AssetMap({
   origin = null,
   onOriginPick,
   originPickMode = false,
+  stopPickMode = false,
+  onStopPick,
   showRadiusRings = true,
   poiMarkers = [],
   poiRadiusMeters = 0,

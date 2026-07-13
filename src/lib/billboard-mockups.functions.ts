@@ -119,7 +119,7 @@ export const updateBillboardMockup = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const { supabase } = context;
-    const patch: Record<string, unknown> = {};
+    const patch: { title?: string | null; note?: string | null; overlay?: BillboardMockupOverlay } = {};
     if (data.title !== undefined) patch.title = data.title;
     if (data.note !== undefined) patch.note = data.note;
     if (data.overlay !== undefined) patch.overlay = data.overlay;

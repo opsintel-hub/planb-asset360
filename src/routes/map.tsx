@@ -257,6 +257,7 @@ function MapPage() {
   const [origin, setOrigin] = useState<{ lat: number; lng: number; name?: string } | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [originPickMode, setOriginPickMode] = useState(false);
+  const [stopPickMode, setStopPickMode] = useState(false);
   const [roadPolyline, setRoadPolyline] = useState<LatLng[] | null>(null);
   const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
   const [routing, setRouting] = useState(false);

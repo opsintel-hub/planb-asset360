@@ -1349,8 +1349,8 @@ function CompactSelect({
 
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="bg-card border rounded-xl shadow-xl w-full max-w-md p-4 space-y-3">
+    <div className="fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center p-4">
+      <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} className="bg-card border rounded-xl shadow-xl w-full max-w-md p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="text-sm font-semibold">{title}</div>
           <button onClick={onClose} className="p-1 hover:bg-accent rounded"><X className="size-4" /></button>

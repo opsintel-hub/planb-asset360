@@ -4,7 +4,7 @@ import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Ca
 import { toast } from "sonner";
 import { analyzeBillboardArea, type BillboardAnalytics } from "@/lib/billboard-analytics.functions";
 import { getStreetViewStaticImage, updateBillboardMockup, type BillboardMockup, type BillboardMockupOverlay } from "@/lib/billboard-mockups.functions";
-import { exportBillboardPptx, exportBillboardPdf, fetchImageAsDataUrl } from "@/lib/billboard-export";
+import { captureStreetViewNode, exportBillboardPptx, exportBillboardPdf, fetchImageAsDataUrl } from "@/lib/billboard-export";
 import MockupManager from "@/components/mockup-manager";
 import type { MapAsset } from "@/lib/map.functions";
 
@@ -45,6 +45,8 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const [overlay, setOverlay] = useState<BillboardMockupOverlay | null>(null);
   const [editOverlay, setEditOverlay] = useState(true);
   const [exporting, setExporting] = useState<null | "pptx" | "pdf">(null);
+  const [cornerPickStep, setCornerPickStep] = useState<0 | 1 | 2 | 3 | null>(null);
+  const streetViewCaptureRef = useRef<HTMLDivElement | null>(null);
 
   const run = async (r: number) => {
     setLoading(true);
@@ -116,13 +118,20 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const handleExport = async (kind: "pptx" | "pdf") => {
     setExporting(kind);
     try {
-      const sv = await getStreetViewImg({
-        data: { lat: asset.lat, lng: asset.lng, heading: 0, size: "640x360" },
-      });
-      const streetViewDataUrl = sv.ok ? sv.dataUrl ?? null : null;
-      if (!sv.ok) toast.warning(`Street View: ${sv.error ?? "ไม่พร้อม"}`);
+      let streetViewDataUrl = streetViewCaptureRef.current
+        ? await captureStreetViewNode(streetViewCaptureRef.current)
+        : null;
+      let heroAlreadyIncludesMockup = !!streetViewDataUrl;
+      if (!streetViewDataUrl) {
+        const sv = await getStreetViewImg({
+          data: { lat: asset.lat, lng: asset.lng, heading: 0, size: "640x360" },
+        });
+        streetViewDataUrl = sv.ok ? sv.dataUrl ?? null : null;
+        heroAlreadyIncludesMockup = false;
+        if (!sv.ok) toast.warning(`Street View: ${sv.error ?? "ไม่พร้อม"}`);
+      }
       let mockupDataUrl: string | null = null;
-      if (selectedMockup?.image_url) {
+      if (!heroAlreadyIncludesMockup && selectedMockup?.image_url) {
         try {
           mockupDataUrl = await fetchImageAsDataUrl(selectedMockup.image_url);
         } catch {
@@ -135,7 +144,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
         streetViewDataUrl,
         mockup: selectedMockup,
         mockupDataUrl,
-        overlay: overlay ?? selectedMockup?.overlay ?? null,
+        overlay: heroAlreadyIncludesMockup ? null : overlay ?? selectedMockup?.overlay ?? null,
         analyticsNode: reportRef.current,
       };
       if (kind === "pptx") await exportBillboardPptx(payload);
@@ -148,10 +157,40 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
     }
   };
 
+  const handleCornerPick = (x: number, y: number) => {
+    if (!overlay || cornerPickStep == null) return;
+    const current = overlay.corners ?? {
+      tl: { x: overlay.x, y: overlay.y },
+      tr: { x: overlay.x + overlay.w, y: overlay.y },
+      br: { x: overlay.x + overlay.w, y: overlay.y + overlay.h },
+      bl: { x: overlay.x, y: overlay.y + overlay.h },
+    };
+    const next = {
+      tl: { ...current.tl },
+      tr: { ...current.tr },
+      br: { ...current.br },
+      bl: { ...current.bl },
+    };
+    const key = (["tl", "tr", "br", "bl"] as const)[cornerPickStep];
+    next[key] = { x, y };
+    const xs = [next.tl.x, next.tr.x, next.br.x, next.bl.x];
+    const ys = [next.tl.y, next.tr.y, next.br.y, next.bl.y];
+    setOverlay({
+      ...overlay,
+      x: Math.min(...xs),
+      y: Math.min(...ys),
+      w: Math.max(3, Math.max(...xs) - Math.min(...xs)),
+      h: Math.max(3, Math.max(...ys) - Math.min(...ys)),
+      corners: next,
+    });
+    setCornerPickStep(cornerPickStep >= 3 ? null : ((cornerPickStep + 1) as 0 | 1 | 2 | 3));
+  };
+
   return (
-    <div className="fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center p-4">
       <div
         onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         className="bg-card border rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] overflow-y-auto"
       >
         {/* Header */}
@@ -233,14 +272,18 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                   </div>
                 }
               >
-                <StreetViewPanel
-                  lat={asset.lat}
-                  lng={asset.lng}
-                  overlayImageUrl={selectedMockup?.image_url}
-                  overlay={overlay ?? undefined}
-                  onOverlayChange={setOverlay}
-                  editable={editOverlay && !!selectedMockup}
-                />
+                <div ref={streetViewCaptureRef}>
+                  <StreetViewPanel
+                    lat={asset.lat}
+                    lng={asset.lng}
+                    overlayImageUrl={selectedMockup?.image_url}
+                    overlay={overlay ?? undefined}
+                    onOverlayChange={setOverlay}
+                    editable={editOverlay && !!selectedMockup}
+                    cornerPickStep={cornerPickStep}
+                    onCornerPick={handleCornerPick}
+                  />
+                </div>
               </Suspense>
               {selectedMockup && overlay && (
                 <div className="rounded-md border p-2 flex items-center gap-3 flex-wrap text-xs">
@@ -278,6 +321,31 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                     />
                     ล็อคสัดส่วน
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowStreet(true);
+                      setEditOverlay(true);
+                      setCornerPickStep(0);
+                    }}
+                    className="px-2 py-1 rounded-md border hover:bg-accent font-medium"
+                  >
+                    คลิกปรับ 4 มุม
+                  </button>
+                  {overlay.corners && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const { corners: _corners, ...rest } = overlay;
+                        void _corners;
+                        setOverlay(rest);
+                        setCornerPickStep(null);
+                      }}
+                      className="px-2 py-1 rounded-md border hover:bg-accent"
+                    >
+                      รีเซ็ตมุม
+                    </button>
+                  )}
                   <label className="inline-flex items-center gap-2">
                     หมุน
                     <input

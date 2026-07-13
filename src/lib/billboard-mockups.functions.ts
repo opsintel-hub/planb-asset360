@@ -12,6 +12,12 @@ export type BillboardMockupOverlay = {
   skewY?: number; // degrees (perspective Y)
   keepAspect?: boolean;
   naturalAspect?: number; // width/height ratio of the source image
+  corners?: {
+    tl: { x: number; y: number };
+    tr: { x: number; y: number };
+    br: { x: number; y: number };
+    bl: { x: number; y: number };
+  }; // optional 4-corner perspective placement, all values are % of Street View panel
 };
 
 export type BillboardMockup = {

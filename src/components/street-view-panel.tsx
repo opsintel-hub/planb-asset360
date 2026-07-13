@@ -308,6 +308,12 @@ export default function StreetViewPanel({
               transform: perspectiveTransform,
               transformOrigin: "0 0",
               pointerEvents: editable ? "auto" : "none",
+              WebkitMaskImage:
+                "linear-gradient(to right, transparent 0, black 2px, black calc(100% - 2px), transparent 100%), linear-gradient(to bottom, transparent 0, black 2px, black calc(100% - 2px), transparent 100%)",
+              WebkitMaskComposite: "source-in",
+              maskImage:
+                "linear-gradient(to right, transparent 0, black 2px, black calc(100% - 2px), transparent 100%), linear-gradient(to bottom, transparent 0, black 2px, black calc(100% - 2px), transparent 100%)",
+              maskComposite: "intersect",
             }}
           >
             <img
@@ -315,6 +321,7 @@ export default function StreetViewPanel({
               alt="mockup overlay"
               className="w-full h-full object-fill pointer-events-none"
               draggable={false}
+              style={{ filter: `brightness(${overlay.brightness ?? 1})` }}
             />
           </div>
           {editable && (
@@ -362,6 +369,12 @@ export default function StreetViewPanel({
             opacity: overlay.opacity,
             transform: overlayTransform,
             transformOrigin: "center",
+            WebkitMaskImage:
+              "linear-gradient(to right, transparent 0, black 2px, black calc(100% - 2px), transparent 100%), linear-gradient(to bottom, transparent 0, black 2px, black calc(100% - 2px), transparent 100%)",
+            WebkitMaskComposite: "source-in",
+            maskImage:
+              "linear-gradient(to right, transparent 0, black 2px, black calc(100% - 2px), transparent 100%), linear-gradient(to bottom, transparent 0, black 2px, black calc(100% - 2px), transparent 100%)",
+            maskComposite: "intersect",
           }}
         >
           <img
@@ -369,6 +382,7 @@ export default function StreetViewPanel({
             alt="mockup overlay"
             className="w-full h-full object-fill pointer-events-none"
             draggable={false}
+            style={{ filter: `brightness(${overlay.brightness ?? 1})` }}
           />
           {editable && (
             <>

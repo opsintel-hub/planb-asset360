@@ -202,7 +202,7 @@ export const getStreetViewStaticImage = createServerFn({ method: "POST" })
         // Non-fatal — fall through and try the image endpoint directly.
       }
       // Fetch the image at that location with wide radius so Google can pick the nearest pano.
-      const imgUrl = `${base}?size=${encodeURIComponent(data.size)}&location=${loc.lat},${loc.lng}&heading=${data.heading}&pitch=0&fov=80&radius=500`;
+      const imgUrl = `${base}?size=${encodeURIComponent(data.size)}&location=${loc.lat},${loc.lng}&heading=${data.heading}&pitch=0&fov=80&radius=500&scale=${data.scale}`;
       const resp = await fetch(imgUrl, { headers });
       if (!resp.ok) {
         const t = await resp.text().catch(() => "");

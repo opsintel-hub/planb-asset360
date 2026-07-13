@@ -196,7 +196,7 @@ export default function PoiProximityPanel({
         </div>
       </div>
 
-      <div className="p-3 space-y-3 border-b">
+      <div className="p-3 space-y-3 border-b flex-1 min-h-0 overflow-y-auto">
         {/* Geographic filters */}
         <div className="rounded-md border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 p-2 space-y-2">
           <div className="text-[11px] font-medium text-amber-900 dark:text-amber-100 uppercase flex items-center gap-1">

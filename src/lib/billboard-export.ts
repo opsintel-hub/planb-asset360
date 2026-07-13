@@ -66,6 +66,41 @@ export async function captureStreetViewNode(node: HTMLElement): Promise<string |
   }
 }
 
+// Return a canvas the same size as `img`, with brightness applied and edges
+// feathered to transparent over `featherPx` pixels so the mockup blends softly
+// into Street View instead of showing a hard sharp border.
+function prepareMockupSource(
+  img: HTMLImageElement,
+  brightness: number,
+  featherPx: number,
+): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = img.width;
+  c.height = img.height;
+  const g = c.getContext("2d");
+  if (!g) return c;
+  if (brightness !== 1) g.filter = `brightness(${brightness})`;
+  g.drawImage(img, 0, 0);
+  g.filter = "none";
+  const fp = Math.max(0, Math.min(featherPx, Math.floor(Math.min(img.width, img.height) / 4)));
+  if (fp > 0) {
+    g.globalCompositeOperation = "destination-out";
+    const fade = (x: number, y: number, w: number, h: number, gx0: number, gy0: number, gx1: number, gy1: number) => {
+      const grad = g.createLinearGradient(gx0, gy0, gx1, gy1);
+      grad.addColorStop(0, "rgba(0,0,0,1)");
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = grad;
+      g.fillRect(x, y, w, h);
+    };
+    fade(0, 0, img.width, fp, 0, 0, 0, fp);                              // top
+    fade(0, img.height - fp, img.width, fp, 0, img.height, 0, img.height - fp); // bottom
+    fade(0, 0, fp, img.height, 0, 0, fp, 0);                             // left
+    fade(img.width - fp, 0, fp, img.height, img.width, 0, img.width - fp, 0);   // right
+    g.globalCompositeOperation = "source-over";
+  }
+  return c;
+}
+
 // Compose Street View + mockup overlay into a single JPEG data URL via a canvas.
 export async function composeStreetViewWithOverlay(
   streetViewDataUrl: string,
@@ -86,6 +121,10 @@ export async function composeStreetViewWithOverlay(
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(sv, 0, 0, canvas.width, canvas.height);
+  const brightness = overlay.brightness ?? 1;
+  // Feather ~2 CSS px worth of source pixels so the mockup border softens.
+  const featherPx = Math.max(2, Math.round(Math.min(mk.width, mk.height) * 0.01));
+  const prepared = prepareMockupSource(mk, brightness, featherPx);
   ctx.globalAlpha = overlay.opacity;
   const x = (overlay.x / 100) * canvas.width;
   const y = (overlay.y / 100) * canvas.height;
@@ -97,7 +136,7 @@ export async function composeStreetViewWithOverlay(
   const skewX = ((overlay.skewX ?? 0) * Math.PI) / 180;
   const skewY = ((overlay.skewY ?? 0) * Math.PI) / 180;
   if (skewX || skewY) ctx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
-  ctx.drawImage(mk, -w / 2, -h / 2, w, h);
+  ctx.drawImage(prepared, -w / 2, -h / 2, w, h);
   ctx.restore();
   if (overlay.corners) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -105,7 +144,7 @@ export async function composeStreetViewWithOverlay(
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(sv, 0, 0, canvas.width, canvas.height);
     ctx.globalAlpha = overlay.opacity;
-    drawImageInQuad(ctx, mk, [overlay.corners.tl, overlay.corners.tr, overlay.corners.br, overlay.corners.bl].map((p) => ({
+    drawImageInQuad(ctx, prepared, [overlay.corners.tl, overlay.corners.tr, overlay.corners.br, overlay.corners.bl].map((p) => ({
       x: (p.x / 100) * canvas.width,
       y: (p.y / 100) * canvas.height,
     })));
@@ -141,7 +180,7 @@ function inflateTriangle(
 
 function drawTriangle(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  img: HTMLImageElement | HTMLCanvasElement,
   src: [CornerPoint, CornerPoint, CornerPoint],
   dst: [CornerPoint, CornerPoint, CornerPoint],
 ) {
@@ -169,7 +208,7 @@ function drawTriangle(
   ctx.restore();
 }
 
-function drawImageInQuad(ctx: CanvasRenderingContext2D, img: HTMLImageElement, corners: CornerPoint[]) {
+function drawImageInQuad(ctx: CanvasRenderingContext2D, img: HTMLImageElement | HTMLCanvasElement, corners: CornerPoint[]) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   // Larger cells + slight triangle inflation eliminate diagonal seam stripes.

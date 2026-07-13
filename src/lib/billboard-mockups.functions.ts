@@ -10,6 +10,7 @@ export type BillboardMockupOverlay = {
   rotation: number; // degrees
   skewX?: number; // degrees (perspective X)
   skewY?: number; // degrees (perspective Y)
+  brightness?: number; // 0.3..1.5, 1 = original
   keepAspect?: boolean;
   naturalAspect?: number; // width/height ratio of the source image
   corners?: {

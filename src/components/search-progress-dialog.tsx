@@ -116,7 +116,9 @@ export function SearchProgressDialog({
         </ul>
 
         <div className="mt-4 text-[10px] text-muted-foreground">
-          ค้นหาช้ากว่าปกติ? ลองจำกัดพื้นที่ (BKKUPC / เขต / พื้นที่) หรือลดจำนวนประเภทสถานที่
+          {pct >= 99
+            ? "ใช้เวลานานกว่าปกติ — Overpass อาจ timeout ภายใน 45 วิ ลองกดยกเลิกแล้วจำกัดพื้นที่ (BKKUPC / เขต / พื้นที่)"
+            : "ค้นหาช้ากว่าปกติ? ลองจำกัดพื้นที่ (BKKUPC / เขต / พื้นที่) หรือลดจำนวนประเภทสถานที่"}
         </div>
       </div>
     </div>

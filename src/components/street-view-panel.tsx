@@ -217,6 +217,8 @@ export default function StreetViewPanel({
               <Copy className="size-3" />
             </button>
           </div>
+        </div>
+      )}
       {status === "error" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-destructive gap-2 p-4 text-center">
           <AlertCircle className="size-5" />
@@ -225,14 +227,23 @@ export default function StreetViewPanel({
         </div>
       )}
       {status === "ready" && (
-        <a
-          href={gmapsHref}
-          target="_blank"
-          rel="noreferrer"
-          className="absolute bottom-2 right-2 z-10 inline-flex items-center gap-1 rounded bg-background/90 border px-2 py-1 text-[11px] shadow hover:bg-background"
-        >
-          เปิดใน Google Maps <ExternalLink className="size-3" />
-        </a>
+        <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => openExternal(gmapsHref)}
+            className="inline-flex items-center gap-1 rounded bg-background/90 border px-2 py-1 text-[11px] shadow hover:bg-background"
+          >
+            เปิดใน Google Maps <ExternalLink className="size-3" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void copyLink(gmapsHref)}
+            className="inline-flex items-center gap-1 rounded bg-background/90 border px-2 py-1 text-[11px] shadow hover:bg-background"
+            title="คัดลอกลิงก์"
+          >
+            <Copy className="size-3" />
+          </button>
+        </div>
       )}
     </div>
   );

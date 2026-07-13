@@ -76,6 +76,13 @@ const OVERPASS_JSON_CACHE_TTL_MS = 10 * 60_000;
 const OVERPASS_JSON_CACHE_MAX = 40;
 const overpassJsonCache = new Map<string, { storedAt: number; payload: unknown }>();
 
+function describeOverpassHttpError(status: number): string {
+  if (status === 406) return "คำค้นถูก Overpass ปฏิเสธชั่วคราว";
+  if (status === 429) return "Overpass จำกัดจำนวนการใช้งานชั่วคราว";
+  if (status === 504 || status === 502 || status === 503) return "Overpass หนาแน่นหรือหมดเวลา";
+  return `Overpass ตอบกลับ HTTP ${status}`;
+}
+
 function isRuntimeFailurePayload(payload: unknown, elapsedMs: number): string | null {
   if (!payload || typeof payload !== "object") return null;
   const p = payload as { elements?: unknown[]; remark?: string; osm3s?: { timestamp_osm_base?: string } };
@@ -106,19 +113,30 @@ function isRuntimeFailurePayload(payload: unknown, elapsedMs: number): string | 
 export async function fetchOverpass(query: string): Promise<Response> {
   const attempts = OVERPASS_ENDPOINTS.map(async (url) => {
     const startedAt = Date.now();
-    const resp = await fetch(url, {
+    const headers = {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "Accept": "application/json",
+      "User-Agent": "AssetHistory360/1.0 (contact: admin@example.com)",
+    };
+
+    const postBody = new URLSearchParams({ data: query }).toString();
+    let resp = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json",
-        "User-Agent": "AssetHistory360/1.0 (contact: admin@example.com)",
-      },
-      body: new URLSearchParams({ data: query }),
+      headers,
+      body: postBody,
       signal: AbortSignal.timeout(OVERPASS_FETCH_TIMEOUT_MS),
     });
+    // Some Overpass frontends intermittently reject encoded POST bodies with
+    // HTTP 406 but accept the exact same query as a URL parameter.
+    if (resp.status === 406) {
+      resp = await fetch(`${url}?${postBody}`, {
+        method: "GET",
+        headers,
+        signal: AbortSignal.timeout(OVERPASS_FETCH_TIMEOUT_MS),
+      });
+    }
     if (!resp.ok) {
-      const t = await resp.text().catch(() => "");
-      throw new Error(`Overpass ${resp.status}: ${t.slice(0, 120)}`);
+      throw new Error(describeOverpassHttpError(resp.status));
     }
     if (resp.ok) {
       const clone = resp.clone();
@@ -130,7 +148,7 @@ export async function fetchOverpass(query: string): Promise<Response> {
         }
       } catch (e) {
         if (e instanceof Error && e.message.includes("incomplete result")) throw e;
-        // If the body is not JSON, let the caller handle it as the endpoint said OK.
+        throw new Error("Overpass ส่งข้อมูลกลับมาไม่ใช่ JSON");
       }
     }
     return resp;
@@ -140,8 +158,12 @@ export async function fetchOverpass(query: string): Promise<Response> {
     return await Promise.any(attempts);
   } catch (e) {
     const err = e as { errors?: unknown[]; message?: string };
-    const last = err.errors?.find((x) => x instanceof Error) as Error | undefined;
-    throw new Error(`Overpass ไม่ตอบสนอง (timeout/network): ${last?.message ?? err.message ?? "ทุก mirror ล้มเหลว"}`);
+    const messages = (err.errors ?? [])
+      .filter((x): x is Error => x instanceof Error)
+      .map((x) => x.message)
+      .filter(Boolean);
+    const detail = Array.from(new Set(messages)).slice(0, 2).join(" / ");
+    throw new Error(`Overpass ไม่พร้อมใช้งานชั่วคราว${detail ? `: ${detail}` : ""}`);
   }
 }
 
@@ -160,7 +182,9 @@ export async function fetchOverpassJson<T = OverpassResponse>(query: string): Pr
     const t = await resp.text().catch(() => "");
     throw new Error(`Overpass ${resp.status}: ${t.slice(0, 120)}`);
   }
-  const payload = (await resp.json()) as T;
+  const payload = (await resp.json().catch(() => {
+    throw new Error("Overpass ส่งข้อมูลกลับมาไม่ใช่ JSON");
+  })) as T;
   overpassJsonCache.set(query, { storedAt: Date.now(), payload });
   if (overpassJsonCache.size > OVERPASS_JSON_CACHE_MAX) {
     const oldest = overpassJsonCache.keys().next().value;

@@ -117,7 +117,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
     setExporting(kind);
     try {
       const sv = await getStreetViewImg({
-        data: { lat: asset.lat, lng: asset.lng, heading: 0, size: "1200x675" },
+        data: { lat: asset.lat, lng: asset.lng, heading: 0, size: "640x360" },
       });
       const streetViewDataUrl = sv.ok ? sv.dataUrl ?? null : null;
       if (!sv.ok) toast.warning(`Street View: ${sv.error ?? "ไม่พร้อม"}`);

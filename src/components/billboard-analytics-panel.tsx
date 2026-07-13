@@ -46,6 +46,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const [editOverlay, setEditOverlay] = useState(true);
   const [exporting, setExporting] = useState<null | "pptx" | "pdf">(null);
   const [cornerPickStep, setCornerPickStep] = useState<0 | 1 | 2 | 3 | null>(null);
+  const [capturingHero, setCapturingHero] = useState(false);
   const streetViewCaptureRef = useRef<HTMLDivElement | null>(null);
 
   const run = async (r: number) => {
@@ -118,6 +119,9 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const handleExport = async (kind: "pptx" | "pdf") => {
     setExporting(kind);
     try {
+      setShowStreet(true);
+      setCapturingHero(true);
+      await waitForStreetViewSnapshotTarget(streetViewCaptureRef);
       let streetViewDataUrl = streetViewCaptureRef.current
         ? await captureStreetViewNode(streetViewCaptureRef.current)
         : null;
@@ -153,6 +157,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
+      setCapturingHero(false);
       setExporting(null);
     }
   };
@@ -279,8 +284,8 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                     overlayImageUrl={selectedMockup?.image_url}
                     overlay={overlay ?? undefined}
                     onOverlayChange={setOverlay}
-                    editable={editOverlay && !!selectedMockup}
-                    cornerPickStep={cornerPickStep}
+                    editable={editOverlay && !!selectedMockup && !capturingHero}
+                    cornerPickStep={capturingHero ? null : cornerPickStep}
                     onCornerPick={handleCornerPick}
                   />
                 </div>
@@ -600,4 +605,20 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
       </div>
     </div>
   );
+}
+
+async function waitForStreetViewSnapshotTarget(ref: React.RefObject<HTMLDivElement | null>) {
+  const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+  await wait(0);
+  await new Promise((resolve) => window.requestAnimationFrame(resolve));
+  const started = Date.now();
+  while (Date.now() - started < 3500) {
+    const el = ref.current;
+    const text = el?.textContent ?? "";
+    if (el && !text.includes("กำลังโหลด") && (el.querySelector(".gm-style") || el.querySelector("img") || el.querySelector("canvas"))) {
+      await wait(350);
+      return;
+    }
+    await wait(150);
+  }
 }

@@ -69,9 +69,10 @@ export const OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
 export const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.osm.ch/api/interpreter",
 ];
 
-const OVERPASS_FETCH_TIMEOUT_MS = 16_000;
+const OVERPASS_FETCH_TIMEOUT_MS = 24_000;
 const OVERPASS_JSON_CACHE_TTL_MS = 10 * 60_000;
 const OVERPASS_JSON_CACHE_MAX = 40;
 const overpassJsonCache = new Map<string, { storedAt: number; payload: unknown }>();

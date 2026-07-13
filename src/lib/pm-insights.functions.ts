@@ -109,8 +109,8 @@ export const getPmInsights = createServerFn({ method: "POST" })
       fetchAll<PairRow>((from, to) =>
         (supabaseAdmin as unknown as { from: (t: string) => any }).from("mv_pm_claim_pairs").select("*").range(from, to),
       ),
-      fetchAll<{ old_code: string; name: string | null; department: string | null; area: string | null; payload: Record<string, unknown> | null }>(
-        (from, to) => supabaseAdmin.from("assets").select("old_code, name, department, area, payload").range(from, to),
+      fetchAll<{ old_code: string; name: string | null; department: string | null; area: string | null; media_type: string | null; payload: Record<string, unknown> | null }>(
+        (from, to) => supabaseAdmin.from("assets").select("old_code, name, department, area, media_type, payload").range(from, to),
       ),
     ]);
     // Two-pass: a code is "active" if ANY row for that code is not deleted.
@@ -134,9 +134,9 @@ export const getPmInsights = createServerFn({ method: "POST" })
         department: r.department,
         area: r.area,
         asset_media_type:
-          p && typeof p === "object" && typeof (p as Record<string, unknown>).MediaType === "string"
+          r.media_type ?? (p && typeof p === "object" && typeof (p as Record<string, unknown>).MediaType === "string"
             ? ((p as Record<string, unknown>).MediaType as string)
-            : null,
+            : null),
       });
     }
     // For history filtering: exclude only when the code has NO active asset row at all.
@@ -690,9 +690,15 @@ export const getPmInsights = createServerFn({ method: "POST" })
 export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
-    type AssetLiteP = { old_code: string; department: string | null; payload: Record<string, unknown> | null };
+    type AssetLiteP = {
+      old_code: string;
+      department: string | null;
+      media_type: string | null;
+      bkkupc: string | null;
+      payload: Record<string, unknown> | null;
+    };
     const assets = await fetchAll<AssetLiteP>((from, to) =>
-      supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
+      supabaseAdmin.from("assets").select("old_code, department, media_type, bkkupc, payload").range(from, to),
     );
 
     const deps = new Set<string>();
@@ -717,12 +723,12 @@ export const getPmInsightsFilterOptions = createServerFn({ method: "POST" })
       seen.add(a.old_code);
 
       if (a.department) deps.add(a.department);
-      const mt = typeof p?.MediaType === "string" ? (p.MediaType as string) : null;
+      const mt = a.media_type ?? (typeof p?.MediaType === "string" ? (p.MediaType as string) : null);
       if (mt) mediaTypes.add(mt);
-      const zoneRaw =
-        typeof p?.BKKUPC === "string" ? (p.BKKUPC as string)
+      const zoneRaw = a.bkkupc ??
+        (typeof p?.BKKUPC === "string" ? (p.BKKUPC as string)
           : typeof p?.BkkUpc === "string" ? (p.BkkUpc as string)
-            : null;
+            : null);
       if (zoneRaw) zones.add(zoneRaw);
       const projFromDept = projectForDepartment(a.department);
       if (projFromDept) projects.add(projFromDept);

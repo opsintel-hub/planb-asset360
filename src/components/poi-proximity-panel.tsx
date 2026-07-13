@@ -171,7 +171,7 @@ export default function PoiProximityPanel({
     const rows: string[][] = [
       [
         "POI (ต้นทางวัดระยะ)", "ประเภท POI", "POI Lat", "POI Lng",
-        "Asset (Old Code)", "Asset Name", "Asset Lat", "Asset Lng",
+        "Asset (Old Code)", "Asset Name",
         "ระยะจาก POI ถึงป้าย (m)",
       ],
     ];
@@ -179,15 +179,13 @@ export default function PoiProximityPanel({
       const preset = PRESET_BY_KEY[p.presetKey];
       const matches = matchesByPoi.get(p.id) ?? [];
       if (matches.length === 0) {
-        rows.push([p.name, preset?.label ?? p.presetKey, String(p.lat), String(p.lng), "", "", "", "", ""]);
+        rows.push([p.name, preset?.label ?? p.presetKey, String(p.lat), String(p.lng), "", "", ""]);
       } else {
         for (const m of matches) {
           const a = assetIndexById.get(m.assetId);
           rows.push([
             p.name, preset?.label ?? p.presetKey, String(p.lat), String(p.lng),
             a?.old_code ?? "", a?.name ?? "",
-            a?.latitude != null ? String(a.latitude) : "",
-            a?.longitude != null ? String(a.longitude) : "",
             m.distanceM.toFixed(1),
           ]);
         }

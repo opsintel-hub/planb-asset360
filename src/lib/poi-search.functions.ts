@@ -218,6 +218,24 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
       Math.min(e, maxLng + padLng),
     ];
 
+    // Guard: if the tightened bbox is still very large, Overpass will time out.
+    // Ask the user to add a filter or zoom in instead of hanging for 60+ seconds.
+    const latSpan = tightBbox[2] - tightBbox[0];
+    const lngSpan = tightBbox[3] - tightBbox[1];
+    const areaDeg2 = latSpan * lngSpan;
+    const hasGeoFilter =
+      !!bkkupc || districts.length > 0 || territories.length > 0
+      || locations.length > 0 || departments.length > 0 || mediaTypes.length > 0;
+    if (areaDeg2 > 4 || latSpan > 3 || lngSpan > 3) {
+      return {
+        ok: false,
+        error: hasGeoFilter
+          ? `พื้นที่ค้นหากว้างเกินไป (~${(latSpan * 111).toFixed(0)}×${(lngSpan * 111).toFixed(0)} กม.) — Overpass จะ timeout กรุณาซูมแผนที่เข้าอีก หรือเพิ่มตัวกรอง เขต/พื้นที่/จุดติดตั้ง`
+          : `พื้นที่ค้นหากว้างเกินไป (~${(latSpan * 111).toFixed(0)}×${(lngSpan * 111).toFixed(0)} กม.) — กรุณาเลือกตัวกรอง (BKKUPC / เขต / พื้นที่) หรือซูมแผนที่ก่อน`,
+        pois: [], matches: [], assetCount: rows.length, poiCount: 0, matchedAssetCount: 0,
+      };
+    }
+
     // ---- Step 3: Overpass on tightened bbox ----
     const query = buildOverpassQuery(presetKeys, freeText || null, tightBbox);
     if (!query) {

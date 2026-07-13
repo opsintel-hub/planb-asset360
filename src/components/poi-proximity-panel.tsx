@@ -348,13 +348,19 @@ export default function PoiProximityPanel({
           </div>
 
           <MultiSelectDropdown
-            open={deptOpen}
-            setOpen={setDeptOpen}
-            label="แผนก (Department)"
-            placeholder={filterOpts.isLoading ? "กำลังโหลด…" : "เลือกแผนก…"}
-            options={(filterOpts.data?.departments ?? []).map((t) => ({ value: t.value, label: `${t.value} (${t.count})` }))}
-            selected={selectedDepartments}
-            onToggle={(v) => setSelectedDepartments((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+            open={projOpen}
+            setOpen={setProjOpen}
+            label="Project"
+            placeholder={filterOpts.isLoading ? "กำลังโหลด…" : "เลือก Project…"}
+            options={Object.keys(PROJECT_TO_DEPARTMENTS).map((proj) => {
+              const depts = new Set(PROJECT_TO_DEPARTMENTS[proj]);
+              const count = (filterOpts.data?.departments ?? [])
+                .filter((d) => depts.has(d.value))
+                .reduce((s, d) => s + d.count, 0);
+              return { value: proj, label: count ? `${proj} (${count})` : proj };
+            })}
+            selected={selectedProjects}
+            onToggle={(v) => setSelectedProjects((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
             loading={filterOpts.isLoading}
           />
           <MultiSelectDropdown

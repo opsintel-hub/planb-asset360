@@ -76,7 +76,7 @@ export default function MockupManager({ oldCode, selectedId, onSelect }: Props) 
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("ลบ Mockup นี้?")) return;
+    // Delete immediately — no browser confirm popup.
     try {
       await deleteFn({ data: { id } });
       if (selectedId === id) onSelect(null);

@@ -91,7 +91,7 @@ export default function PoiProximityPanel({
           districts: selectedDistricts,
           territories: selectedTerritories,
           locations: selectedLocations,
-          departments: selectedDepartments,
+          departments: selectedProjects.flatMap((p) => PROJECT_TO_DEPARTMENTS[p] ?? []),
           mediaTypes: selectedMediaTypes,
         },
       });

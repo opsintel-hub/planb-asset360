@@ -403,7 +403,19 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                     </div>
                   </div>
 
-                  <div className="text-[10px] text-muted-foreground pt-1 border-t">
+                  {/* Row 5: brightness */}
+                  <div className="grid grid-cols-[70px_1fr_40px] items-center gap-2">
+                    <span className="text-muted-foreground">แสง</span>
+                    <input
+                      type="range"
+                      min={0.3}
+                      max={1.5}
+                      step={0.05}
+                      value={overlay.brightness ?? 1}
+                      onChange={(e) => setOverlay({ ...overlay, brightness: parseFloat(e.target.value) })}
+                    />
+                    <span className="tabular-nums text-right">{Math.round((overlay.brightness ?? 1) * 100)}%</span>
+                  </div>
                     เคล็ดลับ: ลากจุดสีน้ำเงินที่มุมทั้ง 4 บนภาพเพื่อบิดภาพให้พอดีขอบป้าย (แบบ Photoshop Distort)
                   </div>
                 </div>

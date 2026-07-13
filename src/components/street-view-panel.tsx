@@ -122,7 +122,30 @@ export default function StreetViewPanel({
     dragState.current.mode = null;
   };
 
-  const gmapsHref = `https://www.google.com/maps?q=&layer=c&cbll=${lat},${lng}`;
+  const gmapsHref = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}&heading=${heading}`;
+  const gmapsSearchHref = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+  const openExternal = (url: string) => {
+    const w = window.open(url, "_blank", "noopener,noreferrer");
+    if (!w) {
+      // popup blocked or iframe restriction — fall back to copy
+      void copyLink(url);
+    }
+  };
+
+  const copyLink = async (url: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        toast.success("คัดลอกลิงก์แล้ว — วางในเบราว์เซอร์เพื่อเปิด");
+        return;
+      }
+    } catch {
+      /* fall through */
+    }
+    // eslint-disable-next-line no-alert
+    window.prompt("คัดลอกลิงก์นี้เพื่อเปิดใน Google Maps:", url);
+  };
 
   return (
     <div

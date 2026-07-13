@@ -30,9 +30,12 @@ export type POISearchInput = {
   bbox: Bbox;
   radiusM: number;
   matchMode?: "any" | "all";
-  territories?: string[] | null;
-  regions?: string[] | null;
+  bkkupc?: string | null;                // "BKK" | "UPC" | null (any)
   districts?: string[] | null;
+  territories?: string[] | null;
+  locations?: string[] | null;
+  departments?: string[] | null;
+  mediaTypes?: string[] | null;
 };
 
 export type POISearchResult = {
@@ -48,35 +51,53 @@ export type POISearchResult = {
 };
 
 export type POIFilterOptions = {
-  territories: Array<{ value: string; count: number }>;
-  regions: Array<{ value: string; count: number }>;
+  bkkupcs: Array<{ value: string; count: number }>;
   districts: Array<{ value: string; count: number }>;
+  territories: Array<{ value: string; count: number }>;
+  departments: Array<{ value: string; count: number }>;
+  mediaTypes: Array<{ value: string; count: number }>;
 };
 
+/**
+ * Fast filter-option loader — reads real columns (indexed), pages the whole
+ * assets table once. With b-tree indexes this is a single seq/index scan.
+ */
 export const getPOIFilterOptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<POIFilterOptions> => {
-    // Aliased select: pull only the three JSON string fields we need — light payload, fast.
-    const territories = new Map<string, number>();
-    const regions = new Map<string, number>();
+    const bkkupcs = new Map<string, number>();
     const districts = new Map<string, number>();
+    const territories = new Map<string, number>();
+    const departments = new Map<string, number>();
+    const mediaTypes = new Map<string, number>();
     const pageSize = 1000;
     let from = 0;
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const { data, error } = await context.supabase
         .from("assets")
-        .select("t:payload->>Territory, r:payload->>Region, d:payload->>District")
+        .select("bkkupc, district, territory, department, media_type")
         .not("latitude", "is", null)
         .range(from, from + pageSize - 1);
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) break;
-      for (const row of data as Array<{ t: string | null; r: string | null; d: string | null }>) {
-        const t = row.t?.trim();
-        const r = row.r?.trim();
-        const d = row.d?.trim();
-        if (t) territories.set(t, (territories.get(t) ?? 0) + 1);
-        if (r) regions.set(r, (regions.get(r) ?? 0) + 1);
+      for (const row of data as Array<{
+        bkkupc: string | null;
+        district: string | null;
+        territory: string | null;
+        department: string | null;
+        media_type: string | null;
+      }>) {
+        const b = row.bkkupc?.trim();
+        const d = row.district?.trim();
+        const t = row.territory?.trim();
+        const dep = row.department?.trim();
+        const m = row.media_type?.trim();
+        if (b) bkkupcs.set(b, (bkkupcs.get(b) ?? 0) + 1);
         if (d) districts.set(d, (districts.get(d) ?? 0) + 1);
+        if (t) territories.set(t, (territories.get(t) ?? 0) + 1);
+        if (dep) departments.set(dep, (departments.get(dep) ?? 0) + 1);
+        if (m) mediaTypes.set(m, (mediaTypes.get(m) ?? 0) + 1);
       }
       if (data.length < pageSize) break;
       from += pageSize;
@@ -85,10 +106,38 @@ export const getPOIFilterOptions = createServerFn({ method: "GET" })
       Array.from(m, ([value, count]) => ({ value, count }))
         .sort((a, b) => b.count - a.count);
     return {
-      territories: toSorted(territories),
-      regions: toSorted(regions),
+      bkkupcs: toSorted(bkkupcs),
       districts: toSorted(districts),
+      territories: toSorted(territories),
+      departments: toSorted(departments),
+      mediaTypes: toSorted(mediaTypes),
     };
+  });
+
+/**
+ * Trigram-indexed typeahead for Location — only fetch matches for what the
+ * user is typing. Returns top 50 by frequency.
+ */
+export const searchLocations = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { q: string }) => ({ q: String(input?.q ?? "").trim() }))
+  .handler(async ({ data, context }): Promise<Array<{ value: string; count: number }>> => {
+    if (!data.q || data.q.length < 2) return [];
+    const { data: rows, error } = await context.supabase
+      .from("assets")
+      .select("location")
+      .ilike("location", `%${data.q}%`)
+      .not("location", "is", null)
+      .limit(500);
+    if (error) throw new Error(error.message);
+    const counts = new Map<string, number>();
+    for (const r of (rows ?? []) as Array<{ location: string | null }>) {
+      const v = r.location?.trim();
+      if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
+    }
+    return Array.from(counts, ([value, count]) => ({ value, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 50);
   });
 
 export const searchPOIsNearAssets = createServerFn({ method: "POST" })
@@ -109,15 +158,19 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
       return { ok: false, error: "เลือกประเภทสถานที่ หรือพิมพ์คำค้นหาอย่างน้อย 1 อย่าง", pois: [], matches: [], assetCount: 0, poiCount: 0, matchedAssetCount: 0 };
     }
 
-    // ---- Step 1: fetch assets FIRST (with optional territory/region filter) ----
+    // ---- Step 1: fetch assets FIRST, with column-based (indexed) filters ----
     const [s, w, n, e] = data.bbox;
-    const territories = (data.territories ?? []).filter((x) => typeof x === "string" && x);
-    const regions = (data.regions ?? []).filter((x) => typeof x === "string" && x);
-    const districts = (data.districts ?? []).filter((x) => typeof x === "string" && x);
+    const bkkupc = (data.bkkupc ?? "").trim();
+    const districts = (data.districts ?? []).filter((x): x is string => typeof x === "string" && !!x);
+    const territories = (data.territories ?? []).filter((x): x is string => typeof x === "string" && !!x);
+    const locations = (data.locations ?? []).filter((x): x is string => typeof x === "string" && !!x);
+    const departments = (data.departments ?? []).filter((x): x is string => typeof x === "string" && !!x);
+    const mediaTypes = (data.mediaTypes ?? []).filter((x): x is string => typeof x === "string" && !!x);
 
     const rows: Array<{ id: string; latitude: number | null; longitude: number | null }> = [];
     const pageSize = 1000;
     let from = 0;
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       let q = context.supabase
         .from("assets")
@@ -126,9 +179,12 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
         .not("longitude", "is", null)
         .gte("latitude", s).lte("latitude", n)
         .gte("longitude", w).lte("longitude", e);
-      if (territories.length > 0) q = q.in("payload->>Territory", territories);
-      if (regions.length > 0) q = q.in("payload->>Region", regions);
-      if (districts.length > 0) q = q.in("payload->>District", districts);
+      if (bkkupc) q = q.eq("bkkupc", bkkupc);
+      if (districts.length > 0) q = q.in("district", districts);
+      if (territories.length > 0) q = q.in("territory", territories);
+      if (locations.length > 0) q = q.in("location", locations);
+      if (departments.length > 0) q = q.in("department", departments);
+      if (mediaTypes.length > 0) q = q.in("media_type", mediaTypes);
       const { data: rowsPage, error } = await q.range(from, from + pageSize - 1);
       if (error) return { ok: false, error: error.message, pois: [], matches: [], assetCount: 0, poiCount: 0, matchedAssetCount: 0 };
       if (!rowsPage || rowsPage.length === 0) break;

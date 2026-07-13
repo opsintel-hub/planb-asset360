@@ -259,7 +259,7 @@ function MapPage() {
   const [originPickMode, setOriginPickMode] = useState(false);
   const [stopPickMode, setStopPickMode] = useState(false);
   const [roadPolyline, setRoadPolyline] = useState<LatLng[] | null>(null);
-  const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number; legs: { distance: number; duration: number }[] } | null>(null);
   const [routing, setRouting] = useState(false);
 
   // ---------- POI proximity state ----------

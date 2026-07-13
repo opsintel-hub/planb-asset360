@@ -72,36 +72,95 @@ export const OVERPASS_ENDPOINTS = [
   "https://overpass.osm.ch/api/interpreter",
 ];
 
+const OVERPASS_FETCH_TIMEOUT_MS = 16_000;
+const OVERPASS_JSON_CACHE_TTL_MS = 10 * 60_000;
+const OVERPASS_JSON_CACHE_MAX = 40;
+const overpassJsonCache = new Map<string, { storedAt: number; payload: unknown }>();
+
+function isRuntimeFailurePayload(payload: unknown, elapsedMs: number): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const p = payload as { elements?: unknown[]; remark?: string };
+  const remark = typeof p.remark === "string" ? p.remark : "";
+  if (/runtime error|timeout|timed out|out of time|rate limit|too many requests/i.test(remark)) {
+    return remark.slice(0, 180);
+  }
+  // Some public Overpass instances can return HTTP 200 + an empty element list
+  // when the query timed out. A genuinely empty small query usually returns fast.
+  if (Array.isArray(p.elements) && p.elements.length === 0 && elapsedMs > 12_000) {
+    return `empty response after ${(elapsedMs / 1000).toFixed(1)}s`;
+  }
+  return null;
+}
+
 /**
  * Fetch Overpass with headers required by public endpoints (User-Agent + Accept).
- * Falls back through mirrors on 4xx/5xx or timeout. Each mirror has a hard
- * 45-second client timeout so a stuck mirror can't hang the whole search.
+ * Falls back through mirrors on 4xx/5xx, timeout, and the common Overpass case
+ * where a timed-out query returns HTTP 200 with an empty/error JSON payload.
  */
 export async function fetchOverpass(query: string): Promise<Response> {
-  let lastErr: unknown = null;
-  let lastResp: Response | null = null;
-  for (const url of OVERPASS_ENDPOINTS) {
-    try {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json",
-          "User-Agent": "AssetHistory360/1.0 (contact: admin@example.com)",
-        },
-        body: "data=" + encodeURIComponent(query),
-        signal: AbortSignal.timeout(45_000),
-      });
-      if (resp.ok) return resp;
-      lastResp = resp;
-    } catch (e) {
-      lastErr = e;
+  const attempts = OVERPASS_ENDPOINTS.map(async (url) => {
+    const startedAt = Date.now();
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        "User-Agent": "AssetHistory360/1.0 (contact: admin@example.com)",
+      },
+      body: "data=" + encodeURIComponent(query),
+      signal: AbortSignal.timeout(OVERPASS_FETCH_TIMEOUT_MS),
+    });
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => "");
+      throw new Error(`Overpass ${resp.status}: ${t.slice(0, 120)}`);
     }
+    if (resp.ok) {
+      const clone = resp.clone();
+      try {
+        const payload = await clone.json();
+        const reason = isRuntimeFailurePayload(payload, Date.now() - startedAt);
+        if (reason) {
+          throw new Error(`Overpass mirror returned incomplete result: ${reason}`);
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message.includes("incomplete result")) throw e;
+        // If the body is not JSON, let the caller handle it as the endpoint said OK.
+      }
+    }
+    return resp;
+  });
+
+  try {
+    return await Promise.any(attempts);
+  } catch (e) {
+    const err = e as { errors?: unknown[]; message?: string };
+    const last = err.errors?.find((x) => x instanceof Error) as Error | undefined;
+    throw new Error(`Overpass ไม่ตอบสนอง (timeout/network): ${last?.message ?? err.message ?? "ทุก mirror ล้มเหลว"}`);
   }
-  if (lastResp) return lastResp;
-  throw lastErr instanceof Error
-    ? new Error(`Overpass ไม่ตอบสนอง (timeout/network): ${lastErr.message}`)
-    : new Error("Overpass ไม่ตอบสนองทุก mirror");
+}
+
+function cloneJson<T>(value: unknown): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+export async function fetchOverpassJson<T = OverpassResponse>(query: string): Promise<T> {
+  const cached = overpassJsonCache.get(query);
+  if (cached && Date.now() - cached.storedAt < OVERPASS_JSON_CACHE_TTL_MS) {
+    return cloneJson<T>(cached.payload);
+  }
+
+  const resp = await fetchOverpass(query);
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => "");
+    throw new Error(`Overpass ${resp.status}: ${t.slice(0, 120)}`);
+  }
+  const payload = (await resp.json()) as T;
+  overpassJsonCache.set(query, { storedAt: Date.now(), payload });
+  if (overpassJsonCache.size > OVERPASS_JSON_CACHE_MAX) {
+    const oldest = overpassJsonCache.keys().next().value;
+    if (oldest) overpassJsonCache.delete(oldest);
+  }
+  return cloneJson<T>(payload);
 }
 
 export type Bbox = [south: number, west: number, north: number, east: number];
@@ -155,6 +214,7 @@ export type OverpassElement = {
 
 export type OverpassResponse = {
   elements: OverpassElement[];
+  remark?: string;
 };
 
 export function haversineMeters(

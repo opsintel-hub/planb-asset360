@@ -16,6 +16,8 @@ import {
 import { SearchProgressDialog } from "./search-progress-dialog";
 
 const RADIUS_OPTIONS = [50, 100, 200, 500, 1000];
+const THAILAND_BBOX: Bbox = [5.6, 97.3, 20.6, 105.7];
+const BANGKOK_BBOX: Bbox = [13.48, 100.28, 13.96, 100.94];
 
 type Props = {
   bbox: Bbox | null;
@@ -56,6 +58,8 @@ export default function PoiProximityPanel({
     pois: POI[]; matches: POIMatch[]; matchedAssetCount: number; elapsedMs?: number;
   } | null>(null);
 
+  const effectiveBbox = bbox ?? (bkkupc === "BKK" ? BANGKOK_BBOX : THAILAND_BBOX);
+
   const filterOpts = useQuery({
     queryKey: ["poi-filter-options"],
     queryFn: () => filterOptsFn(),
@@ -73,14 +77,13 @@ export default function PoiProximityPanel({
 
   const mut = useMutation({
     mutationFn: async () => {
-      if (!bbox) throw new Error("รอโหลดแผนที่ก่อน");
       const token = { cancelled: false };
       cancelRef.current = token;
       const result = await searchFn({
         data: {
           presetKeys: selectedPresets,
           freeText: freeText.trim() || null,
-          bbox,
+          bbox: effectiveBbox,
           radiusM,
           matchMode,
           bkkupc: bkkupc || null,
@@ -97,8 +100,6 @@ export default function PoiProximityPanel({
     onSuccess: (r) => {
       if (!r.ok) {
         toast.error(r.error ?? "ค้นหาล้มเหลว");
-        setLastResult(null);
-        onResult(null);
         return;
       }
       const result = { pois: r.pois, matches: r.matches, matchedAssetCount: r.matchedAssetCount, elapsedMs: r.elapsedMs };
@@ -493,7 +494,7 @@ export default function PoiProximityPanel({
         <div className="flex gap-2 pt-1">
           <button
             onClick={() => mut.mutate()}
-            disabled={mut.isPending || !bbox || (selectedPresets.length === 0 && !freeText.trim())}
+            disabled={mut.isPending || (selectedPresets.length === 0 && !freeText.trim())}
             className="flex-1 h-9 rounded-md bg-primary text-primary-foreground text-xs inline-flex items-center justify-center gap-1.5 disabled:opacity-40"
           >
             {mut.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}

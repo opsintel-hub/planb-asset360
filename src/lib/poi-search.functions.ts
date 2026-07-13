@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
-  fetchOverpass,
+  fetchOverpassJson,
   buildOverpassQuery,
   classifyPreset,
   haversineMeters,
@@ -244,12 +244,7 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
 
     let raw: OverpassResponse;
     try {
-      const resp = await fetchOverpass(query);
-      if (!resp.ok) {
-        const t = await resp.text().catch(() => "");
-        return { ok: false, error: `Overpass ${resp.status}: ${t.slice(0, 120)}`, pois: [], matches: [], assetCount: rows.length, poiCount: 0, matchedAssetCount: 0 };
-      }
-      raw = (await resp.json()) as OverpassResponse;
+      raw = await fetchOverpassJson<OverpassResponse>(query);
     } catch (e) {
       return { ok: false, error: `Overpass ล้มเหลว: ${(e as Error).message}`, pois: [], matches: [], assetCount: rows.length, poiCount: 0, matchedAssetCount: 0 };
     }

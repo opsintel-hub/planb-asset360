@@ -295,68 +295,75 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                 </div>
               </Suspense>
               {selectedMockup && overlay && (
-                <div className="rounded-md border p-2 flex items-center gap-3 flex-wrap text-xs">
-                  <span className="text-muted-foreground">Overlay:</span>
-                  <label className="inline-flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={editOverlay}
-                      onChange={(e) => setEditOverlay(e.target.checked)}
-                    />
-                    แก้ไขได้
-                  </label>
-                  <label className="inline-flex items-center gap-2 flex-1 min-w-[160px]">
-                    Opacity
+                <div className="rounded-md border bg-muted/30 p-3 space-y-2.5 text-xs">
+                  {/* Row 1: mode + reset */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">โหมดปรับภาพ (Distort)</span>
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <label className="inline-flex items-center gap-1">
+                        <input
+                          type="checkbox"
+                          checked={editOverlay}
+                          onChange={(e) => setEditOverlay(e.target.checked)}
+                        />
+                        แก้ไขได้
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowStreet(true);
+                          setEditOverlay(true);
+                          setCornerPickStep(0);
+                        }}
+                        className="px-2 py-1 rounded-md border bg-card hover:bg-accent font-medium"
+                        title="คลิกทีละมุมบนภาพเพื่อจัดตำแหน่งใหม่"
+                      >
+                        คลิกปรับ 4 มุม
+                      </button>
+                      {overlay.corners && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nh = overlay.naturalAspect
+                              ? Math.min(Math.max((overlay.w / overlay.naturalAspect) * (16 / 9), 5), 100 - overlay.y)
+                              : overlay.h;
+                            setOverlay({
+                              ...overlay,
+                              h: nh,
+                              corners: {
+                                tl: { x: overlay.x, y: overlay.y },
+                                tr: { x: overlay.x + overlay.w, y: overlay.y },
+                                br: { x: overlay.x + overlay.w, y: overlay.y + nh },
+                                bl: { x: overlay.x, y: overlay.y + nh },
+                              },
+                            });
+                            setCornerPickStep(null);
+                          }}
+                          className="px-2 py-1 rounded-md border bg-card hover:bg-accent"
+                        >
+                          รีเซ็ตมุม
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Row 2: opacity */}
+                  <div className="grid grid-cols-[70px_1fr_40px] items-center gap-2">
+                    <span className="text-muted-foreground">Opacity</span>
                     <input
                       type="range"
                       min={0.1}
                       max={1}
                       step={0.05}
                       value={overlay.opacity}
-                      onChange={(e) =>
-                        setOverlay({ ...overlay, opacity: parseFloat(e.target.value) })
-                      }
-                      className="flex-1"
+                      onChange={(e) => setOverlay({ ...overlay, opacity: parseFloat(e.target.value) })}
                     />
-                    <span className="w-8 tabular-nums text-right">
-                      {Math.round(overlay.opacity * 100)}%
-                    </span>
-                  </label>
-                  <label className="inline-flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={overlay.keepAspect ?? true}
-                      onChange={(e) => setOverlay({ ...overlay, keepAspect: e.target.checked })}
-                    />
-                    ล็อคสัดส่วน
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowStreet(true);
-                      setEditOverlay(true);
-                      setCornerPickStep(0);
-                    }}
-                    className="px-2 py-1 rounded-md border hover:bg-accent font-medium"
-                  >
-                    คลิกปรับ 4 มุม
-                  </button>
-                  {overlay.corners && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const { corners: _corners, ...rest } = overlay;
-                        void _corners;
-                        setOverlay(rest);
-                        setCornerPickStep(null);
-                      }}
-                      className="px-2 py-1 rounded-md border hover:bg-accent"
-                    >
-                      รีเซ็ตมุม
-                    </button>
-                  )}
-                  <label className="inline-flex items-center gap-2">
-                    หมุน
+                    <span className="tabular-nums text-right">{Math.round(overlay.opacity * 100)}%</span>
+                  </div>
+
+                  {/* Row 3: rotate */}
+                  <div className="grid grid-cols-[70px_1fr_40px] items-center gap-2">
+                    <span className="text-muted-foreground">หมุน</span>
                     <input
                       type="range"
                       min={-45}
@@ -365,34 +372,43 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                       value={overlay.rotation}
                       onChange={(e) => setOverlay({ ...overlay, rotation: parseInt(e.target.value, 10) })}
                     />
-                    <span className="w-9 tabular-nums text-right">{overlay.rotation}°</span>
-                  </label>
-                  <label className="inline-flex items-center gap-2">
-                    เอียง X
-                    <input
-                      type="range"
-                      min={-30}
-                      max={30}
-                      step={1}
-                      value={overlay.skewX ?? 0}
-                      onChange={(e) => setOverlay({ ...overlay, skewX: parseInt(e.target.value, 10) })}
-                    />
-                    <span className="w-9 tabular-nums text-right">{overlay.skewX ?? 0}°</span>
-                  </label>
-                  <label className="inline-flex items-center gap-2">
-                    เอียง Y
-                    <input
-                      type="range"
-                      min={-30}
-                      max={30}
-                      step={1}
-                      value={overlay.skewY ?? 0}
-                      onChange={(e) => setOverlay({ ...overlay, skewY: parseInt(e.target.value, 10) })}
-                    />
-                    <span className="w-9 tabular-nums text-right">{overlay.skewY ?? 0}°</span>
-                  </label>
+                    <span className="tabular-nums text-right">{overlay.rotation}°</span>
+                  </div>
+
+                  {/* Row 4: skew X / Y side by side */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-[54px_1fr_36px] items-center gap-2">
+                      <span className="text-muted-foreground">เอียง X</span>
+                      <input
+                        type="range"
+                        min={-30}
+                        max={30}
+                        step={1}
+                        value={overlay.skewX ?? 0}
+                        onChange={(e) => setOverlay({ ...overlay, skewX: parseInt(e.target.value, 10) })}
+                      />
+                      <span className="tabular-nums text-right">{overlay.skewX ?? 0}°</span>
+                    </div>
+                    <div className="grid grid-cols-[54px_1fr_36px] items-center gap-2">
+                      <span className="text-muted-foreground">เอียง Y</span>
+                      <input
+                        type="range"
+                        min={-30}
+                        max={30}
+                        step={1}
+                        value={overlay.skewY ?? 0}
+                        onChange={(e) => setOverlay({ ...overlay, skewY: parseInt(e.target.value, 10) })}
+                      />
+                      <span className="tabular-nums text-right">{overlay.skewY ?? 0}°</span>
+                    </div>
+                  </div>
+
+                  <div className="text-[10px] text-muted-foreground pt-1 border-t">
+                    เคล็ดลับ: ลากจุดสีน้ำเงินที่มุมทั้ง 4 บนภาพเพื่อบิดภาพให้พอดีขอบป้าย (แบบ Photoshop Distort)
+                  </div>
                 </div>
               )}
+
             </div>
           )}
         </div>

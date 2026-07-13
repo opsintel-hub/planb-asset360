@@ -143,7 +143,7 @@ export default function PoiProximityPanel({
     setSelectedDistricts([]);
     setSelectedTerritories([]);
     setSelectedLocations([]);
-    setSelectedDepartments([]);
+    setSelectedProjects([]);
     setSelectedMediaTypes([]);
   };
 

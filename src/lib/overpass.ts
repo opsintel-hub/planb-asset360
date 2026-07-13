@@ -141,7 +141,7 @@ export function buildOverpassQuery(
   }
 
   if (parts.length === 0) return "";
-  return `[out:json][timeout:25];\n(\n${parts.join("\n")}\n);\nout center tags;`;
+  return `[out:json][timeout:40];\n(\n${parts.join("\n")}\n);\nout center tags;`;
 }
 
 export type OverpassElement = {

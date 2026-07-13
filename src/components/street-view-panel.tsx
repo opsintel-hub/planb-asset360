@@ -12,10 +12,93 @@ type Props = {
   overlay?: BillboardMockupOverlay;
   onOverlayChange?: (o: BillboardMockupOverlay) => void;
   editable?: boolean;
+  cornerPickStep?: 0 | 1 | 2 | 3 | null;
+  onCornerPick?: (x: number, y: number) => void;
 };
 
 type Status = "loading" | "ready" | "no-imagery" | "error";
-type Handle = "move" | "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+type Handle = "move" | "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw" | "tl" | "tr" | "br" | "bl";
+
+type CornerKey = "tl" | "tr" | "br" | "bl";
+type Point = { x: number; y: number };
+
+const CORNER_LABELS: Record<CornerKey, string> = {
+  tl: "1",
+  tr: "2",
+  br: "3",
+  bl: "4",
+};
+
+const PICK_LABELS = ["มุมซ้ายบน", "มุมขวาบน", "มุมขวาล่าง", "มุมซ้ายล่าง"] as const;
+
+function rectToCorners(o: BillboardMockupOverlay): NonNullable<BillboardMockupOverlay["corners"]> {
+  return {
+    tl: { x: o.x, y: o.y },
+    tr: { x: o.x + o.w, y: o.y },
+    br: { x: o.x + o.w, y: o.y + o.h },
+    bl: { x: o.x, y: o.y + o.h },
+  };
+}
+
+function boundsFromCorners(corners: NonNullable<BillboardMockupOverlay["corners"]>) {
+  const xs = [corners.tl.x, corners.tr.x, corners.br.x, corners.bl.x];
+  const ys = [corners.tl.y, corners.tr.y, corners.br.y, corners.bl.y];
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  return { x: minX, y: minY, w: Math.max(3, maxX - minX), h: Math.max(3, maxY - minY) };
+}
+
+function solveLinearSystem(matrix: number[][], vector: number[]) {
+  const n = vector.length;
+  const a = matrix.map((row, i) => [...row, vector[i]]);
+  for (let col = 0; col < n; col += 1) {
+    let pivot = col;
+    for (let row = col + 1; row < n; row += 1) {
+      if (Math.abs(a[row][col]) > Math.abs(a[pivot][col])) pivot = row;
+    }
+    if (Math.abs(a[pivot][col]) < 1e-10) return null;
+    [a[col], a[pivot]] = [a[pivot], a[col]];
+    const div = a[col][col];
+    for (let k = col; k <= n; k += 1) a[col][k] /= div;
+    for (let row = 0; row < n; row += 1) {
+      if (row === col) continue;
+      const factor = a[row][col];
+      for (let k = col; k <= n; k += 1) a[row][k] -= factor * a[col][k];
+    }
+  }
+  return a.map((row) => row[n]);
+}
+
+function cssMatrixForCorners(corners: NonNullable<BillboardMockupOverlay["corners"]>, box: DOMRect | null) {
+  if (!box || box.width <= 0 || box.height <= 0) return undefined;
+  const src = [
+    { x: 0, y: 0 },
+    { x: box.width, y: 0 },
+    { x: box.width, y: box.height },
+    { x: 0, y: box.height },
+  ];
+  const dst = [corners.tl, corners.tr, corners.br, corners.bl].map((p) => ({
+    x: (p.x / 100) * box.width,
+    y: (p.y / 100) * box.height,
+  }));
+  const m: number[][] = [];
+  const b: number[] = [];
+  for (let i = 0; i < 4; i += 1) {
+    const { x, y } = src[i];
+    const u = dst[i].x;
+    const v = dst[i].y;
+    m.push([x, y, 1, 0, 0, 0, -u * x, -u * y]);
+    b.push(u);
+    m.push([0, 0, 0, x, y, 1, -v * x, -v * y]);
+    b.push(v);
+  }
+  const h = solveLinearSystem(m, b);
+  if (!h) return undefined;
+  const [a, b2, c, d, e, f, g, h2] = h;
+  return `matrix3d(${a},${d},0,${g},${b2},${e},0,${h2},0,0,1,0,${c},${f},0,1)`;
+}
 
 export default function StreetViewPanel({
   lat,
@@ -25,11 +108,14 @@ export default function StreetViewPanel({
   overlay,
   onOverlayChange,
   editable = false,
+  cornerPickStep = null,
+  onCornerPick,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [msg, setMsg] = useState<string>("");
+  const [box, setBox] = useState<DOMRect | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +159,16 @@ export default function StreetViewPanel({
     };
   }, [lat, lng, heading]);
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setBox(el.getBoundingClientRect());
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const dragState = useRef<{
     mode: Handle | null;
     startX: number;
@@ -110,7 +206,34 @@ export default function StreetViewPanel({
     const aspect = st.keepAspect && st.naturalAspect ? st.naturalAspect : null;
     const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
+    if (["tl", "tr", "br", "bl"].includes(s.mode)) {
+      const key = s.mode as CornerKey;
+      const corners = st.corners ?? rectToCorners(st);
+      const nextCorners = {
+        tl: { ...corners.tl },
+        tr: { ...corners.tr },
+        br: { ...corners.br },
+        bl: { ...corners.bl },
+      };
+      nextCorners[key] = {
+        x: clamp(corners[key].x + dxPct, 0, 100),
+        y: clamp(corners[key].y + dyPct, 0, 100),
+      };
+      onOverlayChange({ ...st, ...boundsFromCorners(nextCorners), corners: nextCorners });
+      return;
+    }
+
     if (s.mode === "move") {
+      if (st.corners) {
+        const nextCorners = {
+          tl: { x: clamp(st.corners.tl.x + dxPct, 0, 100), y: clamp(st.corners.tl.y + dyPct, 0, 100) },
+          tr: { x: clamp(st.corners.tr.x + dxPct, 0, 100), y: clamp(st.corners.tr.y + dyPct, 0, 100) },
+          br: { x: clamp(st.corners.br.x + dxPct, 0, 100), y: clamp(st.corners.br.y + dyPct, 0, 100) },
+          bl: { x: clamp(st.corners.bl.x + dxPct, 0, 100), y: clamp(st.corners.bl.y + dyPct, 0, 100) },
+        };
+        onOverlayChange({ ...st, ...boundsFromCorners(nextCorners), corners: nextCorners });
+        return;
+      }
       onOverlayChange({
         ...st,
         x: clamp(st.x + dxPct, 0, 100 - st.w),
@@ -153,6 +276,18 @@ export default function StreetViewPanel({
   const overlayTransform = overlay
     ? `rotate(${overlay.rotation}deg) skew(${overlay.skewX ?? 0}deg, ${overlay.skewY ?? 0}deg)`
     : undefined;
+  const corners = overlay?.corners;
+  const perspectiveTransform = corners ? cssMatrixForCorners(corners, box) : undefined;
+
+  const handlePick = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (cornerPickStep == null || !onCornerPick || !containerRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    onCornerPick(Math.min(100, Math.max(0, x)), Math.min(100, Math.max(0, y)));
+  };
 
   return (
     <div
@@ -160,10 +295,63 @@ export default function StreetViewPanel({
       className="relative w-full h-[320px] rounded-md overflow-hidden border bg-muted select-none"
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
     >
       <div ref={svRef} className="absolute inset-0" />
 
-      {overlayImageUrl && overlay && status === "ready" && (
+      {overlayImageUrl && overlay && status === "ready" && corners && (
+        <>
+          <div
+            className={`absolute inset-0 z-30 ${editable ? "ring-2 ring-primary/70" : "pointer-events-none"}`}
+            style={{
+              opacity: overlay.opacity,
+              transform: perspectiveTransform,
+              transformOrigin: "0 0",
+              pointerEvents: editable ? "auto" : "none",
+            }}
+          >
+            <img
+              src={overlayImageUrl}
+              alt="mockup overlay"
+              className="w-full h-full object-fill pointer-events-none"
+              draggable={false}
+            />
+          </div>
+          {editable && (
+            <>
+              <button
+                type="button"
+                aria-label="move mockup"
+                className="absolute z-40 border border-primary/50 bg-primary/10 cursor-move"
+                style={{
+                  left: `${Math.min(corners.tl.x, corners.tr.x, corners.br.x, corners.bl.x)}%`,
+                  top: `${Math.min(corners.tl.y, corners.tr.y, corners.br.y, corners.bl.y)}%`,
+                  width: `${Math.max(3, Math.max(corners.tl.x, corners.tr.x, corners.br.x, corners.bl.x) - Math.min(corners.tl.x, corners.tr.x, corners.br.x, corners.bl.x))}%`,
+                  height: `${Math.max(3, Math.max(corners.tl.y, corners.tr.y, corners.br.y, corners.bl.y) - Math.min(corners.tl.y, corners.tr.y, corners.br.y, corners.bl.y))}%`,
+                }}
+                onPointerDown={(e) => onPointerDown("move", e)}
+              />
+              {(Object.keys(corners) as CornerKey[]).map((key) => {
+                const p = corners[key];
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onPointerDown={(e) => onPointerDown(key, e)}
+                    className="absolute z-50 size-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary text-primary-foreground text-[10px] font-bold shadow border-2 border-white cursor-grab active:cursor-grabbing"
+                    style={{ left: `${p.x}%`, top: `${p.y}%` }}
+                    aria-label={`corner ${CORNER_LABELS[key]}`}
+                  >
+                    {CORNER_LABELS[key]}
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </>
+      )}
+
+      {overlayImageUrl && overlay && status === "ready" && !corners && (
         <div
           className={`absolute z-30 ${editable ? "ring-2 ring-primary/70" : "pointer-events-none"}`}
           style={{
@@ -222,6 +410,17 @@ export default function StreetViewPanel({
               ))}
             </>
           )}
+        </div>
+      )}
+
+      {cornerPickStep != null && status === "ready" && (
+        <div
+          className="absolute inset-0 z-[70] cursor-crosshair bg-primary/5"
+          onPointerDown={handlePick}
+        >
+          <div className="absolute left-3 top-3 rounded-md bg-card/95 border px-3 py-2 text-xs shadow">
+            คลิก {PICK_LABELS[cornerPickStep]} ของป้ายโฆษณา ({cornerPickStep + 1}/4)
+          </div>
         </div>
       )}
 

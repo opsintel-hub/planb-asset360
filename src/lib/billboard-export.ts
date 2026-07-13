@@ -18,6 +18,29 @@ export type ExportInput = {
   analyticsNode?: HTMLElement | null;
 };
 
+type CornerPoint = { x: number; y: number };
+
+export async function captureStreetViewNode(node: HTMLElement): Promise<string | null> {
+  try {
+    const canvas = await html2canvas(node, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      ignoreElements: (el) => {
+        const text = el.textContent ?? "";
+        const className = (el as HTMLElement).className?.toString?.() ?? "";
+        return className.includes("gm-style-cc") || /Keyboard shortcuts|Terms|Report a problem/i.test(text);
+      },
+    });
+    return canvas.toDataURL("image/jpeg", 0.92);
+  } catch (e) {
+    console.warn("captureStreetViewNode failed", e);
+    return null;
+  }
+}
+
 // Compose Street View + mockup overlay into a single JPEG data URL via a canvas.
 export async function composeStreetViewWithOverlay(
   streetViewDataUrl: string,
@@ -45,7 +68,77 @@ export async function composeStreetViewWithOverlay(
   if (skewX || skewY) ctx.transform(1, Math.tan(skewY), Math.tan(skewX), 1, 0, 0);
   ctx.drawImage(mk, -w / 2, -h / 2, w, h);
   ctx.restore();
+  if (overlay.corners) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(sv, 0, 0);
+    ctx.globalAlpha = overlay.opacity;
+    drawImageInQuad(ctx, mk, [overlay.corners.tl, overlay.corners.tr, overlay.corners.br, overlay.corners.bl].map((p) => ({
+      x: (p.x / 100) * sv.width,
+      y: (p.y / 100) * sv.height,
+    })));
+    ctx.globalAlpha = 1;
+  }
   return canvas.toDataURL("image/jpeg", 0.92);
+}
+
+function interp(a: CornerPoint, b: CornerPoint, t: number): CornerPoint {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+function quadPoint(c: CornerPoint[], u: number, v: number): CornerPoint {
+  const top = interp(c[0], c[1], u);
+  const bottom = interp(c[3], c[2], u);
+  return interp(top, bottom, v);
+}
+
+function drawTriangle(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  src: [CornerPoint, CornerPoint, CornerPoint],
+  dst: [CornerPoint, CornerPoint, CornerPoint],
+) {
+  const [s0, s1, s2] = src;
+  const [d0, d1, d2] = dst;
+  const denom = s0.x * (s1.y - s2.y) + s1.x * (s2.y - s0.y) + s2.x * (s0.y - s1.y);
+  if (Math.abs(denom) < 1e-6) return;
+  const a = (d0.x * (s1.y - s2.y) + d1.x * (s2.y - s0.y) + d2.x * (s0.y - s1.y)) / denom;
+  const b = (d0.y * (s1.y - s2.y) + d1.y * (s2.y - s0.y) + d2.y * (s0.y - s1.y)) / denom;
+  const c = (d0.x * (s2.x - s1.x) + d1.x * (s0.x - s2.x) + d2.x * (s1.x - s0.x)) / denom;
+  const d = (d0.y * (s2.x - s1.x) + d1.y * (s0.x - s2.x) + d2.y * (s1.x - s0.x)) / denom;
+  const e = (d0.x * (s1.x * s2.y - s2.x * s1.y) + d1.x * (s2.x * s0.y - s0.x * s2.y) + d2.x * (s0.x * s1.y - s1.x * s0.y)) / denom;
+  const f = (d0.y * (s1.x * s2.y - s2.x * s1.y) + d1.y * (s2.x * s0.y - s0.x * s2.y) + d2.y * (s0.x * s1.y - s1.x * s0.y)) / denom;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(d0.x, d0.y);
+  ctx.lineTo(d1.x, d1.y);
+  ctx.lineTo(d2.x, d2.y);
+  ctx.closePath();
+  ctx.clip();
+  ctx.transform(a, b, c, d, e, f);
+  ctx.drawImage(img, 0, 0);
+  ctx.restore();
+}
+
+function drawImageInQuad(ctx: CanvasRenderingContext2D, img: HTMLImageElement, corners: CornerPoint[]) {
+  const steps = 18;
+  for (let iy = 0; iy < steps; iy += 1) {
+    for (let ix = 0; ix < steps; ix += 1) {
+      const u0 = ix / steps;
+      const u1 = (ix + 1) / steps;
+      const v0 = iy / steps;
+      const v1 = (iy + 1) / steps;
+      const s00 = { x: u0 * img.width, y: v0 * img.height };
+      const s10 = { x: u1 * img.width, y: v0 * img.height };
+      const s11 = { x: u1 * img.width, y: v1 * img.height };
+      const s01 = { x: u0 * img.width, y: v1 * img.height };
+      const d00 = quadPoint(corners, u0, v0);
+      const d10 = quadPoint(corners, u1, v0);
+      const d11 = quadPoint(corners, u1, v1);
+      const d01 = quadPoint(corners, u0, v1);
+      drawTriangle(ctx, img, [s00, s10, s11], [d00, d10, d11]);
+      drawTriangle(ctx, img, [s00, s11, s01], [d00, d11, d01]);
+    }
+  }
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -145,6 +238,62 @@ async function renderInfoBlock(input: ExportInput): Promise<{ dataUrl: string; r
   }
 }
 
+async function renderAnalyticsBlock(input: ExportInput): Promise<{ dataUrl: string; ratio: number } | null> {
+  const d = input.analytics;
+  const host = document.createElement("div");
+  host.style.cssText =
+    "position:fixed;left:-99999px;top:0;width:520px;padding:18px;background:#fff;font-family:'Sarabun','Noto Sans Thai',system-ui,sans-serif;color:#0f172a;box-sizing:border-box;";
+  if (!d || !d.ok) {
+    host.innerHTML = `<div style="font-size:15px;font-weight:700;color:#17365D;border-bottom:2px solid #17365D;padding-bottom:6px;margin-bottom:10px;">Analytics</div><div style="font-size:12px;color:#dc2626;line-height:1.45;">${escapeHtml(d?.error ?? "ยังไม่มีข้อมูล Analytics")}</div>`;
+  } else {
+    const demoRows = Object.entries(d.demographics)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([k, v]) => `<span style="display:inline-block;margin-right:10px;white-space:nowrap;">${escapeHtml(demoLabel(k))} <b>${v}%</b></span>`)
+      .join("");
+    const bucketRows = d.buckets.slice(0, 6).map((b) => {
+      const max = Math.max(...d.buckets.map((x) => x.count), 1);
+      const pct = Math.max(4, Math.round((b.count / max) * 100));
+      return `<div style="display:flex;align-items:center;gap:6px;margin:4px 0;font-size:11px;"><span style="width:18px;">${b.icon}</span><span style="width:118px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(b.label)}</span><span style="height:7px;flex:1;background:#e2e8f0;border-radius:10px;overflow:hidden;"><span style="display:block;height:7px;width:${pct}%;background:${b.color};"></span></span><b style="width:24px;text-align:right;">${b.count}</b></div>`;
+    }).join("");
+    const topRows = d.topPOIs.slice(0, 5).map((p) =>
+      `<div style="display:flex;gap:8px;font-size:10.5px;margin:2px 0;"><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.name)}</span><span style="color:#64748b;white-space:nowrap;">${escapeHtml(p.category)}</span><b style="width:42px;text-align:right;">${p.distanceM}ม.</b></div>`,
+    ).join("");
+    host.innerHTML = `
+      <div style="font-size:15px;font-weight:700;color:#17365D;border-bottom:2px solid #17365D;padding-bottom:6px;margin-bottom:8px;">Analytics</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div style="background:#f1f5f9;border:1px solid #dbe3ef;border-radius:6px;padding:8px;"><div style="font-size:10px;color:#64748b;">Traffic</div><div style="font-size:24px;font-weight:800;color:#17365D;">${d.trafficScore}<span style="font-size:12px;font-weight:500;">/100</span></div><div style="font-size:11px;">${escapeHtml(d.trafficLabel)}</div></div>
+        <div style="background:#f1f5f9;border:1px solid #dbe3ef;border-radius:6px;padding:8px;"><div style="font-size:10px;color:#64748b;">Impressions/day</div><div style="font-size:15px;font-weight:800;color:#17365D;margin-top:5px;">${d.estimatedDailyImpressions.min.toLocaleString()}–${d.estimatedDailyImpressions.max.toLocaleString()}</div><div style="font-size:10px;color:#64748b;margin-top:3px;">${escapeHtml(d.nearestRoad?.name ?? d.nearestRoad?.class ?? "ไม่พบถนน")}</div></div>
+      </div>
+      <div style="font-size:11px;margin-bottom:8px;line-height:1.35;"><b>กลุ่มเป้าหมาย:</b> ${demoRows}</div>
+      <div style="font-size:11px;margin-bottom:6px;"><b>ช่วงพีค:</b> ${d.peakHours.map(escapeHtml).join(" · ") || "—"}</div>
+      <div style="font-size:11px;font-weight:700;margin-top:6px;">POI รอบป้าย (${d.totalPOIs.toLocaleString()})</div>
+      ${bucketRows || `<div style="font-size:11px;color:#64748b;margin:4px 0;">ไม่พบ POI ในรัศมีนี้</div>`}
+      ${topRows ? `<div style="font-size:11px;font-weight:700;margin-top:8px;">ใกล้ที่สุด</div>${topRows}` : ""}
+      ${d.notes.length ? `<div style="margin-top:8px;font-size:10.5px;color:#475569;line-height:1.35;">${d.notes.slice(0, 2).map(escapeHtml).join(" · ")}</div>` : ""}
+    `;
+  }
+  document.body.appendChild(host);
+  try {
+    const snap = await snapshotNode(host);
+    if (!snap) return null;
+    return { dataUrl: snap.dataUrl, ratio: snap.width / snap.height };
+  } finally {
+    host.remove();
+  }
+}
+
+function demoLabel(k: string): string {
+  switch (k) {
+    case "office": return "ออฟฟิศ";
+    case "student": return "นักเรียน";
+    case "shopper": return "นักช้อป";
+    case "resident": return "ที่อยู่อาศัย";
+    case "tourist": return "นักท่องเที่ยว";
+    default: return k;
+  }
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -198,34 +347,11 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
     { x: 0.4, y: 7.15, w: 12.5, h: 0.3, fontSize: 9, italic: true, color: "94A3B8", fontFace: "Sarabun" },
   );
 
-  // ---- Slide 2: Analytics snapshot (Thai + Overpass data) ----
-  if (input.analyticsNode) {
-    const snap = await snapshotNode(input.analyticsNode);
-    if (snap) {
-      const s2 = pres.addSlide();
-      s2.background = { color: "FFFFFF" };
-      s2.addShape("rect", { x: 0, y: 0, w: 13.333, h: 0.75, fill: { color: BRAND } });
-      s2.addText(`Analytics · ${input.asset.old_code ?? "—"}`, {
-        x: 0.4, y: 0.1, w: 12, h: 0.55, fontSize: 20, bold: true, color: "FFFFFF",
-        fontFace: "Sarabun",
-      });
-      const availW = 12.5;
-      const availH = 6.3;
-      const ratio = snap.width / snap.height;
-      let w = availW;
-      let h = w / ratio;
-      if (h > availH) {
-        h = availH;
-        w = h * ratio;
-      }
-      s2.addImage({
-        data: snap.dataUrl,
-        x: (13.333 - w) / 2,
-        y: 0.9,
-        w,
-        h,
-      });
-    }
+  const analytics = await renderAnalyticsBlock(input);
+  if (analytics) {
+    const analyticsW = 4.7;
+    const analyticsH = Math.min(analyticsW / analytics.ratio, 3.85);
+    s1.addImage({ data: analytics.dataUrl, x: 8.2, y: 3.05, w: analyticsW, h: analyticsH });
   }
 
   await pres.writeFile({ fileName: `billboard-${input.asset.old_code ?? "report"}.pptx` });
@@ -301,50 +427,20 @@ export async function exportBillboardPdf(input: ExportInput): Promise<void> {
   if (info) {
     const infoW = pageW - (margin + heroW + margin) - margin;
     const infoH = infoW / info.ratio;
-    pdf.addImage(info.dataUrl, "PNG", margin + heroW + margin, 60, infoW, Math.min(infoH, pageH - 100));
+    pdf.addImage(info.dataUrl, "PNG", margin + heroW + margin, 60, infoW, Math.min(infoH, 172));
+  }
+
+  const analytics = await renderAnalyticsBlock(input);
+  if (analytics) {
+    const analyticsW = pageW - (margin + heroW + margin) - margin;
+    const analyticsH = Math.min(analyticsW / analytics.ratio, pageH - 275);
+    pdf.addImage(analytics.dataUrl, "PNG", margin + heroW + margin, 245, analyticsW, analyticsH);
   }
 
   await drawTextImage(
     `สร้างเมื่อ ${new Date().toLocaleString("th-TH")} · Asset History 360`,
     { x: margin, y: pageH - 22, w: pageW - margin * 2, fontSize: 8, italic: true, color: "#94A3B8" },
   );
-
-  // ===== Page 2+: Analytics snapshot (multi-page split) =====
-  if (input.analyticsNode) {
-    const snap = await snapshotNode(input.analyticsNode);
-    if (snap) {
-      const contentW = pageW - margin * 2;
-      const contentH = pageH - 60; // leave a small header band
-      const pxPerPtX = snap.width / contentW;
-      const sliceHpx = contentH * pxPerPtX;
-      let offset = 0;
-      let first = true;
-      while (offset < snap.height) {
-        pdf.addPage();
-        drawHeader("");
-        await drawTextImage(`Analytics · ${input.asset.old_code ?? "-"}`, {
-          x: margin, y: 8, w: pageW - margin * 2, fontSize: 14, bold: true, color: "#ffffff",
-        });
-        const remain = snap.height - offset;
-        const takePx = Math.min(sliceHpx, remain);
-        // Slice via a temporary canvas
-        const slice = document.createElement("canvas");
-        slice.width = snap.width;
-        slice.height = takePx;
-        const sctx = slice.getContext("2d");
-        if (sctx) {
-          const full = await loadImage(snap.dataUrl);
-          sctx.drawImage(full, 0, -offset);
-        }
-        const sliceUrl = slice.toDataURL("image/png");
-        const sliceH = (takePx / pxPerPtX);
-        pdf.addImage(sliceUrl, "PNG", margin, 50, contentW, sliceH);
-        offset += takePx;
-        first = false;
-        void first;
-      }
-    }
-  }
 
   pdf.save(`billboard-${input.asset.old_code ?? "report"}.pdf`);
 }

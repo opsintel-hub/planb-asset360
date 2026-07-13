@@ -13,6 +13,7 @@ import {
   haversineMeters,
   type OverpassResponse,
 } from "./overpass";
+import { analyzeWithGooglePlacesFallback } from "./billboard-analytics-fallback";
 
 export type AnalyticsInput = {
   lat: number;
@@ -239,6 +240,15 @@ out center tags;`;
       }
       raw = (await resp.json()) as OverpassResponse;
     } catch (err) {
+      const fallback = await analyzeWithGooglePlacesFallback({
+        lat,
+        lng,
+        radiusM,
+        overpassError: (err as Error).message,
+        buckets: BUCKETS,
+        peaksFor,
+      });
+      if (fallback) return fallback;
       return emptyResult(lat, lng, radiusM, `Overpass ล้มเหลว: ${(err as Error).message}`);
     }
 

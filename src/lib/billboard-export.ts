@@ -124,6 +124,21 @@ function quadPoint(c: CornerPoint[], u: number, v: number): CornerPoint {
   return interp(top, bottom, v);
 }
 
+function inflateTriangle(
+  d: [CornerPoint, CornerPoint, CornerPoint],
+  amount: number,
+): [CornerPoint, CornerPoint, CornerPoint] {
+  const cx = (d[0].x + d[1].x + d[2].x) / 3;
+  const cy = (d[0].y + d[1].y + d[2].y) / 3;
+  const push = (p: CornerPoint): CornerPoint => {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: p.x + (dx / len) * amount, y: p.y + (dy / len) * amount };
+  };
+  return [push(d[0]), push(d[1]), push(d[2])];
+}
+
 function drawTriangle(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
@@ -131,7 +146,9 @@ function drawTriangle(
   dst: [CornerPoint, CornerPoint, CornerPoint],
 ) {
   const [s0, s1, s2] = src;
-  const [d0, d1, d2] = dst;
+  // Inflate the destination triangle slightly so adjacent triangles overlap and
+  // hide the diagonal seams that otherwise show as faint stripes across the mockup.
+  const [d0, d1, d2] = inflateTriangle(dst, 0.75);
   const denom = s0.x * (s1.y - s2.y) + s1.x * (s2.y - s0.y) + s2.x * (s0.y - s1.y);
   if (Math.abs(denom) < 1e-6) return;
   const a = (d0.x * (s1.y - s2.y) + d1.x * (s2.y - s0.y) + d2.x * (s0.y - s1.y)) / denom;
@@ -155,9 +172,8 @@ function drawTriangle(
 function drawImageInQuad(ctx: CanvasRenderingContext2D, img: HTMLImageElement, corners: CornerPoint[]) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
-  // Fewer, larger cells + smoothing avoids the diagonal stripe artifacts a
-  // dense grid creates on high-contrast text in mockups.
-  const steps = 8;
+  // Larger cells + slight triangle inflation eliminate diagonal seam stripes.
+  const steps = 6;
   for (let iy = 0; iy < steps; iy += 1) {
     for (let ix = 0; ix < steps; ix += 1) {
       const u0 = ix / steps;
@@ -177,6 +193,7 @@ function drawImageInQuad(ctx: CanvasRenderingContext2D, img: HTMLImageElement, c
     }
   }
 }
+
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {

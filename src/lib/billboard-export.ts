@@ -36,7 +36,7 @@ export async function captureStreetViewNode(node: HTMLElement): Promise<string |
       // capture the current pose rather than a cleared buffer.
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
       try {
-        const url = best.toDataURL("image/jpeg", 0.92);
+        const url = best.toDataURL("image/jpeg", 0.96);
         // Guard against blank/transparent buffers (all-black tiny result).
         if (url && url.length > 5000) return url;
       } catch {

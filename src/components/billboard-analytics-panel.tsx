@@ -136,6 +136,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
         mockup: selectedMockup,
         mockupDataUrl,
         overlay: overlay ?? selectedMockup?.overlay ?? null,
+        analyticsNode: reportRef.current,
       };
       if (kind === "pptx") await exportBillboardPptx(payload);
       else await exportBillboardPdf(payload);

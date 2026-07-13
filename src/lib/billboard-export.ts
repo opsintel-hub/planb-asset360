@@ -59,7 +59,7 @@ export async function captureStreetViewNode(node: HTMLElement): Promise<string |
         return className.includes("gm-style-cc") || /Keyboard shortcuts|Terms|Report a problem/i.test(text);
       },
     });
-    return canvas.toDataURL("image/jpeg", 0.92);
+    return canvas.toDataURL("image/jpeg", 0.96);
   } catch (e) {
     console.warn("captureStreetViewNode failed", e);
     return null;

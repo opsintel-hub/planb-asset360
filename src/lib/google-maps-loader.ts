@@ -1,3 +1,4 @@
+/// <reference types="google.maps" />
 // Idempotent Google Maps JS API loader.
 // Uses the Lovable-managed browser key (referrer-restricted to *.lovable.app / *.lovableproject.com).
 

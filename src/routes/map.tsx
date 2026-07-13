@@ -1158,6 +1158,22 @@ function MapPage() {
                   setRoadPolyline(null);
                   setRouteInfo(null);
                 }}
+                stopPickMode={mode === "inspection" && stopPickMode}
+                onStopPick={(lat, lng) => {
+                  setStops((prev) => [
+                    ...prev,
+                    {
+                      key: `pin-${Date.now()}`,
+                      asset_id: null,
+                      old_code: null,
+                      name: `จุด (${lat.toFixed(5)}, ${lng.toFixed(5)})`,
+                      lat,
+                      lng,
+                    },
+                  ]);
+                  setRoadPolyline(null);
+                  setRouteInfo(null);
+                }}
                 showRadiusRings={mode === "corridor"}
                 poiMarkers={poiMarkers}
                 poiRadiusMeters={mode === "poi" && poiResult ? poiResult.radiusM : 0}

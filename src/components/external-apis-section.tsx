@@ -112,6 +112,14 @@ export function ExternalApisSection() {
       else toast.error(`Nominatim ล้มเหลว: ${r.message}`);
     },
   });
+  const gmapsMut = useMutation({
+    mutationFn: () => gmapsFn({}),
+    onSuccess: (r) => {
+      setResults((p) => ({ ...p, gmaps: r }));
+      if (r.ok) toast.success(`Google Maps OK · ${r.latencyMs} ms`);
+      else toast.error(`Google Maps: ${r.message}`);
+    },
+  });
 
   return (
     <div className="space-y-4">

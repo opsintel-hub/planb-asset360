@@ -1,6 +1,7 @@
 /// <reference types="google.maps" />
 import { useEffect, useRef, useState } from "react";
-import { Loader2, ExternalLink, AlertCircle } from "lucide-react";
+import { Loader2, ExternalLink, AlertCircle, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { loadGoogleMaps } from "@/lib/google-maps-loader";
 import type { BillboardMockupOverlay } from "@/lib/billboard-mockups.functions";
 
@@ -121,7 +122,30 @@ export default function StreetViewPanel({
     dragState.current.mode = null;
   };
 
-  const gmapsHref = `https://www.google.com/maps?q=&layer=c&cbll=${lat},${lng}`;
+  const gmapsHref = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}&heading=${heading}`;
+  const gmapsSearchHref = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+  const openExternal = (url: string) => {
+    const w = window.open(url, "_blank", "noopener,noreferrer");
+    if (!w) {
+      // popup blocked or iframe restriction — fall back to copy
+      void copyLink(url);
+    }
+  };
+
+  const copyLink = async (url: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        toast.success("คัดลอกลิงก์แล้ว — วางในเบราว์เซอร์เพื่อเปิด");
+        return;
+      }
+    } catch {
+      /* fall through */
+    }
+    // eslint-disable-next-line no-alert
+    window.prompt("คัดลอกลิงก์นี้เพื่อเปิดใน Google Maps:", url);
+  };
 
   return (
     <div
@@ -176,14 +200,23 @@ export default function StreetViewPanel({
         <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2 p-4 text-center">
           <AlertCircle className="size-5" />
           <div>ไม่มีภาพ Street View บริเวณนี้ (รัศมี 80 ม.)</div>
-          <a
-            className="inline-flex items-center gap-1 text-primary underline text-xs"
-            href={gmapsHref}
-            target="_blank"
-            rel="noreferrer"
-          >
-            เปิดใน Google Maps <ExternalLink className="size-3" />
-          </a>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => openExternal(gmapsSearchHref)}
+              className="inline-flex items-center gap-1 rounded border bg-background/90 px-2 py-1 text-xs text-primary hover:bg-background"
+            >
+              เปิดใน Google Maps <ExternalLink className="size-3" />
+            </button>
+            <button
+              type="button"
+              onClick={() => void copyLink(gmapsSearchHref)}
+              className="inline-flex items-center gap-1 rounded border bg-background/90 px-2 py-1 text-xs hover:bg-background"
+              title="คัดลอกลิงก์"
+            >
+              <Copy className="size-3" />
+            </button>
+          </div>
         </div>
       )}
       {status === "error" && (
@@ -194,14 +227,23 @@ export default function StreetViewPanel({
         </div>
       )}
       {status === "ready" && (
-        <a
-          href={gmapsHref}
-          target="_blank"
-          rel="noreferrer"
-          className="absolute bottom-2 right-2 z-10 inline-flex items-center gap-1 rounded bg-background/90 border px-2 py-1 text-[11px] shadow hover:bg-background"
-        >
-          เปิดใน Google Maps <ExternalLink className="size-3" />
-        </a>
+        <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => openExternal(gmapsHref)}
+            className="inline-flex items-center gap-1 rounded bg-background/90 border px-2 py-1 text-[11px] shadow hover:bg-background"
+          >
+            เปิดใน Google Maps <ExternalLink className="size-3" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void copyLink(gmapsHref)}
+            className="inline-flex items-center gap-1 rounded bg-background/90 border px-2 py-1 text-[11px] shadow hover:bg-background"
+            title="คัดลอกลิงก์"
+          >
+            <Copy className="size-3" />
+          </button>
+        </div>
       )}
     </div>
   );

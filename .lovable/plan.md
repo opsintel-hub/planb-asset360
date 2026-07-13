@@ -1,75 +1,25 @@
-# แผนคู่ขนาน: Phase A3 + Google Street View
 
-## Phase A3 — Refactor payload → columns
+## สาเหตุ
 
-เป้าหมาย: ให้ query ทั้งระบบใช้คอลัมน์จริง (`bkkupc`, `district`, `territory`, `location`, `media_type`) แทน `payload->>...` เพื่อ:
-- ให้ index ใช้งานได้ → Monitoring / PM Insights / Health โหลดเร็วขึ้น
-- ลดขนาด row ที่ดึง (ไม่ต้องยก JSON payload มาทั้งก้อน)
+ปุ่ม "เปิดใน Google Maps" ปัจจุบันเป็น `<a target="_blank">` ชี้ไปที่ `google.com/maps?...&layer=c` (Street View mode) URL แบบนี้ถูก Google ตอบด้วย header ป้องกัน iframe/redirect ในบางบริบท (โดยเฉพาะเปิดจาก preview iframe หรือเครือข่ายที่บล็อก) → เห็นหน้า `ERR_BLOCKED_BY_RESPONSE` แบบภาพที่ 2
 
-### ไฟล์ที่ต้องแก้
+## แนวทางแก้ (ทำเลย ~95% มั่นใจ)
 
-**1. `src/lib/data.functions.ts`** (จุดหลัก ใช้กันเยอะ)
-- `select("... payload")` 4 จุด → เปลี่ยนเป็น select เฉพาะ `bkkupc, district, territory, location, media_type` + คอลัมน์ที่ใช้จริง
-- อ่าน `payload.mediaType/MediaType/BKKUPC/District/...` → ใช้ `row.media_type / row.bkkupc / row.district`
-- บรรทัดที่กระทบ: 288, 301, 315, 323, 391, 426, 435, 664
-- คง fallback อ่าน payload ไว้ (กัน row เก่าที่ backfill ไม่ครบ) — priority: column ก่อน, payload หลัง
+แก้เฉพาะ `src/components/street-view-panel.tsx` — เป็นงาน UI ล้วน ไม่แตะ backend
 
-**2. `src/lib/monitoring.functions.ts`**
-- Line 184, 200 — assets select payload → เปลี่ยน select
-- Line 466 — `t.payload` เป็นจาก `mssql_asset_history` (คนละตาราง ไม่แตะ)
-- Line 536, 538, 553 — `getMonitoringFilterOptions` — เปลี่ยนเป็น select column แล้วสร้าง set ตรง
+1. **เปลี่ยน URL รูปแบบใหม่ที่เสถียรกว่า** ใช้ Google Maps deep link ที่ไม่ต้องผ่าน `layer=c` (ซึ่งเป็นตัวกระตุ้นให้บางเบราว์เซอร์/เครือข่ายบล็อก):
+   - แทน `https://www.google.com/maps?q=&layer=c&cbll={lat},{lng}` → ใช้
+   - `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat},{lng}&heading={heading}` (Street View deep link ทางการ)
 
-**3. `src/lib/pm-insights.functions.ts`**
-- Line 112, 113, 120, 128 — asset lookup select payload → select `department, bkkupc, media_type`
-- Line 693, 695, 713 — zone map (`getPmZoneMap`) — เปลี่ยนเป็นอ่าน column, ลบ payload parsing
+2. **เปลี่ยนปุ่มเดียวเป็นกลุ่มปุ่ม 2 อัน** วางที่มุมล่างขวาของ panel และในกล่อง no-imagery:
+   - **"เปิด"** — เรียก `window.open(url, "_blank", "noopener,noreferrer")` (แทน `<a>` ล้วน) เพื่อให้แน่ใจว่าเปิดที่ top-level ไม่ใช่ใน iframe
+   - **"คัดลอกลิงก์"** — ใช้ `navigator.clipboard.writeText(url)` + toast "คัดลอกลิงก์แล้ว" ผู้ใช้วางเปิดในแท็บ/แอปไหนก็ได้ (Google Maps app บนมือถือก็รับ URL รูปแบบนี้ได้)
 
-### ไม่ต้องแก้ (ยืนยัน)
-- `src/components/breakdown-tab.tsx` — อ่าน `mssql_asset_history.payload` (คนละตาราง ไม่อยู่ใน scope A)
-- `src/routes/pm-insights.tsx` line 425 — แค่ tooltip text
-- `src/lib/overpass.ts`, `chart.tsx` — คนละความหมาย
+3. **Fallback เพิ่ม 1 ตัวเลือก** — ถ้า clipboard API ไม่พร้อม (บาง context) ให้ `prompt(...)` แสดงข้อความให้ก็อปมือ
 
-### Validation
-- typecheck ผ่านทุกไฟล์
-- เปิด Monitoring / PM Insights / Search / Map — data ต้องยังตรง
-- วัดเวลา: Asset Map ควรลดจาก ~5s → <2s
+4. **UI**: จัดปุ่มเป็นกลุ่มพื้นหลัง `bg-background/90 border` แบบเดิม เพิ่มไอคอน `Copy` และ `ExternalLink` (มีอยู่ใน lucide-react แล้ว) — ไม่กระทบธีมหรือ layout อื่น
 
----
+## ขอบเขต
 
-## Google Street View — Panorama ในหน้ารายละเอียดป้าย
-
-เป้าหมาย: กดหมุดป้ายบนแผนที่ → เปิด `BillboardAnalyticsPanel` → มี **แท็บ / section "Street View"** แสดง panorama ณ พิกัดป้าย
-
-### 1. เตรียม API key (ต้องคุณทำ)
-- ใช้ **Google Maps Platform connector** (ผ่าน connector gateway) — Lovable-managed key
-- Key นี้ถูก restrict ไว้เฉพาะ `*.lovable.app` / `*.lovableproject.com`
-  → ทำงานบน preview / published URL ปกติได้เลย
-  → ถ้าย้าย custom domain ต้องเพิ่ม key ของตัวเอง (ทำภายหลัง)
-- ผมจะเรียก `standard_connectors--connect` เพื่อเชื่อม connector ให้อัตโนมัติ
-
-### 2. Component ใหม่: `src/components/street-view-panel.tsx`
-- โหลด Maps JS API แบบ async ด้วย `VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY`
-- เรนเดอร์ `google.maps.StreetViewPanorama` ใน `<div ref>` ขนาด 100% × 320px
-- ใช้ `StreetViewService.getPanorama({ location, radius: 50 })` → ถ้าไม่มีภาพในรัศมี 50m แสดง "ไม่มีภาพ Street View บริเวณนี้"
-- Controls: ปุ่ม fullscreen, pan/zoom (ของ Google เอง), ปุ่ม "เปิดใน Google Maps" (deep link `https://www.google.com/maps?q=&layer=c&cbll=lat,lng`)
-- ปุ่ม refresh / reset heading
-
-### 3. เสริมใน `src/components/billboard-analytics-panel.tsx`
-- เพิ่ม tab / accordion section "Street View" (default: collapsed เพื่อไม่โหลด script ถ้าไม่กด)
-- Lazy mount `<StreetViewPanel lat={asset.lat} lng={asset.lng} />` เมื่อกางเท่านั้น
-
-### 4. Loader script (ครั้งเดียว)
-- Utility `src/lib/google-maps-loader.ts` — return promise ที่ resolve เมื่อ `google.maps` พร้อม
-- Callback global `__lovableInitGmaps` (idempotent)
-- Guard: ถ้า `!import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY` แสดง "ยังไม่ได้เชื่อม Google Maps connector"
-
-### ข้อจำกัดที่ต้องรู้
-- Street View ใน Thailand คลอบคลุมค่อนข้างดีในกรุงเทพ + เมืองใหญ่ แต่พื้นที่ห่างไกลอาจไม่มี
-- Google Maps Platform บน Lovable managed key: fair-use free tier
-- Custom domain (planb-asset360.lovable.app ตอนนี้ก็อยู่ใน *.lovable.app) → ใช้ได้เลย
-
----
-
-## ลำดับส่ง
-1. Refactor A3 (data + monitoring + pm-insights) — commit เดียว
-2. เชื่อม Google Maps connector + Street View component + ใส่ใน panel
-3. Verify: เปิด Asset Map วัดเวลา + คลิกป้าย → ต้องเห็น Street View
+- แก้เฉพาะ `src/components/street-view-panel.tsx` (2 จุด: ปุ่มมุมล่างขวาเมื่อ `status === "ready"` และปุ่มในกรณี `no-imagery`)
+- ไม่แตะไฟล์ export, ไม่แตะ backend, ไม่แตะ overlay logic

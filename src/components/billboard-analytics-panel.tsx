@@ -65,14 +65,40 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset.id]);
 
-  // Sync overlay when mockup selection changes.
+  const reportRef = useRef<HTMLDivElement | null>(null);
+
+  // When mockup selection changes: hydrate overlay + measure natural aspect
+  // so the on-screen size matches the source image (no more distortion).
   useEffect(() => {
-    if (selectedMockup) {
-      setOverlay(selectedMockup.overlay);
-      setShowStreet(true);
-    } else {
+    if (!selectedMockup) {
       setOverlay(null);
+      return;
     }
+    setShowStreet(true);
+    const base: BillboardMockupOverlay = {
+      keepAspect: true,
+      skewX: 0,
+      skewY: 0,
+      ...selectedMockup.overlay,
+    };
+    setOverlay(base);
+    // Measure natural aspect from the image and adjust h to match w.
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const aspect = img.naturalWidth / Math.max(1, img.naturalHeight);
+      // Assume Street View container is 16:9-ish; adjust h percentage from w.
+      // Container aspect estimated dynamically at drag time; here just use 320px height.
+      setOverlay((cur) => {
+        if (!cur) return cur;
+        // We don't know container size here; store aspect and let user resize.
+        // Also set h so displayed size follows the mockup aspect using approx 16:9 container.
+        const containerAspect = 16 / 9;
+        const h = (cur.w / aspect) * containerAspect;
+        return { ...cur, naturalAspect: aspect, h: Math.min(Math.max(h, 5), 100 - cur.y) };
+      });
+    };
+    img.src = selectedMockup.image_url;
   }, [selectedMockup]);
 
   // Debounced persist of overlay position.

@@ -74,7 +74,8 @@ export const OVERPASS_ENDPOINTS = [
 
 /**
  * Fetch Overpass with headers required by public endpoints (User-Agent + Accept).
- * Falls back through mirrors on 4xx/5xx.
+ * Falls back through mirrors on 4xx/5xx or timeout. Each mirror has a hard
+ * 45-second client timeout so a stuck mirror can't hang the whole search.
  */
 export async function fetchOverpass(query: string): Promise<Response> {
   let lastErr: unknown = null;
@@ -89,16 +90,18 @@ export async function fetchOverpass(query: string): Promise<Response> {
           "User-Agent": "AssetHistory360/1.0 (contact: admin@example.com)",
         },
         body: "data=" + encodeURIComponent(query),
+        signal: AbortSignal.timeout(45_000),
       });
       if (resp.ok) return resp;
       lastResp = resp;
-      // Try next mirror on 4xx/5xx
     } catch (e) {
       lastErr = e;
     }
   }
   if (lastResp) return lastResp;
-  throw lastErr instanceof Error ? lastErr : new Error("Overpass unreachable");
+  throw lastErr instanceof Error
+    ? new Error(`Overpass ไม่ตอบสนอง (timeout/network): ${lastErr.message}`)
+    : new Error("Overpass ไม่ตอบสนองทุก mirror");
 }
 
 export type Bbox = [south: number, west: number, north: number, east: number];

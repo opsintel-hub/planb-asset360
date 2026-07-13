@@ -181,7 +181,7 @@ export const getMonitoringData = createServerFn({ method: "POST" })
   .handler(async ({ data: f }) => {
     const [assetsRaw, claimRaw] = await Promise.all([
       fetchAll<AssetRow>((from, to) =>
-        supabaseAdmin.from("assets").select("old_code, name, department, area, payload").range(from, to),
+        supabaseAdmin.from("assets").select("old_code, name, department, area, media_type, bkkupc, payload").range(from, to),
       ),
       fetchAll<ClaimTicketRow>((from, to) =>
         supabaseAdmin
@@ -191,7 +191,7 @@ export const getMonitoringData = createServerFn({ method: "POST" })
       ),
     ]);
 
-    // Active assets only (exclude IsDeleted)
+    // Active assets only (exclude IsDeleted — still stored in payload)
     const assetMap = new Map<
       string,
       { code: string; name: string; department: string; area: string; mediaType: string; project: string; zone: string }
@@ -201,14 +201,15 @@ export const getMonitoringData = createServerFn({ method: "POST" })
       const del = p.IsDeleted;
       if (del === true || del === "true") continue;
       if (assetMap.has(r.old_code)) continue;
+      const rr = r as unknown as { media_type: string | null; bkkupc: string | null };
       assetMap.set(r.old_code, {
         code: r.old_code,
         name: r.name ?? "",
         department: r.department ?? "",
         area: r.area ?? "",
-        mediaType: typeof p.MediaType === "string" ? (p.MediaType as string) : "",
+        mediaType: rr.media_type ?? (typeof p.MediaType === "string" ? (p.MediaType as string) : ""),
         project: "",
-        zone: typeof p.BKKUPC === "string" ? (p.BKKUPC as string) : (typeof p.BkkUpc === "string" ? (p.BkkUpc as string) : ""),
+        zone: rr.bkkupc ?? (typeof p.BKKUPC === "string" ? (p.BKKUPC as string) : (typeof p.BkkUpc === "string" ? (p.BkkUpc as string) : "")),
       });
     }
 
@@ -533,9 +534,15 @@ export const getMonitoringData = createServerFn({ method: "POST" })
 export const getMonitoringFilterOptions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async () => {
-    type Row = { old_code: string; department: string | null; payload: Record<string, unknown> | null };
+    type Row = {
+      old_code: string;
+      department: string | null;
+      media_type: string | null;
+      bkkupc: string | null;
+      payload: Record<string, unknown> | null;
+    };
     const rows = await fetchAll<Row>((from, to) =>
-      supabaseAdmin.from("assets").select("old_code, department, payload").range(from, to),
+      supabaseAdmin.from("assets").select("old_code, department, media_type, bkkupc, payload").range(from, to),
     );
     const zones = new Set<string>();
     const mediaTypes = new Set<string>();
@@ -554,11 +561,9 @@ export const getMonitoringFilterOptions = createServerFn({ method: "GET" })
       if (p.IsDeleted === true || p.IsDeleted === "true") continue;
       if (seen.has(r.old_code)) continue;
       seen.add(r.old_code);
-      const z = (p.BKKUPC ?? p.BkkUpc) as unknown;
-      const zoneRaw = typeof z === "string" && z ? z : null;
+      const zoneRaw = r.bkkupc ?? (typeof (p as Record<string, unknown>).BKKUPC === "string" ? ((p as Record<string, unknown>).BKKUPC as string) : (typeof (p as Record<string, unknown>).BkkUpc === "string" ? ((p as Record<string, unknown>).BkkUpc as string) : null));
       if (zoneRaw) zones.add(zoneRaw);
-      const m = p.MediaType as unknown;
-      const mt = typeof m === "string" && m ? m : null;
+      const mt = r.media_type ?? (typeof (p as Record<string, unknown>).MediaType === "string" ? ((p as Record<string, unknown>).MediaType as string) : null);
       if (mt) mediaTypes.add(mt);
       const proj = ((): string | null => {
         for (const [pj, depts] of Object.entries(PROJECT_TO_DEPARTMENTS)) {

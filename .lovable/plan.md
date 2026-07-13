@@ -1,103 +1,75 @@
-# แผนแก้ปัญหาโหลด/ค้นหา POI ช้า
+# แผนคู่ขนาน: Phase A3 + Google Street View
 
-สาเหตุที่ช้าตอนนี้: ทุก filter อ่านผ่าน `payload::jsonb` (`payload->>'District'` ฯลฯ) → Postgres ต้อง scan JSON ทั้ง 8,210 แถวทุกครั้ง ไม่มี index ใช้ได้ ต้องยกฟิลด์สำคัญขึ้นเป็นคอลัมน์จริง + สร้าง index
+## Phase A3 — Refactor payload → columns
 
----
+เป้าหมาย: ให้ query ทั้งระบบใช้คอลัมน์จริง (`bkkupc`, `district`, `territory`, `location`, `media_type`) แทน `payload->>...` เพื่อ:
+- ให้ index ใช้งานได้ → Monitoring / PM Insights / Health โหลดเร็วขึ้น
+- ลดขนาด row ที่ดึง (ไม่ต้องยก JSON payload มาทั้งก้อน)
 
-## Phase A — แตก payload เป็นคอลัมน์จริง (DB)
+### ไฟล์ที่ต้องแก้
 
-### A1. Migration
-เพิ่มคอลัมน์ใน `public.assets`:
-- `bkkupc text` (BKK / UPC)
-- `district text` (เขต/อำเภอ)
-- `territory text` (พื้นที่)
-- `location text` (จุดติดตั้ง — ยกจาก payload; คงคอลัมน์ `area` เดิมไว้ไม่แตะ)
-- `media_type text`
+**1. `src/lib/data.functions.ts`** (จุดหลัก ใช้กันเยอะ)
+- `select("... payload")` 4 จุด → เปลี่ยนเป็น select เฉพาะ `bkkupc, district, territory, location, media_type` + คอลัมน์ที่ใช้จริง
+- อ่าน `payload.mediaType/MediaType/BKKUPC/District/...` → ใช้ `row.media_type / row.bkkupc / row.district`
+- บรรทัดที่กระทบ: 288, 301, 315, 323, 391, 426, 435, 664
+- คง fallback อ่าน payload ไว้ (กัน row เก่าที่ backfill ไม่ครบ) — priority: column ก่อน, payload หลัง
 
-Backfill:
-```sql
-UPDATE public.assets SET
-  bkkupc     = payload->>'BKKUPC',
-  district   = payload->>'District',
-  territory  = payload->>'Territory',
-  location   = payload->>'Location',
-  media_type = payload->>'MediaType';
-```
+**2. `src/lib/monitoring.functions.ts`**
+- Line 184, 200 — assets select payload → เปลี่ยน select
+- Line 466 — `t.payload` เป็นจาก `mssql_asset_history` (คนละตาราง ไม่แตะ)
+- Line 536, 538, 553 — `getMonitoringFilterOptions` — เปลี่ยนเป็น select column แล้วสร้าง set ตรง
 
-Indexes:
-- b-tree บน `bkkupc`, `district`, `territory`, `media_type`, `department`
-- composite `(latitude, longitude)` สำหรับ bbox
-- ไม่ index `location` (7,422 unique — เกือบ 1:1) ใช้ trigram สำหรับ typeahead แทน: `CREATE INDEX ON assets USING gin (location gin_trgm_ops)`
+**3. `src/lib/pm-insights.functions.ts`**
+- Line 112, 113, 120, 128 — asset lookup select payload → select `department, bkkupc, media_type`
+- Line 693, 695, 713 — zone map (`getPmZoneMap`) — เปลี่ยนเป็นอ่าน column, ลบ payload parsing
 
-### A2. แก้ตัว sync ให้เขียนคอลัมน์ใหม่
-2 จุด:
-- `supabase/functions/sync-assets/index.ts` — เพิ่ม mapping `bkkupc/district/territory/location/media_type` จาก `item.BKKUPC` ฯลฯ
-- `src/lib/sync.server.ts` — ถ้ามี path เขียน assets เพิ่ม mapping เดียวกัน
+### ไม่ต้องแก้ (ยืนยัน)
+- `src/components/breakdown-tab.tsx` — อ่าน `mssql_asset_history.payload` (คนละตาราง ไม่อยู่ใน scope A)
+- `src/routes/pm-insights.tsx` line 425 — แค่ tooltip text
+- `src/lib/overpass.ts`, `chart.tsx` — คนละความหมาย
 
-Guard: set เฉพาะเมื่อค่าไม่ว่าง (กัน sync ทับเป็น null); คง `payload` ทั้งก้อนไว้เพื่อ backward-compat
-
-### A3. Refactor ทุกจุดที่อ่าน payload → อ่าน column
-ไฟล์ที่พบว่าอ่าน `payload->>...` / `p.MediaType` / `p.Location` / `p.District`:
-- `src/lib/map.functions.ts`, `map-store.functions.ts`, `data.functions.ts`, `admin.functions.ts`
-- `src/lib/poi-search.functions.ts`, `billboard-analytics.functions.ts`
-- `src/lib/monitoring*.ts`, `pm-insights.functions.ts`, `rca.functions.ts`
-- `src/routes/search.tsx`, `map.tsx`, `pm-insights.tsx`, `settings.tsx`
-- `src/components/breakdown-tab.tsx`, `analytics-tab.tsx`
-
-เปลี่ยน `select payload` → `select bkkupc, district, territory, location, media_type, department, ...` เฉพาะฟิลด์ที่ใช้ (payload เดิมยังอยู่เป็น fallback)
-
-รัน typecheck ครบทุกไฟล์ก่อน commit
+### Validation
+- typecheck ผ่านทุกไฟล์
+- เปิด Monitoring / PM Insights / Search / Map — data ต้องยังตรง
+- วัดเวลา: Asset Map ควรลดจาก ~5s → <2s
 
 ---
 
-## Phase B — เปลี่ยนตัวกรอง POI Panel
+## Google Street View — Panorama ในหน้ารายละเอียดป้าย
 
-ที่ `src/components/poi-proximity-panel.tsx` — บล็อก "ตัวกรองพื้นที่":
+เป้าหมาย: กดหมุดป้ายบนแผนที่ → เปิด `BillboardAnalyticsPanel` → มี **แท็บ / section "Street View"** แสดง panorama ณ พิกัดป้าย
 
-**เอาออก:** ภาค (Region)
+### 1. เตรียม API key (ต้องคุณทำ)
+- ใช้ **Google Maps Platform connector** (ผ่าน connector gateway) — Lovable-managed key
+- Key นี้ถูก restrict ไว้เฉพาะ `*.lovable.app` / `*.lovableproject.com`
+  → ทำงานบน preview / published URL ปกติได้เลย
+  → ถ้าย้าย custom domain ต้องเพิ่ม key ของตัวเอง (ทำภายหลัง)
+- ผมจะเรียก `standard_connectors--connect` เพื่อเชื่อม connector ให้อัตโนมัติ
 
-**ใส่ใหม่ (ตามลำดับ):**
-1. **BKKUPC** — Segment toggle: ทั้งหมด · BKK · UPC (single select)
-2. **District** — เขต/อำเภอ (multi-select)
-3. **Territory** — พื้นที่ (multi-select)
-4. **Location** — จุดติดตั้ง (combobox + typeahead search, ไม่ dump ทั้ง 7k)
-5. **Department** — Static / Digital / Billboard / Airport / 7-Eleven ฯลฯ (multi-select)
-6. **Media Type** — Cookies / 7-Eleven / Serie Pole ฯลฯ (multi-select)
+### 2. Component ใหม่: `src/components/street-view-panel.tsx`
+- โหลด Maps JS API แบบ async ด้วย `VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY`
+- เรนเดอร์ `google.maps.StreetViewPanorama` ใน `<div ref>` ขนาด 100% × 320px
+- ใช้ `StreetViewService.getPanorama({ location, radius: 50 })` → ถ้าไม่มีภาพในรัศมี 50m แสดง "ไม่มีภาพ Street View บริเวณนี้"
+- Controls: ปุ่ม fullscreen, pan/zoom (ของ Google เอง), ปุ่ม "เปิดใน Google Maps" (deep link `https://www.google.com/maps?q=&layer=c&cbll=lat,lng`)
+- ปุ่ม refresh / reset heading
 
-ที่ `src/lib/poi-search.functions.ts`:
-- `POIFilterOptions` เปลี่ยนเป็น `{ bkkupc, districts, territories, locations, departments, mediaTypes }`
-- Query กรองจากคอลัมน์จริง (`.eq('bkkupc', ...)`, `.in('district', ...)` ฯลฯ) แทน `payload->>`
-- คำนวณ bbox จากผลลัพธ์ที่กรองแล้ว → ยิง Overpass เฉพาะพื้นที่นั้น
+### 3. เสริมใน `src/components/billboard-analytics-panel.tsx`
+- เพิ่ม tab / accordion section "Street View" (default: collapsed เพื่อไม่โหลด script ถ้าไม่กด)
+- Lazy mount `<StreetViewPanel lat={asset.lat} lng={asset.lng} />` เมื่อกางเท่านั้น
 
-Endpoint options ใหม่ `getPOIFilterOptions` return: `{ bkkupcs, districts, territories, departments, mediaTypes }` + typeahead endpoint สำหรับ Location
+### 4. Loader script (ครั้งเดียว)
+- Utility `src/lib/google-maps-loader.ts` — return promise ที่ resolve เมื่อ `google.maps` พร้อม
+- Callback global `__lovableInitGmaps` (idempotent)
+- Guard: ถ้า `!import.meta.env.VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY` แสดง "ยังไม่ได้เชื่อม Google Maps connector"
 
----
-
-## Phase C — Progress popup > 3 วินาที
-
-`src/components/search-progress-dialog.tsx`:
-- `setTimeout(open, 3000)` หลังกดค้นหา
-- Stage bar (เดินตามเวลาโดยประมาณ):
-  1. กรองป้ายตามพื้นที่ (0–20%)
-  2. คำนวณ bounding box (20–30%)
-  3. เรียก Overpass API (30–90%)
-  4. Match ระยะทาง (90–100%)
-- ปุ่ม "ยกเลิก" ผ่าน `AbortController`
-- Snap 100% เมื่อ response กลับ
-
-Server fn stream ไม่ได้ → progress ใช้เวลาจริงฝั่ง client (estimated จากจำนวน POI types × พื้นที่ bbox)
+### ข้อจำกัดที่ต้องรู้
+- Street View ใน Thailand คลอบคลุมค่อนข้างดีในกรุงเทพ + เมืองใหญ่ แต่พื้นที่ห่างไกลอาจไม่มี
+- Google Maps Platform บน Lovable managed key: fair-use free tier
+- Custom domain (planb-asset360.lovable.app ตอนนี้ก็อยู่ใน *.lovable.app) → ใช้ได้เลย
 
 ---
-
-## Risks
-- **Sync ทับเป็น null**: กันด้วยการ set เฉพาะค่าที่ไม่ว่าง
-- **หน้าอื่นพัง**: refactor A3 ทำใน commit เดียว + typecheck
-- **Location typeahead**: 7,422 ค่า — ต้อง trigram index ไม่งั้นช้ากว่าเดิม
 
 ## ลำดับส่ง
-1. **Phase A1** (migration) — รอ approve
-2. **Phase A2 + A3** (sync + refactor call sites) — commit เดียว
-3. **Phase B** (UI ตัวกรองใหม่ + endpoint)
-4. **Phase C** (progress popup)
-
-หลัง A2/A3 จะเร็วขึ้นชัดเจนแล้ว; B/C เป็น UX เสริม
+1. Refactor A3 (data + monitoring + pm-insights) — commit เดียว
+2. เชื่อม Google Maps connector + Street View component + ใส่ใน panel
+3. Verify: เปิด Asset Map วัดเวลา + คลิกป้าย → ต้องเห็น Street View

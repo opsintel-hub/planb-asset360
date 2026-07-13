@@ -285,25 +285,18 @@ export const autocompleteAssets = createServerFn({ method: "POST" })
     const q = data.q.trim();
     let query = supabase
       .from("assets")
-      .select("id, old_code, name, area, department, status, payload")
+      .select("id, old_code, name, area, department, status, media_type, payload")
       .order("old_code", { ascending: true })
-      .limit(data.mediaType ? 200 : data.limit);
+      .limit(data.limit);
     if (q) {
       query = query.or(`old_code.ilike.%${q}%,name.ilike.%${q}%,area.ilike.%${q}%`);
     }
     if (data.department) query = query.eq("department", data.department);
     if (data.region) query = query.eq("area", data.region);
+    if (data.mediaType) query = query.eq("media_type", data.mediaType);
     const { data: rowsRaw, error } = await query;
     if (error) return { rows: [], error: error.message };
-    let rows = rowsRaw ?? [];
-    if (data.mediaType) {
-      rows = rows.filter((r) => {
-        const p = r.payload as Record<string, unknown> | null;
-        const mt = (p?.mediaType ?? p?.MediaType) as string | undefined;
-        return String(mt ?? "") === data.mediaType;
-      }).slice(0, data.limit);
-    }
-    return { rows, error: null };
+    return { rows: rowsRaw ?? [], error: null };
   });
 
 // Global filter options across ALL assets (for pre-filter UI)
@@ -312,17 +305,15 @@ export const getFilterOptions = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data } = await context.supabase
       .from("assets")
-      .select("department, area, payload")
-      .limit(5000);
+      .select("department, area, media_type")
+      .limit(10000);
     const depts = new Set<string>();
     const regions = new Set<string>();
     const mediaTypes = new Set<string>();
     for (const r of data ?? []) {
       if (r.department) depts.add(r.department);
       if (r.area) regions.add(r.area);
-      const p = r.payload as Record<string, unknown> | null;
-      const mt = (p?.mediaType ?? p?.MediaType) as string | undefined;
-      if (mt) mediaTypes.add(String(mt));
+      if (r.media_type) mediaTypes.add(r.media_type);
     }
     return {
       departments: Array.from(depts).sort(),
@@ -388,7 +379,7 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
     const { supabase } = context;
     const { data: assets2 } = await supabase
       .from("assets")
-      .select("id, old_code, name, department, area, status, payload, last_pm_at, last_claim_at, last_monitor_ok_at, latitude, longitude, installed_at")
+      .select("id, old_code, name, department, area, status, media_type, last_pm_at, last_claim_at, last_monitor_ok_at, latitude, longitude, installed_at")
       .in("old_code", data.oldCodes);
     const finalAssets = assets2 ?? [];
 
@@ -422,19 +413,13 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
     const filtered = finalAssets.filter((a) => {
       if (data.department && (a.department ?? "") !== data.department) return false;
       if (data.region && (a.area ?? "") !== data.region) return false;
-      if (data.mediaType) {
-        const mt = (a.payload as Record<string, unknown> | null)?.mediaType ?? (a.payload as Record<string, unknown> | null)?.MediaType;
-        if (String(mt ?? "") !== data.mediaType) return false;
-      }
+      if (data.mediaType && (a.media_type ?? "") !== data.mediaType) return false;
       return true;
     });
 
     const departments = Array.from(new Set(finalAssets.map((a) => a.department).filter(Boolean))) as string[];
     const regions = Array.from(new Set(finalAssets.map((a) => a.area).filter(Boolean))) as string[];
-    const mediaTypes = Array.from(new Set(finalAssets.map((a) => {
-      const p = a.payload as Record<string, unknown> | null;
-      return (p?.mediaType ?? p?.MediaType) as string | undefined;
-    }).filter(Boolean))) as string[];
+    const mediaTypes = Array.from(new Set(finalAssets.map((a) => a.media_type).filter(Boolean))) as string[];
 
     return {
       assets: filtered,

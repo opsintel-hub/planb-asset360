@@ -36,7 +36,7 @@ export async function captureStreetViewNode(node: HTMLElement): Promise<string |
       // capture the current pose rather than a cleared buffer.
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
       try {
-        const url = best.toDataURL("image/jpeg", 0.92);
+        const url = best.toDataURL("image/jpeg", 0.96);
         // Guard against blank/transparent buffers (all-black tiny result).
         if (url && url.length > 5000) return url;
       } catch {
@@ -59,7 +59,7 @@ export async function captureStreetViewNode(node: HTMLElement): Promise<string |
         return className.includes("gm-style-cc") || /Keyboard shortcuts|Terms|Report a problem/i.test(text);
       },
     });
-    return canvas.toDataURL("image/jpeg", 0.92);
+    return canvas.toDataURL("image/jpeg", 0.96);
   } catch (e) {
     console.warn("captureStreetViewNode failed", e);
     return null;
@@ -74,17 +74,23 @@ export async function composeStreetViewWithOverlay(
 ): Promise<string> {
   const sv = await loadImage(streetViewDataUrl);
   const mk = await loadImage(mockupDataUrl);
+  // Upscale the composed canvas so the mockup (especially small text) stays
+  // readable in PDF/PPTX. Aim for at least 1920 px wide.
+  const MIN_W = 1920;
+  const scale = Math.max(1, MIN_W / Math.max(1, sv.width));
   const canvas = document.createElement("canvas");
-  canvas.width = sv.width;
-  canvas.height = sv.height;
+  canvas.width = Math.round(sv.width * scale);
+  canvas.height = Math.round(sv.height * scale);
   const ctx = canvas.getContext("2d");
   if (!ctx) return streetViewDataUrl;
-  ctx.drawImage(sv, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(sv, 0, 0, canvas.width, canvas.height);
   ctx.globalAlpha = overlay.opacity;
-  const x = (overlay.x / 100) * sv.width;
-  const y = (overlay.y / 100) * sv.height;
-  const w = (overlay.w / 100) * sv.width;
-  const h = (overlay.h / 100) * sv.height;
+  const x = (overlay.x / 100) * canvas.width;
+  const y = (overlay.y / 100) * canvas.height;
+  const w = (overlay.w / 100) * canvas.width;
+  const h = (overlay.h / 100) * canvas.height;
   ctx.save();
   ctx.translate(x + w / 2, y + h / 2);
   if (overlay.rotation) ctx.rotate((overlay.rotation * Math.PI) / 180);
@@ -95,15 +101,17 @@ export async function composeStreetViewWithOverlay(
   ctx.restore();
   if (overlay.corners) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(sv, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(sv, 0, 0, canvas.width, canvas.height);
     ctx.globalAlpha = overlay.opacity;
     drawImageInQuad(ctx, mk, [overlay.corners.tl, overlay.corners.tr, overlay.corners.br, overlay.corners.bl].map((p) => ({
-      x: (p.x / 100) * sv.width,
-      y: (p.y / 100) * sv.height,
+      x: (p.x / 100) * canvas.width,
+      y: (p.y / 100) * canvas.height,
     })));
     ctx.globalAlpha = 1;
   }
-  return canvas.toDataURL("image/jpeg", 0.92);
+  return canvas.toDataURL("image/jpeg", 0.96);
 }
 
 function interp(a: CornerPoint, b: CornerPoint, t: number): CornerPoint {
@@ -145,7 +153,11 @@ function drawTriangle(
 }
 
 function drawImageInQuad(ctx: CanvasRenderingContext2D, img: HTMLImageElement, corners: CornerPoint[]) {
-  const steps = 18;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  // Fewer, larger cells + smoothing avoids the diagonal stripe artifacts a
+  // dense grid creates on high-contrast text in mockups.
+  const steps = 8;
   for (let iy = 0; iy < steps; iy += 1) {
     for (let ix = 0; ix < steps; ix += 1) {
       const u0 = ix / steps;

@@ -132,7 +132,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
       // overlay), so we always re-composite the mockup on top below.
       if (!streetViewDataUrl) {
         const sv = await getStreetViewImg({
-          data: { lat: asset.lat, lng: asset.lng, heading: 0, size: "640x360" },
+          data: { lat: asset.lat, lng: asset.lng, heading: 0, size: "640x400", scale: 2 },
         });
         streetViewDataUrl = sv.ok ? sv.dataUrl ?? null : null;
         if (!sv.ok) toast.warning(`Street View: ${sv.error ?? "ไม่พร้อม"}`);

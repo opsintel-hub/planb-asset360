@@ -162,7 +162,7 @@ export const deleteBillboardMockup = createServerFn({ method: "POST" })
 // Street View Static image via Google Maps Platform gateway → base64 data URL for exports.
 export const getStreetViewStaticImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { lat: number; lng: number; heading?: number; size?: string }) => {
+  .inputValidator((input: { lat: number; lng: number; heading?: number; size?: string; scale?: number }) => {
     const lat = Number(input?.lat);
     const lng = Number(input?.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error("invalid coords");
@@ -170,7 +170,8 @@ export const getStreetViewStaticImage = createServerFn({ method: "POST" })
       lat,
       lng,
       heading: Number.isFinite(input?.heading) ? Number(input.heading) : 0,
-      size: input?.size ?? "640x360",
+      size: input?.size ?? "640x400",
+      scale: input?.scale === 2 ? 2 : 2, // always request 2x for sharper exports
     };
   })
   .handler(async ({ data }): Promise<{ ok: boolean; dataUrl?: string; error?: string }> => {
@@ -201,7 +202,7 @@ export const getStreetViewStaticImage = createServerFn({ method: "POST" })
         // Non-fatal — fall through and try the image endpoint directly.
       }
       // Fetch the image at that location with wide radius so Google can pick the nearest pano.
-      const imgUrl = `${base}?size=${encodeURIComponent(data.size)}&location=${loc.lat},${loc.lng}&heading=${data.heading}&pitch=0&fov=80&radius=500`;
+      const imgUrl = `${base}?size=${encodeURIComponent(data.size)}&location=${loc.lat},${loc.lng}&heading=${data.heading}&pitch=0&fov=80&radius=500&scale=${data.scale}`;
       const resp = await fetch(imgUrl, { headers });
       if (!resp.ok) {
         const t = await resp.text().catch(() => "");

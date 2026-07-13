@@ -69,7 +69,6 @@ export const OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
 export const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.osm.ch/api/interpreter",
 ];
 
 const OVERPASS_FETCH_TIMEOUT_MS = 16_000;
@@ -79,10 +78,17 @@ const overpassJsonCache = new Map<string, { storedAt: number; payload: unknown }
 
 function isRuntimeFailurePayload(payload: unknown, elapsedMs: number): string | null {
   if (!payload || typeof payload !== "object") return null;
-  const p = payload as { elements?: unknown[]; remark?: string };
+  const p = payload as { elements?: unknown[]; remark?: string; osm3s?: { timestamp_osm_base?: string } };
   const remark = typeof p.remark === "string" ? p.remark : "";
   if (/runtime error|timeout|timed out|out of time|rate limit|too many requests/i.test(remark)) {
     return remark.slice(0, 180);
+  }
+  const timestamp = p.osm3s?.timestamp_osm_base;
+  if (typeof timestamp === "string" && !/^\d{4}-\d{2}-\d{2}T/.test(timestamp)) {
+    return `stale Overpass database (${timestamp})`;
+  }
+  if (!Array.isArray(p.elements)) {
+    return "missing elements array";
   }
   // Some public Overpass instances can return HTTP 200 + an empty element list
   // when the query timed out. A genuinely empty small query usually returns fast.
@@ -107,7 +113,7 @@ export async function fetchOverpass(query: string): Promise<Response> {
         "Accept": "application/json",
         "User-Agent": "AssetHistory360/1.0 (contact: admin@example.com)",
       },
-      body: "data=" + encodeURIComponent(query),
+      body: new URLSearchParams({ data: query }),
       signal: AbortSignal.timeout(OVERPASS_FETCH_TIMEOUT_MS),
     });
     if (!resp.ok) {

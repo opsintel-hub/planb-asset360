@@ -178,6 +178,12 @@ Deno.serve(async (req: Request) => {
           latitude: pickNum(item, ["latitude", "Latitude", "lat", "Lat"]),
           longitude: pickNum(item, ["longitude", "Longitude", "lng", "Lng"]),
           installed_at: pickStr(item, ["installedAt", "InstalledAt", "installed_at", "InstallDate"]),
+          // Phase A2: promote key payload fields to real columns for fast filtering.
+          bkkupc: pickStr(item, ["BKKUPC", "bkkupc", "BkkUpc"]),
+          district: pickStr(item, ["District", "district"]),
+          territory: pickStr(item, ["Territory", "territory"]),
+          location: pickStr(item, ["Location", "location"]),
+          media_type: pickStr(item, ["MediaType", "mediaType", "media_type"]),
           payload: item,
           updated_at: new Date().toISOString(),
         });

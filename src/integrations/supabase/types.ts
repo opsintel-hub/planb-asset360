@@ -176,6 +176,45 @@ export type Database = {
         }
         Relationships: []
       }
+      billboard_mockups: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          image_url: string
+          note: string | null
+          old_code: string
+          overlay: Json
+          storage_path: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_url: string
+          note?: string | null
+          old_code: string
+          overlay?: Json
+          storage_path: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_url?: string
+          note?: string | null
+          old_code?: string
+          overlay?: Json
+          storage_path?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       claim_tickets: {
         Row: {
           age_hours: number | null

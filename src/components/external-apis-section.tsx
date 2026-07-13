@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, XCircle, Loader2, Zap, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { pingOverpass, pingOsrm, pingNominatim, type PingResult } from "@/lib/external-apis.functions";
+import { pingGoogleMaps } from "@/lib/billboard-mockups.functions";
 
 type ApiCard = {
   id: string;

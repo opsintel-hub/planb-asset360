@@ -34,6 +34,8 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showStreet, setShowStreet] = useState(false);
+
+  const run = async (r: number) => {
     setLoading(true);
     setErr(null);
     try {

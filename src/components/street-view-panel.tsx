@@ -200,16 +200,23 @@ export default function StreetViewPanel({
         <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2 p-4 text-center">
           <AlertCircle className="size-5" />
           <div>ไม่มีภาพ Street View บริเวณนี้ (รัศมี 80 ม.)</div>
-          <a
-            className="inline-flex items-center gap-1 text-primary underline text-xs"
-            href={gmapsHref}
-            target="_blank"
-            rel="noreferrer"
-          >
-            เปิดใน Google Maps <ExternalLink className="size-3" />
-          </a>
-        </div>
-      )}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => openExternal(gmapsSearchHref)}
+              className="inline-flex items-center gap-1 rounded border bg-background/90 px-2 py-1 text-xs text-primary hover:bg-background"
+            >
+              เปิดใน Google Maps <ExternalLink className="size-3" />
+            </button>
+            <button
+              type="button"
+              onClick={() => void copyLink(gmapsSearchHref)}
+              className="inline-flex items-center gap-1 rounded border bg-background/90 px-2 py-1 text-xs hover:bg-background"
+              title="คัดลอกลิงก์"
+            >
+              <Copy className="size-3" />
+            </button>
+          </div>
       {status === "error" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-destructive gap-2 p-4 text-center">
           <AlertCircle className="size-5" />

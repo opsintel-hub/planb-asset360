@@ -125,15 +125,16 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
       let streetViewDataUrl = streetViewCaptureRef.current
         ? await captureStreetViewNode(streetViewCaptureRef.current)
         : null;
-      let heroAlreadyIncludesMockup = !!streetViewDataUrl;
+      // captureStreetViewNode grabs the raw Street View WebGL canvas (no HTML
+      // overlay), so we always re-composite the mockup on top below.
       if (!streetViewDataUrl) {
         const sv = await getStreetViewImg({
           data: { lat: asset.lat, lng: asset.lng, heading: 0, size: "640x360" },
         });
         streetViewDataUrl = sv.ok ? sv.dataUrl ?? null : null;
-        heroAlreadyIncludesMockup = false;
         if (!sv.ok) toast.warning(`Street View: ${sv.error ?? "ไม่พร้อม"}`);
       }
+      const heroAlreadyIncludesMockup = false;
       let mockupDataUrl: string | null = null;
       if (!heroAlreadyIncludesMockup && selectedMockup?.image_url) {
         try {

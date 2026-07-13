@@ -76,6 +76,7 @@ const OVERPASS_FETCH_TIMEOUT_MS = 24_000;
 const OVERPASS_JSON_CACHE_TTL_MS = 10 * 60_000;
 const OVERPASS_JSON_CACHE_MAX = 40;
 const overpassJsonCache = new Map<string, { storedAt: number; payload: unknown }>();
+const overpassJsonInflight = new Map<string, Promise<unknown>>();
 
 function describeOverpassHttpError(status: number): string {
   if (status === 406) return "คำค้นถูก Overpass ปฏิเสธชั่วคราว";
@@ -112,7 +113,7 @@ function isRuntimeFailurePayload(payload: unknown, elapsedMs: number): string | 
  * where a timed-out query returns HTTP 200 with an empty/error JSON payload.
  */
 export async function fetchOverpass(query: string): Promise<Response> {
-  const attempts = OVERPASS_ENDPOINTS.map(async (url) => {
+  const runAttempt = async (url: string) => {
     const startedAt = Date.now();
     const headers = {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -153,7 +154,26 @@ export async function fetchOverpass(query: string): Promise<Response> {
       }
     }
     return resp;
-  });
+  };
+
+  let resolved = false;
+  const timers: Array<ReturnType<typeof setTimeout>> = [];
+  const staggerMs = [0, 1800, 4200];
+  const attempts = OVERPASS_ENDPOINTS.map((url, index) => new Promise<Response>((resolve, reject) => {
+    const start = () => {
+      if (resolved) return;
+      runAttempt(url)
+        .then((resp) => {
+          resolved = true;
+          for (const timer of timers) clearTimeout(timer);
+          resolve(resp);
+        })
+        .catch(reject);
+    };
+    const delay = staggerMs[index] ?? index * 2500;
+    if (delay === 0) start();
+    else timers.push(setTimeout(start, delay));
+  }));
 
   try {
     return await Promise.any(attempts);
@@ -178,20 +198,34 @@ export async function fetchOverpassJson<T = OverpassResponse>(query: string): Pr
     return cloneJson<T>(cached.payload);
   }
 
-  const resp = await fetchOverpass(query);
-  if (!resp.ok) {
-    const t = await resp.text().catch(() => "");
-    throw new Error(`Overpass ${resp.status}: ${t.slice(0, 120)}`);
+  const inflight = overpassJsonInflight.get(query);
+  if (inflight) {
+    return cloneJson<T>(await inflight);
   }
-  const payload = (await resp.json().catch(() => {
-    throw new Error("Overpass ส่งข้อมูลกลับมาไม่ใช่ JSON");
-  })) as T;
-  overpassJsonCache.set(query, { storedAt: Date.now(), payload });
-  if (overpassJsonCache.size > OVERPASS_JSON_CACHE_MAX) {
-    const oldest = overpassJsonCache.keys().next().value;
-    if (oldest) overpassJsonCache.delete(oldest);
+
+  const promise = (async () => {
+    const resp = await fetchOverpass(query);
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => "");
+      throw new Error(`Overpass ${resp.status}: ${t.slice(0, 120)}`);
+    }
+    const payload = (await resp.json().catch(() => {
+      throw new Error("Overpass ส่งข้อมูลกลับมาไม่ใช่ JSON");
+    })) as T;
+    overpassJsonCache.set(query, { storedAt: Date.now(), payload });
+    if (overpassJsonCache.size > OVERPASS_JSON_CACHE_MAX) {
+      const oldest = overpassJsonCache.keys().next().value;
+      if (oldest) overpassJsonCache.delete(oldest);
+    }
+    return payload;
+  })();
+
+  overpassJsonInflight.set(query, promise);
+  try {
+    return cloneJson<T>(await promise);
+  } finally {
+    overpassJsonInflight.delete(query);
   }
-  return cloneJson<T>(payload);
 }
 
 export type Bbox = [south: number, west: number, north: number, east: number];

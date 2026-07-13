@@ -1,13 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
-  fetchOverpassJson,
-  buildOverpassQuery,
   classifyPreset,
   haversineMeters,
   type Bbox,
-  type OverpassResponse,
 } from "./overpass";
+import { fetchPoisFromOverpassAdaptive } from "./poi-overpass-search.server";
 
 export type POI = {
   id: string;
@@ -41,6 +39,7 @@ export type POISearchInput = {
 export type POISearchResult = {
   ok: boolean;
   error?: string;
+  warnings?: string[];
   pois: POI[];
   matches: POIMatch[];
   assetCount: number;
@@ -244,16 +243,19 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
     }
 
     // ---- Step 3: Overpass on tightened bbox ----
-    const query = buildOverpassQuery(presetKeys, freeText || null, tightBbox);
-    if (!query) {
-      return { ok: false, error: "สร้างคิวรี Overpass ไม่ได้", pois: [], matches: [], assetCount: rows.length, poiCount: 0, matchedAssetCount: 0 };
-    }
-
-    let raw: OverpassResponse;
+    let raw;
+    let overpassWarnings: string[] = [];
     try {
-      raw = await fetchOverpassJson<OverpassResponse>(query);
+      const fetched = await fetchPoisFromOverpassAdaptive({ presetKeys, freeText: freeText || null, bbox: tightBbox });
+      raw = fetched.raw;
+      overpassWarnings = fetched.warnings;
     } catch (e) {
-      return { ok: false, error: `Overpass ล้มเหลว: ${(e as Error).message}`, pois: [], matches: [], assetCount: rows.length, poiCount: 0, matchedAssetCount: 0 };
+      return {
+        ok: false,
+        error: `บริการแผนที่ OSM ตอบช้า/ไม่พร้อมใช้งาน: ${(e as Error).message} — ลองซูมเข้า หรือเลือก Project/พื้นที่ให้แคบลง`,
+        pois: [], matches: [], assetCount: rows.length, poiCount: 0, matchedAssetCount: 0,
+        elapsedMs: Date.now() - t0,
+      };
     }
     if (!Array.isArray(raw.elements)) {
       return {
@@ -317,6 +319,7 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
       poiCount: pois.length,
       matchedAssetCount: matchedAssetIds.size,
       usedBbox: tightBbox,
+      warnings: overpassWarnings,
       elapsedMs: Date.now() - t0,
     };
   });

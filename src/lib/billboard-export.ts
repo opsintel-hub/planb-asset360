@@ -21,6 +21,31 @@ export type ExportInput = {
 type CornerPoint = { x: number; y: number };
 
 export async function captureStreetViewNode(node: HTMLElement): Promise<string | null> {
+  // Prefer capturing Google's Street View WebGL canvas directly — html2canvas
+  // cannot read WebGL pixels, but canvas.toDataURL() can when preserveDrawingBuffer
+  // is enabled (see google-maps-loader.ts).
+  try {
+    const canvases = Array.from(node.querySelectorAll("canvas")) as HTMLCanvasElement[];
+    let best: HTMLCanvasElement | null = null;
+    for (const c of canvases) {
+      if (!c.width || !c.height) continue;
+      if (!best || c.width * c.height > best.width * best.height) best = c;
+    }
+    if (best) {
+      // Force a fresh render — Street View draws on rAF; wait one frame so we
+      // capture the current pose rather than a cleared buffer.
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      try {
+        const url = best.toDataURL("image/jpeg", 0.92);
+        // Guard against blank/transparent buffers (all-black tiny result).
+        if (url && url.length > 5000) return url;
+      } catch {
+        // Fall through to html2canvas below.
+      }
+    }
+  } catch {
+    // Fall through.
+  }
   try {
     const canvas = await html2canvas(node, {
       backgroundColor: "#ffffff",

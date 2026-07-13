@@ -127,6 +127,12 @@ export default function PoiProximityPanel({
   };
 
   const clearAll = () => {
+    clearGeoFilters();
+    setSelectedPresets(["mall", "car_dealer", "subway"]);
+    setFreeText("");
+    setRadiusM(200);
+    setMatchMode("any");
+    setLocQuery("");
     setLastResult(null);
     onResult(null);
   };

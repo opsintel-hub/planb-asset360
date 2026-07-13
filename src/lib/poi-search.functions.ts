@@ -248,9 +248,18 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
     } catch (e) {
       return { ok: false, error: `Overpass ล้มเหลว: ${(e as Error).message}`, pois: [], matches: [], assetCount: rows.length, poiCount: 0, matchedAssetCount: 0 };
     }
+    if (!Array.isArray(raw.elements)) {
+      return {
+        ok: false,
+        error: raw.remark
+          ? `Overpass ส่งข้อมูลไม่ครบ: ${raw.remark.slice(0, 180)}`
+          : "Overpass ส่งข้อมูลไม่ครบ กรุณาลองค้นหาใหม่หรือจำกัดพื้นที่ให้แคบลง",
+        pois: [], matches: [], assetCount: rows.length, poiCount: 0, matchedAssetCount: 0,
+      };
+    }
 
     const pois: POI[] = [];
-    for (const el of raw.elements ?? []) {
+    for (const el of raw.elements) {
       const lat = el.lat ?? el.center?.lat;
       const lon = el.lon ?? el.center?.lon;
       if (typeof lat !== "number" || typeof lon !== "number") continue;

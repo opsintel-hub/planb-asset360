@@ -1,7 +1,6 @@
 /// <reference types="google.maps" />
 import { useEffect, useRef, useState } from "react";
-import { Loader2, ExternalLink, AlertCircle, Copy } from "lucide-react";
-import { toast } from "sonner";
+import { Loader2, AlertCircle } from "lucide-react";
 import { loadGoogleMaps } from "@/lib/google-maps-loader";
 import type { BillboardMockupOverlay } from "@/lib/billboard-mockups.functions";
 
@@ -122,31 +121,6 @@ export default function StreetViewPanel({
     dragState.current.mode = null;
   };
 
-  const gmapsHref = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}&heading=${heading}`;
-  const gmapsSearchHref = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-
-  const openExternal = (url: string) => {
-    const w = window.open(url, "_blank", "noopener,noreferrer");
-    if (!w) {
-      // popup blocked or iframe restriction — fall back to copy
-      void copyLink(url);
-    }
-  };
-
-  const copyLink = async (url: string) => {
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        toast.success("คัดลอกลิงก์แล้ว — วางในเบราว์เซอร์เพื่อเปิด");
-        return;
-      }
-    } catch {
-      /* fall through */
-    }
-    // eslint-disable-next-line no-alert
-    window.prompt("คัดลอกลิงก์นี้เพื่อเปิดใน Google Maps:", url);
-  };
-
   return (
     <div
       ref={containerRef}
@@ -158,7 +132,7 @@ export default function StreetViewPanel({
 
       {overlayImageUrl && overlay && status === "ready" && (
         <div
-          className={`absolute pointer-events-none ${editable ? "ring-2 ring-primary/70" : ""}`}
+          className={`absolute z-30 ${editable ? "ring-2 ring-primary/70" : "pointer-events-none"}`}
           style={{
             left: `${overlay.x}%`,
             top: `${overlay.y}%`,
@@ -172,17 +146,17 @@ export default function StreetViewPanel({
           <img
             src={overlayImageUrl}
             alt="mockup overlay"
-            className="w-full h-full object-fill"
+            className="w-full h-full object-fill pointer-events-none"
             draggable={false}
           />
           {editable && (
             <>
               <div
-                className="absolute inset-0 cursor-move pointer-events-auto"
+                className="absolute inset-0 cursor-move"
                 onPointerDown={(e) => onPointerDown("move", e)}
               />
               <div
-                className="absolute -right-2 -bottom-2 size-4 rounded-sm bg-primary cursor-nwse-resize pointer-events-auto shadow"
+                className="absolute -right-2 -bottom-2 size-4 rounded-sm bg-primary cursor-nwse-resize shadow"
                 onPointerDown={(e) => onPointerDown("resize", e)}
                 title="Drag to resize"
               />
@@ -200,23 +174,6 @@ export default function StreetViewPanel({
         <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-muted-foreground gap-2 p-4 text-center">
           <AlertCircle className="size-5" />
           <div>ไม่มีภาพ Street View บริเวณนี้ (รัศมี 80 ม.)</div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => openExternal(gmapsSearchHref)}
-              className="inline-flex items-center gap-1 rounded border bg-background/90 px-2 py-1 text-xs text-primary hover:bg-background"
-            >
-              เปิดใน Google Maps <ExternalLink className="size-3" />
-            </button>
-            <button
-              type="button"
-              onClick={() => void copyLink(gmapsSearchHref)}
-              className="inline-flex items-center gap-1 rounded border bg-background/90 px-2 py-1 text-xs hover:bg-background"
-              title="คัดลอกลิงก์"
-            >
-              <Copy className="size-3" />
-            </button>
-          </div>
         </div>
       )}
       {status === "error" && (
@@ -224,25 +181,6 @@ export default function StreetViewPanel({
           <AlertCircle className="size-5" />
           <div>โหลด Street View ไม่สำเร็จ</div>
           <div className="text-xs text-muted-foreground">{msg}</div>
-        </div>
-      )}
-      {status === "ready" && (
-        <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => openExternal(gmapsHref)}
-            className="inline-flex items-center gap-1 rounded bg-background/90 border px-2 py-1 text-[11px] shadow hover:bg-background"
-          >
-            เปิดใน Google Maps <ExternalLink className="size-3" />
-          </button>
-          <button
-            type="button"
-            onClick={() => void copyLink(gmapsHref)}
-            className="inline-flex items-center gap-1 rounded bg-background/90 border px-2 py-1 text-[11px] shadow hover:bg-background"
-            title="คัดลอกลิงก์"
-          >
-            <Copy className="size-3" />
-          </button>
         </div>
       )}
     </div>

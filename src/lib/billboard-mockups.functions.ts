@@ -169,16 +169,30 @@ export const getStreetViewStaticImage = createServerFn({ method: "POST" })
     if (!LOVABLE_API_KEY || !GOOGLE_MAPS_API_KEY) {
       return { ok: false, error: "Google Maps connector ยังไม่พร้อม" };
     }
-    const url = `https://connector-gateway.lovable.dev/google_maps/maps/api/streetview?size=${encodeURIComponent(
-      data.size,
-    )}&location=${data.lat},${data.lng}&heading=${data.heading}&pitch=0&fov=80`;
+    const headers = {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "X-Connection-Api-Key": GOOGLE_MAPS_API_KEY,
+    };
+    const base = "https://connector-gateway.lovable.dev/google_maps/maps/api/streetview";
     try {
-      const resp = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "X-Connection-Api-Key": GOOGLE_MAPS_API_KEY,
-        },
-      });
+      // 1) Metadata check with radius so we know a panorama exists nearby.
+      const metaUrl = `${base}/metadata?location=${data.lat},${data.lng}&radius=100`;
+      const metaResp = await fetch(metaUrl, { headers });
+      if (!metaResp.ok) {
+        const t = await metaResp.text().catch(() => "");
+        return { ok: false, error: `metadata HTTP ${metaResp.status}: ${t.slice(0, 120)}` };
+      }
+      const meta = (await metaResp.json()) as {
+        status?: string;
+        location?: { lat: number; lng: number };
+      };
+      if (meta.status !== "OK") {
+        return { ok: false, error: `ไม่มีภาพ Street View บริเวณนี้ (${meta.status ?? "?"})` };
+      }
+      const loc = meta.location ?? { lat: data.lat, lng: data.lng };
+      // 2) Fetch actual JPEG at panorama location.
+      const imgUrl = `${base}?size=${encodeURIComponent(data.size)}&location=${loc.lat},${loc.lng}&heading=${data.heading}&pitch=0&fov=80&radius=100`;
+      const resp = await fetch(imgUrl, { headers });
       if (!resp.ok) {
         const t = await resp.text().catch(() => "");
         return { ok: false, error: `HTTP ${resp.status}: ${t.slice(0, 120)}` };

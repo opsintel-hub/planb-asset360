@@ -73,6 +73,9 @@ export const OVERPASS_ENDPOINTS = [
 ];
 
 const OVERPASS_FETCH_TIMEOUT_MS = 16_000;
+const OVERPASS_JSON_CACHE_TTL_MS = 10 * 60_000;
+const OVERPASS_JSON_CACHE_MAX = 40;
+const overpassJsonCache = new Map<string, { storedAt: number; payload: unknown }>();
 
 function isRuntimeFailurePayload(payload: unknown, elapsedMs: number): string | null {
   if (!payload || typeof payload !== "object") return null;
@@ -97,42 +100,69 @@ function isRuntimeFailurePayload(payload: unknown, elapsedMs: number): string | 
 export async function fetchOverpass(query: string): Promise<Response> {
   let lastErr: unknown = null;
   let lastResp: Response | null = null;
-  for (const url of OVERPASS_ENDPOINTS) {
+  const attempts = await Promise.allSettled(OVERPASS_ENDPOINTS.map(async (url) => {
     const startedAt = Date.now();
-    try {
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json",
-          "User-Agent": "AssetHistory360/1.0 (contact: admin@example.com)",
-        },
-        body: "data=" + encodeURIComponent(query),
-        signal: AbortSignal.timeout(OVERPASS_FETCH_TIMEOUT_MS),
-      });
-      if (resp.ok) {
-        const clone = resp.clone();
-        try {
-          const payload = await clone.json();
-          const reason = isRuntimeFailurePayload(payload, Date.now() - startedAt);
-          if (reason) {
-            lastErr = new Error(`Overpass mirror returned incomplete result: ${reason}`);
-            continue;
-          }
-        } catch {
-          // If the body is not JSON, let the caller handle it as the endpoint said OK.
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+        "User-Agent": "AssetHistory360/1.0 (contact: admin@example.com)",
+      },
+      body: "data=" + encodeURIComponent(query),
+      signal: AbortSignal.timeout(OVERPASS_FETCH_TIMEOUT_MS),
+    });
+    if (resp.ok) {
+      const clone = resp.clone();
+      try {
+        const payload = await clone.json();
+        const reason = isRuntimeFailurePayload(payload, Date.now() - startedAt);
+        if (reason) {
+          throw new Error(`Overpass mirror returned incomplete result: ${reason}`);
         }
-        return resp;
+      } catch (e) {
+        if (e instanceof Error && e.message.includes("incomplete result")) throw e;
+        // If the body is not JSON, let the caller handle it as the endpoint said OK.
       }
-      lastResp = resp;
-    } catch (e) {
-      lastErr = e;
     }
+    return resp;
+  }));
+
+  for (const attempt of attempts) {
+    if (attempt.status === "fulfilled" && attempt.value.ok) return attempt.value;
+  }
+  for (const attempt of attempts) {
+    if (attempt.status === "fulfilled") lastResp = attempt.value;
+    else lastErr = attempt.reason;
   }
   if (lastResp) return lastResp;
   throw lastErr instanceof Error
     ? new Error(`Overpass ไม่ตอบสนอง (timeout/network): ${lastErr.message}`)
     : new Error("Overpass ไม่ตอบสนองทุก mirror");
+}
+
+function cloneJson<T>(value: unknown): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+export async function fetchOverpassJson<T = OverpassResponse>(query: string): Promise<T> {
+  const cached = overpassJsonCache.get(query);
+  if (cached && Date.now() - cached.storedAt < OVERPASS_JSON_CACHE_TTL_MS) {
+    return cloneJson<T>(cached.payload);
+  }
+
+  const resp = await fetchOverpass(query);
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => "");
+    throw new Error(`Overpass ${resp.status}: ${t.slice(0, 120)}`);
+  }
+  const payload = (await resp.json()) as T;
+  overpassJsonCache.set(query, { storedAt: Date.now(), payload });
+  if (overpassJsonCache.size > OVERPASS_JSON_CACHE_MAX) {
+    const oldest = overpassJsonCache.keys().next().value;
+    if (oldest) overpassJsonCache.delete(oldest);
+  }
+  return cloneJson<T>(payload);
 }
 
 export type Bbox = [south: number, west: number, north: number, east: number];

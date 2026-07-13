@@ -895,6 +895,15 @@ function MapPage() {
           >
             <MapPin className="size-4" /> {originPickMode ? "Click map…" : "Pick Origin"}
           </button>
+          <button
+            onClick={() => { setStopPickMode((v) => !v); setOriginPickMode(false); }}
+            className={cn(
+              "h-9 px-2.5 rounded-md border inline-flex items-center gap-1",
+              stopPickMode ? "bg-primary text-primary-foreground border-primary" : "hover:bg-accent",
+            )}
+            title="คลิกบนแผนที่เพื่อเพิ่มปลายทาง (จุดที่คลิกจะกลายเป็นปลายทางใหม่)"
+          >
+            <Plus className="size-4" /> {stopPickMode ? "Click map…" : "Pick Stop"}
           {origin && (
             <span className="inline-flex items-center gap-2 h-9 px-2.5 rounded-md border bg-green-50 dark:bg-green-950/40 text-green-800 dark:text-green-200">
               <Star className="size-3.5" /> {origin.name ?? "Origin"}

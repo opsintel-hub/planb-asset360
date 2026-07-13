@@ -8,6 +8,10 @@ export type BillboardMockupOverlay = {
   h: number; // % height
   opacity: number; // 0..1
   rotation: number; // degrees
+  skewX?: number; // degrees (perspective X)
+  skewY?: number; // degrees (perspective Y)
+  keepAspect?: boolean;
+  naturalAspect?: number; // width/height ratio of the source image
 };
 
 export type BillboardMockup = {

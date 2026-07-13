@@ -180,7 +180,7 @@ function inflateTriangle(
 
 function drawTriangle(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  img: HTMLImageElement | HTMLCanvasElement,
   src: [CornerPoint, CornerPoint, CornerPoint],
   dst: [CornerPoint, CornerPoint, CornerPoint],
 ) {
@@ -208,7 +208,7 @@ function drawTriangle(
   ctx.restore();
 }
 
-function drawImageInQuad(ctx: CanvasRenderingContext2D, img: HTMLImageElement, corners: CornerPoint[]) {
+function drawImageInQuad(ctx: CanvasRenderingContext2D, img: HTMLImageElement | HTMLCanvasElement, corners: CornerPoint[]) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   // Larger cells + slight triangle inflation eliminate diagonal seam stripes.

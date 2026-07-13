@@ -1070,8 +1070,13 @@ function MapPage() {
       </div>
     ) : mode === "inspection" ? (
       <div className="rounded-xl border bg-card overflow-hidden flex flex-col" style={panelStyle(fullscreen)}>
-        <div className="px-3 py-2 border-b text-sm font-semibold">
-          Plan · {stops.length} จุดหมาย {origin ? "" : "· ยังไม่ได้เลือกต้นทาง"}
+        <div className="px-3 py-2 border-b text-sm font-semibold flex items-center justify-between gap-2">
+          <span>Plan · {stops.length} จุดหมาย {origin ? "" : "· ยังไม่ได้เลือกต้นทาง"}</span>
+          {routeInfo && (
+            <span className="text-[11px] font-normal text-muted-foreground tabular-nums">
+              รวม {fmtDist(routeInfo.distance)} · {fmtDur(routeInfo.duration)}
+            </span>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto divide-y">
           {origin && (
@@ -1086,26 +1091,41 @@ function MapPage() {
               ยังไม่มีปลายทาง — ค้นหาป้ายจากช่องค้นหาด้านบน แล้วคลิกเพื่อเพิ่ม
             </div>
           ) : (
-            stops.map((s, i) => (
-              <div key={s.key} className="px-3 py-2 flex items-start gap-2 hover:bg-accent">
-                <button onClick={() => s.asset_id && setFocusId(s.asset_id)} className="flex-1 text-left">
-                  <div className="text-xs font-semibold truncate">{i + 1}. {s.old_code ?? s.name ?? "—"}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">{s.name ?? ""}</div>
-                  <div className="text-[10px] text-muted-foreground">{s.lat.toFixed(5)}, {s.lng.toFixed(5)}</div>
-                </button>
-                <div className="flex flex-col gap-0.5 shrink-0">
-                  <button onClick={() => moveStop(i, -1)} disabled={i === 0} className="p-0.5 hover:bg-background rounded disabled:opacity-30">
-                    <ArrowUp className="size-3" />
-                  </button>
-                  <button onClick={() => moveStop(i, 1)} disabled={i === stops.length - 1} className="p-0.5 hover:bg-background rounded disabled:opacity-30">
-                    <ArrowDown className="size-3" />
-                  </button>
+            stops.map((s, i) => {
+              // legs[i] = from origin(0) → stop i when origin present.
+              // If no origin, legs[i] = stop(i-1) → stop(i), so first stop has no leg in.
+              const legIdx = origin ? i : i - 1;
+              const leg = routeInfo?.legs?.[legIdx];
+              return (
+                <div key={s.key} className="px-3 py-2 hover:bg-accent">
+                  {leg && (
+                    <div className="text-[10px] text-muted-foreground mb-1 flex items-center gap-2">
+                      <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
+                      <span className="tabular-nums">↳ {fmtDist(leg.distance)} · {fmtDur(leg.duration)}</span>
+                      <span className="opacity-60">จาก {i === 0 ? "ต้นทาง" : `จุด ${i}`}</span>
+                    </div>
+                  )}
+                  <div className="flex items-start gap-2">
+                    <button onClick={() => s.asset_id && setFocusId(s.asset_id)} className="flex-1 text-left min-w-0">
+                      <div className="text-xs font-semibold truncate">{i + 1}. {s.old_code ?? s.name ?? "—"}</div>
+                      <div className="text-[11px] text-muted-foreground break-words">{s.name ?? ""}</div>
+                      <div className="text-[10px] text-muted-foreground">{s.lat.toFixed(5)}, {s.lng.toFixed(5)}</div>
+                    </button>
+                    <div className="flex flex-col gap-0.5 shrink-0">
+                      <button onClick={() => moveStop(i, -1)} disabled={i === 0} className="p-0.5 hover:bg-background rounded disabled:opacity-30">
+                        <ArrowUp className="size-3" />
+                      </button>
+                      <button onClick={() => moveStop(i, 1)} disabled={i === stops.length - 1} className="p-0.5 hover:bg-background rounded disabled:opacity-30">
+                        <ArrowDown className="size-3" />
+                      </button>
+                    </div>
+                    <button onClick={() => removeStop(s.key)} className="p-1 hover:bg-background rounded text-red-600" title="ลบ">
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <button onClick={() => removeStop(s.key)} className="p-1 hover:bg-background rounded text-red-600" title="ลบ">
-                  <X className="size-3.5" />
-                </button>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

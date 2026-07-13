@@ -9,7 +9,11 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { POI_PRESETS, PRESET_BY_KEY, type Bbox } from "@/lib/overpass";
-import { searchPOIsNearAssets, getPOIFilterOptions, type POI, type POIMatch } from "@/lib/poi-search.functions";
+import {
+  searchPOIsNearAssets, getPOIFilterOptions, searchLocations,
+  type POI, type POIMatch,
+} from "@/lib/poi-search.functions";
+import { SearchProgressDialog } from "./search-progress-dialog";
 
 const RADIUS_OPTIONS = [50, 100, 200, 500, 1000];
 
@@ -26,18 +30,28 @@ export default function PoiProximityPanel({
 }: Props) {
   const searchFn = useServerFn(searchPOIsNearAssets);
   const filterOptsFn = useServerFn(getPOIFilterOptions);
+  const searchLocationsFn = useServerFn(searchLocations);
 
   const [selectedPresets, setSelectedPresets] = useState<string[]>(["mall", "car_dealer", "subway"]);
   const [freeText, setFreeText] = useState("");
   const [radiusM, setRadiusM] = useState(200);
   const [matchMode, setMatchMode] = useState<"any" | "all">("any");
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
-  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+
+  // Filter state (Phase B)
+  const [bkkupc, setBkkupc] = useState<"" | "BKK" | "UPC">("");
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
-  const [terrOpen, setTerrOpen] = useState(false);
-  const [regionOpen, setRegionOpen] = useState(false);
+  const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedMediaTypes, setSelectedMediaTypes] = useState<string[]>([]);
   const [districtOpen, setDistrictOpen] = useState(false);
+  const [terrOpen, setTerrOpen] = useState(false);
+  const [locOpen, setLocOpen] = useState(false);
+  const [deptOpen, setDeptOpen] = useState(false);
+  const [mediaOpen, setMediaOpen] = useState(false);
+  const [locQuery, setLocQuery] = useState("");
+
   const [lastResult, setLastResult] = useState<{
     pois: POI[]; matches: POIMatch[]; matchedAssetCount: number; elapsedMs?: number;
   } | null>(null);
@@ -46,6 +60,13 @@ export default function PoiProximityPanel({
     queryKey: ["poi-filter-options"],
     queryFn: () => filterOptsFn(),
     staleTime: 5 * 60_000,
+  });
+
+  const locationSearch = useQuery({
+    queryKey: ["poi-location-typeahead", locQuery],
+    queryFn: () => searchLocationsFn({ data: { q: locQuery } }),
+    enabled: locOpen && locQuery.trim().length >= 2,
+    staleTime: 60_000,
   });
 
   const mut = useMutation({
@@ -58,9 +79,12 @@ export default function PoiProximityPanel({
           bbox,
           radiusM,
           matchMode,
-          territories: selectedTerritories,
-          regions: selectedRegions,
+          bkkupc: bkkupc || null,
           districts: selectedDistricts,
+          territories: selectedTerritories,
+          locations: selectedLocations,
+          departments: selectedDepartments,
+          mediaTypes: selectedMediaTypes,
         },
       });
     },
@@ -91,7 +115,22 @@ export default function PoiProximityPanel({
     onResult(null);
   };
 
-  // Group matches by POI for display
+  const clearGeoFilters = () => {
+    setBkkupc("");
+    setSelectedDistricts([]);
+    setSelectedTerritories([]);
+    setSelectedLocations([]);
+    setSelectedDepartments([]);
+    setSelectedMediaTypes([]);
+  };
+
+  const hasGeoFilter = bkkupc !== ""
+    || selectedDistricts.length > 0
+    || selectedTerritories.length > 0
+    || selectedLocations.length > 0
+    || selectedDepartments.length > 0
+    || selectedMediaTypes.length > 0;
+
   const matchesByPoi = useMemo(() => {
     if (!lastResult) return new Map<string, POIMatch[]>();
     const m = new Map<string, POIMatch[]>();
@@ -142,6 +181,12 @@ export default function PoiProximityPanel({
 
   return (
     <div className="rounded-xl border bg-card overflow-hidden flex flex-col h-full">
+      <SearchProgressDialog
+        open={mut.isPending}
+        showAfterMs={3000}
+        estimatedTotalMs={Math.max(8000, 4000 + selectedPresets.length * 2500)}
+      />
+
       <div className="px-3 py-2 border-b bg-muted/30">
         <div className="text-sm font-semibold flex items-center gap-1">
           <MapPin className="size-4" /> ค้นหาป้ายใกล้ POI
@@ -152,7 +197,7 @@ export default function PoiProximityPanel({
       </div>
 
       <div className="p-3 space-y-3 border-b">
-        {/* Geographic filters — narrow the search area for faster results */}
+        {/* Geographic filters */}
         <div className="rounded-md border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 p-2 space-y-2">
           <div className="text-[11px] font-medium text-amber-900 dark:text-amber-100 uppercase flex items-center gap-1">
             <Filter className="size-3" /> ตัวกรองพื้นที่ (เพิ่มความเร็ว)
@@ -160,6 +205,30 @@ export default function PoiProximityPanel({
           {filterOpts.isError && (
             <div className="text-[10px] text-destructive">โหลดตัวเลือกไม่สำเร็จ: {(filterOpts.error as Error)?.message}</div>
           )}
+
+          {/* BKKUPC segment */}
+          <div>
+            <div className="text-[10px] text-muted-foreground mb-1">กรุงเทพ / ต่างจังหวัด (BKKUPC)</div>
+            <div className="inline-flex rounded-md border overflow-hidden w-full bg-background">
+              {([
+                { v: "" as const, l: "ทั้งหมด" },
+                { v: "BKK" as const, l: "BKK" },
+                { v: "UPC" as const, l: "UPC" },
+              ]).map((o) => (
+                <button
+                  key={o.l}
+                  onClick={() => setBkkupc(o.v)}
+                  className={cn(
+                    "flex-1 h-7 text-[11px] border-l first:border-l-0",
+                    bkkupc === o.v ? "bg-primary text-primary-foreground" : "hover:bg-accent",
+                  )}
+                >
+                  {o.l}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <MultiSelectDropdown
             open={districtOpen}
             setOpen={setDistrictOpen}
@@ -180,27 +249,109 @@ export default function PoiProximityPanel({
             onToggle={(v) => setSelectedTerritories((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
             loading={filterOpts.isLoading}
           />
+
+          {/* Location typeahead */}
+          <div>
+            <div className="text-[10px] text-muted-foreground mb-1">จุดติดตั้ง (Location)</div>
+            <Popover open={locOpen} onOpenChange={setLocOpen}>
+              <PopoverTrigger asChild>
+                <button className="h-8 w-full rounded-md border bg-background px-2.5 text-[11px] inline-flex items-center justify-between hover:bg-accent">
+                  <span className="truncate">
+                    {selectedLocations.length === 0 ? "พิมพ์เพื่อค้นหาจุดติดตั้ง…"
+                      : selectedLocations.length === 1 ? selectedLocations[0]
+                      : `${selectedLocations.length} จุด`}
+                  </span>
+                  <ChevronsUpDown className="size-3 opacity-60 shrink-0" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="p-0 w-[300px] z-[1100]" align="start">
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder="พิมพ์ ≥ 2 ตัวอักษร…"
+                    value={locQuery}
+                    onValueChange={setLocQuery}
+                  />
+                  <CommandList className="max-h-[240px]">
+                    {locQuery.trim().length < 2 && (
+                      <div className="py-4 text-center text-[11px] text-muted-foreground">
+                        พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหา
+                      </div>
+                    )}
+                    {locQuery.trim().length >= 2 && locationSearch.isLoading && (
+                      <div className="py-4 text-center text-[11px] text-muted-foreground">กำลังค้นหา…</div>
+                    )}
+                    {locQuery.trim().length >= 2 && !locationSearch.isLoading && (locationSearch.data ?? []).length === 0 && (
+                      <CommandEmpty>ไม่พบ</CommandEmpty>
+                    )}
+                    <CommandGroup>
+                      {(locationSearch.data ?? []).map((o) => {
+                        const sel = selectedLocations.includes(o.value);
+                        return (
+                          <CommandItem
+                            key={o.value}
+                            value={o.value}
+                            onSelect={() => setSelectedLocations((p) => p.includes(o.value) ? p.filter((x) => x !== o.value) : [...p, o.value])}
+                            className="cursor-pointer"
+                          >
+                            <div className={cn(
+                              "mr-2 size-4 rounded border grid place-items-center shrink-0",
+                              sel ? "bg-primary border-primary text-primary-foreground" : "bg-background",
+                            )}>
+                              {sel && <Check className="size-3" />}
+                            </div>
+                            <span className="text-xs truncate flex-1">{o.value}</span>
+                            <span className="text-[10px] text-muted-foreground ml-1">{o.count}</span>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            {selectedLocations.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {selectedLocations.map((v) => (
+                  <span key={v} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border bg-background max-w-full">
+                    <span className="truncate max-w-[180px]">{v}</span>
+                    <button onClick={() => setSelectedLocations((p) => p.filter((x) => x !== v))} className="opacity-60 hover:opacity-100 shrink-0">
+                      <X className="size-2.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           <MultiSelectDropdown
-            open={regionOpen}
-            setOpen={setRegionOpen}
-            label="ภาค (Region)"
-            placeholder={filterOpts.isLoading ? "กำลังโหลด…" : "เลือกภาค…"}
-            options={(filterOpts.data?.regions ?? []).slice(0, 30).map((t) => ({ value: t.value, label: `${t.value} (${t.count})` }))}
-            selected={selectedRegions}
-            onToggle={(v) => setSelectedRegions((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+            open={deptOpen}
+            setOpen={setDeptOpen}
+            label="แผนก (Department)"
+            placeholder={filterOpts.isLoading ? "กำลังโหลด…" : "เลือกแผนก…"}
+            options={(filterOpts.data?.departments ?? []).map((t) => ({ value: t.value, label: `${t.value} (${t.count})` }))}
+            selected={selectedDepartments}
+            onToggle={(v) => setSelectedDepartments((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
             loading={filterOpts.isLoading}
           />
-          {(selectedTerritories.length > 0 || selectedRegions.length > 0 || selectedDistricts.length > 0) && (
+          <MultiSelectDropdown
+            open={mediaOpen}
+            setOpen={setMediaOpen}
+            label="ประเภทสื่อ (Media Type)"
+            placeholder={filterOpts.isLoading ? "กำลังโหลด…" : "เลือกประเภทสื่อ…"}
+            options={(filterOpts.data?.mediaTypes ?? []).map((t) => ({ value: t.value, label: `${t.value} (${t.count})` }))}
+            selected={selectedMediaTypes}
+            onToggle={(v) => setSelectedMediaTypes((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+            loading={filterOpts.isLoading}
+          />
+
+          {hasGeoFilter && (
             <button
-              onClick={() => { setSelectedTerritories([]); setSelectedRegions([]); setSelectedDistricts([]); }}
+              onClick={clearGeoFilters}
               className="text-[10px] text-amber-800 dark:text-amber-200 hover:underline"
             >
-              ล้างตัวกรองพื้นที่
+              ล้างตัวกรองพื้นที่ทั้งหมด
             </button>
           )}
-          <div className="text-[9.5px] text-muted-foreground leading-tight">
-            หมายเหตุ: ฐานข้อมูลไม่มีฟิลด์ &quot;จังหวัด&quot; แยก — ใช้ &quot;เขต/อำเภอ&quot; หรือ &quot;ภาค&quot; แทน
-          </div>
         </div>
 
 
@@ -350,6 +501,9 @@ export default function PoiProximityPanel({
           <div className="px-3 py-2 border-b bg-blue-50 dark:bg-blue-950/30 text-xs flex items-center justify-between gap-2">
             <div className="text-blue-900 dark:text-blue-100">
               <b>{lastResult.pois.length}</b> POI · <b>{lastResult.matchedAssetCount}</b> ป้ายใกล้เคียง
+              {lastResult.elapsedMs != null && (
+                <span className="text-muted-foreground ml-1">· {(lastResult.elapsedMs / 1000).toFixed(1)}s</span>
+              )}
             </div>
             <button onClick={exportCsv}
               className="h-7 px-2 rounded-md border text-[11px] hover:bg-accent inline-flex items-center gap-1 bg-background">
@@ -488,4 +642,3 @@ function MultiSelectDropdown({
     </div>
   );
 }
-

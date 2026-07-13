@@ -98,9 +98,7 @@ function isRuntimeFailurePayload(payload: unknown, elapsedMs: number): string | 
  * where a timed-out query returns HTTP 200 with an empty/error JSON payload.
  */
 export async function fetchOverpass(query: string): Promise<Response> {
-  let lastErr: unknown = null;
-  let lastResp: Response | null = null;
-  const attempts = await Promise.allSettled(OVERPASS_ENDPOINTS.map(async (url) => {
+  const attempts = OVERPASS_ENDPOINTS.map(async (url) => {
     const startedAt = Date.now();
     const resp = await fetch(url, {
       method: "POST",
@@ -112,6 +110,10 @@ export async function fetchOverpass(query: string): Promise<Response> {
       body: "data=" + encodeURIComponent(query),
       signal: AbortSignal.timeout(OVERPASS_FETCH_TIMEOUT_MS),
     });
+    if (!resp.ok) {
+      const t = await resp.text().catch(() => "");
+      throw new Error(`Overpass ${resp.status}: ${t.slice(0, 120)}`);
+    }
     if (resp.ok) {
       const clone = resp.clone();
       try {
@@ -126,19 +128,15 @@ export async function fetchOverpass(query: string): Promise<Response> {
       }
     }
     return resp;
-  }));
+  });
 
-  for (const attempt of attempts) {
-    if (attempt.status === "fulfilled" && attempt.value.ok) return attempt.value;
+  try {
+    return await Promise.any(attempts);
+  } catch (e) {
+    const err = e as { errors?: unknown[]; message?: string };
+    const last = err.errors?.find((x) => x instanceof Error) as Error | undefined;
+    throw new Error(`Overpass ไม่ตอบสนอง (timeout/network): ${last?.message ?? err.message ?? "ทุก mirror ล้มเหลว"}`);
   }
-  for (const attempt of attempts) {
-    if (attempt.status === "fulfilled") lastResp = attempt.value;
-    else lastErr = attempt.reason;
-  }
-  if (lastResp) return lastResp;
-  throw lastErr instanceof Error
-    ? new Error(`Overpass ไม่ตอบสนอง (timeout/network): ${lastErr.message}`)
-    : new Error("Overpass ไม่ตอบสนองทุก mirror");
 }
 
 function cloneJson<T>(value: unknown): T {

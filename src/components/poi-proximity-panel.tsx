@@ -200,6 +200,7 @@ export default function PoiProximityPanel({
         open={mut.isPending}
         showAfterMs={3000}
         estimatedTotalMs={Math.max(8000, 4000 + selectedPresets.length * 2500)}
+        onCancel={cancelSearch}
       />
 
       <div className="px-3 py-2 border-b bg-muted/30">

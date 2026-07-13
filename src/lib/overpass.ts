@@ -72,15 +72,33 @@ export const OVERPASS_ENDPOINTS = [
   "https://overpass.osm.ch/api/interpreter",
 ];
 
+const OVERPASS_FETCH_TIMEOUT_MS = 16_000;
+
+function isRuntimeFailurePayload(payload: unknown, elapsedMs: number): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const p = payload as { elements?: unknown[]; remark?: string };
+  const remark = typeof p.remark === "string" ? p.remark : "";
+  if (/runtime error|timeout|timed out|out of time|rate limit|too many requests/i.test(remark)) {
+    return remark.slice(0, 180);
+  }
+  // Some public Overpass instances can return HTTP 200 + an empty element list
+  // when the query timed out. A genuinely empty small query usually returns fast.
+  if (Array.isArray(p.elements) && p.elements.length === 0 && elapsedMs > 12_000) {
+    return `empty response after ${(elapsedMs / 1000).toFixed(1)}s`;
+  }
+  return null;
+}
+
 /**
  * Fetch Overpass with headers required by public endpoints (User-Agent + Accept).
- * Falls back through mirrors on 4xx/5xx or timeout. Each mirror has a hard
- * 45-second client timeout so a stuck mirror can't hang the whole search.
+ * Falls back through mirrors on 4xx/5xx, timeout, and the common Overpass case
+ * where a timed-out query returns HTTP 200 with an empty/error JSON payload.
  */
 export async function fetchOverpass(query: string): Promise<Response> {
   let lastErr: unknown = null;
   let lastResp: Response | null = null;
   for (const url of OVERPASS_ENDPOINTS) {
+    const startedAt = Date.now();
     try {
       const resp = await fetch(url, {
         method: "POST",
@@ -90,9 +108,23 @@ export async function fetchOverpass(query: string): Promise<Response> {
           "User-Agent": "AssetHistory360/1.0 (contact: admin@example.com)",
         },
         body: "data=" + encodeURIComponent(query),
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(OVERPASS_FETCH_TIMEOUT_MS),
       });
       if (resp.ok) return resp;
+      if (resp.ok) {
+        const clone = resp.clone();
+        try {
+          const payload = await clone.json();
+          const reason = isRuntimeFailurePayload(payload, Date.now() - startedAt);
+          if (reason) {
+            lastErr = new Error(`Overpass mirror returned incomplete result: ${reason}`);
+            continue;
+          }
+        } catch {
+          // If the body is not JSON, let the caller handle it as the endpoint said OK.
+        }
+        return resp;
+      }
       lastResp = resp;
     } catch (e) {
       lastErr = e;
@@ -155,6 +187,7 @@ export type OverpassElement = {
 
 export type OverpassResponse = {
   elements: OverpassElement[];
+  remark?: string;
 };
 
 export function haversineMeters(

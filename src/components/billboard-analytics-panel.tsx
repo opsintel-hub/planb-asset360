@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw } from "lucide-react";
+import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Camera, ChevronDown } from "lucide-react";
 import { analyzeBillboardArea, type BillboardAnalytics } from "@/lib/billboard-analytics.functions";
 import type { MapAsset } from "@/lib/map.functions";
+
+const StreetViewPanel = lazy(() => import("@/components/street-view-panel"));
 
 type Props = {
   asset: MapAsset;
@@ -31,8 +33,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const [data, setData] = useState<BillboardAnalytics | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  const run = async (r: number) => {
+  const [showStreet, setShowStreet] = useState(false);
     setLoading(true);
     setErr(null);
     try {

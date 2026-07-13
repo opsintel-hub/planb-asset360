@@ -198,7 +198,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
             <ChevronDown className={`size-4 ml-auto transition-transform ${showStreet ? "rotate-180" : ""}`} />
           </button>
           {showStreet && Number.isFinite(asset.lat) && Number.isFinite(asset.lng) && (
-            <div className="mt-2">
+            <div className="mt-2 space-y-2">
               <Suspense
                 fallback={
                   <div className="h-[320px] flex items-center justify-center rounded-md border bg-muted text-sm text-muted-foreground">
@@ -206,10 +206,112 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                   </div>
                 }
               >
-                <StreetViewPanel lat={asset.lat} lng={asset.lng} />
+                <StreetViewPanel
+                  lat={asset.lat}
+                  lng={asset.lng}
+                  overlayImageUrl={selectedMockup?.image_url}
+                  overlay={overlay ?? undefined}
+                  onOverlayChange={setOverlay}
+                  editable={editOverlay && !!selectedMockup}
+                />
               </Suspense>
+              {selectedMockup && overlay && (
+                <div className="rounded-md border p-2 flex items-center gap-3 flex-wrap text-xs">
+                  <span className="text-muted-foreground">Overlay:</span>
+                  <label className="inline-flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={editOverlay}
+                      onChange={(e) => setEditOverlay(e.target.checked)}
+                    />
+                    แก้ไขได้
+                  </label>
+                  <label className="inline-flex items-center gap-2 flex-1 min-w-[160px]">
+                    Opacity
+                    <input
+                      type="range"
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      value={overlay.opacity}
+                      onChange={(e) =>
+                        setOverlay({ ...overlay, opacity: parseFloat(e.target.value) })
+                      }
+                      className="flex-1"
+                    />
+                    <span className="w-8 tabular-nums text-right">
+                      {Math.round(overlay.opacity * 100)}%
+                    </span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    หมุน
+                    <input
+                      type="range"
+                      min={-30}
+                      max={30}
+                      step={1}
+                      value={overlay.rotation}
+                      onChange={(e) =>
+                        setOverlay({ ...overlay, rotation: parseInt(e.target.value, 10) })
+                      }
+                    />
+                    <span className="w-8 tabular-nums text-right">{overlay.rotation}°</span>
+                  </label>
+                </div>
+              )}
             </div>
           )}
+        </div>
+
+        {/* Mockup manager */}
+        <div className="px-4 pt-3">
+          <button
+            type="button"
+            onClick={() => setShowMockup((v) => !v)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border hover:bg-accent transition-colors"
+          >
+            <ImageIcon className="size-4" />
+            <span>Mockup โฆษณา{selectedMockup ? ` · ${selectedMockup.title ?? "1 ภาพเลือกอยู่"}` : ""}</span>
+            <ChevronDown className={`size-4 ml-auto transition-transform ${showMockup ? "rotate-180" : ""}`} />
+          </button>
+          {showMockup && asset.old_code && (
+            <div className="mt-2">
+              <MockupManager
+                oldCode={asset.old_code}
+                selectedId={selectedMockup?.id ?? null}
+                onSelect={setSelectedMockup}
+              />
+            </div>
+          )}
+          {showMockup && !asset.old_code && (
+            <div className="mt-2 text-xs text-muted-foreground">ป้ายนี้ไม่มีรหัส — อัปโหลด Mockup ไม่ได้</div>
+          )}
+        </div>
+
+        {/* Export */}
+        <div className="px-4 pt-3">
+          <div className="rounded-md border p-3 flex items-center gap-2 flex-wrap">
+            <div className="text-xs font-medium mr-1">ส่งออกรายงาน:</div>
+            <button
+              onClick={() => void handleExport("pptx")}
+              disabled={exporting !== null}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs hover:bg-accent disabled:opacity-50"
+            >
+              {exporting === "pptx" ? <Loader2 className="size-3.5 animate-spin" /> : <FileDown className="size-3.5" />}
+              PPTX
+            </button>
+            <button
+              onClick={() => void handleExport("pdf")}
+              disabled={exporting !== null}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs hover:bg-accent disabled:opacity-50"
+            >
+              {exporting === "pdf" ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
+              PDF
+            </button>
+            <span className="text-[11px] text-muted-foreground ml-1">
+              รวม Street View + Mockup (ถ้ามี) + Analytics
+            </span>
+          </div>
         </div>
 
         {/* Body */}

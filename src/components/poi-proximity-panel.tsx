@@ -97,8 +97,6 @@ export default function PoiProximityPanel({
     onSuccess: (r) => {
       if (!r.ok) {
         toast.error(r.error ?? "ค้นหาล้มเหลว");
-        setLastResult(null);
-        onResult(null);
         return;
       }
       const result = { pois: r.pois, matches: r.matches, matchedAssetCount: r.matchedAssetCount, elapsedMs: r.elapsedMs };

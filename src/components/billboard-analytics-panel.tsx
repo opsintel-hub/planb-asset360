@@ -65,6 +65,62 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset.id]);
 
+  // Sync overlay when mockup selection changes.
+  useEffect(() => {
+    if (selectedMockup) {
+      setOverlay(selectedMockup.overlay);
+      setShowStreet(true);
+    } else {
+      setOverlay(null);
+    }
+  }, [selectedMockup]);
+
+  // Debounced persist of overlay position.
+  useEffect(() => {
+    if (!selectedMockup || !overlay) return;
+    const start = JSON.stringify(selectedMockup.overlay);
+    const cur = JSON.stringify(overlay);
+    if (start === cur) return;
+    const t = window.setTimeout(() => {
+      void updateMockupFn({ data: { id: selectedMockup.id, overlay } }).catch(() => {});
+    }, 600);
+    return () => window.clearTimeout(t);
+  }, [overlay, selectedMockup, updateMockupFn]);
+
+  const handleExport = async (kind: "pptx" | "pdf") => {
+    setExporting(kind);
+    try {
+      const sv = await getStreetViewImg({
+        data: { lat: asset.lat, lng: asset.lng, heading: 0, size: "640x360" },
+      });
+      const streetViewDataUrl = sv.ok ? sv.dataUrl ?? null : null;
+      if (!sv.ok) toast.warning(`Street View: ${sv.error ?? "ไม่พร้อม"}`);
+      let mockupDataUrl: string | null = null;
+      if (selectedMockup?.image_url) {
+        try {
+          mockupDataUrl = await fetchImageAsDataUrl(selectedMockup.image_url);
+        } catch {
+          toast.warning("โหลดภาพ Mockup ไม่สำเร็จ");
+        }
+      }
+      const payload = {
+        asset,
+        analytics: data,
+        streetViewDataUrl,
+        mockup: selectedMockup,
+        mockupDataUrl,
+        overlay: overlay ?? selectedMockup?.overlay ?? null,
+      };
+      if (kind === "pptx") await exportBillboardPptx(payload);
+      else await exportBillboardPdf(payload);
+      toast.success(`ส่งออก ${kind.toUpperCase()} สำเร็จ`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
       <div

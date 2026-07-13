@@ -162,7 +162,7 @@ export const deleteBillboardMockup = createServerFn({ method: "POST" })
 // Street View Static image via Google Maps Platform gateway → base64 data URL for exports.
 export const getStreetViewStaticImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { lat: number; lng: number; heading?: number; size?: string }) => {
+  .inputValidator((input: { lat: number; lng: number; heading?: number; size?: string; scale?: number }) => {
     const lat = Number(input?.lat);
     const lng = Number(input?.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error("invalid coords");
@@ -170,7 +170,8 @@ export const getStreetViewStaticImage = createServerFn({ method: "POST" })
       lat,
       lng,
       heading: Number.isFinite(input?.heading) ? Number(input.heading) : 0,
-      size: input?.size ?? "640x360",
+      size: input?.size ?? "640x400",
+      scale: input?.scale === 2 ? 2 : 2, // always request 2x for sharper exports
     };
   })
   .handler(async ({ data }): Promise<{ ok: boolean; dataUrl?: string; error?: string }> => {

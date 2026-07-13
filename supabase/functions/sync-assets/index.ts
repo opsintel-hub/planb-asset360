@@ -94,6 +94,16 @@ function pickNum(o: Record<string, unknown>, keys: string[]): number | null {
   }
   return null;
 }
+function parseLatLng(raw: string | null): [number, number] | null {
+  if (!raw) return null;
+  const m = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if (!m) return null;
+  const lat = Number(m[1]);
+  const lng = Number(m[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return [lat, lng];
+}
 
 // @ts-ignore Deno global
 Deno.serve(async (req: Request) => {

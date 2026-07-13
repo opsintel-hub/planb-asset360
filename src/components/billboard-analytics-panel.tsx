@@ -33,11 +33,18 @@ const DEMO_LABELS: Record<string, string> = {
 
 export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const analyze = useServerFn(analyzeBillboardArea);
+  const updateMockupFn = useServerFn(updateBillboardMockup);
+  const getStreetViewImg = useServerFn(getStreetViewStaticImage);
   const [radiusM, setRadiusM] = useState<number>(500);
   const [data, setData] = useState<BillboardAnalytics | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showStreet, setShowStreet] = useState(false);
+  const [showMockup, setShowMockup] = useState(false);
+  const [selectedMockup, setSelectedMockup] = useState<BillboardMockup | null>(null);
+  const [overlay, setOverlay] = useState<BillboardMockupOverlay | null>(null);
+  const [editOverlay, setEditOverlay] = useState(true);
+  const [exporting, setExporting] = useState<null | "pptx" | "pdf">(null);
 
   const run = async (r: number) => {
     setLoading(true);

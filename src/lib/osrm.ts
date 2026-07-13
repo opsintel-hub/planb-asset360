@@ -97,6 +97,7 @@ export async function osrmTrip(points: LatLng[], opts: {
     geometry: decodePolyline(trip.geometry, 5),
     distance: trip.distance,
     duration: trip.duration,
+    legs: (trip.legs ?? []).map((l: { distance: number; duration: number }) => ({ distance: l.distance, duration: l.duration })),
     waypointOrder: order,
   };
 }

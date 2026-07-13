@@ -100,7 +100,7 @@ export const createBillboardMockup = createServerFn({ method: "POST" })
       image_url: signed,
       title: inserted.title,
       note: inserted.note,
-      overlay: inserted.overlay,
+      overlay: inserted.overlay as BillboardMockupOverlay,
       created_at: inserted.created_at,
       updated_at: inserted.updated_at,
     };

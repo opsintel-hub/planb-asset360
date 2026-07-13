@@ -107,8 +107,10 @@ export type Database = {
       assets: {
         Row: {
           area: string | null
+          bkkupc: string | null
           created_at: string
           department: string | null
+          district: string | null
           id: string
           installed_at: string | null
           last_claim_at: string | null
@@ -116,17 +118,22 @@ export type Database = {
           last_monitor_ok_at: string | null
           last_pm_at: string | null
           latitude: number | null
+          location: string | null
           longitude: number | null
+          media_type: string | null
           name: string | null
           old_code: string
           payload: Json
           status: string | null
+          territory: string | null
           updated_at: string
         }
         Insert: {
           area?: string | null
+          bkkupc?: string | null
           created_at?: string
           department?: string | null
+          district?: string | null
           id?: string
           installed_at?: string | null
           last_claim_at?: string | null
@@ -134,17 +141,22 @@ export type Database = {
           last_monitor_ok_at?: string | null
           last_pm_at?: string | null
           latitude?: number | null
+          location?: string | null
           longitude?: number | null
+          media_type?: string | null
           name?: string | null
           old_code: string
           payload?: Json
           status?: string | null
+          territory?: string | null
           updated_at?: string
         }
         Update: {
           area?: string | null
+          bkkupc?: string | null
           created_at?: string
           department?: string | null
+          district?: string | null
           id?: string
           installed_at?: string | null
           last_claim_at?: string | null
@@ -152,11 +164,14 @@ export type Database = {
           last_monitor_ok_at?: string | null
           last_pm_at?: string | null
           latitude?: number | null
+          location?: string | null
           longitude?: number | null
+          media_type?: string | null
           name?: string | null
           old_code?: string
           payload?: Json
           status?: string | null
+          territory?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -757,6 +772,8 @@ export type Database = {
         Args: { p_hour_utc: number; p_job: string; p_minute_utc: number }
         Returns: undefined
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       app_role:

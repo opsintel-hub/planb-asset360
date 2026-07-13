@@ -1,55 +1,103 @@
-# Roadmap — ฟีเจอร์ขั้นสูงของแผนที่ป้ายโฆษณา
+# แผนแก้ปัญหาโหลด/ค้นหา POI ช้า
 
-สถานะ ณ ตอนนี้ (Phase 1–2 เสร็จแล้ว) และแผนต่อไป (Phase 3–6)
-
----
-
-## ✅ Phase 1 — API Settings UI  (เสร็จแล้ว)
-หน้า `/settings` → tab **"External APIs"**
-- Overpass (OSM) · OSRM · Nominatim → ปุ่มทดสอบการเชื่อมต่อ + latency
-- Google Maps / Street View → ช่องกรอก API Key (ยังไม่บังคับ)
-
-ไฟล์: `src/components/external-apis-section.tsx`, `src/lib/external-apis.functions.ts`
+สาเหตุที่ช้าตอนนี้: ทุก filter อ่านผ่าน `payload::jsonb` (`payload->>'District'` ฯลฯ) → Postgres ต้อง scan JSON ทั้ง 8,210 แถวทุกครั้ง ไม่มี index ใช้ได้ ต้องยกฟิลด์สำคัญขึ้นเป็นคอลัมน์จริง + สร้าง index
 
 ---
 
-## ✅ Phase 2 — POI Proximity Search  (เสร็จแล้ว)
-หน้า `/map` → โหมดที่ 3 **"ค้นหาใกล้ POI"**
-- Multi-select 15 ประเภท (ห้าง / โชว์รูม / BTS-MRT / ป้ายรถเมล์ / โรงเรียน ฯลฯ)
-- Free-text ค้นชื่อ (Central, Toyota, 7-Eleven ...)
-- รัศมี 50 / 100 / 200 / 500 / 1000 ม.
-- Match mode: any / all
-- แสดง pin POI + วงกลมรัศมี + dim ป้ายที่ไม่อยู่ในระยะ
-- Export CSV
+## Phase A — แตก payload เป็นคอลัมน์จริง (DB)
 
-ไฟล์: `src/lib/overpass.ts`, `src/lib/poi-search.functions.ts`, `src/components/poi-proximity-panel.tsx`
+### A1. Migration
+เพิ่มคอลัมน์ใน `public.assets`:
+- `bkkupc text` (BKK / UPC)
+- `district text` (เขต/อำเภอ)
+- `territory text` (พื้นที่)
+- `location text` (จุดติดตั้ง — ยกจาก payload; คงคอลัมน์ `area` เดิมไว้ไม่แตะ)
+- `media_type text`
+
+Backfill:
+```sql
+UPDATE public.assets SET
+  bkkupc     = payload->>'BKKUPC',
+  district   = payload->>'District',
+  territory  = payload->>'Territory',
+  location   = payload->>'Location',
+  media_type = payload->>'MediaType';
+```
+
+Indexes:
+- b-tree บน `bkkupc`, `district`, `territory`, `media_type`, `department`
+- composite `(latitude, longitude)` สำหรับ bbox
+- ไม่ index `location` (7,422 unique — เกือบ 1:1) ใช้ trigram สำหรับ typeahead แทน: `CREATE INDEX ON assets USING gin (location gin_trgm_ops)`
+
+### A2. แก้ตัว sync ให้เขียนคอลัมน์ใหม่
+2 จุด:
+- `supabase/functions/sync-assets/index.ts` — เพิ่ม mapping `bkkupc/district/territory/location/media_type` จาก `item.BKKUPC` ฯลฯ
+- `src/lib/sync.server.ts` — ถ้ามี path เขียน assets เพิ่ม mapping เดียวกัน
+
+Guard: set เฉพาะเมื่อค่าไม่ว่าง (กัน sync ทับเป็น null); คง `payload` ทั้งก้อนไว้เพื่อ backward-compat
+
+### A3. Refactor ทุกจุดที่อ่าน payload → อ่าน column
+ไฟล์ที่พบว่าอ่าน `payload->>...` / `p.MediaType` / `p.Location` / `p.District`:
+- `src/lib/map.functions.ts`, `map-store.functions.ts`, `data.functions.ts`, `admin.functions.ts`
+- `src/lib/poi-search.functions.ts`, `billboard-analytics.functions.ts`
+- `src/lib/monitoring*.ts`, `pm-insights.functions.ts`, `rca.functions.ts`
+- `src/routes/search.tsx`, `map.tsx`, `pm-insights.tsx`, `settings.tsx`
+- `src/components/breakdown-tab.tsx`, `analytics-tab.tsx`
+
+เปลี่ยน `select payload` → `select bkkupc, district, territory, location, media_type, department, ...` เฉพาะฟิลด์ที่ใช้ (payload เดิมยังอยู่เป็น fallback)
+
+รัน typecheck ครบทุกไฟล์ก่อน commit
 
 ---
 
-## 🔜 Phase 3 — Billboard Analytics Popup  (ถัดไป)
-คลิกป้ายบนแผนที่ → panel ด้านขวาแสดง:
-- ข้อมูลประชากรจำลอง (พนักงานออฟฟิศ %, นักศึกษา %, ...) — ประเมินจาก POI รอบข้าง
-- Traffic score จำลอง (Low / Med / High) จากจำนวน POI + ประเภทถนน (OSM highway tag)
-- Peak hour สมมติตามพื้นที่ (ออฟฟิศ ↔ ห้าง ↔ ที่อยู่อาศัย)
+## Phase B — เปลี่ยนตัวกรอง POI Panel
 
-*ทั้งหมดเป็น mock ที่คำนวณจากข้อมูล OSM ฟรี ไม่มีค่าใช้จ่าย*
+ที่ `src/components/poi-proximity-panel.tsx` — บล็อก "ตัวกรองพื้นที่":
+
+**เอาออก:** ภาค (Region)
+
+**ใส่ใหม่ (ตามลำดับ):**
+1. **BKKUPC** — Segment toggle: ทั้งหมด · BKK · UPC (single select)
+2. **District** — เขต/อำเภอ (multi-select)
+3. **Territory** — พื้นที่ (multi-select)
+4. **Location** — จุดติดตั้ง (combobox + typeahead search, ไม่ dump ทั้ง 7k)
+5. **Department** — Static / Digital / Billboard / Airport / 7-Eleven ฯลฯ (multi-select)
+6. **Media Type** — Cookies / 7-Eleven / Serie Pole ฯลฯ (multi-select)
+
+ที่ `src/lib/poi-search.functions.ts`:
+- `POIFilterOptions` เปลี่ยนเป็น `{ bkkupc, districts, territories, locations, departments, mediaTypes }`
+- Query กรองจากคอลัมน์จริง (`.eq('bkkupc', ...)`, `.in('district', ...)` ฯลฯ) แทน `payload->>`
+- คำนวณ bbox จากผลลัพธ์ที่กรองแล้ว → ยิง Overpass เฉพาะพื้นที่นั้น
+
+Endpoint options ใหม่ `getPOIFilterOptions` return: `{ bkkupcs, districts, territories, departments, mediaTypes }` + typeahead endpoint สำหรับ Location
 
 ---
 
-## 🔜 Phase 4 — Street View + Mockup Overlay
-- Embed Google Street View (ใช้ key ที่กรอกไว้ใน Phase 1) fallback = Mapillary (ฟรี)
-- Upload PNG/JPG → วางทับกรอบป้ายจำลอง
-- ปรับตำแหน่ง/ขนาด/มุม แบบ manual (drag / resize / rotate)
+## Phase C — Progress popup > 3 วินาที
+
+`src/components/search-progress-dialog.tsx`:
+- `setTimeout(open, 3000)` หลังกดค้นหา
+- Stage bar (เดินตามเวลาโดยประมาณ):
+  1. กรองป้ายตามพื้นที่ (0–20%)
+  2. คำนวณ bounding box (20–30%)
+  3. เรียก Overpass API (30–90%)
+  4. Match ระยะทาง (90–100%)
+- ปุ่ม "ยกเลิก" ผ่าน `AbortController`
+- Snap 100% เมื่อ response กลับ
+
+Server fn stream ไม่ได้ → progress ใช้เวลาจริงฝั่ง client (estimated จากจำนวน POI types × พื้นที่ bbox)
 
 ---
 
-## 🔜 Phase 5 — Export PDF Report
-รวมทุกอย่างในหน้าเดียว: รายละเอียดป้าย + Analytics + Street View snapshot + Mockup
-Client-side ด้วย `jspdf` + `html2canvas` (ไม่มีค่า API)
+## Risks
+- **Sync ทับเป็น null**: กันด้วยการ set เฉพาะค่าที่ไม่ว่าง
+- **หน้าอื่นพัง**: refactor A3 ทำใน commit เดียว + typecheck
+- **Location typeahead**: 7,422 ค่า — ต้อง trigram index ไม่งั้นช้ากว่าเดิม
 
----
+## ลำดับส่ง
+1. **Phase A1** (migration) — รอ approve
+2. **Phase A2 + A3** (sync + refactor call sites) — commit เดียว
+3. **Phase B** (UI ตัวกรองใหม่ + endpoint)
+4. **Phase C** (progress popup)
 
-## 🔜 Phase 6 — Enhancements
-- Save POI search presets (ตาราง `map_saved_poi_searches`)
-- ปักหมุด POI เอง (ตาราง `custom_pois`)
-- PDF export สำหรับ POI search
+หลัง A2/A3 จะเร็วขึ้นชัดเจนแล้ว; B/C เป็น UX เสริม

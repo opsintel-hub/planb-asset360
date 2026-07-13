@@ -94,6 +94,16 @@ function pickNum(o: Record<string, unknown>, keys: string[]): number | null {
   }
   return null;
 }
+function parseLatLng(raw: string | null): [number, number] | null {
+  if (!raw) return null;
+  const m = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if (!m) return null;
+  const lat = Number(m[1]);
+  const lng = Number(m[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return [lat, lng];
+}
 
 // @ts-ignore Deno global
 Deno.serve(async (req: Request) => {
@@ -175,8 +185,8 @@ Deno.serve(async (req: Request) => {
           department: pickStr(item, ["department", "Department"]),
           area: pickStr(item, ["area", "Area", "location", "Location"]),
           status: pickStr(item, ["status", "Status"]),
-          latitude: pickNum(item, ["latitude", "Latitude", "lat", "Lat"]),
-          longitude: pickNum(item, ["longitude", "Longitude", "lng", "Lng"]),
+          latitude: pickNum(item, ["latitude", "Latitude", "lat", "Lat"]) ?? parseLatLng(pickStr(item, ["LatitudeLongitude", "latitudeLongitude"]))?.[0] ?? null,
+          longitude: pickNum(item, ["longitude", "Longitude", "lng", "Lng"]) ?? parseLatLng(pickStr(item, ["LatitudeLongitude", "latitudeLongitude"]))?.[1] ?? null,
           installed_at: pickStr(item, ["installedAt", "InstalledAt", "installed_at", "InstallDate"]),
           // Phase A2: promote key payload fields to real columns for fast filtering.
           bkkupc: pickStr(item, ["BKKUPC", "bkkupc", "BkkUpc"]),

@@ -54,7 +54,9 @@ export default function MockupManager({ oldCode, selectedId, onSelect }: Props) 
     setUploading(true);
     try {
       const ext = file.name.split(".").pop()?.toLowerCase() || "png";
-      const path = `${oldCode}/${crypto.randomUUID()}.${ext}`;
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !userData?.user) throw new Error("กรุณาเข้าสู่ระบบก่อนอัปโหลด");
+      const path = `${userData.user.id}/${oldCode}/${crypto.randomUUID()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("billboard-mockups")
         .upload(path, file, { contentType: file.type, upsert: false });

@@ -179,29 +179,34 @@ export const getStreetViewStaticImage = createServerFn({ method: "POST" })
     };
     const base = "https://connector-gateway.lovable.dev/google_maps/maps/api/streetview";
     try {
-      // 1) Metadata check with radius so we know a panorama exists nearby.
-      const metaUrl = `${base}/metadata?location=${data.lat},${data.lng}&radius=100`;
-      const metaResp = await fetch(metaUrl, { headers });
-      if (!metaResp.ok) {
-        const t = await metaResp.text().catch(() => "");
-        return { ok: false, error: `metadata HTTP ${metaResp.status}: ${t.slice(0, 120)}` };
+      // Try metadata at a generous radius so we get the true panorama location.
+      let loc = { lat: data.lat, lng: data.lng };
+      try {
+        const metaUrl = `${base}/metadata?location=${data.lat},${data.lng}&radius=500`;
+        const metaResp = await fetch(metaUrl, { headers });
+        if (metaResp.ok) {
+          const meta = (await metaResp.json()) as {
+            status?: string;
+            location?: { lat: number; lng: number };
+          };
+          if (meta.status === "OK" && meta.location) loc = meta.location;
+        }
+      } catch {
+        // Non-fatal — fall through and try the image endpoint directly.
       }
-      const meta = (await metaResp.json()) as {
-        status?: string;
-        location?: { lat: number; lng: number };
-      };
-      if (meta.status !== "OK") {
-        return { ok: false, error: `ไม่มีภาพ Street View บริเวณนี้ (${meta.status ?? "?"})` };
-      }
-      const loc = meta.location ?? { lat: data.lat, lng: data.lng };
-      // 2) Fetch actual JPEG at panorama location.
-      const imgUrl = `${base}?size=${encodeURIComponent(data.size)}&location=${loc.lat},${loc.lng}&heading=${data.heading}&pitch=0&fov=80&radius=100`;
+      // Fetch the image at that location with wide radius so Google can pick the nearest pano.
+      const imgUrl = `${base}?size=${encodeURIComponent(data.size)}&location=${loc.lat},${loc.lng}&heading=${data.heading}&pitch=0&fov=80&radius=500`;
       const resp = await fetch(imgUrl, { headers });
       if (!resp.ok) {
         const t = await resp.text().catch(() => "");
         return { ok: false, error: `HTTP ${resp.status}: ${t.slice(0, 120)}` };
       }
       const buf = new Uint8Array(await resp.arrayBuffer());
+      // Google returns a small "no imagery available" JPEG when nothing is found; ~7-12KB.
+      // Real panoramas are typically > 20KB. Reject the placeholder so callers can render a fallback.
+      if (buf.length < 15000) {
+        return { ok: false, error: "ไม่มีภาพ Street View บริเวณนี้ (Google placeholder)" };
+      }
       let bin = "";
       for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
       const b64 = btoa(bin);

@@ -119,6 +119,32 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
           </button>
         </div>
 
+        {/* Street View */}
+        <div className="px-4 pt-4">
+          <button
+            type="button"
+            onClick={() => setShowStreet((v) => !v)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border hover:bg-accent transition-colors"
+          >
+            <Camera className="size-4" />
+            <span>Street View</span>
+            <ChevronDown className={`size-4 ml-auto transition-transform ${showStreet ? "rotate-180" : ""}`} />
+          </button>
+          {showStreet && Number.isFinite(asset.lat) && Number.isFinite(asset.lng) && (
+            <div className="mt-2">
+              <Suspense
+                fallback={
+                  <div className="h-[320px] flex items-center justify-center rounded-md border bg-muted text-sm text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin mr-2" /> กำลังโหลด…
+                  </div>
+                }
+              >
+                <StreetViewPanel lat={asset.lat} lng={asset.lng} />
+              </Suspense>
+            </div>
+          )}
+        </div>
+
         {/* Body */}
         <div className="p-4 space-y-4">
           {loading && (

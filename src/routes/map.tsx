@@ -452,6 +452,7 @@ function MapPage() {
     setRoadPolyline(null);
     setRouteInfo(null);
     setOriginPickMode(false);
+    setStopPickMode(false);
   };
 
   // ---------- Exports ----------

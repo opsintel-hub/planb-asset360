@@ -416,6 +416,8 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                     />
                     <span className="tabular-nums text-right">{Math.round((overlay.brightness ?? 1) * 100)}%</span>
                   </div>
+
+                  <div className="text-[10px] text-muted-foreground pt-1 border-t">
                     เคล็ดลับ: ลากจุดสีน้ำเงินที่มุมทั้ง 4 บนภาพเพื่อบิดภาพให้พอดีขอบป้าย (แบบ Photoshop Distort)
                   </div>
                 </div>

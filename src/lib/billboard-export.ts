@@ -153,7 +153,11 @@ function drawTriangle(
 }
 
 function drawImageInQuad(ctx: CanvasRenderingContext2D, img: HTMLImageElement, corners: CornerPoint[]) {
-  const steps = 18;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  // Fewer, larger cells + smoothing avoids the diagonal stripe artifacts a
+  // dense grid creates on high-contrast text in mockups.
+  const steps = 8;
   for (let iy = 0; iy < steps; iy += 1) {
     for (let ix = 0; ix < steps; ix += 1) {
       const u0 = ix / steps;

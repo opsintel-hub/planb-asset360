@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { POI_PRESETS, PRESET_BY_KEY, type Bbox } from "@/lib/overpass";
+import { PROJECT_TO_DEPARTMENTS } from "@/lib/project-department-map";
 import {
   searchPOIsNearAssets, getPOIFilterOptions, searchLocations,
   type POI, type POIMatch,

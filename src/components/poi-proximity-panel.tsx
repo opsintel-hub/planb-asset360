@@ -69,10 +69,14 @@ export default function PoiProximityPanel({
     staleTime: 60_000,
   });
 
+  const cancelRef = useRef<{ cancelled: boolean } | null>(null);
+
   const mut = useMutation({
     mutationFn: async () => {
       if (!bbox) throw new Error("รอโหลดแผนที่ก่อน");
-      return searchFn({
+      const token = { cancelled: false };
+      cancelRef.current = token;
+      const result = await searchFn({
         data: {
           presetKeys: selectedPresets,
           freeText: freeText.trim() || null,
@@ -87,6 +91,8 @@ export default function PoiProximityPanel({
           mediaTypes: selectedMediaTypes,
         },
       });
+      if (token.cancelled) throw new Error("__cancelled__");
+      return result;
     },
     onSuccess: (r) => {
       if (!r.ok) {
@@ -101,8 +107,17 @@ export default function PoiProximityPanel({
       const ms = r.elapsedMs ? ` · ${(r.elapsedMs / 1000).toFixed(1)}s` : "";
       toast.success(`พบ ${r.poiCount} POI · ${r.matchedAssetCount} ป้ายใกล้เคียง${ms}`);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      if (e.message === "__cancelled__") return;
+      toast.error(e.message);
+    },
   });
+
+  const cancelSearch = () => {
+    if (cancelRef.current) cancelRef.current.cancelled = true;
+    mut.reset();
+    toast.message("ยกเลิกการค้นหาแล้ว");
+  };
 
   const togglePreset = (key: string) => {
     setSelectedPresets((prev) =>

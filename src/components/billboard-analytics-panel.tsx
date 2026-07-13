@@ -372,7 +372,8 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
         </div>
 
         {/* Body */}
-        <div className="p-4 space-y-4">
+        <div ref={reportRef} className="p-4 space-y-4">
+
           {loading && (
             <div className="flex items-center justify-center py-12 text-muted-foreground text-sm gap-2">
               <Loader2 className="size-4 animate-spin" />

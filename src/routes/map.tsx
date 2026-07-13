@@ -437,7 +437,7 @@ function MapPage() {
       pairs.sort((a, b) => a.order - b.order);
       setStops(pairs.map((p) => p.s));
       setRoadPolyline(r.geometry);
-      setRouteInfo({ distance: r.distance, duration: r.duration });
+      setRouteInfo({ distance: r.distance, duration: r.duration, legs: r.legs });
       toast.success("จัดลำดับสั้นที่สุดสำเร็จ");
     } catch (e) {
       toast.error(`จัดลำดับล้มเหลว: ${(e as Error).message}`);

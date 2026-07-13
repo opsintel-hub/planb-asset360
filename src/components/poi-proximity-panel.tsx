@@ -108,6 +108,7 @@ export default function PoiProximityPanel({
       onResult({ pois: r.pois, matches: r.matches, radiusM });
       const ms = r.elapsedMs ? ` · ${(r.elapsedMs / 1000).toFixed(1)}s` : "";
       toast.success(`พบ ${r.poiCount} POI · ${r.matchedAssetCount} ป้ายใกล้เคียง${ms}`);
+      if (r.warnings?.length) toast.warning(r.warnings[0]);
     },
     onError: (e: Error) => {
       if (e.message === "__cancelled__") return;

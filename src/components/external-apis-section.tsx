@@ -170,13 +170,25 @@ export function ExternalApisSection() {
         pinging={nominatimMut.isPending}
       />
 
-      <div className="rounded-xl border bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 p-4 text-xs">
-        <div className="font-semibold text-yellow-900 dark:text-yellow-100 mb-1">
-          🟡 Google Maps / Street View (Optional — เพิ่มภายหลัง)
+      <ApiStatusCard
+        name="Google Maps Platform (Street View + Static)"
+        purpose="ใช้แสดง Street View panorama บนหน้ารายละเอียดป้าย และดึงภาพ Street View Static สำหรับฝังในรายงาน PPTX/PDF"
+        cost="Lovable-managed key (referrer-restricted *.lovable.app / *.lovableproject.com)"
+        rateLimit="Google fair-use (Street View metadata + Static)"
+        endpoint="https://connector-gateway.lovable.dev/google_maps/maps/api/streetview"
+        docsUrl="https://developers.google.com/maps/documentation/streetview"
+        pingResult={results.gmaps}
+        onPing={() => gmapsMut.mutate()}
+        pinging={gmapsMut.isPending}
+      />
+
+      <div className="rounded-xl border bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 p-4 text-xs">
+        <div className="font-semibold text-emerald-900 dark:text-emerald-100 mb-1">
+          ✅ Google Maps เชื่อมต่อแล้ว (ผ่าน Lovable Connector)
         </div>
-        <div className="text-yellow-800 dark:text-yellow-200 space-y-1">
-          <p>สำหรับฟีเจอร์ Street View / Mockup / PDF ที่มีภาพถนน — Google ให้ free tier ~$200/เดือน แล้วคิดเงินตาม usage</p>
-          <p>เมื่อคุณสมัคร Google Maps API key แล้วจะมีฟอร์มให้กรอกที่นี่ในรอบพัฒนาถัดไป (Phase 3)</p>
+        <div className="text-emerald-800 dark:text-emerald-200">
+          Key ถูก restrict ให้ใช้ได้เฉพาะโดเมน <code>*.lovable.app</code>/<code>*.lovableproject.com</code>{" "}
+          — ไม่มีค่าใช้จ่ายเพิ่มในโควตา free tier
         </div>
       </div>
     </div>

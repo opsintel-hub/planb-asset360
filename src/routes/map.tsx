@@ -904,6 +904,7 @@ function MapPage() {
             title="คลิกบนแผนที่เพื่อเพิ่มปลายทาง (จุดที่คลิกจะกลายเป็นปลายทางใหม่)"
           >
             <Plus className="size-4" /> {stopPickMode ? "Click map…" : "Pick Stop"}
+          </button>
           {origin && (
             <span className="inline-flex items-center gap-2 h-9 px-2.5 rounded-md border bg-green-50 dark:bg-green-950/40 text-green-800 dark:text-green-200">
               <Star className="size-3.5" /> {origin.name ?? "Origin"}

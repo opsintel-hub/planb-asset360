@@ -4,6 +4,7 @@ import {
   classifyPreset,
   haversineMeters,
   type Bbox,
+  type OverpassResponse,
 } from "./overpass";
 import { fetchPoisFromOverpassAdaptive } from "./poi-overpass-search.server";
 
@@ -243,7 +244,7 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
     }
 
     // ---- Step 3: Overpass on tightened bbox ----
-    let raw;
+    let raw: OverpassResponse;
     let overpassWarnings: string[] = [];
     try {
       const fetched = await fetchPoisFromOverpassAdaptive({ presetKeys, freeText: freeText || null, bbox: tightBbox });

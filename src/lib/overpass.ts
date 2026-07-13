@@ -110,7 +110,6 @@ export async function fetchOverpass(query: string): Promise<Response> {
         body: "data=" + encodeURIComponent(query),
         signal: AbortSignal.timeout(OVERPASS_FETCH_TIMEOUT_MS),
       });
-      if (resp.ok) return resp;
       if (resp.ok) {
         const clone = resp.clone();
         try {

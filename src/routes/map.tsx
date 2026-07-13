@@ -414,7 +414,7 @@ function MapPage() {
     try {
       const r = await osrmRoute(routePoints);
       setRoadPolyline(r.geometry);
-      setRouteInfo({ distance: r.distance, duration: r.duration });
+      setRouteInfo({ distance: r.distance, duration: r.duration, legs: r.legs });
       toast.success("คำนวณเส้นทางสำเร็จ");
     } catch (e) {
       toast.error(`คำนวณเส้นทางล้มเหลว: ${(e as Error).message}`);

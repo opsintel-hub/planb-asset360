@@ -1,7 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Camera, ChevronDown } from "lucide-react";
+import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Camera, ChevronDown, Image as ImageIcon, FileDown, FileText } from "lucide-react";
+import { toast } from "sonner";
 import { analyzeBillboardArea, type BillboardAnalytics } from "@/lib/billboard-analytics.functions";
+import { getStreetViewStaticImage, updateBillboardMockup, type BillboardMockup, type BillboardMockupOverlay } from "@/lib/billboard-mockups.functions";
+import { exportBillboardPptx, exportBillboardPdf, fetchImageAsDataUrl } from "@/lib/billboard-export";
+import MockupManager from "@/components/mockup-manager";
 import type { MapAsset } from "@/lib/map.functions";
 
 const StreetViewPanel = lazy(() => import("@/components/street-view-panel"));
@@ -29,11 +33,18 @@ const DEMO_LABELS: Record<string, string> = {
 
 export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const analyze = useServerFn(analyzeBillboardArea);
+  const updateMockupFn = useServerFn(updateBillboardMockup);
+  const getStreetViewImg = useServerFn(getStreetViewStaticImage);
   const [radiusM, setRadiusM] = useState<number>(500);
   const [data, setData] = useState<BillboardAnalytics | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showStreet, setShowStreet] = useState(false);
+  const [showMockup, setShowMockup] = useState(false);
+  const [selectedMockup, setSelectedMockup] = useState<BillboardMockup | null>(null);
+  const [overlay, setOverlay] = useState<BillboardMockupOverlay | null>(null);
+  const [editOverlay, setEditOverlay] = useState(true);
+  const [exporting, setExporting] = useState<null | "pptx" | "pdf">(null);
 
   const run = async (r: number) => {
     setLoading(true);
@@ -54,11 +65,67 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset.id]);
 
+  // Sync overlay when mockup selection changes.
+  useEffect(() => {
+    if (selectedMockup) {
+      setOverlay(selectedMockup.overlay);
+      setShowStreet(true);
+    } else {
+      setOverlay(null);
+    }
+  }, [selectedMockup]);
+
+  // Debounced persist of overlay position.
+  useEffect(() => {
+    if (!selectedMockup || !overlay) return;
+    const start = JSON.stringify(selectedMockup.overlay);
+    const cur = JSON.stringify(overlay);
+    if (start === cur) return;
+    const t = window.setTimeout(() => {
+      void updateMockupFn({ data: { id: selectedMockup.id, overlay } }).catch(() => {});
+    }, 600);
+    return () => window.clearTimeout(t);
+  }, [overlay, selectedMockup, updateMockupFn]);
+
+  const handleExport = async (kind: "pptx" | "pdf") => {
+    setExporting(kind);
+    try {
+      const sv = await getStreetViewImg({
+        data: { lat: asset.lat, lng: asset.lng, heading: 0, size: "640x360" },
+      });
+      const streetViewDataUrl = sv.ok ? sv.dataUrl ?? null : null;
+      if (!sv.ok) toast.warning(`Street View: ${sv.error ?? "ไม่พร้อม"}`);
+      let mockupDataUrl: string | null = null;
+      if (selectedMockup?.image_url) {
+        try {
+          mockupDataUrl = await fetchImageAsDataUrl(selectedMockup.image_url);
+        } catch {
+          toast.warning("โหลดภาพ Mockup ไม่สำเร็จ");
+        }
+      }
+      const payload = {
+        asset,
+        analytics: data,
+        streetViewDataUrl,
+        mockup: selectedMockup,
+        mockupDataUrl,
+        overlay: overlay ?? selectedMockup?.overlay ?? null,
+      };
+      if (kind === "pptx") await exportBillboardPptx(payload);
+      else await exportBillboardPdf(payload);
+      toast.success(`ส่งออก ${kind.toUpperCase()} สำเร็จ`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-card border rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="bg-card border rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] overflow-y-auto"
       >
         {/* Header */}
         <div className="sticky top-0 bg-card border-b p-4 flex items-start justify-between z-10 gap-3">
@@ -131,7 +198,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
             <ChevronDown className={`size-4 ml-auto transition-transform ${showStreet ? "rotate-180" : ""}`} />
           </button>
           {showStreet && Number.isFinite(asset.lat) && Number.isFinite(asset.lng) && (
-            <div className="mt-2">
+            <div className="mt-2 space-y-2">
               <Suspense
                 fallback={
                   <div className="h-[320px] flex items-center justify-center rounded-md border bg-muted text-sm text-muted-foreground">
@@ -139,10 +206,112 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                   </div>
                 }
               >
-                <StreetViewPanel lat={asset.lat} lng={asset.lng} />
+                <StreetViewPanel
+                  lat={asset.lat}
+                  lng={asset.lng}
+                  overlayImageUrl={selectedMockup?.image_url}
+                  overlay={overlay ?? undefined}
+                  onOverlayChange={setOverlay}
+                  editable={editOverlay && !!selectedMockup}
+                />
               </Suspense>
+              {selectedMockup && overlay && (
+                <div className="rounded-md border p-2 flex items-center gap-3 flex-wrap text-xs">
+                  <span className="text-muted-foreground">Overlay:</span>
+                  <label className="inline-flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      checked={editOverlay}
+                      onChange={(e) => setEditOverlay(e.target.checked)}
+                    />
+                    แก้ไขได้
+                  </label>
+                  <label className="inline-flex items-center gap-2 flex-1 min-w-[160px]">
+                    Opacity
+                    <input
+                      type="range"
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      value={overlay.opacity}
+                      onChange={(e) =>
+                        setOverlay({ ...overlay, opacity: parseFloat(e.target.value) })
+                      }
+                      className="flex-1"
+                    />
+                    <span className="w-8 tabular-nums text-right">
+                      {Math.round(overlay.opacity * 100)}%
+                    </span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    หมุน
+                    <input
+                      type="range"
+                      min={-30}
+                      max={30}
+                      step={1}
+                      value={overlay.rotation}
+                      onChange={(e) =>
+                        setOverlay({ ...overlay, rotation: parseInt(e.target.value, 10) })
+                      }
+                    />
+                    <span className="w-8 tabular-nums text-right">{overlay.rotation}°</span>
+                  </label>
+                </div>
+              )}
             </div>
           )}
+        </div>
+
+        {/* Mockup manager */}
+        <div className="px-4 pt-3">
+          <button
+            type="button"
+            onClick={() => setShowMockup((v) => !v)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border hover:bg-accent transition-colors"
+          >
+            <ImageIcon className="size-4" />
+            <span>Mockup โฆษณา{selectedMockup ? ` · ${selectedMockup.title ?? "1 ภาพเลือกอยู่"}` : ""}</span>
+            <ChevronDown className={`size-4 ml-auto transition-transform ${showMockup ? "rotate-180" : ""}`} />
+          </button>
+          {showMockup && asset.old_code && (
+            <div className="mt-2">
+              <MockupManager
+                oldCode={asset.old_code}
+                selectedId={selectedMockup?.id ?? null}
+                onSelect={setSelectedMockup}
+              />
+            </div>
+          )}
+          {showMockup && !asset.old_code && (
+            <div className="mt-2 text-xs text-muted-foreground">ป้ายนี้ไม่มีรหัส — อัปโหลด Mockup ไม่ได้</div>
+          )}
+        </div>
+
+        {/* Export */}
+        <div className="px-4 pt-3">
+          <div className="rounded-md border p-3 flex items-center gap-2 flex-wrap">
+            <div className="text-xs font-medium mr-1">ส่งออกรายงาน:</div>
+            <button
+              onClick={() => void handleExport("pptx")}
+              disabled={exporting !== null}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs hover:bg-accent disabled:opacity-50"
+            >
+              {exporting === "pptx" ? <Loader2 className="size-3.5 animate-spin" /> : <FileDown className="size-3.5" />}
+              PPTX
+            </button>
+            <button
+              onClick={() => void handleExport("pdf")}
+              disabled={exporting !== null}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs hover:bg-accent disabled:opacity-50"
+            >
+              {exporting === "pdf" ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
+              PDF
+            </button>
+            <span className="text-[11px] text-muted-foreground ml-1">
+              รวม Street View + Mockup (ถ้ามี) + Analytics
+            </span>
+          </div>
         </div>
 
         {/* Body */}

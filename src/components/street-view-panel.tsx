@@ -224,6 +224,16 @@ export default function StreetViewPanel({
     }
 
     if (s.mode === "move") {
+      if (st.corners) {
+        const nextCorners = {
+          tl: { x: clamp(st.corners.tl.x + dxPct, 0, 100), y: clamp(st.corners.tl.y + dyPct, 0, 100) },
+          tr: { x: clamp(st.corners.tr.x + dxPct, 0, 100), y: clamp(st.corners.tr.y + dyPct, 0, 100) },
+          br: { x: clamp(st.corners.br.x + dxPct, 0, 100), y: clamp(st.corners.br.y + dyPct, 0, 100) },
+          bl: { x: clamp(st.corners.bl.x + dxPct, 0, 100), y: clamp(st.corners.bl.y + dyPct, 0, 100) },
+        };
+        onOverlayChange({ ...st, ...boundsFromCorners(nextCorners), corners: nextCorners });
+        return;
+      }
       onOverlayChange({
         ...st,
         x: clamp(st.x + dxPct, 0, 100 - st.w),

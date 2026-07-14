@@ -347,7 +347,7 @@ out center tags;`;
     // Traffic score = road weight + POI density bonus
     let trafficScore = 0;
     for (const [cls, count] of Object.entries(roadClasses)) {
-      trafficScore += (ROAD_WEIGHT[cls] ?? 4) * Math.min(count, 3);
+      trafficScore += (weights.road[cls as keyof typeof weights.road] ?? ROAD_WEIGHT_FALLBACK[cls] ?? 4) * Math.min(count, 3);
     }
     trafficScore += Math.min(nearbyPOIs.length * 0.5, 30);
     trafficScore = Math.min(Math.round(trafficScore), 100);
@@ -357,11 +357,11 @@ out center tags;`;
     // Peak hours: derived from dominant demographic
     const dominant = (Object.entries(demoPct) as Array<[keyof DemographicsMix, number]>)
       .sort((a, b) => b[1] - a[1])[0][0];
-    const peakHours = peaksFor(dominant);
+    const peakHours = [...(weights.peaks[dominant] ?? peaksFor(dominant))];
 
     // Impressions estimate: rough — trafficScore * factor
-    const dailyMin = trafficScore * 200;
-    const dailyMax = trafficScore * 600;
+    const dailyMin = trafficScore * weights.impressions.min;
+    const dailyMax = trafficScore * weights.impressions.max;
 
     const notes: string[] = [];
     if (buckets.length === 0) notes.push("ไม่พบ POI ในรัศมี — พื้นที่อาจเป็นชานเมือง / ที่โล่ง");

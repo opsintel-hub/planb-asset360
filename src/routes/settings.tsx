@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Database, RefreshCw, CheckCircle2, Server, AlertTriangle, Tag, FileSpreadsheet, Zap, Bot } from "lucide-react";
+import { Database, RefreshCw, CheckCircle2, Server, AlertTriangle, Tag, FileSpreadsheet, Zap, Bot, Sliders } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ import { DatabaseSchemaSection } from "@/components/database-schema-section";
 import { MssqlTableControls, type TablesEnabled } from "@/components/mssql-table-controls";
 import { ExternalApisSection } from "@/components/external-apis-section";
 import { AiPromptSettings } from "@/components/ai-prompt-settings";
+import { AnalyticsWeightsSettings } from "@/components/analytics-weights-settings";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -38,10 +39,11 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const [active, setActive] = useState<"main" | "schema" | "apis" | "airtable" | "mappings" | "informed" | "ai">("main");
+  const [active, setActive] = useState<"main" | "schema" | "apis" | "airtable" | "mappings" | "informed" | "ai" | "analytics">("main");
   const sections = [
     { id: "main", label: "การเชื่อมต่อหลัก", icon: Server },
     { id: "ai", label: "AI Prompt", icon: Bot },
+    { id: "analytics", label: "Analytics Weights", icon: Sliders },
     { id: "schema", label: "Database Schema", icon: Database },
     { id: "apis", label: "API ภายนอก", icon: Zap },
     { id: "airtable", label: "Airtable Connections", icon: Database },
@@ -75,6 +77,8 @@ function SettingsPage() {
         <MainSettings />
       ) : active === "ai" ? (
         <AiPromptSettings />
+      ) : active === "analytics" ? (
+        <AnalyticsWeightsSettings />
       ) : active === "schema" ? (
         <DatabaseSchemaSection />
       ) : active === "apis" ? (

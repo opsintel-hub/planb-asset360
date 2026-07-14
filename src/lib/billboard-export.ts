@@ -396,14 +396,18 @@ function escapeHtml(s: string): string {
 }
 
 // ============ PPTX ============
-// The right-side "Info" and "Analytics" panels are rendered as NATIVE pptxgen
-// text/shape elements (not image snapshots) so that end-users can freely edit
-// the text in PowerPoint after export. Thai renders using "Tahoma" which ships
-// with every Windows/Mac install of Office.
+// Single-slide, airy layout — everything is native pptxgen text/shape so end
+// users can double-click and edit in PowerPoint. Thai renders via Tahoma
+// (ships with every Office install).
 const TH_FONT = "Tahoma";
 
 function demoLabelTh(k: string): string {
   return demoLabel(k);
+}
+
+// Truncate long POI names so they don't overflow their column.
+function truncate(s: string, n: number): string {
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
 export async function exportBillboardPptx(input: ExportInput): Promise<void> {
@@ -411,52 +415,151 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
   pres.layout = "LAYOUT_WIDE"; // 13.333 x 7.5
   const BRAND = "17365D";
   const MUTED = "64748B";
+  const SUBTLE = "94A3B8";
   const BORDER = "DBE3EF";
-  const SURFACE = "F1F5F9";
+  const SURFACE = "F8FAFC";
+  const TEXT = "0F172A";
 
   const s1 = pres.addSlide();
   s1.background = { color: "FFFFFF" };
-  s1.addShape("rect", { x: 0, y: 0, w: 13.333, h: 0.75, fill: { color: BRAND } });
-  s1.addText(`Billboard Report · ${input.asset.old_code ?? "—"}`, {
-    x: 0.4, y: 0.1, w: 12, h: 0.55, fontSize: 22, bold: true, color: "FFFFFF",
-    fontFace: TH_FONT,
+
+  // ---- Header ----
+  s1.addShape("rect", { x: 0, y: 0, w: 13.333, h: 0.6, fill: { color: BRAND } });
+  s1.addText(
+    `Billboard Report · ${input.asset.old_code ?? "—"}`,
+    {
+      x: 0.4, y: 0.08, w: 9, h: 0.44,
+      fontSize: 18, bold: true, color: "FFFFFF", fontFace: TH_FONT,
+    },
+  );
+  s1.addText(
+    `${input.asset.location ?? input.asset.name ?? ""}`,
+    {
+      x: 0.4, y: 0.35, w: 9, h: 0.22,
+      fontSize: 10, color: "CBD5E1", fontFace: TH_FONT,
+    },
+  );
+  s1.addText(new Date().toLocaleString("th-TH"), {
+    x: 9.4, y: 0.15, w: 3.5, h: 0.3,
+    fontSize: 10, color: "CBD5E1", fontFace: TH_FONT, align: "right",
   });
 
-  // --- Hero image (Street View + Mockup) ---
+  // ---- LEFT column ----
+  const leftX = 0.35;
+  const leftW = 7.5;
+
+  // Hero image
+  const heroY = 0.85;
+  const heroH = 3.8;
   const hero = await buildHeroImage(input);
   if (hero) {
-    s1.addImage({ data: hero, x: 0.4, y: 1.0, w: 7.5, h: 4.2 });
-    s1.addText("Street View + Ad Mockup", {
-      x: 0.4, y: 5.25, w: 7.5, h: 0.3, fontSize: 10, italic: true, color: MUTED,
-      fontFace: TH_FONT,
-    });
+    s1.addImage({ data: hero, x: leftX, y: heroY, w: leftW, h: heroH });
   } else {
     s1.addShape("rect", {
-      x: 0.4, y: 1.0, w: 7.5, h: 4.2, fill: { color: SURFACE }, line: { color: "CBD5E1" },
+      x: leftX, y: heroY, w: leftW, h: heroH,
+      fill: { color: SURFACE }, line: { color: "CBD5E1" },
     });
     s1.addText("(ไม่มีภาพ Street View)", {
-      x: 0.4, y: 2.8, w: 7.5, h: 0.6, fontSize: 14, color: "94A3B8", align: "center",
-      fontFace: TH_FONT,
+      x: leftX, y: heroY + heroH / 2 - 0.15, w: leftW, h: 0.3,
+      fontSize: 12, color: SUBTLE, align: "center", fontFace: TH_FONT,
+    });
+  }
+  s1.addText("Street View + Ad Mockup", {
+    x: leftX, y: heroY + heroH + 0.05, w: leftW, h: 0.22,
+    fontSize: 9, italic: true, color: MUTED, fontFace: TH_FONT,
+  });
+
+  // POI blocks (below hero)
+  const poiTop = heroY + heroH + 0.4;
+  const poiH = 2.15;
+  const d = input.analytics;
+
+  // Panel background for POI section
+  s1.addShape("rect", {
+    x: leftX, y: poiTop, w: leftW, h: poiH,
+    fill: { color: "FFFFFF" }, line: { color: BORDER, width: 1 },
+  });
+  s1.addText(
+    d && d.ok ? `POI รอบป้าย (${d.totalPOIs.toLocaleString()} แห่ง)` : "POI รอบป้าย",
+    {
+      x: leftX + 0.15, y: poiTop + 0.06, w: leftW - 0.3, h: 0.28,
+      fontSize: 12, bold: true, color: BRAND, fontFace: TH_FONT,
+    },
+  );
+
+  if (d && d.ok) {
+    // Left half: bucket bars (top 5)
+    const bucketAreaX = leftX + 0.15;
+    const bucketAreaW = leftW / 2 - 0.25;
+    const bucketTop = poiTop + 0.38;
+    const buckets = d.buckets.slice(0, 5);
+    const bkRowH = 0.28;
+    const maxCount = Math.max(...buckets.map((b) => b.count), 1);
+    buckets.forEach((b, i) => {
+      const y = bucketTop + i * bkRowH;
+      s1.addText(`${b.icon} ${b.label}`, {
+        x: bucketAreaX, y, w: bucketAreaW * 0.55, h: bkRowH,
+        fontSize: 9, color: TEXT, fontFace: TH_FONT, valign: "middle",
+      });
+      const barX = bucketAreaX + bucketAreaW * 0.55;
+      const barW = bucketAreaW * 0.35;
+      s1.addShape("rect", {
+        x: barX, y: y + 0.09, w: barW, h: 0.09,
+        fill: { color: "E2E8F0" }, line: { color: "E2E8F0" },
+      });
+      s1.addShape("rect", {
+        x: barX, y: y + 0.09, w: Math.max(0.05, barW * (b.count / maxCount)), h: 0.09,
+        fill: { color: b.color.replace("#", "") }, line: { color: b.color.replace("#", "") },
+      });
+      s1.addText(String(b.count), {
+        x: bucketAreaX + bucketAreaW - 0.35, y, w: 0.35, h: bkRowH,
+        fontSize: 9, bold: true, color: TEXT, fontFace: TH_FONT, align: "right", valign: "middle",
+      });
+    });
+
+    // Right half: POI list top 10 (2 columns of 5)
+    const listX = leftX + leftW / 2 + 0.1;
+    const listW = leftW / 2 - 0.25;
+    const listTop = poiTop + 0.38;
+    s1.addText("ใกล้ที่สุด (Top 10)", {
+      x: listX, y: listTop - 0.3, w: listW, h: 0.22,
+      fontSize: 9, bold: true, color: MUTED, fontFace: TH_FONT,
+    });
+    const pois = d.topPOIs.slice(0, 10);
+    const rowH = 0.16;
+    pois.forEach((p, i) => {
+      const y = listTop + i * rowH;
+      s1.addText(`${i + 1}. ${truncate(p.name, 22)}`, {
+        x: listX, y, w: listW * 0.6, h: rowH,
+        fontSize: 8, color: TEXT, fontFace: TH_FONT, valign: "middle",
+      });
+      s1.addText(`${p.distanceM} ม.`, {
+        x: listX + listW - 0.6, y, w: 0.6, h: rowH,
+        fontSize: 8, bold: true, color: TEXT, fontFace: TH_FONT, align: "right", valign: "middle",
+      });
+    });
+  } else {
+    s1.addText(d?.error ?? "ยังไม่มีข้อมูล Analytics", {
+      x: leftX + 0.15, y: poiTop + 0.5, w: leftW - 0.3, h: 0.5,
+      fontSize: 10, color: "DC2626", fontFace: TH_FONT,
     });
   }
 
-  // --- Right side: INFO (native, editable) ---
-  const rightX = 8.2;
-  const rightW = 4.7;
+  // ---- RIGHT column ----
+  const rightX = 8.05;
+  const rightW = 4.95;
   const a = input.asset;
-  const infoY = 1.0;
-  const infoH = 2.2;
+
+  // Info card
+  const infoY = 0.85;
+  const infoH = 2.05;
   s1.addShape("rect", {
     x: rightX, y: infoY, w: rightW, h: infoH,
     fill: { color: "FFFFFF" }, line: { color: BORDER, width: 1 },
   });
   s1.addText("ข้อมูลป้าย", {
-    x: rightX + 0.15, y: infoY + 0.08, w: rightW - 0.3, h: 0.32,
-    fontSize: 14, bold: true, color: BRAND, fontFace: TH_FONT,
-  });
-  s1.addShape("line", {
-    x: rightX + 0.15, y: infoY + 0.42, w: rightW - 0.3, h: 0,
-    line: { color: BRAND, width: 1.5 },
+    x: rightX + 0.15, y: infoY + 0.08, w: rightW - 0.3, h: 0.28,
+    fontSize: 12, bold: true, color: BRAND, fontFace: TH_FONT,
   });
   const infoRows: [string, string][] = [
     ["รหัส", a.old_code ?? "—"],
@@ -467,153 +570,133 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
     ["สถานะ", a.status ?? "—"],
     ["พิกัด", `${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}`],
   ];
-  const rowH = 0.22;
-  const rowsTop = infoY + 0.5;
+  const infoRowsTop = infoY + 0.42;
+  const infoRowH = 0.22;
   infoRows.forEach(([k, v], i) => {
-    const y = rowsTop + i * rowH;
+    const y = infoRowsTop + i * infoRowH;
     s1.addText(k, {
-      x: rightX + 0.15, y, w: 1.15, h: rowH,
+      x: rightX + 0.15, y, w: 1.3, h: infoRowH,
       fontSize: 9, bold: true, color: "475569", fontFace: TH_FONT, valign: "top",
     });
     s1.addText(v, {
-      x: rightX + 1.35, y, w: rightW - 1.5, h: rowH,
-      fontSize: 9, color: "0F172A", fontFace: TH_FONT, valign: "top",
+      x: rightX + 1.45, y, w: rightW - 1.6, h: infoRowH,
+      fontSize: 9, color: TEXT, fontFace: TH_FONT, valign: "top",
     });
   });
 
-  // --- Right side: ANALYTICS (native, editable) ---
-  const anY = 3.35;
-  const anH = 3.75;
+  // KPI cards (Traffic + Impressions)
+  const kpiY = infoY + infoH + 0.2;
+  const kpiH = 1.05;
+  const kpiGap = 0.15;
+  const kpiW = (rightW - kpiGap) / 2;
+  const trafficScore = d?.ok ? d.trafficScore : 0;
+  const trafficLabel = d?.ok ? d.trafficLabel : "—";
+  const impMin = d?.ok ? d.estimatedDailyImpressions.min : 0;
+  const impMax = d?.ok ? d.estimatedDailyImpressions.max : 0;
+  const roadTxt = d?.ok ? (d.nearestRoad?.name ?? d.nearestRoad?.class ?? "ไม่พบถนน") : "—";
+
+  // Traffic KPI
+  s1.addShape("roundRect", {
+    x: rightX, y: kpiY, w: kpiW, h: kpiH,
+    fill: { color: SURFACE }, line: { color: BORDER, width: 1 }, rectRadius: 0.06,
+  });
+  s1.addText("Traffic", {
+    x: rightX + 0.15, y: kpiY + 0.08, w: kpiW - 0.3, h: 0.22,
+    fontSize: 9, color: MUTED, fontFace: TH_FONT,
+  });
+  s1.addText(
+    [
+      { text: `${trafficScore}`, options: { fontSize: 28, bold: true, color: BRAND } },
+      { text: " /100", options: { fontSize: 11, color: MUTED } },
+    ],
+    { x: rightX + 0.15, y: kpiY + 0.3, w: kpiW - 0.3, h: 0.5, fontFace: TH_FONT },
+  );
+  s1.addText(trafficLabel, {
+    x: rightX + 0.15, y: kpiY + 0.78, w: kpiW - 0.3, h: 0.22,
+    fontSize: 10, bold: true, color: TEXT, fontFace: TH_FONT,
+  });
+
+  // Impressions KPI
+  const kpi2X = rightX + kpiW + kpiGap;
+  s1.addShape("roundRect", {
+    x: kpi2X, y: kpiY, w: kpiW, h: kpiH,
+    fill: { color: SURFACE }, line: { color: BORDER, width: 1 }, rectRadius: 0.06,
+  });
+  s1.addText("Impressions/day", {
+    x: kpi2X + 0.15, y: kpiY + 0.08, w: kpiW - 0.3, h: 0.22,
+    fontSize: 9, color: MUTED, fontFace: TH_FONT,
+  });
+  s1.addText(
+    `${impMin.toLocaleString()}–${impMax.toLocaleString()}`,
+    { x: kpi2X + 0.15, y: kpiY + 0.32, w: kpiW - 0.3, h: 0.4,
+      fontSize: 14, bold: true, color: BRAND, fontFace: TH_FONT },
+  );
+  s1.addText(roadTxt, {
+    x: kpi2X + 0.15, y: kpiY + 0.78, w: kpiW - 0.3, h: 0.22,
+    fontSize: 9, color: MUTED, fontFace: TH_FONT,
+  });
+
+  // Demographics card
+  const demY = kpiY + kpiH + 0.2;
+  const demH = 1.85;
   s1.addShape("rect", {
-    x: rightX, y: anY, w: rightW, h: anH,
+    x: rightX, y: demY, w: rightW, h: demH,
     fill: { color: "FFFFFF" }, line: { color: BORDER, width: 1 },
   });
-  s1.addText("Analytics", {
-    x: rightX + 0.15, y: anY + 0.08, w: rightW - 0.3, h: 0.32,
-    fontSize: 14, bold: true, color: BRAND, fontFace: TH_FONT,
+  s1.addText("กลุ่มเป้าหมาย (Demographics)", {
+    x: rightX + 0.15, y: demY + 0.08, w: rightW - 0.3, h: 0.24,
+    fontSize: 11, bold: true, color: BRAND, fontFace: TH_FONT,
   });
-  s1.addShape("line", {
-    x: rightX + 0.15, y: anY + 0.42, w: rightW - 0.3, h: 0,
-    line: { color: BRAND, width: 1.5 },
-  });
-
-  const d = input.analytics;
-  if (!d || !d.ok) {
-    s1.addText(d?.error ?? "ยังไม่มีข้อมูล Analytics", {
-      x: rightX + 0.15, y: anY + 0.55, w: rightW - 0.3, h: 0.6,
-      fontSize: 10, color: "DC2626", fontFace: TH_FONT,
-    });
-  } else {
-    // Two stat cards: Traffic + Impressions
-    const cardY = anY + 0.55;
-    const cardH = 0.85;
-    const cardW = (rightW - 0.45) / 2;
-    // Traffic
-    s1.addShape("roundRect", {
-      x: rightX + 0.15, y: cardY, w: cardW, h: cardH,
-      fill: { color: SURFACE }, line: { color: BORDER }, rectRadius: 0.05,
-    });
-    s1.addText("Traffic", {
-      x: rightX + 0.22, y: cardY + 0.04, w: cardW - 0.15, h: 0.2,
-      fontSize: 8, color: MUTED, fontFace: TH_FONT,
-    });
-    s1.addText(
-      [
-        { text: `${d.trafficScore}`, options: { fontSize: 22, bold: true, color: BRAND } },
-        { text: "/100", options: { fontSize: 10, color: MUTED } },
-      ],
-      { x: rightX + 0.22, y: cardY + 0.22, w: cardW - 0.15, h: 0.4, fontFace: TH_FONT },
-    );
-    s1.addText(d.trafficLabel, {
-      x: rightX + 0.22, y: cardY + 0.6, w: cardW - 0.15, h: 0.22,
-      fontSize: 9, color: "0F172A", fontFace: TH_FONT,
-    });
-    // Impressions
-    const card2X = rightX + 0.25 + cardW;
-    s1.addShape("roundRect", {
-      x: card2X, y: cardY, w: cardW, h: cardH,
-      fill: { color: SURFACE }, line: { color: BORDER }, rectRadius: 0.05,
-    });
-    s1.addText("Impressions/day", {
-      x: card2X + 0.07, y: cardY + 0.04, w: cardW - 0.15, h: 0.2,
-      fontSize: 8, color: MUTED, fontFace: TH_FONT,
-    });
-    s1.addText(
-      `${d.estimatedDailyImpressions.min.toLocaleString()}–${d.estimatedDailyImpressions.max.toLocaleString()}`,
-      { x: card2X + 0.07, y: cardY + 0.24, w: cardW - 0.15, h: 0.35,
-        fontSize: 13, bold: true, color: BRAND, fontFace: TH_FONT },
-    );
-    s1.addText(d.nearestRoad?.name ?? d.nearestRoad?.class ?? "ไม่พบถนน", {
-      x: card2X + 0.07, y: cardY + 0.6, w: cardW - 0.15, h: 0.22,
-      fontSize: 8, color: MUTED, fontFace: TH_FONT,
-    });
-
-    // Demographics line
-    const demoTop = cardY + cardH + 0.1;
-    const demoTop3 = Object.entries(d.demographics)
-      .sort((x, y) => y[1] - x[1])
-      .slice(0, 3);
-    s1.addText(
-      [
-        { text: "กลุ่มเป้าหมาย: ", options: { bold: true } },
-        ...demoTop3.flatMap(([k, v], i) => [
-          { text: `${demoLabelTh(k)} `, options: {} },
-          { text: `${v}%`, options: { bold: true } },
-          ...(i < demoTop3.length - 1 ? [{ text: "  ·  ", options: { color: MUTED } }] : []),
-        ]),
-      ],
-      { x: rightX + 0.15, y: demoTop, w: rightW - 0.3, h: 0.25,
-        fontSize: 9, color: "0F172A", fontFace: TH_FONT },
-    );
-
-    // Peak hours
-    const peakTop = demoTop + 0.28;
-    s1.addText(
-      [
-        { text: "ช่วงพีค: ", options: { bold: true } },
-        { text: d.peakHours.join("  ·  ") || "—", options: {} },
-      ],
-      { x: rightX + 0.15, y: peakTop, w: rightW - 0.3, h: 0.25,
-        fontSize: 9, color: "0F172A", fontFace: TH_FONT },
-    );
-
-    // POI buckets
-    const poiTop = peakTop + 0.3;
-    s1.addText(`POI รอบป้าย (${d.totalPOIs.toLocaleString()})`, {
-      x: rightX + 0.15, y: poiTop, w: rightW - 0.3, h: 0.22,
-      fontSize: 9, bold: true, color: "0F172A", fontFace: TH_FONT,
-    });
-    const buckets = d.buckets.slice(0, 5);
-    const bkTop = poiTop + 0.25;
-    const bkRowH = 0.2;
-    const maxCount = Math.max(...buckets.map((b) => b.count), 1);
-    buckets.forEach((b, i) => {
-      const y = bkTop + i * bkRowH;
-      s1.addText(`${b.icon} ${b.label}`, {
-        x: rightX + 0.15, y, w: 1.7, h: bkRowH,
-        fontSize: 8, color: "0F172A", fontFace: TH_FONT,
+  if (d && d.ok) {
+    const demRows = (Object.entries(d.demographics) as Array<[string, number]>)
+      .sort((a, b) => b[1] - a[1]);
+    const demRowsTop = demY + 0.42;
+    const demRowH = 0.26;
+    const demColors: Record<string, string> = {
+      office: "3b82f6",
+      student: "6366f1",
+      shopper: "a855f7",
+      resident: "059669",
+      tourist: "f59e0b",
+    };
+    demRows.forEach(([k, v], i) => {
+      const y = demRowsTop + i * demRowH;
+      s1.addText(demoLabelTh(k), {
+        x: rightX + 0.15, y, w: 1.55, h: demRowH,
+        fontSize: 9, color: TEXT, fontFace: TH_FONT, valign: "middle",
       });
-      // bar background
-      const barX = rightX + 1.9;
-      const barW = rightW - 2.3;
+      const barX = rightX + 1.75;
+      const barW = rightW - 2.4;
       s1.addShape("rect", {
-        x: barX, y: y + 0.07, w: barW, h: 0.06,
+        x: barX, y: y + 0.09, w: barW, h: 0.08,
         fill: { color: "E2E8F0" }, line: { color: "E2E8F0" },
       });
       s1.addShape("rect", {
-        x: barX, y: y + 0.07, w: Math.max(0.04, barW * (b.count / maxCount)), h: 0.06,
-        fill: { color: b.color.replace("#", "") }, line: { color: b.color.replace("#", "") },
+        x: barX, y: y + 0.09, w: Math.max(0.04, barW * (v / 100)), h: 0.08,
+        fill: { color: demColors[k] ?? "94A3B8" }, line: { color: demColors[k] ?? "94A3B8" },
       });
-      s1.addText(String(b.count), {
-        x: rightX + rightW - 0.35, y, w: 0.25, h: bkRowH,
-        fontSize: 8, bold: true, color: "0F172A", fontFace: TH_FONT, align: "right",
+      s1.addText(`${v}%`, {
+        x: rightX + rightW - 0.55, y, w: 0.45, h: demRowH,
+        fontSize: 9, bold: true, color: TEXT, fontFace: TH_FONT, align: "right", valign: "middle",
       });
     });
   }
 
+  // Peak hours line
+  const peakY = demY + demH + 0.15;
+  s1.addText(
+    [
+      { text: "ช่วงพีค: ", options: { bold: true, color: BRAND } },
+      { text: d?.ok ? d.peakHours.join("   ·   ") || "—" : "—", options: { color: TEXT } },
+    ],
+    { x: rightX, y: peakY, w: rightW, h: 0.28,
+      fontSize: 10, fontFace: TH_FONT },
+  );
+
+  // Footer
   s1.addText(
     `สร้างเมื่อ ${new Date().toLocaleString("th-TH")} · Asset History 360 · แก้ไขข้อความได้ทุกกล่อง`,
-    { x: 0.4, y: 7.15, w: 12.5, h: 0.3, fontSize: 9, italic: true, color: "94A3B8", fontFace: TH_FONT },
+    { x: 0.4, y: 7.2, w: 12.5, h: 0.25, fontSize: 8, italic: true, color: SUBTLE, fontFace: TH_FONT },
   );
 
   await pres.writeFile({ fileName: `billboard-${input.asset.old_code ?? "report"}.pptx` });
@@ -621,91 +704,167 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
 
 
 // ============ PDF ============
-// Uses jsPDF as a shell; every text region that may contain Thai is embedded as an image
-// rendered via html2canvas-pro (avoids jsPDF's default helvetica which cannot render Thai).
+// jsPDF shell with html2canvas-pro snapshots for every Thai text region.
+// Layout mirrors the PPTX for visual consistency.
 export async function exportBillboardPdf(input: ExportInput): Promise<void> {
   const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
   const margin = 24;
+  const BRAND = "#17365D";
 
-  const drawHeader = (title: string) => {
-    pdf.setFillColor(23, 54, 93);
-    pdf.rect(0, 0, pageW, 40, "F");
-    // Header title also as image so Thai renders.
-  };
-
-  const drawTextImage = async (
-    text: string,
-    opts: { x: number; y: number; w: number; fontSize?: number; bold?: boolean; color?: string; italic?: boolean; bg?: string },
-  ) => {
-    const host = document.createElement("div");
-    host.style.cssText = `position:fixed;left:-99999px;top:0;width:${opts.w * 2}px;padding:0;background:${opts.bg ?? "transparent"};font-family:'Sarabun','Noto Sans Thai',system-ui,sans-serif;color:${opts.color ?? "#0f172a"};font-size:${(opts.fontSize ?? 12) * 2}px;font-weight:${opts.bold ? 700 : 400};font-style:${opts.italic ? "italic" : "normal"};line-height:1.3;`;
-    host.textContent = text;
-    document.body.appendChild(host);
-    try {
-      const c = await html2canvas(host, {
-        backgroundColor: opts.bg ?? null,
-        scale: 1,
-        useCORS: true,
-        logging: false,
-      });
-      const ratio = c.width / c.height;
-      const h = opts.w / ratio;
-      pdf.addImage(c.toDataURL("image/png"), "PNG", opts.x, opts.y, opts.w, h);
-      return h;
-    } finally {
-      host.remove();
-    }
-  };
-
-  // ===== Page 1: Overview =====
-  drawHeader("");
-  await drawTextImage(`รายงานป้ายโฆษณา · ${input.asset.old_code ?? "-"}`, {
-    x: margin, y: 8, w: pageW - margin * 2, fontSize: 14, bold: true, color: "#ffffff",
+  // Header
+  pdf.setFillColor(23, 54, 93);
+  pdf.rect(0, 0, pageW, 40, "F");
+  await drawTextImage(pdf, `Billboard Report · ${input.asset.old_code ?? "-"}`, {
+    x: margin, y: 8, w: pageW * 0.55, fontSize: 14, bold: true, color: "#ffffff",
+  });
+  await drawTextImage(pdf, new Date().toLocaleString("th-TH"), {
+    x: pageW * 0.55, y: 12, w: pageW - margin - pageW * 0.55, fontSize: 9, color: "#cbd5e1",
+    align: "right",
   });
 
-  const hero = await buildHeroImage(input);
+  // Hero (left)
+  const heroX = margin;
+  const heroY = 55;
   const heroW = pageW * 0.55;
-  const heroH = 260;
+  const heroH = 250;
+  const hero = await buildHeroImage(input);
   if (hero) {
     try {
-      pdf.addImage(hero, "JPEG", margin, 60, heroW, heroH);
+      pdf.addImage(hero, "JPEG", heroX, heroY, heroW, heroH);
     } catch {
       // ignore
     }
   } else {
     pdf.setDrawColor(200);
-    pdf.rect(margin, 60, heroW, heroH);
-    await drawTextImage("(ไม่มีภาพ Street View)", {
-      x: margin, y: 60 + heroH / 2 - 10, w: heroW, fontSize: 11, color: "#94A3B8",
+    pdf.rect(heroX, heroY, heroW, heroH);
+    await drawTextImage(pdf, "(ไม่มีภาพ Street View)", {
+      x: heroX, y: heroY + heroH / 2 - 10, w: heroW, fontSize: 11, color: "#94A3B8", align: "center",
     });
   }
-  await drawTextImage("Street View + Ad Mockup", {
-    x: margin, y: 60 + heroH + 6, w: heroW, fontSize: 9, italic: true, color: "#64748b",
+  await drawTextImage(pdf, "Street View + Ad Mockup", {
+    x: heroX, y: heroY + heroH + 4, w: heroW, fontSize: 8, italic: true, color: "#64748b",
   });
 
-  // Info block as image
+  // Info block (right top)
+  const rightX = heroX + heroW + 16;
+  const rightW = pageW - rightX - margin;
   const info = await renderInfoBlock(input);
+  let infoBottom = heroY;
   if (info) {
-    const infoW = pageW - (margin + heroW + margin) - margin;
-    const infoH = infoW / info.ratio;
-    pdf.addImage(info.dataUrl, "PNG", margin + heroW + margin, 60, infoW, Math.min(infoH, 172));
+    const infoH = Math.min(rightW / info.ratio, 130);
+    pdf.addImage(info.dataUrl, "PNG", rightX, heroY, rightW, infoH);
+    infoBottom = heroY + infoH;
   }
 
+  // Analytics block (right, below info)
   const analytics = await renderAnalyticsBlock(input);
   if (analytics) {
-    const analyticsW = pageW - (margin + heroW + margin) - margin;
-    const analyticsH = Math.min(analyticsW / analytics.ratio, pageH - 275);
-    pdf.addImage(analytics.dataUrl, "PNG", margin + heroW + margin, 245, analyticsW, analyticsH);
+    const anTop = infoBottom + 10;
+    const anMaxH = pageH - anTop - 30;
+    const anH = Math.min(rightW / analytics.ratio, anMaxH);
+    pdf.addImage(analytics.dataUrl, "PNG", rightX, anTop, rightW, anH);
   }
 
-  await drawTextImage(
-    `สร้างเมื่อ ${new Date().toLocaleString("th-TH")} · Asset History 360`,
-    { x: margin, y: pageH - 22, w: pageW - margin * 2, fontSize: 8, italic: true, color: "#94A3B8" },
-  );
+  // POI list block (bottom-left, under hero)
+  const poi = await renderPoiListBlock(input);
+  if (poi) {
+    const poiTop = heroY + heroH + 22;
+    const poiMaxH = pageH - poiTop - 30;
+    const poiH2 = Math.min(heroW / poi.ratio, poiMaxH);
+    pdf.addImage(poi.dataUrl, "PNG", heroX, poiTop, heroW, poiH2);
+  }
+
+  await drawTextImage(pdf, `สร้างเมื่อ ${new Date().toLocaleString("th-TH")} · Asset History 360`, {
+    x: margin, y: pageH - 20, w: pageW - margin * 2, fontSize: 8, italic: true, color: "#94A3B8",
+  });
 
   pdf.save(`billboard-${input.asset.old_code ?? "report"}.pdf`);
+}
+
+async function drawTextImage(
+  pdf: jsPDF,
+  text: string,
+  opts: { x: number; y: number; w: number; fontSize?: number; bold?: boolean; color?: string; italic?: boolean; bg?: string; align?: "left" | "right" | "center" },
+): Promise<number> {
+  const host = document.createElement("div");
+  host.style.cssText = `position:fixed;left:-99999px;top:0;width:${opts.w * 2}px;padding:0;background:${opts.bg ?? "transparent"};font-family:'Sarabun','Noto Sans Thai',system-ui,sans-serif;color:${opts.color ?? "#0f172a"};font-size:${(opts.fontSize ?? 12) * 2}px;font-weight:${opts.bold ? 700 : 400};font-style:${opts.italic ? "italic" : "normal"};text-align:${opts.align ?? "left"};line-height:1.3;`;
+  host.textContent = text;
+  document.body.appendChild(host);
+  try {
+    const c = await html2canvas(host, {
+      backgroundColor: opts.bg ?? null,
+      scale: 1,
+      useCORS: true,
+      logging: false,
+    });
+    const ratio = c.width / c.height;
+    const h = opts.w / ratio;
+    pdf.addImage(c.toDataURL("image/png"), "PNG", opts.x, opts.y, opts.w, h);
+    return h;
+  } finally {
+    host.remove();
+  }
+}
+
+// POI list block for PDF — 2 columns of 5 rows + bucket bars.
+async function renderPoiListBlock(input: ExportInput): Promise<{ dataUrl: string; ratio: number } | null> {
+  const d = input.analytics;
+  if (!d || !d.ok) return null;
+  const host = document.createElement("div");
+  host.style.cssText =
+    "position:fixed;left:-99999px;top:0;width:820px;padding:14px 18px;background:#fff;font-family:'Sarabun','Noto Sans Thai',system-ui,sans-serif;color:#0f172a;box-sizing:border-box;border:1px solid #DBE3EF;border-radius:6px;";
+
+  const maxBucket = Math.max(...d.buckets.map((b) => b.count), 1);
+  const bucketHtml = d.buckets.slice(0, 5).map((b) => {
+    const pct = Math.max(6, Math.round((b.count / maxBucket) * 100));
+    return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px;">
+      <span style="width:22px;">${b.icon}</span>
+      <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(b.label)}</span>
+      <span style="height:8px;width:120px;background:#e2e8f0;border-radius:8px;overflow:hidden;">
+        <span style="display:block;height:8px;width:${pct}%;background:${b.color};"></span>
+      </span>
+      <b style="width:28px;text-align:right;">${b.count}</b>
+    </div>`;
+  }).join("");
+
+  const pois = d.topPOIs.slice(0, 10);
+  const col1 = pois.slice(0, 5);
+  const col2 = pois.slice(5, 10);
+  const rowHtml = (p: typeof pois[number], idx: number) =>
+    `<div style="display:flex;gap:8px;font-size:11px;padding:3px 0;border-bottom:1px dashed #e2e8f0;">
+      <span style="width:18px;color:#94A3B8;">${idx + 1}.</span>
+      <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.name)}</span>
+      <b style="width:52px;text-align:right;">${p.distanceM} ม.</b>
+    </div>`;
+
+  host.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+      <div style="font-size:14px;font-weight:700;color:#17365D;">POI รอบป้าย (${d.totalPOIs.toLocaleString()} แห่ง)</div>
+      <div style="font-size:11px;color:#64748b;">รัศมี ${d.radiusM} ม.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:2px;">หมวด POI</div>
+        ${bucketHtml || `<div style="font-size:11px;color:#94A3B8;">ไม่พบ</div>`}
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:2px;">ใกล้ที่สุด (Top 10)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px;">
+          <div>${col1.map((p, i) => rowHtml(p, i)).join("") || "—"}</div>
+          <div>${col2.map((p, i) => rowHtml(p, i + 5)).join("")}</div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+  try {
+    const snap = await snapshotNode(host);
+    if (!snap) return null;
+    return { dataUrl: snap.dataUrl, ratio: snap.width / snap.height };
+  } finally {
+    host.remove();
+  }
 }
 
 export async function fetchImageAsDataUrl(url: string): Promise<string> {

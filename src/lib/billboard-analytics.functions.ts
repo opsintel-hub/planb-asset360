@@ -14,6 +14,13 @@ import {
   type OverpassResponse,
 } from "./overpass";
 import { analyzeWithGooglePlacesFallback } from "./billboard-analytics-fallback";
+import {
+  DEFAULT_ANALYTICS_WEIGHTS,
+  mergeAnalyticsWeights,
+  type AnalyticsWeights,
+  type BucketKey,
+  type DemographicKey,
+} from "./analytics-weights-defaults";
 
 export type AnalyticsInput = {
   lat: number;
@@ -69,13 +76,15 @@ export type BillboardAnalytics = {
 };
 
 // Bucket definitions — group POIs into "audience-generating" categories.
+// `demographicsWeight` here is only a fallback; the *live* weights come from
+// `mergeAnalyticsWeights(app_settings.analytics_weights)` at request time.
 const BUCKETS: Array<{
-  key: string;
+  key: BucketKey;
   label: string;
   icon: string;
   color: string;
   match: (tags: Record<string, string>) => boolean;
-  demographicsWeight: Partial<DemographicsMix>;
+  demographicsWeight: Partial<Record<DemographicKey, number>>;
 }> = [
   {
     key: "office",
@@ -167,16 +176,29 @@ const BUCKETS: Array<{
   },
 ];
 
-const ROAD_WEIGHT: Record<string, number> = {
-  motorway: 40,
-  trunk: 35,
-  primary: 28,
-  secondary: 20,
-  tertiary: 14,
-  residential: 6,
-  service: 2,
-  other: 4,
-};
+// Fallback road-class weights (used only when app_settings has no override).
+const ROAD_WEIGHT_FALLBACK: Record<string, number> = DEFAULT_ANALYTICS_WEIGHTS.road;
+
+// Cache the merged weights in memory to avoid a DB round-trip on every analyze
+// call. TTL 60 s so admin edits reflect quickly without hammering PostgREST.
+let cachedWeights: { at: number; value: AnalyticsWeights } | null = null;
+async function loadAnalyticsWeights(): Promise<AnalyticsWeights> {
+  const now = Date.now();
+  if (cachedWeights && now - cachedWeights.at < 60_000) return cachedWeights.value;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "analytics_weights")
+      .maybeSingle();
+    const merged = mergeAnalyticsWeights(data?.value);
+    cachedWeights = { at: now, value: merged };
+    return merged;
+  } catch {
+    return DEFAULT_ANALYTICS_WEIGHTS;
+  }
+}
 
 function classifyRoad(hw: string | undefined): RoadInfo["class"] {
   if (!hw) return "other";
@@ -209,6 +231,7 @@ export const analyzeBillboardArea = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }): Promise<BillboardAnalytics> => {
     const { lat, lng, radiusM } = data;
+    const weights = await loadAnalyticsWeights();
     const [s, w, n, e] = bboxAround(lat, lng, radiusM);
     const bboxStr = `${s},${w},${n},${e}`;
 
@@ -281,7 +304,8 @@ out center tags;`;
       for (const b of BUCKETS) {
         if (b.match(tags)) {
           bucketCounts.set(b.key, (bucketCounts.get(b.key) ?? 0) + 1);
-          for (const [k, v] of Object.entries(b.demographicsWeight)) {
+          const demWeights = weights.demographics[b.key] ?? b.demographicsWeight;
+          for (const [k, v] of Object.entries(demWeights)) {
             demographics[k as keyof DemographicsMix] += v as number;
           }
           const name = tags.name || tags["name:th"] || tags["name:en"] || tags.brand || "(ไม่มีชื่อ)";
@@ -323,7 +347,7 @@ out center tags;`;
     // Traffic score = road weight + POI density bonus
     let trafficScore = 0;
     for (const [cls, count] of Object.entries(roadClasses)) {
-      trafficScore += (ROAD_WEIGHT[cls] ?? 4) * Math.min(count, 3);
+      trafficScore += (weights.road[cls as keyof typeof weights.road] ?? ROAD_WEIGHT_FALLBACK[cls] ?? 4) * Math.min(count, 3);
     }
     trafficScore += Math.min(nearbyPOIs.length * 0.5, 30);
     trafficScore = Math.min(Math.round(trafficScore), 100);
@@ -333,11 +357,11 @@ out center tags;`;
     // Peak hours: derived from dominant demographic
     const dominant = (Object.entries(demoPct) as Array<[keyof DemographicsMix, number]>)
       .sort((a, b) => b[1] - a[1])[0][0];
-    const peakHours = peaksFor(dominant);
+    const peakHours = [...(weights.peaks[dominant] ?? peaksFor(dominant))];
 
     // Impressions estimate: rough — trafficScore * factor
-    const dailyMin = trafficScore * 200;
-    const dailyMax = trafficScore * 600;
+    const dailyMin = trafficScore * weights.impressions.min;
+    const dailyMax = trafficScore * weights.impressions.max;
 
     const notes: string[] = [];
     if (buckets.length === 0) notes.push("ไม่พบ POI ในรัศมี — พื้นที่อาจเป็นชานเมือง / ที่โล่ง");

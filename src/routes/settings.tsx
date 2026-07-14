@@ -38,9 +38,10 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const [active, setActive] = useState<"main" | "schema" | "apis" | "airtable" | "mappings" | "informed">("main");
+  const [active, setActive] = useState<"main" | "schema" | "apis" | "airtable" | "mappings" | "informed" | "ai">("main");
   const sections = [
     { id: "main", label: "การเชื่อมต่อหลัก", icon: Server },
+    { id: "ai", label: "AI Prompt", icon: Bot },
     { id: "schema", label: "Database Schema", icon: Database },
     { id: "apis", label: "API ภายนอก", icon: Zap },
     { id: "airtable", label: "Airtable Connections", icon: Database },

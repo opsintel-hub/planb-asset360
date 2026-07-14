@@ -349,11 +349,13 @@ export default function StreetViewPanel({
                     key={key}
                     type="button"
                     onPointerDown={(e) => onPointerDown(key, e)}
-                    className="absolute z-50 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/70 ring-2 ring-white/90 shadow cursor-grab active:cursor-grabbing hover:scale-150 hover:bg-primary transition-transform"
+                    className="absolute z-50 flex items-center justify-center size-6 -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing bg-transparent"
                     style={{ left: `${p.x}%`, top: `${p.y}%` }}
                     aria-label={`corner ${CORNER_LABELS[key]}`}
                     title={`ลากมุม ${CORNER_LABELS[key]} เพื่อบิดภาพ (Distort)`}
-                  />
+                  >
+                    <span className="pointer-events-none block size-3 rounded-full bg-primary/80 ring-2 ring-white/90 shadow transition-transform hover:scale-150" />
+                  </button>
                 );
               })}
 

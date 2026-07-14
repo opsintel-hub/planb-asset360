@@ -231,6 +231,7 @@ export const analyzeBillboardArea = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }): Promise<BillboardAnalytics> => {
     const { lat, lng, radiusM } = data;
+    const weights = await loadAnalyticsWeights();
     const [s, w, n, e] = bboxAround(lat, lng, radiusM);
     const bboxStr = `${s},${w},${n},${e}`;
 

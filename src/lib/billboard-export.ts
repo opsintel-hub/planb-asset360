@@ -465,38 +465,39 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
   const s1 = pres.addSlide();
   s1.background = { color: "FFFFFF" };
 
-  // ---- Header ----
+  // ---- Header ---- (title left, address centered — no date, no duplicate subtitle)
   s1.addShape("rect", { x: 0, y: 0, w: 13.333, h: 0.6, fill: { color: BRAND } });
   s1.addText(
     `Billboard Report · ${input.asset.old_code ?? "—"}`,
     {
-      x: 0.4, y: 0.08, w: 9, h: 0.44,
-      fontSize: 18, bold: true, color: "FFFFFF", fontFace: TH_FONT,
+      x: 0.4, y: 0.1, w: 5.2, h: 0.4,
+      fontSize: 16, bold: true, color: "FFFFFF", fontFace: TH_FONT, valign: "middle",
     },
   );
   s1.addText(
     `${input.asset.location ?? input.asset.name ?? ""}`,
     {
-      x: 0.4, y: 0.35, w: 9, h: 0.22,
-      fontSize: 10, color: "CBD5E1", fontFace: TH_FONT,
+      x: 5.6, y: 0.1, w: 7.3, h: 0.4,
+      fontSize: 12, color: "E2E8F0", fontFace: TH_FONT, align: "center", valign: "middle",
     },
   );
-  s1.addText(new Date().toLocaleString("th-TH"), {
-    x: 9.4, y: 0.15, w: 3.5, h: 0.3,
-    fontSize: 10, color: "CBD5E1", fontFace: TH_FONT, align: "right",
-  });
 
   // ---- LEFT column ----
   const leftX = 0.35;
   const leftW = 7.5;
 
-  // Hero image — cover-crop to fill the box exactly, no black bars.
+  // Hero image — fit box to image's natural aspect ratio so nothing is cropped
+  // (previous cover-crop chopped the billboard off) and nothing is letterboxed.
   const heroY = 0.85;
-  const heroH = 3.8;
+  const HERO_MIN_H = 2.8;
+  const HERO_MAX_H = 3.75;
   const hero = await buildHeroImage(input);
+  let heroH = 3.8;
   if (hero) {
-    const cropped = await coverCropToRatio(hero, leftW / heroH);
-    s1.addImage({ data: cropped, x: leftX, y: heroY, w: leftW, h: heroH });
+    const dims = await getImageDims(hero);
+    const naturalRatio = dims.width / dims.height;
+    heroH = Math.max(HERO_MIN_H, Math.min(HERO_MAX_H, leftW / naturalRatio));
+    s1.addImage({ data: hero, x: leftX, y: heroY, w: leftW, h: heroH });
   } else {
     s1.addShape("rect", {
       x: leftX, y: heroY, w: leftW, h: heroH,
@@ -756,27 +757,31 @@ export async function exportBillboardPdf(input: ExportInput): Promise<void> {
   const margin = 24;
   const BRAND = "#17365D";
 
-  // Header
+  // Header — title left, address centered, no date
   pdf.setFillColor(23, 54, 93);
   pdf.rect(0, 0, pageW, 40, "F");
   await drawTextImage(pdf, `Billboard Report · ${input.asset.old_code ?? "-"}`, {
-    x: margin, y: 8, w: pageW * 0.55, fontSize: 14, bold: true, color: "#ffffff",
+    x: margin, y: 10, w: pageW * 0.42, fontSize: 14, bold: true, color: "#ffffff",
   });
-  await drawTextImage(pdf, new Date().toLocaleString("th-TH"), {
-    x: pageW * 0.55, y: 12, w: pageW - margin - pageW * 0.55, fontSize: 9, color: "#cbd5e1",
-    align: "right",
+  await drawTextImage(pdf, `${input.asset.location ?? input.asset.name ?? ""}`, {
+    x: pageW * 0.42, y: 13, w: pageW - margin - pageW * 0.42, fontSize: 11, color: "#e2e8f0",
+    align: "center",
   });
 
-  // Hero (left)
+  // Hero (left) — fit box to natural aspect (no crop, no letterbox)
   const heroX = margin;
   const heroY = 55;
   const heroW = pageW * 0.55;
-  const heroH = 250;
+  const HERO_MAX_H_PDF = 260;
+  const HERO_MIN_H_PDF = 180;
   const hero = await buildHeroImage(input);
+  let heroH = 250;
   if (hero) {
     try {
-      const cropped = await coverCropToRatio(hero, heroW / heroH);
-      pdf.addImage(cropped, "JPEG", heroX, heroY, heroW, heroH);
+      const dims = await getImageDims(hero);
+      const naturalRatio = dims.width / dims.height;
+      heroH = Math.max(HERO_MIN_H_PDF, Math.min(HERO_MAX_H_PDF, heroW / naturalRatio));
+      pdf.addImage(hero, "JPEG", heroX, heroY, heroW, heroH);
     } catch {
       // ignore
     }

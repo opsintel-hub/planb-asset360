@@ -304,7 +304,8 @@ out center tags;`;
       for (const b of BUCKETS) {
         if (b.match(tags)) {
           bucketCounts.set(b.key, (bucketCounts.get(b.key) ?? 0) + 1);
-          for (const [k, v] of Object.entries(b.demographicsWeight)) {
+          const demWeights = weights.demographics[b.key] ?? b.demographicsWeight;
+          for (const [k, v] of Object.entries(demWeights)) {
             demographics[k as keyof DemographicsMix] += v as number;
           }
           const name = tags.name || tags["name:th"] || tags["name:en"] || tags.brand || "(ไม่มีชื่อ)";

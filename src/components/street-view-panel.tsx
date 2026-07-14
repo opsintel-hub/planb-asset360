@@ -295,8 +295,8 @@ export default function StreetViewPanel({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full min-h-[360px] rounded-md overflow-hidden border bg-muted select-none"
-      style={{ height: "clamp(360px, 55vh, 640px)" }}
+      className={`relative w-full rounded-md overflow-hidden border bg-muted select-none ${fillParent ? "h-full" : ""}`}
+      style={fillParent ? undefined : { height: "clamp(360px, 55vh, 640px)" }}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}

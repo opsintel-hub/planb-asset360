@@ -253,6 +253,39 @@ async function getImageDims(src: string): Promise<{ width: number; height: numbe
   }
 }
 
+// Cover-crop an image data URL to exactly match targetRatio (w/h).
+// This is object-fit:cover in a canvas — no black letterbox bars.
+async function coverCropToRatio(dataUrl: string, targetRatio: number): Promise<string> {
+  try {
+    const img = await loadImage(dataUrl);
+    const srcRatio = img.width / img.height;
+    let sx = 0, sy = 0, sw = img.width, sh = img.height;
+    if (srcRatio > targetRatio) {
+      // Source wider → crop sides
+      sw = img.height * targetRatio;
+      sx = (img.width - sw) / 2;
+    } else {
+      // Source taller → crop top/bottom
+      sh = img.width / targetRatio;
+      sy = (img.height - sh) / 2;
+    }
+    const canvas = document.createElement("canvas");
+    // Target ~1920 wide for crisp export
+    const outW = Math.max(1600, Math.round(sw));
+    const outH = Math.round(outW / targetRatio);
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+    return canvas.toDataURL("image/jpeg", 0.94);
+  } catch {
+    return dataUrl;
+  }
+}
+
 async function urlToDataUrl(url: string): Promise<string> {
   const r = await fetch(url);
   const blob = await r.blob();

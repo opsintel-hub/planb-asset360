@@ -465,38 +465,39 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
   const s1 = pres.addSlide();
   s1.background = { color: "FFFFFF" };
 
-  // ---- Header ----
+  // ---- Header ---- (title left, address centered — no date, no duplicate subtitle)
   s1.addShape("rect", { x: 0, y: 0, w: 13.333, h: 0.6, fill: { color: BRAND } });
   s1.addText(
     `Billboard Report · ${input.asset.old_code ?? "—"}`,
     {
-      x: 0.4, y: 0.08, w: 9, h: 0.44,
-      fontSize: 18, bold: true, color: "FFFFFF", fontFace: TH_FONT,
+      x: 0.4, y: 0.1, w: 5.2, h: 0.4,
+      fontSize: 16, bold: true, color: "FFFFFF", fontFace: TH_FONT, valign: "middle",
     },
   );
   s1.addText(
     `${input.asset.location ?? input.asset.name ?? ""}`,
     {
-      x: 0.4, y: 0.35, w: 9, h: 0.22,
-      fontSize: 10, color: "CBD5E1", fontFace: TH_FONT,
+      x: 5.6, y: 0.1, w: 7.3, h: 0.4,
+      fontSize: 12, color: "E2E8F0", fontFace: TH_FONT, align: "center", valign: "middle",
     },
   );
-  s1.addText(new Date().toLocaleString("th-TH"), {
-    x: 9.4, y: 0.15, w: 3.5, h: 0.3,
-    fontSize: 10, color: "CBD5E1", fontFace: TH_FONT, align: "right",
-  });
 
   // ---- LEFT column ----
   const leftX = 0.35;
   const leftW = 7.5;
 
-  // Hero image — cover-crop to fill the box exactly, no black bars.
+  // Hero image — fit box to image's natural aspect ratio so nothing is cropped
+  // (previous cover-crop chopped the billboard off) and nothing is letterboxed.
   const heroY = 0.85;
-  const heroH = 3.8;
+  const HERO_MIN_H = 3.0;
+  const HERO_MAX_H = 4.4;
   const hero = await buildHeroImage(input);
+  let heroH = 3.8;
   if (hero) {
-    const cropped = await coverCropToRatio(hero, leftW / heroH);
-    s1.addImage({ data: cropped, x: leftX, y: heroY, w: leftW, h: heroH });
+    const dims = await getImageDims(hero);
+    const naturalRatio = dims.width / dims.height;
+    heroH = Math.max(HERO_MIN_H, Math.min(HERO_MAX_H, leftW / naturalRatio));
+    s1.addImage({ data: hero, x: leftX, y: heroY, w: leftW, h: heroH });
   } else {
     s1.addShape("rect", {
       x: leftX, y: heroY, w: leftW, h: heroH,

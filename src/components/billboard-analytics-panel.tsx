@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Camera, ChevronDown, Image as ImageIcon, FileDown, FileText } from "lucide-react";
+import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Camera, ChevronDown, Image as ImageIcon, FileDown, FileText, Maximize2, Minimize2 } from "lucide-react";
 import { toast } from "sonner";
 import { analyzeBillboardArea, type BillboardAnalytics } from "@/lib/billboard-analytics.functions";
 import { getStreetViewStaticImage, updateBillboardMockup, type BillboardMockup, type BillboardMockupOverlay } from "@/lib/billboard-mockups.functions";
@@ -47,6 +47,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const [exporting, setExporting] = useState<null | "pptx" | "pdf">(null);
   const [cornerPickStep, setCornerPickStep] = useState<0 | 1 | 2 | 3 | null>(null);
   const [capturingHero, setCapturingHero] = useState(false);
+  const [fsEdit, setFsEdit] = useState(false);
   const streetViewCaptureRef = useRef<HTMLDivElement | null>(null);
 
   const run = async (r: number) => {
@@ -123,6 +124,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
     setExporting(kind);
     try {
       setShowStreet(true);
+      setFsEdit(false);
       setCapturingHero(true);
       await waitForStreetViewSnapshotTarget(streetViewCaptureRef);
       let streetViewDataUrl = streetViewCaptureRef.current
@@ -263,20 +265,33 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
 
         {/* Street View */}
         <div className="px-4 pt-4">
-          <button
-            type="button"
-            onClick={() => setShowStreet((v) => !v)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border hover:bg-accent transition-colors"
-          >
-            <Camera className="size-4" />
-            <span>Street View</span>
-            <ChevronDown className={`size-4 ml-auto transition-transform ${showStreet ? "rotate-180" : ""}`} />
-          </button>
-          {showStreet && Number.isFinite(asset.lat) && Number.isFinite(asset.lng) && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowStreet((v) => !v)}
+              className="flex-1 flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border hover:bg-accent transition-colors"
+            >
+              <Camera className="size-4" />
+              <span>Street View</span>
+              <ChevronDown className={`size-4 ml-auto transition-transform ${showStreet ? "rotate-180" : ""}`} />
+            </button>
+            {showStreet && Number.isFinite(asset.lat) && Number.isFinite(asset.lng) && (
+              <button
+                type="button"
+                onClick={() => { setShowStreet(true); setFsEdit(true); }}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md border hover:bg-accent transition-colors shrink-0"
+                title="ขยายเต็มจอเพื่อวาง Mockup ได้แม่นยำ"
+              >
+                <Maximize2 className="size-3.5" />
+                <span className="hidden sm:inline">ขยายเต็มจอ</span>
+              </button>
+            )}
+          </div>
+          {showStreet && !fsEdit && Number.isFinite(asset.lat) && Number.isFinite(asset.lng) && (
             <div className="mt-2 space-y-2">
               <Suspense
                 fallback={
-                  <div className="h-[320px] flex items-center justify-center rounded-md border bg-muted text-sm text-muted-foreground">
+                  <div className="h-[360px] flex items-center justify-center rounded-md border bg-muted text-sm text-muted-foreground">
                     <Loader2 className="size-4 animate-spin mr-2" /> กำลังโหลด…
                   </div>
                 }
@@ -637,6 +652,20 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
           )}
         </div>
       </div>
+      {fsEdit && Number.isFinite(asset.lat) && Number.isFinite(asset.lng) && (
+        <FullscreenMockupEditor
+          asset={asset}
+          selectedMockup={selectedMockup}
+          overlay={overlay}
+          setOverlay={setOverlay}
+          editOverlay={editOverlay}
+          setEditOverlay={setEditOverlay}
+          cornerPickStep={cornerPickStep}
+          setCornerPickStep={setCornerPickStep}
+          handleCornerPick={handleCornerPick}
+          onClose={() => setFsEdit(false)}
+        />
+      )}
     </div>
   );
 }
@@ -655,4 +684,188 @@ async function waitForStreetViewSnapshotTarget(ref: React.RefObject<HTMLDivEleme
     }
     await wait(150);
   }
+}
+
+type FSProps = {
+  asset: MapAsset;
+  selectedMockup: BillboardMockup | null;
+  overlay: BillboardMockupOverlay | null;
+  setOverlay: (o: BillboardMockupOverlay) => void;
+  editOverlay: boolean;
+  setEditOverlay: (v: boolean) => void;
+  cornerPickStep: 0 | 1 | 2 | 3 | null;
+  setCornerPickStep: (v: 0 | 1 | 2 | 3 | null) => void;
+  handleCornerPick: (x: number, y: number) => void;
+  onClose: () => void;
+};
+
+function FullscreenMockupEditor({
+  asset,
+  selectedMockup,
+  overlay,
+  setOverlay,
+  editOverlay,
+  setEditOverlay,
+  cornerPickStep,
+  setCornerPickStep,
+  handleCornerPick,
+  onClose,
+}: FSProps) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[1400] bg-background flex flex-col">
+      {/* Header */}
+      <div className="flex items-center gap-3 border-b px-4 py-2.5 shrink-0">
+        <Maximize2 className="size-4 text-primary" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold truncate">{asset.old_code ?? "—"} · จัดวาง Mockup</div>
+          <div className="text-[11px] text-muted-foreground truncate">{asset.name ?? asset.location ?? ""}</div>
+        </div>
+        <div className="text-[11px] text-muted-foreground hidden md:block">Esc เพื่อปิด</div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs hover:bg-accent"
+          title="ปิดโหมดเต็มจอ"
+        >
+          <Minimize2 className="size-3.5" />
+          เสร็จ
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
+        {/* Street View area */}
+        <div className="min-h-0 p-3 md:p-4 bg-muted/20">
+          <div className="h-full w-full">
+            <StreetViewPanel
+              lat={asset.lat}
+              lng={asset.lng}
+              overlayImageUrl={selectedMockup?.image_url}
+              overlay={overlay ?? undefined}
+              onOverlayChange={setOverlay}
+              editable={editOverlay && !!selectedMockup}
+              cornerPickStep={cornerPickStep}
+              onCornerPick={handleCornerPick}
+              fillParent
+            />
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="border-t md:border-t-0 md:border-l overflow-y-auto p-4 space-y-3 text-xs bg-card">
+          {!selectedMockup && (
+            <div className="rounded-md border bg-muted/30 p-3 text-[11px] text-muted-foreground">
+              ยังไม่ได้เลือก Mockup — ปิดหน้านี้แล้วเลือกจากกล่อง “Mockup โฆษณา” ก่อน
+            </div>
+          )}
+          {selectedMockup && overlay && (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">โหมดปรับภาพ (Distort)</span>
+                <div className="ml-auto flex items-center gap-2">
+                  <label className="inline-flex items-center gap-1">
+                    <input type="checkbox" checked={editOverlay} onChange={(e) => setEditOverlay(e.target.checked)} />
+                    แก้ไขได้
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => { setEditOverlay(true); setCornerPickStep(0); }}
+                  className="px-2 py-1 rounded-md border bg-card hover:bg-accent font-medium"
+                  title="คลิกทีละมุมบนภาพเพื่อจัดตำแหน่งใหม่"
+                >
+                  คลิกปรับ 4 มุม
+                </button>
+                {overlay.corners && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nh = overlay.naturalAspect
+                        ? Math.min(Math.max((overlay.w / overlay.naturalAspect) * (16 / 9), 5), 100 - overlay.y)
+                        : overlay.h;
+                      setOverlay({
+                        ...overlay,
+                        h: nh,
+                        corners: {
+                          tl: { x: overlay.x, y: overlay.y },
+                          tr: { x: overlay.x + overlay.w, y: overlay.y },
+                          br: { x: overlay.x + overlay.w, y: overlay.y + nh },
+                          bl: { x: overlay.x, y: overlay.y + nh },
+                        },
+                      });
+                      setCornerPickStep(null);
+                    }}
+                    className="px-2 py-1 rounded-md border bg-card hover:bg-accent"
+                  >
+                    รีเซ็ตมุม
+                  </button>
+                )}
+              </div>
+
+              {cornerPickStep != null && (
+                <div className="rounded-md border border-primary/40 bg-primary/5 p-2 text-[11px]">
+                  คลิกที่ภาพเพื่อระบุ <b>{["มุมซ้ายบน", "มุมขวาบน", "มุมขวาล่าง", "มุมซ้ายล่าง"][cornerPickStep]}</b> ({cornerPickStep + 1}/4)
+                </div>
+              )}
+
+              <div className="grid grid-cols-[70px_1fr_44px] items-center gap-2">
+                <span className="text-muted-foreground">Opacity</span>
+                <input type="range" min={0.1} max={1} step={0.05} value={overlay.opacity}
+                  onChange={(e) => setOverlay({ ...overlay, opacity: parseFloat(e.target.value) })} />
+                <span className="tabular-nums text-right">{Math.round(overlay.opacity * 100)}%</span>
+              </div>
+
+              <div className="grid grid-cols-[70px_1fr_44px] items-center gap-2">
+                <span className="text-muted-foreground">หมุน</span>
+                <input type="range" min={-45} max={45} step={1} value={overlay.rotation}
+                  onChange={(e) => setOverlay({ ...overlay, rotation: parseInt(e.target.value, 10) })} />
+                <span className="tabular-nums text-right">{overlay.rotation}°</span>
+              </div>
+
+              <div className="grid grid-cols-[70px_1fr_44px] items-center gap-2">
+                <span className="text-muted-foreground">เอียง X</span>
+                <input type="range" min={-30} max={30} step={1} value={overlay.skewX ?? 0}
+                  onChange={(e) => setOverlay({ ...overlay, skewX: parseInt(e.target.value, 10) })} />
+                <span className="tabular-nums text-right">{overlay.skewX ?? 0}°</span>
+              </div>
+
+              <div className="grid grid-cols-[70px_1fr_44px] items-center gap-2">
+                <span className="text-muted-foreground">เอียง Y</span>
+                <input type="range" min={-30} max={30} step={1} value={overlay.skewY ?? 0}
+                  onChange={(e) => setOverlay({ ...overlay, skewY: parseInt(e.target.value, 10) })} />
+                <span className="tabular-nums text-right">{overlay.skewY ?? 0}°</span>
+              </div>
+
+              <div className="grid grid-cols-[70px_1fr_44px] items-center gap-2">
+                <span className="text-muted-foreground">แสง</span>
+                <input type="range" min={0.3} max={1.5} step={0.05} value={overlay.brightness ?? 1}
+                  onChange={(e) => setOverlay({ ...overlay, brightness: parseFloat(e.target.value) })} />
+                <span className="tabular-nums text-right">{Math.round((overlay.brightness ?? 1) * 100)}%</span>
+              </div>
+
+              <div className="text-[10px] text-muted-foreground pt-2 border-t leading-relaxed">
+                เคล็ดลับ: ลากจุดสีน้ำเงินที่มุมทั้ง 4 เพื่อบิดภาพให้พอดีขอบป้าย · การเปลี่ยนแปลงจะบันทึกอัตโนมัติและซิงก์กับหน้าหลัก
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -14,6 +14,8 @@ type Props = {
   editable?: boolean;
   cornerPickStep?: 0 | 1 | 2 | 3 | null;
   onCornerPick?: (x: number, y: number) => void;
+  /** When true, container fills parent height instead of default clamp height. */
+  fillParent?: boolean;
 };
 
 type Status = "loading" | "ready" | "no-imagery" | "error";
@@ -110,6 +112,7 @@ export default function StreetViewPanel({
   editable = false,
   cornerPickStep = null,
   onCornerPick,
+  fillParent = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svRef = useRef<HTMLDivElement | null>(null);
@@ -292,7 +295,8 @@ export default function StreetViewPanel({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-[320px] rounded-md overflow-hidden border bg-muted select-none"
+      className={`relative w-full rounded-md overflow-hidden border bg-muted select-none ${fillParent ? "h-full" : ""}`}
+      style={fillParent ? undefined : { height: "clamp(360px, 55vh, 640px)" }}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
@@ -345,11 +349,13 @@ export default function StreetViewPanel({
                     key={key}
                     type="button"
                     onPointerDown={(e) => onPointerDown(key, e)}
-                    className="absolute z-50 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/70 ring-2 ring-white/90 shadow cursor-grab active:cursor-grabbing hover:scale-150 hover:bg-primary transition-transform"
+                    className="absolute z-50 flex items-center justify-center size-6 -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing bg-transparent"
                     style={{ left: `${p.x}%`, top: `${p.y}%` }}
                     aria-label={`corner ${CORNER_LABELS[key]}`}
                     title={`ลากมุม ${CORNER_LABELS[key]} เพื่อบิดภาพ (Distort)`}
-                  />
+                  >
+                    <span className="pointer-events-none block size-3 rounded-full bg-primary/80 ring-2 ring-white/90 shadow transition-transform hover:scale-150" />
+                  </button>
                 );
               })}
 

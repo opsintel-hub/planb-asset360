@@ -244,6 +244,15 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+async function getImageDims(src: string): Promise<{ width: number; height: number }> {
+  try {
+    const img = await loadImage(src);
+    return { width: img.naturalWidth || img.width || 16, height: img.naturalHeight || img.height || 9 };
+  } catch {
+    return { width: 16, height: 9 };
+  }
+}
+
 async function urlToDataUrl(url: string): Promise<string> {
   const r = await fetch(url);
   const blob = await r.blob();

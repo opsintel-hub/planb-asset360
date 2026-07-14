@@ -76,13 +76,15 @@ export type BillboardAnalytics = {
 };
 
 // Bucket definitions — group POIs into "audience-generating" categories.
+// `demographicsWeight` here is only a fallback; the *live* weights come from
+// `mergeAnalyticsWeights(app_settings.analytics_weights)` at request time.
 const BUCKETS: Array<{
-  key: string;
+  key: BucketKey;
   label: string;
   icon: string;
   color: string;
   match: (tags: Record<string, string>) => boolean;
-  demographicsWeight: Partial<DemographicsMix>;
+  demographicsWeight: Partial<Record<DemographicKey, number>>;
 }> = [
   {
     key: "office",

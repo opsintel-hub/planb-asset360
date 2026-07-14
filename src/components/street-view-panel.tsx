@@ -14,6 +14,8 @@ type Props = {
   editable?: boolean;
   cornerPickStep?: 0 | 1 | 2 | 3 | null;
   onCornerPick?: (x: number, y: number) => void;
+  /** When true, container fills parent height instead of default clamp height. */
+  fillParent?: boolean;
 };
 
 type Status = "loading" | "ready" | "no-imagery" | "error";

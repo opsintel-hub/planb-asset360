@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Database, RefreshCw, CheckCircle2, Server, AlertTriangle, Tag, FileSpreadsheet, Zap, Bot } from "lucide-react";
+import { Database, RefreshCw, CheckCircle2, Server, AlertTriangle, Tag, FileSpreadsheet, Zap, Bot, Sliders } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";

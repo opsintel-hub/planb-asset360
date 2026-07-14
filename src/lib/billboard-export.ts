@@ -773,26 +773,10 @@ export async function exportBillboardPdf(input: ExportInput): Promise<void> {
   const heroW = pageW * 0.55;
   const heroH = 250;
   const hero = await buildHeroImage(input);
-  // Letterbox backdrop
-  pdf.setFillColor(15, 23, 42);
-  pdf.rect(heroX, heroY, heroW, heroH, "F");
   if (hero) {
     try {
-      const dims = await getImageDims(hero);
-      const boxRatio = heroW / heroH;
-      const imgRatio = dims.width / dims.height;
-      let drawW = heroW;
-      let drawH = heroH;
-      if (imgRatio > boxRatio) {
-        drawW = heroW;
-        drawH = heroW / imgRatio;
-      } else {
-        drawH = heroH;
-        drawW = heroH * imgRatio;
-      }
-      const dx = heroX + (heroW - drawW) / 2;
-      const dy = heroY + (heroH - drawH) / 2;
-      pdf.addImage(hero, "JPEG", dx, dy, drawW, drawH);
+      const cropped = await coverCropToRatio(hero, heroW / heroH);
+      pdf.addImage(cropped, "JPEG", heroX, heroY, heroW, heroH);
     } catch {
       // ignore
     }

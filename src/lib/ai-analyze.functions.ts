@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { AI_PROMPT_SEGMENTS, DEFAULT_MODEL, buildSystemPrompt } from "./ai-prompts-defaults";
 
 const InputSchema = z.object({
   context: z.string().min(1).max(20000),
@@ -11,29 +12,30 @@ export const aiAnalyzeAssets = createServerFn({ method: "POST" })
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("Missing LOVABLE_API_KEY");
 
-    const systemPrompt = `คุณเป็นนักวิเคราะห์ข้อมูลการบำรุงรักษาป้ายโฆษณา (Asset Maintenance Analyst).
-จงตอบเป็นภาษาไทยกระชับและเป็น actionable. ใช้รูปแบบ Markdown หัวข้อตามนี้เท่านั้น (ห้ามเพิ่มหัวข้ออื่น):
+    // Load user-editable prompt overrides + model choice from app_settings.
+    let overrides: Record<string, string> = {};
+    let model = DEFAULT_MODEL;
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: row } = await supabaseAdmin
+        .from("app_settings")
+        .select("value")
+        .eq("key", "ai_prompts")
+        .maybeSingle();
+      const value = (row?.value ?? {}) as { segments?: Record<string, string>; model?: string };
+      if (value.segments && typeof value.segments === "object") {
+        for (const seg of AI_PROMPT_SEGMENTS) {
+          const v = value.segments[seg.key];
+          if (typeof v === "string" && v.trim()) overrides[seg.key] = v;
+        }
+      }
+      if (typeof value.model === "string" && value.model.trim()) model = value.model.trim();
+    } catch {
+      // fallback to defaults if settings unavailable
+      overrides = {};
+    }
 
-## 🎯 Executive Summary
-(2 บรรทัด สรุปสถานการณ์ "ดี/แย่" เปรียบเทียบเดือนล่าสุดกับเดือนก่อน เช่น Claim เพิ่ม/ลด %, Monitor เพิ่ม/ลด)
-
-## 📊 Key Metrics
-- MTBF เฉลี่ย: ...
-- Predictive Accuracy: ...
-- แปลผล: ...
-
-## 🔗 การเชื่อมโยง PM × Claim × Monitor
-- การ Monitor ลด Claim จริงไหม (ตั้งรับ vs เชิงรุก)?
-- คุณภาพ PM: หลัง PM แล้วเสียในกี่วัน? (<15 วัน = คุณภาพต่ำ)
-- สาเหตุที่ Monitor "มองไม่เห็น": ...
-
-## 🚨 ตัวปัญหา (Top Offenders)
-ระบุป้าย MTBF < 10 วัน และอาการเสียซ้ำซาก (เช่น "MTP A114 — Reset Media Player 5 ครั้ง/เดือน")
-
-## ✅ สิ่งที่ต้องทำต่อ (Action Items)
-1. ...
-2. ...
-3. ...`;
+    const systemPrompt = buildSystemPrompt(overrides);
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -42,7 +44,7 @@ export const aiAnalyzeAssets = createServerFn({ method: "POST" })
         Authorization: `Bearer ${key}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: data.context },

@@ -652,6 +652,20 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
           )}
         </div>
       </div>
+      {fsEdit && Number.isFinite(asset.lat) && Number.isFinite(asset.lng) && (
+        <FullscreenMockupEditor
+          asset={asset}
+          selectedMockup={selectedMockup}
+          overlay={overlay}
+          setOverlay={setOverlay}
+          editOverlay={editOverlay}
+          setEditOverlay={setEditOverlay}
+          cornerPickStep={cornerPickStep}
+          setCornerPickStep={setCornerPickStep}
+          handleCornerPick={handleCornerPick}
+          onClose={() => setFsEdit(false)}
+        />
+      )}
     </div>
   );
 }

@@ -73,6 +73,8 @@ function SettingsPage() {
 
       {active === "main" ? (
         <MainSettings />
+      ) : active === "ai" ? (
+        <AiPromptSettings />
       ) : active === "schema" ? (
         <DatabaseSchemaSection />
       ) : active === "apis" ? (

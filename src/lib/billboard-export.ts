@@ -757,27 +757,31 @@ export async function exportBillboardPdf(input: ExportInput): Promise<void> {
   const margin = 24;
   const BRAND = "#17365D";
 
-  // Header
+  // Header — title left, address centered, no date
   pdf.setFillColor(23, 54, 93);
   pdf.rect(0, 0, pageW, 40, "F");
   await drawTextImage(pdf, `Billboard Report · ${input.asset.old_code ?? "-"}`, {
-    x: margin, y: 8, w: pageW * 0.55, fontSize: 14, bold: true, color: "#ffffff",
+    x: margin, y: 10, w: pageW * 0.42, fontSize: 14, bold: true, color: "#ffffff",
   });
-  await drawTextImage(pdf, new Date().toLocaleString("th-TH"), {
-    x: pageW * 0.55, y: 12, w: pageW - margin - pageW * 0.55, fontSize: 9, color: "#cbd5e1",
-    align: "right",
+  await drawTextImage(pdf, `${input.asset.location ?? input.asset.name ?? ""}`, {
+    x: pageW * 0.42, y: 13, w: pageW - margin - pageW * 0.42, fontSize: 11, color: "#e2e8f0",
+    align: "center",
   });
 
-  // Hero (left)
+  // Hero (left) — fit box to natural aspect (no crop, no letterbox)
   const heroX = margin;
   const heroY = 55;
   const heroW = pageW * 0.55;
-  const heroH = 250;
+  const HERO_MAX_H_PDF = 260;
+  const HERO_MIN_H_PDF = 180;
   const hero = await buildHeroImage(input);
+  let heroH = 250;
   if (hero) {
     try {
-      const cropped = await coverCropToRatio(hero, heroW / heroH);
-      pdf.addImage(cropped, "JPEG", heroX, heroY, heroW, heroH);
+      const dims = await getImageDims(hero);
+      const naturalRatio = dims.width / dims.height;
+      heroH = Math.max(HERO_MIN_H_PDF, Math.min(HERO_MAX_H_PDF, heroW / naturalRatio));
+      pdf.addImage(hero, "JPEG", heroX, heroY, heroW, heroH);
     } catch {
       // ignore
     }

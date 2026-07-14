@@ -25,6 +25,7 @@ import { MappingImportExport } from "@/components/mapping-import-export";
 import { DatabaseSchemaSection } from "@/components/database-schema-section";
 import { MssqlTableControls, type TablesEnabled } from "@/components/mssql-table-controls";
 import { ExternalApisSection } from "@/components/external-apis-section";
+import { AiPromptSettings } from "@/components/ai-prompt-settings";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({

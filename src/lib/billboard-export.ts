@@ -709,7 +709,7 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
         fontSize: 9, color: TEXT, fontFace: TH_FONT, valign: "middle",
       });
       const barX = rightX + 1.75;
-      const barW = rightW - 2.4;
+      const barW = rightW - 2.7;
       s1.addShape("rect", {
         x: barX, y: y + 0.09, w: barW, h: 0.08,
         fill: { color: "E2E8F0" }, line: { color: "E2E8F0" },
@@ -719,7 +719,7 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
         fill: { color: demColors[k] ?? "94A3B8" }, line: { color: demColors[k] ?? "94A3B8" },
       });
       s1.addText(`${v}%`, {
-        x: rightX + rightW - 0.55, y, w: 0.45, h: demRowH,
+        x: rightX + rightW - 0.85, y, w: 0.75, h: demRowH,
         fontSize: 9, bold: true, color: TEXT, fontFace: TH_FONT, align: "right", valign: "middle",
       });
     });

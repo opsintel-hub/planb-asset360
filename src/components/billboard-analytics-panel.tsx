@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Camera, ChevronDown, Image as ImageIcon, FileDown, FileText } from "lucide-react";
+import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Camera, ChevronDown, Image as ImageIcon, FileDown, FileText, Maximize2, Minimize2 } from "lucide-react";
 import { toast } from "sonner";
 import { analyzeBillboardArea, type BillboardAnalytics } from "@/lib/billboard-analytics.functions";
 import { getStreetViewStaticImage, updateBillboardMockup, type BillboardMockup, type BillboardMockupOverlay } from "@/lib/billboard-mockups.functions";

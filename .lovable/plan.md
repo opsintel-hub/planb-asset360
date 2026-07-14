@@ -1,91 +1,44 @@
 
-## ตอบคำถามข้อ 1 (ที่มาของข้อมูล Analytics)
+## ปัญหา
+Street View editor ปัจจุบันอยู่ในกล่อง Analytics (max-w-3xl) และสูงคงที่ `h-[320px]` — พื้นที่แคบมาก ทำให้ลาก 4 มุม distort ไม่แม่น วางป้ายไม่ตรง
 
-ข้อมูลในภาพที่ 1 (Traffic score, Demographics %, Peak hours, POI buckets, Impressions/day) **ไม่ได้มาจาก AI** — คำนวณด้วย heuristic ในไฟล์ `src/lib/billboard-analytics.functions.ts` โดยดึงข้อมูลจริงจาก **OpenStreetMap (Overpass API)** รอบพิกัดป้ายในรัศมีที่เลือก แล้วใช้สูตรถ่วงน้ำหนัก:
+## แนวทางแก้
 
-- **POI buckets** → ค้นหา node/way ที่มี tag เช่น `shop`, `amenity`, `office`, `tourism`, `railway=station` แล้วจัดกลุ่มเป็น 11 หมวด (ร้านค้า, ออฟฟิศ, โรงเรียน, ฯลฯ)
-- **Demographics %** → หมวด POI แต่ละหมวดมีน้ำหนักผูกกับกลุ่มเป้าหมาย (เช่น mall = shopper×5, school = student×5) แล้ว normalize เป็น %
-- **Traffic score** → น้ำหนักตามคลาสถนน (motorway=40, primary=28, ...) + โบนัสความหนาแน่น POI
-- **Peak hours** → mapping ตายตัวจากกลุ่ม dominant (office → 07:30-09:30, 17:00-19:00 ฯลฯ)
-- **Impressions/day** → `trafficScore × 200` ถึง `× 600`
+### 1) เพิ่มความสูงเริ่มต้นให้ responsive
+- เปลี่ยน `h-[320px]` → `h-[clamp(360px,55vh,640px)]` ใน `src/components/street-view-panel.tsx`
+- ได้พื้นที่ทำงานเกือบ 2 เท่าโดยไม่ต้องเปิดโหมดพิเศษ
 
-**ปรับแต่งค่าได้ไหม?** ตอนนี้ค่าน้ำหนักทั้งหมดเป็น constant ในโค้ด (`BUCKETS`, `ROAD_WEIGHT`, `peaksFor`) — จะเพิ่มหน้า **Settings → Analytics Weights** ให้ปรับได้ (คล้ายกับ AI Prompt Settings ที่ทำไว้แล้ว) โดยเก็บ override ใน `app_settings` key = `analytics_weights` และ merge กับ default ตอนรัน
+### 2) เพิ่มปุ่ม "ขยายเต็มจอเพื่อแก้ไข" (Fullscreen Mockup Editor) — ตัวหลักที่ตอบโจทย์
+เพิ่มปุ่ม `Maximize` มุมขวาบนของกล่อง Street View ใน `billboard-analytics-panel.tsx` เปิด overlay เต็มจอ:
 
-## ข้อ 2 — จัดใหม่ Layout PPTX/PDF (สไลด์เดียว โปร่ง อ่านง่าย)
-
-ปัญหาปัจจุบัน: กล่องขวาแออัด, POI list ไม่มีเลย, ข้อมูลชนกัน
-
-Layout ใหม่ (LAYOUT_WIDE 13.33" × 7.5"):
-
-```text
-┌─────────────────── Header bar (h=0.6, สี BRAND) ─────────────────────┐
-│  Billboard Report · 7810 — LOCAL ROAD          14/7/2569  09:53      │
-├──────────────────────────────────────────┬──────────────────────────┤
-│                                          │ ┌── ข้อมูลป้าย ─────────┐ │
-│                                          │ │ 7 rows (native text) │ │
-│   Hero (Street View + Mockup)            │ └──────────────────────┘ │
-│   x=0.3  y=0.9  w=7.6  h=4.3             │ ┌── Analytics KPI ─────┐ │
-│                                          │ │ Traffic  Impressions │ │
-│                                          │ │  80/100  14,400-...  │ │
-│                                          │ │ สูงมาก   ไม่พบถนน    │ │
-│                                          │ └──────────────────────┘ │
-│  Street View + Ad Mockup (caption)       │ ┌── กลุ่มเป้าหมาย ─────┐ │
-├──────────────────────────────────────────┤ │ นักช้อป 53% ▓▓▓▓▓░  │ │
-│  POI รอบป้าย (20 แห่ง)     ช่วงพีค:      │ │ ที่อยู่  23% ▓▓░░░░  │ │
-│  ┌───────────────┬───────────────────┐   │ │ นักเรียน 14% ▓░░░░░  │ │
-│  │ 🛍️ ร้านค้า 14 │ 📚 รร./มหาลัย  2  │   │ └──────────────────────┘ │
-│  │ 🍽️ ร้านอาหาร2│ 🏬 ห้าง         1  │   │                          │
-│  │ 🗺️ ท่องเที่ยว1│                    │   │                          │
-│  └───────────────┴───────────────────┘   │                          │
-│                                          │                          │
-│  POI ที่ใกล้ที่สุด (top 10) — 2 คอลัมน์ │                          │
-│  1. 7-Eleven 7810     ร้านค้า      9 ม. │                          │
-│  2. Jai Dee kitchen   ร้านอาหาร   98 ม. │                          │
-│  3. Moca cafe         ร้านค้า    159 ม. │                          │
-│  ... (แบ่ง 2 คอลัมน์)                   │                          │
-└──────────────────────────────────────────┴──────────────────────────┘
-  Footer (h=0.3): สร้างเมื่อ ... · Asset History 360 · แก้ไขได้ทุกกล่อง
+```
+┌──────────────────────────────────────────────┐
+│  Header: ชื่อป้าย + [Reset 4 มุม] [เสร็จ ✕]  │
+├───────────────────────────────┬──────────────┤
+│                               │  แผงควบคุม   │
+│                               │  • Opacity   │
+│      Street View + Mockup     │  • Rotation  │
+│   (h = 100vh − header, ~90%)  │  • Skew X/Y  │
+│                               │  • Brightness│
+│                               │  • คลิกปรับ4มุม│
+│                               │  • เลือก Mockup│
+└───────────────────────────────┴──────────────┘
 ```
 
-**หลักการโปร่ง:**
-- เพิ่ม whitespace ระหว่างกล่อง (gap 0.15")
-- Card แต่ละใบมีขอบบางสี BORDER + background ขาว
-- ตัวเลข KPI ใหญ่ 22-28 (Traffic, Impressions) เน้น hierarchy
-- POI top 10 แสดง 2 คอลัมน์ (5+5) หรือ 3 คอลัมน์เมื่อชื่อสั้น
-- POI Buckets ใช้ grid 2 คอลัมน์ + bar สีตามหมวด แทนที่จะเรียงเป็นแถวเดียวยาว
-- Demographics ทำเป็น bar list พร้อม % ชิดขวา แทน inline text
+รายละเอียด:
+- Overlay `fixed inset-0 z-[60] bg-background` (สูงกว่า analytics modal)
+- Street View กินพื้นที่ซ้าย ~75% (บนจอ 1080p ได้ ~1400×900)
+- แผงควบคุมด้านขวา 320px — reuse controls เดิม (Opacity, Rotation, Skew, Brightness, "คลิกปรับ 4 มุม", "รีเซ็ตมุม", เลือก Mockup, checkbox "แก้ไขได้")
+- state `overlay`, `selectedMockup`, `editOverlay`, `cornerPickStep` ยังคงอยู่ที่ `BillboardAnalyticsPanel` — ส่ง prop ลงไปทั้งใน inline panel และ fullscreen editor เพื่อให้ค่าที่แก้ sync กันทันที
+- ปิด fullscreen ด้วยปุ่ม X / Esc → ค่ากลับไปแสดงในกล่อง analytics เหมือนเดิม
+- Export (PNG hero / PPTX) ยังใช้ `streetViewCaptureRef` ตัวเดิม ไม่กระทบ
 
-## รายการไฟล์ที่จะแก้
+### 3) ปรับ handle มุมให้จับง่ายขึ้น
+- ขยาย hit area ของจุด 4 มุมจาก `size-3` → `size-4` (invisible padding 6px รอบ) เพื่อคลิกโดนง่ายในทั้ง 2 โหมด
+- คงลักษณะภาพจุด (bg-primary/70 ring-white) เท่าเดิม ไม่ให้บังภาพ
 
-1. **`src/lib/billboard-export.ts`**
-   - เขียน `exportBillboardPptx` ใหม่ตาม layout ด้านบน (native pptxgen เพื่อยัง edit ใน PowerPoint ได้)
-   - เพิ่ม section POI Top 10 (2 คอลัมน์) + POI Buckets grid 2 คอลัมน์
-   - แยก Demographics เป็น bar list แนวตั้ง
-   - เขียน `exportBillboardPdf` ใหม่ให้ layout ตรงกับ PPTX (ใช้ jsPDF + image snapshots สำหรับข้อความไทย)
+## ไฟล์ที่แก้
+- `src/components/street-view-panel.tsx` — height responsive, ขยาย hit area handle
+- `src/components/billboard-analytics-panel.tsx` — ปุ่ม Maximize + fullscreen overlay (reuse `StreetViewPanel` และ controls เดิม)
 
-2. **`src/lib/analytics-weights-defaults.ts`** (สร้างใหม่)
-   - แยก `BUCKETS`, `ROAD_WEIGHT`, `PEAK_HOURS`, `IMPRESSION_MULTIPLIER` ออกจาก `billboard-analytics.functions.ts`
-   - export default constants + type
-
-3. **`src/lib/billboard-analytics.functions.ts`**
-   - import default weights, โหลด override จาก `app_settings` key `analytics_weights` (คล้ายที่ ai-analyze ทำ), merge แล้วใช้แทน constant
-   - ปลอดภัยกับกรณีที่ยังไม่มี row → fallback default
-
-4. **`src/components/analytics-weights-settings.tsx`** (สร้างใหม่)
-   - UI form ให้ admin ปรับ:
-     - น้ำหนัก demographics per bucket (input 0-10)
-     - ROAD_WEIGHT per class (input 0-50)
-     - IMPRESSION_MULTIPLIER min/max (default 200/600)
-     - Peak hours per demographic (2 input string per กลุ่ม)
-   - ปุ่ม Reset per section + Save (บันทึกเข้า `app_settings`)
-
-5. **`src/routes/settings.tsx`**
-   - เพิ่ม tab **"Analytics"** (admin only) ต่อจาก tab AI Prompt
-
-## รายละเอียดทางเทคนิค
-
-- `app_settings` schema เดิมมีอยู่แล้ว (key/value jsonb) — ไม่ต้อง migration
-- Server function ใหม่: `getAnalyticsWeights` + `updateAnalyticsWeights` (require admin, ใน `src/lib/analytics-weights.functions.ts`)
-- Cache override ในหน่วยความจำ 60s เพื่อลด DB round-trip ต่อทุก analyze call
-- PPTX: text ทุกกล่องยัง native (`s1.addText`) เพื่อลูกค้าดับเบิลคลิกแก้ได้
-- PDF: ใช้ pattern เดิม (html2canvas-pro snapshot per block) เพื่อรองรับ font ไทย
+ไม่มี logic วิเคราะห์/ backend เปลี่ยน — เป็นงาน UI/UX ล้วน

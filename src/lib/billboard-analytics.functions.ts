@@ -14,6 +14,13 @@ import {
   type OverpassResponse,
 } from "./overpass";
 import { analyzeWithGooglePlacesFallback } from "./billboard-analytics-fallback";
+import {
+  DEFAULT_ANALYTICS_WEIGHTS,
+  mergeAnalyticsWeights,
+  type AnalyticsWeights,
+  type BucketKey,
+  type DemographicKey,
+} from "./analytics-weights-defaults";
 
 export type AnalyticsInput = {
   lat: number;

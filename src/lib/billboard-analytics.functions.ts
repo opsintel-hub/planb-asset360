@@ -176,16 +176,29 @@ const BUCKETS: Array<{
   },
 ];
 
-const ROAD_WEIGHT: Record<string, number> = {
-  motorway: 40,
-  trunk: 35,
-  primary: 28,
-  secondary: 20,
-  tertiary: 14,
-  residential: 6,
-  service: 2,
-  other: 4,
-};
+// Fallback road-class weights (used only when app_settings has no override).
+const ROAD_WEIGHT_FALLBACK: Record<string, number> = DEFAULT_ANALYTICS_WEIGHTS.road;
+
+// Cache the merged weights in memory to avoid a DB round-trip on every analyze
+// call. TTL 60 s so admin edits reflect quickly without hammering PostgREST.
+let cachedWeights: { at: number; value: AnalyticsWeights } | null = null;
+async function loadAnalyticsWeights(): Promise<AnalyticsWeights> {
+  const now = Date.now();
+  if (cachedWeights && now - cachedWeights.at < 60_000) return cachedWeights.value;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "analytics_weights")
+      .maybeSingle();
+    const merged = mergeAnalyticsWeights(data?.value);
+    cachedWeights = { at: now, value: merged };
+    return merged;
+  } catch {
+    return DEFAULT_ANALYTICS_WEIGHTS;
+  }
+}
 
 function classifyRoad(hw: string | undefined): RoadInfo["class"] {
   if (!hw) return "other";

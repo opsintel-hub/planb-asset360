@@ -244,6 +244,15 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+async function getImageDims(src: string): Promise<{ width: number; height: number }> {
+  try {
+    const img = await loadImage(src);
+    return { width: img.naturalWidth || img.width || 16, height: img.naturalHeight || img.height || 9 };
+  } catch {
+    return { width: 16, height: 9 };
+  }
+}
+
 async function urlToDataUrl(url: string): Promise<string> {
   const r = await fetch(url);
   const blob = await r.blob();
@@ -448,17 +457,34 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
   const leftX = 0.35;
   const leftW = 7.5;
 
-  // Hero image
+  // Hero image — fit inside the box preserving aspect ratio (letterbox) so
+  // wide Street View captures don't get stretched horizontally.
   const heroY = 0.85;
   const heroH = 3.8;
   const hero = await buildHeroImage(input);
+  // Dark backdrop for letterboxing
+  s1.addShape("rect", {
+    x: leftX, y: heroY, w: leftW, h: heroH,
+    fill: { color: "0F172A" }, line: { color: BORDER, width: 1 },
+  });
   if (hero) {
-    s1.addImage({ data: hero, x: leftX, y: heroY, w: leftW, h: heroH });
+    const dims = await getImageDims(hero);
+    const boxRatio = leftW / heroH;
+    const imgRatio = dims.width / dims.height;
+    let drawW = leftW;
+    let drawH = heroH;
+    if (imgRatio > boxRatio) {
+      // image is wider → fit width
+      drawW = leftW;
+      drawH = leftW / imgRatio;
+    } else {
+      drawH = heroH;
+      drawW = heroH * imgRatio;
+    }
+    const drawX = leftX + (leftW - drawW) / 2;
+    const drawY = heroY + (heroH - drawH) / 2;
+    s1.addImage({ data: hero, x: drawX, y: drawY, w: drawW, h: drawH });
   } else {
-    s1.addShape("rect", {
-      x: leftX, y: heroY, w: leftW, h: heroH,
-      fill: { color: SURFACE }, line: { color: "CBD5E1" },
-    });
     s1.addText("(ไม่มีภาพ Street View)", {
       x: leftX, y: heroY + heroH / 2 - 0.15, w: leftW, h: 0.3,
       fontSize: 12, color: SUBTLE, align: "center", fontFace: TH_FONT,
@@ -730,9 +756,26 @@ export async function exportBillboardPdf(input: ExportInput): Promise<void> {
   const heroW = pageW * 0.55;
   const heroH = 250;
   const hero = await buildHeroImage(input);
+  // Letterbox backdrop
+  pdf.setFillColor(15, 23, 42);
+  pdf.rect(heroX, heroY, heroW, heroH, "F");
   if (hero) {
     try {
-      pdf.addImage(hero, "JPEG", heroX, heroY, heroW, heroH);
+      const dims = await getImageDims(hero);
+      const boxRatio = heroW / heroH;
+      const imgRatio = dims.width / dims.height;
+      let drawW = heroW;
+      let drawH = heroH;
+      if (imgRatio > boxRatio) {
+        drawW = heroW;
+        drawH = heroW / imgRatio;
+      } else {
+        drawH = heroH;
+        drawW = heroH * imgRatio;
+      }
+      const dx = heroX + (heroW - drawW) / 2;
+      const dy = heroY + (heroH - drawH) / 2;
+      pdf.addImage(hero, "JPEG", dx, dy, drawW, drawH);
     } catch {
       // ignore
     }

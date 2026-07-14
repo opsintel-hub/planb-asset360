@@ -124,6 +124,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
     setExporting(kind);
     try {
       setShowStreet(true);
+      setFsEdit(false);
       setCapturingHero(true);
       await waitForStreetViewSnapshotTarget(streetViewCaptureRef);
       let streetViewDataUrl = streetViewCaptureRef.current

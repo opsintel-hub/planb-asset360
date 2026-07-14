@@ -489,8 +489,8 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
   // Hero image — fit box to image's natural aspect ratio so nothing is cropped
   // (previous cover-crop chopped the billboard off) and nothing is letterboxed.
   const heroY = 0.85;
-  const HERO_MIN_H = 3.0;
-  const HERO_MAX_H = 4.4;
+  const HERO_MIN_H = 2.8;
+  const HERO_MAX_H = 3.75;
   const hero = await buildHeroImage(input);
   let heroH = 3.8;
   if (hero) {

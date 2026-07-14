@@ -490,34 +490,18 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
   const leftX = 0.35;
   const leftW = 7.5;
 
-  // Hero image — fit inside the box preserving aspect ratio (letterbox) so
-  // wide Street View captures don't get stretched horizontally.
+  // Hero image — cover-crop to fill the box exactly, no black bars.
   const heroY = 0.85;
   const heroH = 3.8;
   const hero = await buildHeroImage(input);
-  // Dark backdrop for letterboxing
-  s1.addShape("rect", {
-    x: leftX, y: heroY, w: leftW, h: heroH,
-    fill: { color: "0F172A" }, line: { color: BORDER, width: 1 },
-  });
   if (hero) {
-    const dims = await getImageDims(hero);
-    const boxRatio = leftW / heroH;
-    const imgRatio = dims.width / dims.height;
-    let drawW = leftW;
-    let drawH = heroH;
-    if (imgRatio > boxRatio) {
-      // image is wider → fit width
-      drawW = leftW;
-      drawH = leftW / imgRatio;
-    } else {
-      drawH = heroH;
-      drawW = heroH * imgRatio;
-    }
-    const drawX = leftX + (leftW - drawW) / 2;
-    const drawY = heroY + (heroH - drawH) / 2;
-    s1.addImage({ data: hero, x: drawX, y: drawY, w: drawW, h: drawH });
+    const cropped = await coverCropToRatio(hero, leftW / heroH);
+    s1.addImage({ data: cropped, x: leftX, y: heroY, w: leftW, h: heroH });
   } else {
+    s1.addShape("rect", {
+      x: leftX, y: heroY, w: leftW, h: heroH,
+      fill: { color: SURFACE }, line: { color: BORDER, width: 1 },
+    });
     s1.addText("(ไม่มีภาพ Street View)", {
       x: leftX, y: heroY + heroH / 2 - 0.15, w: leftW, h: 0.3,
       fontSize: 12, color: SUBTLE, align: "center", fontFace: TH_FONT,

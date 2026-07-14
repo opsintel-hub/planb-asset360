@@ -77,6 +77,8 @@ function SettingsPage() {
         <MainSettings />
       ) : active === "ai" ? (
         <AiPromptSettings />
+      ) : active === "analytics" ? (
+        <AnalyticsWeightsSettings />
       ) : active === "schema" ? (
         <DatabaseSchemaSection />
       ) : active === "apis" ? (

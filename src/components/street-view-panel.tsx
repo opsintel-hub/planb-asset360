@@ -112,6 +112,7 @@ export default function StreetViewPanel({
   editable = false,
   cornerPickStep = null,
   onCornerPick,
+  fillParent = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svRef = useRef<HTMLDivElement | null>(null);

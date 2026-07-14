@@ -253,6 +253,39 @@ async function getImageDims(src: string): Promise<{ width: number; height: numbe
   }
 }
 
+// Cover-crop an image data URL to exactly match targetRatio (w/h).
+// This is object-fit:cover in a canvas — no black letterbox bars.
+async function coverCropToRatio(dataUrl: string, targetRatio: number): Promise<string> {
+  try {
+    const img = await loadImage(dataUrl);
+    const srcRatio = img.width / img.height;
+    let sx = 0, sy = 0, sw = img.width, sh = img.height;
+    if (srcRatio > targetRatio) {
+      // Source wider → crop sides
+      sw = img.height * targetRatio;
+      sx = (img.width - sw) / 2;
+    } else {
+      // Source taller → crop top/bottom
+      sh = img.width / targetRatio;
+      sy = (img.height - sh) / 2;
+    }
+    const canvas = document.createElement("canvas");
+    // Target ~1920 wide for crisp export
+    const outW = Math.max(1600, Math.round(sw));
+    const outH = Math.round(outW / targetRatio);
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+    return canvas.toDataURL("image/jpeg", 0.94);
+  } catch {
+    return dataUrl;
+  }
+}
+
 async function urlToDataUrl(url: string): Promise<string> {
   const r = await fetch(url);
   const blob = await r.blob();
@@ -457,34 +490,18 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
   const leftX = 0.35;
   const leftW = 7.5;
 
-  // Hero image — fit inside the box preserving aspect ratio (letterbox) so
-  // wide Street View captures don't get stretched horizontally.
+  // Hero image — cover-crop to fill the box exactly, no black bars.
   const heroY = 0.85;
   const heroH = 3.8;
   const hero = await buildHeroImage(input);
-  // Dark backdrop for letterboxing
-  s1.addShape("rect", {
-    x: leftX, y: heroY, w: leftW, h: heroH,
-    fill: { color: "0F172A" }, line: { color: BORDER, width: 1 },
-  });
   if (hero) {
-    const dims = await getImageDims(hero);
-    const boxRatio = leftW / heroH;
-    const imgRatio = dims.width / dims.height;
-    let drawW = leftW;
-    let drawH = heroH;
-    if (imgRatio > boxRatio) {
-      // image is wider → fit width
-      drawW = leftW;
-      drawH = leftW / imgRatio;
-    } else {
-      drawH = heroH;
-      drawW = heroH * imgRatio;
-    }
-    const drawX = leftX + (leftW - drawW) / 2;
-    const drawY = heroY + (heroH - drawH) / 2;
-    s1.addImage({ data: hero, x: drawX, y: drawY, w: drawW, h: drawH });
+    const cropped = await coverCropToRatio(hero, leftW / heroH);
+    s1.addImage({ data: cropped, x: leftX, y: heroY, w: leftW, h: heroH });
   } else {
+    s1.addShape("rect", {
+      x: leftX, y: heroY, w: leftW, h: heroH,
+      fill: { color: SURFACE }, line: { color: BORDER, width: 1 },
+    });
     s1.addText("(ไม่มีภาพ Street View)", {
       x: leftX, y: heroY + heroH / 2 - 0.15, w: leftW, h: 0.3,
       fontSize: 12, color: SUBTLE, align: "center", fontFace: TH_FONT,
@@ -692,7 +709,7 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
         fontSize: 9, color: TEXT, fontFace: TH_FONT, valign: "middle",
       });
       const barX = rightX + 1.75;
-      const barW = rightW - 2.4;
+      const barW = rightW - 2.7;
       s1.addShape("rect", {
         x: barX, y: y + 0.09, w: barW, h: 0.08,
         fill: { color: "E2E8F0" }, line: { color: "E2E8F0" },
@@ -702,7 +719,7 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
         fill: { color: demColors[k] ?? "94A3B8" }, line: { color: demColors[k] ?? "94A3B8" },
       });
       s1.addText(`${v}%`, {
-        x: rightX + rightW - 0.55, y, w: 0.45, h: demRowH,
+        x: rightX + rightW - 0.85, y, w: 0.75, h: demRowH,
         fontSize: 9, bold: true, color: TEXT, fontFace: TH_FONT, align: "right", valign: "middle",
       });
     });
@@ -756,26 +773,10 @@ export async function exportBillboardPdf(input: ExportInput): Promise<void> {
   const heroW = pageW * 0.55;
   const heroH = 250;
   const hero = await buildHeroImage(input);
-  // Letterbox backdrop
-  pdf.setFillColor(15, 23, 42);
-  pdf.rect(heroX, heroY, heroW, heroH, "F");
   if (hero) {
     try {
-      const dims = await getImageDims(hero);
-      const boxRatio = heroW / heroH;
-      const imgRatio = dims.width / dims.height;
-      let drawW = heroW;
-      let drawH = heroH;
-      if (imgRatio > boxRatio) {
-        drawW = heroW;
-        drawH = heroW / imgRatio;
-      } else {
-        drawH = heroH;
-        drawW = heroH * imgRatio;
-      }
-      const dx = heroX + (heroW - drawW) / 2;
-      const dy = heroY + (heroH - drawH) / 2;
-      pdf.addImage(hero, "JPEG", dx, dy, drawW, drawH);
+      const cropped = await coverCropToRatio(hero, heroW / heroH);
+      pdf.addImage(cropped, "JPEG", heroX, heroY, heroW, heroH);
     } catch {
       // ignore
     }

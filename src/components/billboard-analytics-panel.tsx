@@ -47,6 +47,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const [exporting, setExporting] = useState<null | "pptx" | "pdf">(null);
   const [cornerPickStep, setCornerPickStep] = useState<0 | 1 | 2 | 3 | null>(null);
   const [capturingHero, setCapturingHero] = useState(false);
+  const [fsEdit, setFsEdit] = useState(false);
   const streetViewCaptureRef = useRef<HTMLDivElement | null>(null);
 
   const run = async (r: number) => {

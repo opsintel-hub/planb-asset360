@@ -19,9 +19,13 @@ import {
   CalendarClock,
   AlertTriangle,
   BarChart3,
+  Copy,
+  ExternalLink,
+  Camera,
 } from "lucide-react";
 import { BreakdownTab } from "@/components/breakdown-tab";
 import { AnalyticsTab } from "@/components/analytics-tab";
+import { AssetStreetView } from "@/components/asset-street-view";
 import {
   LineChart,
   Line,
@@ -43,6 +47,8 @@ import {
   getAssetProfile,
   getAssetsPmSchedule,
 } from "@/lib/data.functions";
+import { getNearbyPOIsForAsset, type NearbyPOI } from "@/lib/poi-search.functions";
+import { PRESET_BY_KEY } from "@/lib/overpass";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
@@ -384,7 +390,8 @@ function SearchPage() {
   const { data: profileData, isFetching: profileFetching } = useQuery({
     queryKey: ["asset-profile", codes.join(",")],
     queryFn: () => profileFn({ data: { oldCodes: codes } }),
-    enabled: codes.length > 0 && tab === "Profile",
+    enabled: codes.length > 0,
+    staleTime: 5 * 60_000,
   });
 
   const pmScheduleFn = useServerFn(getAssetsPmSchedule);
@@ -611,56 +618,64 @@ function SearchPage() {
             <div className="py-16 text-center text-sm text-muted-foreground">
               เริ่มต้นด้วยการเลือกป้ายโฆษณาจากช่องค้นหาด้านบน
             </div>
-          ) : tab === "Profile" ? (
-            profileFetching && !profileData ? (
-              <div className="space-y-3">
-                <Skeleton className="h-64" />
-                <Skeleton className="h-64" />
-              </div>
-            ) : (
-              <ProfileTab profiles={profileData?.profiles ?? []} />
-            )
-          ) : tab === "PMSchedule" ? (
-            pmSchedFetching && !pmSchedData ? (
-              <div className="space-y-3">
-                <Skeleton className="h-64" />
-              </div>
-            ) : (
-              <PmScheduleTab rows={pmSchedData?.rows ?? []} />
-            )
-          ) : isFetching && !data ? (
-            <div className="space-y-3">
-              <Skeleton className="h-24" />
-              <Skeleton className="h-64" />
-            </div>
-          ) : tab === "AssetHealth" ? (
-            <AssetHealthTab
-              assets={assets}
-              history={history}
-              colorByAsset={colorByAsset}
-              sel={healthSel}
-              onSel={setHealthSel}
-              pmFreqDays={pmFreqDays}
-              setPmFreqDays={setPmFreqDays}
-              debtMonths={debtMonths}
-              setDebtMonths={setDebtMonths}
-              pmSchedRows={pmSchedData?.rows ?? []}
-            />
-          ) : tab === "Analytics" ? (
-            <AnalyticsTab assets={assets} history={history} />
-          ) : tab === "Breakdown" ? (
-            <BreakdownTab assets={assets} history={history} />
           ) : (
-            <RegularTab
-              tab={tab as "PM" | "Claim" | "Monitor"}
-              assets={assets}
-              history={history}
-              colorByAsset={colorByAsset}
-              page={page}
-              setPage={setPage}
-              pageSize={pageSize}
-              setPageSize={setPageSize}
-            />
+            <>
+              {/* Profile stays mounted so Street View / POI state persists across tab switches. */}
+              <div className={tab === "Profile" ? "" : "hidden"}>
+                {profileFetching && !profileData ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-64" />
+                    <Skeleton className="h-64" />
+                  </div>
+                ) : (
+                  <ProfileTab profiles={profileData?.profiles ?? []} />
+                )}
+              </div>
+              {tab !== "Profile" && (
+                tab === "PMSchedule" ? (
+                  pmSchedFetching && !pmSchedData ? (
+                    <div className="space-y-3">
+                      <Skeleton className="h-64" />
+                    </div>
+                  ) : (
+                    <PmScheduleTab rows={pmSchedData?.rows ?? []} />
+                  )
+                ) : isFetching && !data ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-24" />
+                    <Skeleton className="h-64" />
+                  </div>
+                ) : tab === "AssetHealth" ? (
+                  <AssetHealthTab
+                    assets={assets}
+                    history={history}
+                    colorByAsset={colorByAsset}
+                    sel={healthSel}
+                    onSel={setHealthSel}
+                    pmFreqDays={pmFreqDays}
+                    setPmFreqDays={setPmFreqDays}
+                    debtMonths={debtMonths}
+                    setDebtMonths={setDebtMonths}
+                    pmSchedRows={pmSchedData?.rows ?? []}
+                  />
+                ) : tab === "Analytics" ? (
+                  <AnalyticsTab assets={assets} history={history} />
+                ) : tab === "Breakdown" ? (
+                  <BreakdownTab assets={assets} history={history} />
+                ) : (
+                  <RegularTab
+                    tab={tab as "PM" | "Claim" | "Monitor"}
+                    assets={assets}
+                    history={history}
+                    colorByAsset={colorByAsset}
+                    page={page}
+                    setPage={setPage}
+                    pageSize={pageSize}
+                    setPageSize={setPageSize}
+                  />
+                )
+              )}
+            </>
           )}
         </div>
       </div>
@@ -2706,7 +2721,7 @@ type ProfileItem = {
   claim: { title: string | null; severity: string | null; sla_status: string | null; opened_at: string | null } | null;
   lat: number | null;
   lng: number | null;
-  monthly: Array<{ month: string; PM: number; Claim: number }>;
+  monthly: Array<{ month: string; PM: number; Claim: number; Monitor: number }>;
 };
 
 const PROFILE_FIELD_ORDER = [
@@ -2790,6 +2805,7 @@ function ProfileCard({ p }: { p: ProfileItem }) {
 
   const totalPM = p.monthly.reduce((s, m) => s + m.PM, 0);
   const totalClaim = p.monthly.reduce((s, m) => s + m.Claim, 0);
+  const totalMonitor = p.monthly.reduce((s, m) => s + m.Monitor, 0);
 
   const mapSrc =
     p.lat != null && p.lng != null
@@ -2832,66 +2848,126 @@ function ProfileCard({ p }: { p: ProfileItem }) {
         {fields.length === 0 && <div className="text-sm text-muted-foreground col-span-full">ไม่มีข้อมูลเพิ่มเติม</div>}
       </div>
 
-      {/* Monthly counts */}
-      <div className="p-5 grid gap-4 lg:grid-cols-2 border-b">
-        <div className="rounded-lg border p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm font-medium">PM ย้อนหลัง 12 เดือน</div>
-            <div className="text-xs text-muted-foreground">รวม {totalPM} ครั้ง</div>
-          </div>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={p.monthly}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0 0)" />
-                <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                <RTooltip />
-                <Bar dataKey="PM" fill={TYPE_COLOR.PM} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+      {/* Unified 12-month timeline (PM / Claim / Monitor) */}
+      <div className="p-5 border-b">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <div className="text-sm font-medium">Timeline ย้อนหลัง 12 เดือน</div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <span className="size-2 rounded-full" style={{ background: TYPE_COLOR.PM }} /> PM รวม {totalPM}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="size-2 rounded-full" style={{ background: TYPE_COLOR.Claim }} /> Claim รวม {totalClaim}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="size-2 rounded-full" style={{ background: TYPE_COLOR.Monitor }} /> Monitor รวม {totalMonitor}
+            </span>
           </div>
         </div>
-        <div className="rounded-lg border p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm font-medium">Claim ย้อนหลัง 12 เดือน</div>
-            <div className="text-xs text-muted-foreground">รวม {totalClaim} ครั้ง</div>
-          </div>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={p.monthly}>
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0 0)" />
-                <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                <RTooltip />
-                <Bar dataKey="Claim" fill={TYPE_COLOR.Claim} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={p.monthly} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0 0)" />
+              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+              <RTooltip />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="PM" stroke={TYPE_COLOR.PM} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="Claim" stroke={TYPE_COLOR.Claim} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="Monitor" stroke={TYPE_COLOR.Monitor} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
+      {/* Location: Map + Street View + Nearby POI */}
+      <AssetLocationSection asset={p.asset} lat={p.lat} lng={p.lng} mapSrc={mapSrc} />
+    </div>
+  );
+}
+
+async function copyToClipboard(text: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(`คัดลอกลิงก์ ${label} แล้ว`, { description: text });
+  } catch {
+    toast.error("คัดลอกไม่สำเร็จ — กรุณาคัดลอกด้วยตนเอง", { description: text });
+  }
+}
+
+function CopyLinkButton({ url, label }: { url: string; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => copyToClipboard(url, label)}
+      className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:bg-primary/10 border border-primary/30 rounded-md px-2.5 py-1 transition-colors"
+      title={url}
+    >
+      <Copy className="size-3.5" /> คัดลอกลิงก์ {label}
+    </button>
+  );
+}
+
+const RADIUS_OPTIONS = [100, 200, 500, 1000] as const;
+type RadiusM = (typeof RADIUS_OPTIONS)[number];
+
+function AssetLocationSection({
+  asset,
+  lat,
+  lng,
+  mapSrc,
+}: {
+  asset: ProfileItem["asset"];
+  lat: number | null;
+  lng: number | null;
+  mapSrc: string | null;
+}) {
+  const [radius, setRadius] = useState<RadiusM>(500);
+  const nearbyFn = useServerFn(getNearbyPOIsForAsset);
+  const { data: poiData, isFetching: poiFetching, error: poiError } = useQuery({
+    queryKey: ["nearby-pois", asset.id, lat, lng],
+    queryFn: () => nearbyFn({ data: { lat: lat!, lng: lng! } }),
+    enabled: lat != null && lng != null,
+    staleTime: 10 * 60_000,
+    retry: 1,
+  });
+
+  const gmapsUrl = lat != null && lng != null ? `https://www.google.com/maps?q=${lat},${lng}` : null;
+  const streetViewUrl =
+    lat != null && lng != null
+      ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`
+      : null;
+
+  const filteredPois = useMemo(() => {
+    const list = poiData?.pois ?? [];
+    return list.filter((x) => x.distanceM <= radius);
+  }, [poiData, radius]);
+
+  const grouped = useMemo(() => {
+    const g = new Map<string, NearbyPOI[]>();
+    for (const p of filteredPois) {
+      const arr = g.get(p.presetKey) ?? [];
+      arr.push(p);
+      g.set(p.presetKey, arr);
+    }
+    return Array.from(g.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [filteredPois]);
+
+  return (
+    <>
       {/* Map */}
-      <div className="p-5">
-        <div className="flex items-center justify-between mb-2">
+      <div className="p-5 border-b">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
           <div className="text-sm font-medium inline-flex items-center gap-2">
-            <MapPin className="size-4" /> ตำแหน่งป้าย
+            <MapPin className="size-4" /> ตำแหน่งป้าย (แผนที่)
           </div>
-          {p.lat != null && p.lng != null && (
-            <a
-              href={`https://www.google.com/maps?q=${p.lat},${p.lng}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-primary hover:underline"
-            >
-              เปิดใน Google Maps ↗
-            </a>
-          )}
+          {gmapsUrl && <CopyLinkButton url={gmapsUrl} label="Google Maps" />}
         </div>
         {mapSrc ? (
-          <div className="rounded-lg overflow-hidden border h-[26rem]">
+          <div className="rounded-lg overflow-hidden border h-[31rem]">
             <iframe
-              key={`${p.lat},${p.lng}`}
-              title={`map-${p.asset.old_code}`}
+              key={`${lat},${lng}`}
+              title={`map-${asset.old_code}`}
               src={mapSrc}
               className="w-full h-full"
               loading="lazy"
@@ -2903,7 +2979,134 @@ function ProfileCard({ p }: { p: ProfileItem }) {
           </div>
         )}
       </div>
-    </div>
+
+      {/* Street View */}
+      <div className="p-5 border-b">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <div className="text-sm font-medium inline-flex items-center gap-2">
+            <Camera className="size-4" /> Google Street View
+          </div>
+          {streetViewUrl && <CopyLinkButton url={streetViewUrl} label="Street View" />}
+        </div>
+        {lat != null && lng != null ? (
+          <div className="rounded-lg overflow-hidden border h-[31rem]">
+            <AssetStreetView key={`${lat},${lng}`} lat={lat} lng={lng} />
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-muted/30 h-40 grid place-items-center text-sm text-muted-foreground">
+            ไม่มีข้อมูลพิกัด (latitude/longitude)
+          </div>
+        )}
+      </div>
+
+      {/* Nearby POIs */}
+      <div className="p-5">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="text-sm font-medium inline-flex items-center gap-2">
+            <ExternalLink className="size-4" /> พื้นที่ใกล้เคียง (OSM)
+          </div>
+          <div className="inline-flex rounded-md border overflow-hidden text-xs">
+            {RADIUS_OPTIONS.map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRadius(r)}
+                className={cn(
+                  "px-3 py-1.5 font-medium transition-colors",
+                  radius === r ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                )}
+              >
+                {r >= 1000 ? "1 กม." : `${r} ม.`}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {lat == null || lng == null ? (
+          <div className="rounded-lg border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+            ไม่มีข้อมูลพิกัด — ค้นหาสถานที่ใกล้เคียงไม่ได้
+          </div>
+        ) : poiFetching && !poiData ? (
+          <div className="space-y-2">
+            <Skeleton className="h-10" />
+            <Skeleton className="h-24" />
+          </div>
+        ) : poiError || (poiData && !poiData.ok) ? (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 p-4 text-sm">
+            โหลดข้อมูลสถานที่ใกล้เคียงไม่สำเร็จ: {poiData?.error ?? (poiError as Error)?.message}
+          </div>
+        ) : filteredPois.length === 0 ? (
+          <div className="rounded-lg border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+            ไม่พบสถานที่ในรัศมี {radius >= 1000 ? "1 กม." : `${radius} ม.`}
+          </div>
+        ) : (
+          <>
+            <div className="mb-3 flex items-center gap-2 flex-wrap text-xs">
+              <span className="text-muted-foreground">
+                รวม {filteredPois.length} แห่ง ในรัศมี {radius >= 1000 ? "1 กม." : `${radius} ม.`} —
+              </span>
+              {grouped.slice(0, 8).map(([k, list]) => {
+                const preset = PRESET_BY_KEY[k];
+                return (
+                  <span
+                    key={k}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border bg-card"
+                    style={{ borderColor: preset?.color ?? "#94a3b8" }}
+                  >
+                    <span>{preset?.icon ?? "📍"}</span>
+                    <span className="font-medium">{preset?.label ?? k}</span>
+                    <span className="text-muted-foreground">{list.length}</span>
+                  </span>
+                );
+              })}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {grouped.map(([k, list]) => {
+                const preset = PRESET_BY_KEY[k];
+                return (
+                  <div key={k} className="rounded-lg border overflow-hidden">
+                    <div
+                      className="px-3 py-2 text-xs font-medium flex items-center gap-2"
+                      style={{ background: `${preset?.color ?? "#94a3b8"}15`, color: preset?.color ?? "#334155" }}
+                    >
+                      <span>{preset?.icon ?? "📍"}</span>
+                      <span>{preset?.label ?? k}</span>
+                      <span className="ml-auto text-muted-foreground">{list.length}</span>
+                    </div>
+                    <ul className="divide-y">
+                      {list.slice(0, 6).map((poi) => {
+                        const poiUrl = `https://www.google.com/maps?q=${poi.lat},${poi.lng}`;
+                        return (
+                          <li key={poi.id} className="px-3 py-2 text-xs flex items-center gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-medium">{poi.name}</div>
+                              <div className="text-muted-foreground">{Math.round(poi.distanceM)} ม.</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(poiUrl, poi.name)}
+                              className="shrink-0 p-1 rounded hover:bg-muted"
+                              title="คัดลอกลิงก์"
+                            >
+                              <Copy className="size-3.5" />
+                            </button>
+                          </li>
+                        );
+                      })}
+                      {list.length > 6 && (
+                        <li className="px-3 py-1.5 text-[11px] text-muted-foreground text-center bg-muted/30">
+                          + อีก {list.length - 6} แห่ง
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }
 

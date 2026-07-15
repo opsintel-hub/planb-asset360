@@ -2805,6 +2805,7 @@ function ProfileCard({ p }: { p: ProfileItem }) {
 
   const totalPM = p.monthly.reduce((s, m) => s + m.PM, 0);
   const totalClaim = p.monthly.reduce((s, m) => s + m.Claim, 0);
+  const totalMonitor = p.monthly.reduce((s, m) => s + m.Monitor, 0);
 
   const mapSrc =
     p.lat != null && p.lng != null

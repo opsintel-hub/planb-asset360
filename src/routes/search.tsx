@@ -612,56 +612,64 @@ function SearchPage() {
             <div className="py-16 text-center text-sm text-muted-foreground">
               เริ่มต้นด้วยการเลือกป้ายโฆษณาจากช่องค้นหาด้านบน
             </div>
-          ) : tab === "Profile" ? (
-            profileFetching && !profileData ? (
-              <div className="space-y-3">
-                <Skeleton className="h-64" />
-                <Skeleton className="h-64" />
-              </div>
-            ) : (
-              <ProfileTab profiles={profileData?.profiles ?? []} />
-            )
-          ) : tab === "PMSchedule" ? (
-            pmSchedFetching && !pmSchedData ? (
-              <div className="space-y-3">
-                <Skeleton className="h-64" />
-              </div>
-            ) : (
-              <PmScheduleTab rows={pmSchedData?.rows ?? []} />
-            )
-          ) : isFetching && !data ? (
-            <div className="space-y-3">
-              <Skeleton className="h-24" />
-              <Skeleton className="h-64" />
-            </div>
-          ) : tab === "AssetHealth" ? (
-            <AssetHealthTab
-              assets={assets}
-              history={history}
-              colorByAsset={colorByAsset}
-              sel={healthSel}
-              onSel={setHealthSel}
-              pmFreqDays={pmFreqDays}
-              setPmFreqDays={setPmFreqDays}
-              debtMonths={debtMonths}
-              setDebtMonths={setDebtMonths}
-              pmSchedRows={pmSchedData?.rows ?? []}
-            />
-          ) : tab === "Analytics" ? (
-            <AnalyticsTab assets={assets} history={history} />
-          ) : tab === "Breakdown" ? (
-            <BreakdownTab assets={assets} history={history} />
           ) : (
-            <RegularTab
-              tab={tab as "PM" | "Claim" | "Monitor"}
-              assets={assets}
-              history={history}
-              colorByAsset={colorByAsset}
-              page={page}
-              setPage={setPage}
-              pageSize={pageSize}
-              setPageSize={setPageSize}
-            />
+            <>
+              {/* Profile stays mounted so Street View / POI state persists across tab switches. */}
+              <div className={tab === "Profile" ? "" : "hidden"}>
+                {profileFetching && !profileData ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-64" />
+                    <Skeleton className="h-64" />
+                  </div>
+                ) : (
+                  <ProfileTab profiles={profileData?.profiles ?? []} />
+                )}
+              </div>
+              {tab !== "Profile" && (
+                tab === "PMSchedule" ? (
+                  pmSchedFetching && !pmSchedData ? (
+                    <div className="space-y-3">
+                      <Skeleton className="h-64" />
+                    </div>
+                  ) : (
+                    <PmScheduleTab rows={pmSchedData?.rows ?? []} />
+                  )
+                ) : isFetching && !data ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-24" />
+                    <Skeleton className="h-64" />
+                  </div>
+                ) : tab === "AssetHealth" ? (
+                  <AssetHealthTab
+                    assets={assets}
+                    history={history}
+                    colorByAsset={colorByAsset}
+                    sel={healthSel}
+                    onSel={setHealthSel}
+                    pmFreqDays={pmFreqDays}
+                    setPmFreqDays={setPmFreqDays}
+                    debtMonths={debtMonths}
+                    setDebtMonths={setDebtMonths}
+                    pmSchedRows={pmSchedData?.rows ?? []}
+                  />
+                ) : tab === "Analytics" ? (
+                  <AnalyticsTab assets={assets} history={history} />
+                ) : tab === "Breakdown" ? (
+                  <BreakdownTab assets={assets} history={history} />
+                ) : (
+                  <RegularTab
+                    tab={tab as "PM" | "Claim" | "Monitor"}
+                    assets={assets}
+                    history={history}
+                    colorByAsset={colorByAsset}
+                    page={page}
+                    setPage={setPage}
+                    pageSize={pageSize}
+                    setPageSize={setPageSize}
+                  />
+                )
+              )}
+            </>
           )}
         </div>
       </div>

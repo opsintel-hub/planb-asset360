@@ -2706,7 +2706,7 @@ type ProfileItem = {
   claim: { title: string | null; severity: string | null; sla_status: string | null; opened_at: string | null } | null;
   lat: number | null;
   lng: number | null;
-  monthly: Array<{ month: string; PM: number; Claim: number }>;
+  monthly: Array<{ month: string; PM: number; Claim: number; Monitor: number }>;
 };
 
 const PROFILE_FIELD_ORDER = [

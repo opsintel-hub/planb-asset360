@@ -384,7 +384,8 @@ function SearchPage() {
   const { data: profileData, isFetching: profileFetching } = useQuery({
     queryKey: ["asset-profile", codes.join(",")],
     queryFn: () => profileFn({ data: { oldCodes: codes } }),
-    enabled: codes.length > 0 && tab === "Profile",
+    enabled: codes.length > 0,
+    staleTime: 5 * 60_000,
   });
 
   const pmScheduleFn = useServerFn(getAssetsPmSchedule);

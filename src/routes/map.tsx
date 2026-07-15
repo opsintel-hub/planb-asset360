@@ -1325,7 +1325,11 @@ function MapPage() {
         {savedDialogs}
         {analyticsAsset && (
           <Suspense fallback={null}>
-            <BillboardAnalyticsPanel asset={analyticsAsset} onClose={() => setAnalyticsAsset(null)} />
+            <AssetMapDrawer
+              asset={analyticsAsset}
+              claimed={!!analyticsAsset.old_code && claimedCodes.has(analyticsAsset.old_code)}
+              onClose={() => setAnalyticsAsset(null)}
+            />
           </Suspense>
         )}
       </div>
@@ -1346,7 +1350,11 @@ function MapPage() {
       {savedDialogs}
       {analyticsAsset && (
         <Suspense fallback={null}>
-          <BillboardAnalyticsPanel asset={analyticsAsset} onClose={() => setAnalyticsAsset(null)} />
+          <AssetMapDrawer
+            asset={analyticsAsset}
+            claimed={!!analyticsAsset.old_code && claimedCodes.has(analyticsAsset.old_code)}
+            onClose={() => setAnalyticsAsset(null)}
+          />
         </Suspense>
       )}
     </div>

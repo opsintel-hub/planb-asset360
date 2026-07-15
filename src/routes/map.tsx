@@ -80,7 +80,7 @@ import { PRESET_BY_KEY } from "@/lib/overpass";
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
 const PoiProximityPanel = lazy(() => import("@/components/poi-proximity-panel"));
-const AssetMapDrawer = lazy(() => import("@/components/asset-map-drawer"));
+const BillboardAnalyticsPanel = lazy(() => import("@/components/billboard-analytics-panel"));
 
 
 export const Route = createFileRoute("/map")({
@@ -1324,11 +1324,7 @@ function MapPage() {
         {savedDialogs}
         {analyticsAsset && (
           <Suspense fallback={null}>
-            <AssetMapDrawer
-              asset={analyticsAsset}
-              claimed={!!analyticsAsset.old_code && claimedCodes.has(analyticsAsset.old_code)}
-              onClose={() => setAnalyticsAsset(null)}
-            />
+            <BillboardAnalyticsPanel asset={analyticsAsset} onClose={() => setAnalyticsAsset(null)} />
           </Suspense>
         )}
       </div>
@@ -1349,11 +1345,7 @@ function MapPage() {
       {savedDialogs}
       {analyticsAsset && (
         <Suspense fallback={null}>
-          <AssetMapDrawer
-            asset={analyticsAsset}
-            claimed={!!analyticsAsset.old_code && claimedCodes.has(analyticsAsset.old_code)}
-            onClose={() => setAnalyticsAsset(null)}
-          />
+          <BillboardAnalyticsPanel asset={analyticsAsset} onClose={() => setAnalyticsAsset(null)} />
         </Suspense>
       )}
     </div>

@@ -709,7 +709,7 @@ export const getAssetProfile = createServerFn({ method: "POST" })
         if (lat != null && Number.isNaN(lat)) lat = null;
         if (lng != null && Number.isNaN(lng)) lng = null;
       }
-      const counts = { PM: Array(12).fill(0) as number[], Claim: Array(12).fill(0) as number[] };
+      const counts = { PM: Array(12).fill(0) as number[], Claim: Array(12).fill(0) as number[], Monitor: Array(12).fill(0) as number[] };
       for (const h of hist) {
         if (h.old_code !== a.old_code) continue;
         const t = typeFromCategory(h.category);
@@ -717,7 +717,7 @@ export const getAssetProfile = createServerFn({ method: "POST" })
         if (!d) continue;
         const key = String(d).slice(0, 7);
         const idx = months.findIndex((m) => m.key === key);
-        if (idx >= 0 && (t === "PM" || t === "Claim")) counts[t][idx]++;
+        if (idx >= 0 && (t === "PM" || t === "Claim" || t === "Monitor")) counts[t][idx]++;
       }
       return {
         asset: a,
@@ -725,7 +725,7 @@ export const getAssetProfile = createServerFn({ method: "POST" })
         statusTone,
         claim: claim ? { title: claim.title, severity: claim.severity, sla_status: claim.sla_status, opened_at: claim.opened_at } : null,
         lat, lng,
-        monthly: months.map((m, i) => ({ month: m.label, PM: counts.PM[i], Claim: counts.Claim[i] })),
+        monthly: months.map((m, i) => ({ month: m.label, PM: counts.PM[i], Claim: counts.Claim[i], Monitor: counts.Monitor[i] })),
       };
     });
     return { profiles };

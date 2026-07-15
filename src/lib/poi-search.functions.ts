@@ -1,12 +1,70 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
+  buildOverpassQuery,
   classifyPreset,
+  fetchOverpassJson,
   haversineMeters,
+  POI_PRESETS,
   type Bbox,
   type OverpassResponse,
 } from "./overpass";
 import { fetchPoisFromOverpassAdaptive } from "./poi-overpass-search.server";
+
+export type NearbyPOI = {
+  id: string;
+  name: string;
+  presetKey: string;
+  lat: number;
+  lng: number;
+  distanceM: number;
+};
+
+export const getNearbyPOIsForAsset = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { lat: number; lng: number }) => {
+    const lat = Number(input?.lat);
+    const lng = Number(input?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error("invalid coords");
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new Error("invalid coords");
+    return { lat, lng };
+  })
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; pois: NearbyPOI[] }> => {
+    const { lat, lng } = data;
+    const padLat = 1000 / 111000;
+    const padLng = 1000 / ((111000 * Math.cos((lat * Math.PI) / 180)) || 1);
+    const bbox: Bbox = [lat - padLat, lng - padLng, lat + padLat, lng + padLng];
+    const presetKeys = POI_PRESETS.map((p) => p.key);
+    const query = buildOverpassQuery(presetKeys, null, bbox);
+    if (!query) return { ok: true, pois: [] };
+    let raw: OverpassResponse;
+    try {
+      raw = await fetchOverpassJson<OverpassResponse>(query);
+    } catch (e) {
+      return { ok: false, error: (e as Error).message, pois: [] };
+    }
+    const pois: NearbyPOI[] = [];
+    for (const el of raw.elements ?? []) {
+      const la = el.lat ?? el.center?.lat;
+      const ln = el.lon ?? el.center?.lon;
+      if (typeof la !== "number" || typeof ln !== "number") continue;
+      const tags = el.tags ?? {};
+      const name = tags.name || tags["name:th"] || tags["name:en"] || tags.brand || "(ไม่มีชื่อ)";
+      const d = haversineMeters(lat, lng, la, ln);
+      if (d > 1000) continue;
+      pois.push({
+        id: `${el.type[0]}${el.id}`,
+        name,
+        presetKey: classifyPreset(tags),
+        lat: la,
+        lng: ln,
+        distanceM: d,
+      });
+    }
+    pois.sort((a, b) => a.distanceM - b.distanceM);
+    return { ok: true, pois };
+  });
+
 
 export type POI = {
   id: string;

@@ -81,6 +81,7 @@ import { PRESET_BY_KEY } from "@/lib/overpass";
 const AssetMap = lazy(() => import("@/components/asset-map"));
 const PoiProximityPanel = lazy(() => import("@/components/poi-proximity-panel"));
 const BillboardAnalyticsPanel = lazy(() => import("@/components/billboard-analytics-panel"));
+const AssetMapDrawer = lazy(() => import("@/components/asset-map-drawer"));
 
 
 export const Route = createFileRoute("/map")({

@@ -19,9 +19,13 @@ import {
   CalendarClock,
   AlertTriangle,
   BarChart3,
+  Copy,
+  ExternalLink,
+  Camera,
 } from "lucide-react";
 import { BreakdownTab } from "@/components/breakdown-tab";
 import { AnalyticsTab } from "@/components/analytics-tab";
+import { AssetStreetView } from "@/components/asset-street-view";
 import {
   LineChart,
   Line,
@@ -43,6 +47,8 @@ import {
   getAssetProfile,
   getAssetsPmSchedule,
 } from "@/lib/data.functions";
+import { getNearbyPOIsForAsset, type NearbyPOI } from "@/lib/poi-search.functions";
+import { PRESET_BY_KEY } from "@/lib/overpass";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 

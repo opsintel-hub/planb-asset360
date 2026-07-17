@@ -40,6 +40,7 @@ import {
 } from "recharts";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
+import { PROJECT_TO_DEPARTMENTS, departmentsForProjects } from "@/lib/project-department-map";
 import {
   autocompleteAssets,
   getAssetsComparison,

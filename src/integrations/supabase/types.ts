@@ -240,7 +240,15 @@ export type Database = {
           updated_by?: string | null
           updated_by_name?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "claim_next_steps_ticket_fk"
+            columns: ["ticket_code"]
+            isOneToOne: true
+            referencedRelation: "claim_tickets"
+            referencedColumns: ["ref_number"]
+          },
+        ]
       }
       claim_tickets: {
         Row: {

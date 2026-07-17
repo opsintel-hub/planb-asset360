@@ -42,9 +42,23 @@ export const Route = createFileRoute("/claims")({
 
 function ClaimsPage() {
   const fn = useServerFn(listClaims);
+  const upsertFn = useServerFn(upsertClaimNextStep);
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["claims", "all"],
     queryFn: () => fn({ data: { sla: "all" as const } }),
+  });
+
+  const [editing, setEditing] = useState<{ ticket_code: string; note: string } | null>(null);
+  const [draft, setDraft] = useState("");
+  const saveMut = useMutation({
+    mutationFn: (v: { ticket_code: string; note: string }) => upsertFn({ data: v }),
+    onSuccess: () => {
+      toast.success("บันทึก Next Step แล้ว");
+      qc.invalidateQueries({ queryKey: ["claims"] });
+      setEditing(null);
+    },
+    onError: (e: Error) => toast.error(e.message ?? "บันทึกไม่สำเร็จ"),
   });
 
   const [fProject, setFProject] = useState<string>("all");

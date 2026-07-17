@@ -164,6 +164,12 @@ function ClaimsPage() {
             />
           </div>
         </div>
+        <FilterSelect
+          label="กลุ่มสื่อ (Project)"
+          value={fProject}
+          onChange={setFProject}
+          options={Object.keys(PROJECT_TO_DEPARTMENTS)}
+        />
         <FilterSelect label="Department" value={fDept} onChange={setFDept} options={departments} />
         <FilterSelect
           label="SLA Status"
@@ -172,9 +178,9 @@ function ClaimsPage() {
           options={["ontrack", "atrisk", "breached"]}
         />
         <FilterSelect label="Old Code" value={fOldCode} onChange={setFOldCode} options={oldCodes} />
-        {(fDept !== "all" || fSla !== "all" || fOldCode !== "all" || qTicket !== "") && (
+        {(fProject !== "all" || fDept !== "all" || fSla !== "all" || fOldCode !== "all" || qTicket !== "") && (
           <button
-            onClick={() => { setFDept("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); }}
+            onClick={() => { setFProject("all"); setFDept("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); }}
             className="text-xs px-3 py-2 rounded-md border hover:bg-accent"
           >
             ล้างตัวกรอง

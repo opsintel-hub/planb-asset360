@@ -327,7 +327,7 @@ function SearchPage() {
     return d.toISOString().slice(0, 10);
   });
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
-  const [dept, setDept] = useState("");
+  const [project, setProject] = useState("");
   const [region, setRegion] = useState("");
   const [mediaType, setMediaType] = useState("");
   const [pageSize, setPageSize] = useState(10);

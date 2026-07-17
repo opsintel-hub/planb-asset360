@@ -493,12 +493,12 @@ function SearchPage() {
       <div className="rounded-xl border bg-card p-4 shadow-[var(--shadow-card)] space-y-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="text-xs font-medium text-muted-foreground">
-            🔍 กรองข้อมูลก่อนค้นหา — เลือกแผนกเจ้าของป้าย/พื้นที่/Media Type เพื่อให้ผลค้นหาในช่องด้านล่างแคบลง
+            🔍 กรองข้อมูลก่อนค้นหา — เลือกกลุ่มสื่อ/พื้นที่/Media Type เพื่อให้ผลค้นหาในช่องด้านล่างแคบลง
           </div>
-          {(dept || region || mediaType) && (
+          {(project || region || mediaType) && (
             <button
               onClick={() => {
-                setDept("");
+                setProject("");
                 setRegion("");
                 setMediaType("");
               }}
@@ -510,10 +510,10 @@ function SearchPage() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Slicer
-            label="แผนกเจ้าของป้าย (Department)"
-            value={dept}
-            onChange={setDept}
-            options={filterOpts.departments}
+            label="กลุ่มสื่อ / แผนก (Project)"
+            value={project}
+            onChange={setProject}
+            options={Object.keys(PROJECT_TO_DEPARTMENTS)}
           />
           <Slicer label="Area" value={region} onChange={setRegion} options={filterOpts.regions} />
           <Slicer label="Media Type" value={mediaType} onChange={setMediaType} options={filterOpts.mediaTypes} />

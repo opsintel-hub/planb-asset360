@@ -36,28 +36,47 @@ function ClaimsPage() {
     queryFn: () => fn({ data: { sla: "all" as const } }),
   });
 
+  const [fProject, setFProject] = useState<string>("all");
   const [fDept, setFDept] = useState<string>("all");
   const [fSla, setFSla] = useState<string>("all");
   const [fOldCode, setFOldCode] = useState<string>("all");
   const [qTicket, setQTicket] = useState<string>("");
 
   const allClaims = data?.claims ?? [];
-  const departments = data?.departments ?? [];
+  const rawDepartments = data?.departments ?? [];
   const oldCodes = data?.oldCodes ?? [];
 
-  // Count claims per department across ALL open tickets (independent of filters)
+  // Cascade: department options depend on selected project
+  const departments = useMemo(() => {
+    if (fProject === "all") return rawDepartments;
+    const allowed = departmentsForProjects([fProject]);
+    return rawDepartments.filter((d) => allowed.has(d));
+  }, [rawDepartments, fProject]);
+
+  // Auto-clear department when it no longer belongs to the selected project
+  useEffect(() => {
+    if (fDept !== "all" && !departments.includes(fDept)) setFDept("all");
+  }, [departments, fDept]);
+
+  const inProject = (dept: string | null | undefined) =>
+    fProject === "all" || projectForDepartment(dept) === fProject;
+
+  // Count claims per department across ALL open tickets (respects Project filter)
   const deptCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const c of allClaims) {
+      if (!inProject(c.department)) continue;
       const k = c.department ?? "ไม่ระบุ";
       m.set(k, (m.get(k) ?? 0) + 1);
     }
     return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
-  }, [allClaims]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allClaims, fProject]);
 
   const claims = useMemo(() => {
     const q = qTicket.trim().toLowerCase();
     const filtered = allClaims.filter((c) => {
+      if (!inProject(c.department)) return false;
       if (fDept !== "all" && (c.department ?? "") !== fDept) return false;
       if (fSla !== "all" && (c.sla_status ?? "") !== fSla) return false;
       if (fOldCode !== "all" && (c.asset_old_code ?? "") !== fOldCode) return false;

@@ -1,11 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
-import { Wrench, AlertCircle, CheckCircle2, Search, Building2 } from "lucide-react";
-import { listClaims } from "@/lib/data.functions";
+import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote } from "lucide-react";
+import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import {
   PROJECT_TO_DEPARTMENTS,
   departmentsForProjects,
@@ -31,9 +42,23 @@ export const Route = createFileRoute("/claims")({
 
 function ClaimsPage() {
   const fn = useServerFn(listClaims);
+  const upsertFn = useServerFn(upsertClaimNextStep);
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["claims", "all"],
     queryFn: () => fn({ data: { sla: "all" as const } }),
+  });
+
+  const [editing, setEditing] = useState<{ ticket_code: string; note: string } | null>(null);
+  const [draft, setDraft] = useState("");
+  const saveMut = useMutation({
+    mutationFn: (v: { ticket_code: string; note: string }) => upsertFn({ data: v }),
+    onSuccess: () => {
+      toast.success("บันทึก Next Step แล้ว");
+      qc.invalidateQueries({ queryKey: ["claims"] });
+      setEditing(null);
+    },
+    onError: (e: Error) => toast.error(e.message ?? "บันทึกไม่สำเร็จ"),
   });
 
   const [fProject, setFProject] = useState<string>("all");
@@ -207,6 +232,7 @@ function ClaimsPage() {
                   <th className="text-left px-4 py-3 whitespace-nowrap">สถานะ(TICKET)</th>
                   <th className="text-right px-4 py-3 whitespace-nowrap">อายุงาน</th>
                   <th className="text-left px-4 py-3 whitespace-nowrap">SLA</th>
+                  <th className="text-left px-4 py-3 min-w-[220px]">Next Step</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -237,6 +263,37 @@ function ClaimsPage() {
                       <td className="px-4 py-3 whitespace-nowrap">{c.status ?? "—"}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">{ageDays != null ? `${ageDays} วัน` : "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap"><Badge tone={tone}>{c.sla_status ?? "—"}</Badge></td>
+                      <td className="px-4 py-3 align-top">
+                        <div className="flex items-start gap-2">
+                          <button
+                            onClick={() => {
+                              setEditing({ ticket_code: c.ticket_code ?? "", note: c.next_step ?? "" });
+                              setDraft(c.next_step ?? "");
+                            }}
+                            className="shrink-0 mt-0.5 size-7 grid place-items-center rounded-md border hover:bg-accent text-muted-foreground hover:text-foreground transition"
+                            title={c.next_step ? "แก้ไข Next Step" : "เพิ่ม Next Step"}
+                            aria-label="แก้ไข Next Step"
+                          >
+                            <Pencil className="size-3.5" />
+                          </button>
+                          {c.next_step ? (
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start gap-1.5 text-sm">
+                                <StickyNote className="size-3.5 mt-0.5 shrink-0 text-primary" />
+                                <span className="whitespace-pre-wrap break-words">{c.next_step}</span>
+                              </div>
+                              {(c.next_step_by || c.next_step_at) && (
+                                <div className="mt-1 text-[10px] text-muted-foreground">
+                                  {c.next_step_by ?? "—"}
+                                  {c.next_step_at ? ` · ${new Date(c.next_step_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">— ยังไม่ได้ระบุ —</span>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -245,6 +302,45 @@ function ClaimsPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Next Step — แผนติดตามงาน</DialogTitle>
+            <DialogDescription>
+              Ticket <span className="font-mono">{editing?.ticket_code}</span> — เขียนสั้นๆ ว่าจะดำเนินการอย่างไร เช่น "รออะไหล่เข้าวันที่ 20/07"
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="เช่น รออะไหล่ AC จาก supplier ETA 20/07, นัดเข้าหน้างานพรุ่งนี้ 09:00"
+            className="min-h-[140px]"
+            maxLength={2000}
+          />
+          <div className="text-[11px] text-muted-foreground text-right">{draft.length}/2000</div>
+          <DialogFooter className="gap-2">
+            {editing?.note && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="mr-auto text-destructive hover:text-destructive"
+                onClick={() => editing && saveMut.mutate({ ticket_code: editing.ticket_code, note: "" })}
+                disabled={saveMut.isPending}
+              >
+                ลบ Next Step
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setEditing(null)} disabled={saveMut.isPending}>ยกเลิก</Button>
+            <Button
+              onClick={() => editing && saveMut.mutate({ ticket_code: editing.ticket_code, note: draft })}
+              disabled={saveMut.isPending || !draft.trim()}
+            >
+              {saveMut.isPending ? "กำลังบันทึก..." : "บันทึก"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

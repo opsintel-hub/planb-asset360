@@ -372,6 +372,7 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
       from: z.string().optional(),
       to: z.string().optional(),
       department: z.string().optional(),
+      departments: z.array(z.string()).optional(),
       region: z.string().optional(),
       mediaType: z.string().optional(),
       forceSync: z.boolean().optional().default(false),

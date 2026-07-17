@@ -111,7 +111,8 @@ function ClaimsPage() {
         }
         return ageOf(b) - ageOf(a);
       });
-  }, [allClaims, fDept, fSla, fOldCode, qTicket]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allClaims, fProject, fDept, fSla, fOldCode, qTicket]);
 
   const breached = claims.filter((c) => c.sla_status === "breached").length;
   const onTrack = claims.filter((c) => c.sla_status === "ontrack").length;

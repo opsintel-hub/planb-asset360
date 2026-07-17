@@ -268,58 +268,54 @@ function ClaimsPage() {
                       <td className="px-4 py-3 whitespace-nowrap">{c.status ?? "—"}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">{ageDays != null ? `${ageDays} วัน` : "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap"><Badge tone={tone}>{c.sla_status ?? "—"}</Badge></td>
-                      <td className="px-4 py-3 align-top">
-                        <div className="flex items-start gap-2">
+                      <td className="px-4 py-3 align-middle">
+                        {c.next_step ? (
+                          <HoverCard openDelay={120} closeDelay={80}>
+                            <HoverCardTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditing({ ticket_code: c.ticket_code ?? "", note: c.next_step ?? "" });
+                                  setDraft(c.next_step ?? "");
+                                }}
+                                className="group inline-flex max-w-[240px] items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 pl-2.5 pr-2 py-1 text-xs text-foreground hover:border-primary/40 hover:bg-primary/10 transition"
+                                title="ดู/แก้ไข Next Step"
+                              >
+                                <StickyNote className="size-3.5 shrink-0 text-primary" />
+                                <span className="truncate">{c.next_step}</span>
+                                <Pencil className="size-3 shrink-0 text-muted-foreground group-hover:text-primary transition" />
+                              </button>
+                            </HoverCardTrigger>
+                            <HoverCardContent side="left" align="start" className="w-80">
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-primary mb-2">
+                                <StickyNote className="size-3.5" />
+                                Next Step
+                              </div>
+                              <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                                {c.next_step}
+                              </div>
+                              {(c.next_step_by || c.next_step_at) && (
+                                <div className="mt-3 pt-2 border-t text-[11px] text-muted-foreground">
+                                  {c.next_step_by ?? "—"}
+                                  {c.next_step_at ? ` · ${new Date(c.next_step_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                                </div>
+                              )}
+                            </HoverCardContent>
+                          </HoverCard>
+                        ) : (
                           <button
+                            type="button"
                             onClick={() => {
-                              setEditing({ ticket_code: c.ticket_code ?? "", note: c.next_step ?? "" });
-                              setDraft(c.next_step ?? "");
+                              setEditing({ ticket_code: c.ticket_code ?? "", note: "" });
+                              setDraft("");
                             }}
-                            className="shrink-0 mt-0.5 size-7 grid place-items-center rounded-md border hover:bg-accent text-muted-foreground hover:text-foreground transition"
-                            title={c.next_step ? "แก้ไข Next Step" : "เพิ่ม Next Step"}
-                            aria-label="แก้ไข Next Step"
+                            className="inline-flex size-7 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground/60 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition"
+                            title="เพิ่ม Next Step"
+                            aria-label="เพิ่ม Next Step"
                           >
                             <Pencil className="size-3.5" />
                           </button>
-                          {c.next_step ? (
-                            <HoverCard openDelay={120} closeDelay={80}>
-                              <HoverCardTrigger asChild>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditing({ ticket_code: c.ticket_code ?? "", note: c.next_step ?? "" });
-                                    setDraft(c.next_step ?? "");
-                                  }}
-                                  className="min-w-0 flex-1 text-left group"
-                                >
-                                  <div className="flex items-center gap-1.5 text-sm">
-                                    <StickyNote className="size-3.5 shrink-0 text-primary" />
-                                    <span className="truncate text-foreground group-hover:text-primary transition-colors">
-                                      {c.next_step}
-                                    </span>
-                                  </div>
-                                </button>
-                              </HoverCardTrigger>
-                              <HoverCardContent side="left" align="start" className="w-80">
-                                <div className="flex items-center gap-1.5 text-xs font-medium text-primary mb-2">
-                                  <StickyNote className="size-3.5" />
-                                  Next Step
-                                </div>
-                                <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
-                                  {c.next_step}
-                                </div>
-                                {(c.next_step_by || c.next_step_at) && (
-                                  <div className="mt-3 pt-2 border-t text-[11px] text-muted-foreground">
-                                    {c.next_step_by ?? "—"}
-                                    {c.next_step_at ? ` · ${new Date(c.next_step_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}` : ""}
-                                  </div>
-                                )}
-                              </HoverCardContent>
-                            </HoverCard>
-                          ) : (
-                            <span className="text-xs text-muted-foreground italic">— ยังไม่ได้ระบุ —</span>
-                          )}
-                        </div>
+                        )}
                       </td>
                     </tr>
                   );

@@ -1,11 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { Wrench, AlertCircle, CheckCircle2, Search, Building2 } from "lucide-react";
 import { listClaims } from "@/lib/data.functions";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  PROJECT_TO_DEPARTMENTS,
+  departmentsForProjects,
+  projectForDepartment,
+} from "@/lib/project-department-map";
 import {
   Select,
   SelectContent,
@@ -31,28 +36,47 @@ function ClaimsPage() {
     queryFn: () => fn({ data: { sla: "all" as const } }),
   });
 
+  const [fProject, setFProject] = useState<string>("all");
   const [fDept, setFDept] = useState<string>("all");
   const [fSla, setFSla] = useState<string>("all");
   const [fOldCode, setFOldCode] = useState<string>("all");
   const [qTicket, setQTicket] = useState<string>("");
 
   const allClaims = data?.claims ?? [];
-  const departments = data?.departments ?? [];
+  const rawDepartments = data?.departments ?? [];
   const oldCodes = data?.oldCodes ?? [];
 
-  // Count claims per department across ALL open tickets (independent of filters)
+  // Cascade: department options depend on selected project
+  const departments = useMemo(() => {
+    if (fProject === "all") return rawDepartments;
+    const allowed = departmentsForProjects([fProject]);
+    return rawDepartments.filter((d) => allowed.has(d));
+  }, [rawDepartments, fProject]);
+
+  // Auto-clear department when it no longer belongs to the selected project
+  useEffect(() => {
+    if (fDept !== "all" && !departments.includes(fDept)) setFDept("all");
+  }, [departments, fDept]);
+
+  const inProject = (dept: string | null | undefined) =>
+    fProject === "all" || projectForDepartment(dept) === fProject;
+
+  // Count claims per department across ALL open tickets (respects Project filter)
   const deptCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const c of allClaims) {
+      if (!inProject(c.department)) continue;
       const k = c.department ?? "ไม่ระบุ";
       m.set(k, (m.get(k) ?? 0) + 1);
     }
     return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
-  }, [allClaims]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allClaims, fProject]);
 
   const claims = useMemo(() => {
     const q = qTicket.trim().toLowerCase();
     const filtered = allClaims.filter((c) => {
+      if (!inProject(c.department)) return false;
       if (fDept !== "all" && (c.department ?? "") !== fDept) return false;
       if (fSla !== "all" && (c.sla_status ?? "") !== fSla) return false;
       if (fOldCode !== "all" && (c.asset_old_code ?? "") !== fOldCode) return false;
@@ -87,7 +111,8 @@ function ClaimsPage() {
         }
         return ageOf(b) - ageOf(a);
       });
-  }, [allClaims, fDept, fSla, fOldCode, qTicket]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allClaims, fProject, fDept, fSla, fOldCode, qTicket]);
 
   const breached = claims.filter((c) => c.sla_status === "breached").length;
   const onTrack = claims.filter((c) => c.sla_status === "ontrack").length;
@@ -140,6 +165,12 @@ function ClaimsPage() {
             />
           </div>
         </div>
+        <FilterSelect
+          label="กลุ่มสื่อ (Project)"
+          value={fProject}
+          onChange={setFProject}
+          options={Object.keys(PROJECT_TO_DEPARTMENTS)}
+        />
         <FilterSelect label="Department" value={fDept} onChange={setFDept} options={departments} />
         <FilterSelect
           label="SLA Status"
@@ -148,9 +179,9 @@ function ClaimsPage() {
           options={["ontrack", "atrisk", "breached"]}
         />
         <FilterSelect label="Old Code" value={fOldCode} onChange={setFOldCode} options={oldCodes} />
-        {(fDept !== "all" || fSla !== "all" || fOldCode !== "all" || qTicket !== "") && (
+        {(fProject !== "all" || fDept !== "all" || fSla !== "all" || fOldCode !== "all" || qTicket !== "") && (
           <button
-            onClick={() => { setFDept("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); }}
+            onClick={() => { setFProject("all"); setFDept("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); }}
             className="text-xs px-3 py-2 rounded-md border hover:bg-accent"
           >
             ล้างตัวกรอง

@@ -40,6 +40,7 @@ import {
 } from "recharts";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
+import { PROJECT_TO_DEPARTMENTS, departmentsForProjects } from "@/lib/project-department-map";
 import {
   autocompleteAssets,
   getAssetsComparison,
@@ -218,7 +219,7 @@ function SlotCombobox({
   onPick,
   onClear,
   color,
-  department,
+  departments,
   region,
   mediaType,
 }: {
@@ -226,7 +227,7 @@ function SlotCombobox({
   onPick: (code: string) => void;
   onClear: () => void;
   color: string;
-  department?: string;
+  departments?: string[];
   region?: string;
   mediaType?: string;
 }) {
@@ -234,14 +235,15 @@ function SlotCombobox({
   const [open, setOpen] = useState(false);
   const debounced = useDebounced(q, 250);
   const autoFn = useServerFn(autocompleteAssets);
+  const deptKey = (departments ?? []).join(",");
   const { data: ac, isFetching } = useQuery({
-    queryKey: ["autocomplete", debounced, department, region, mediaType],
+    queryKey: ["autocomplete", debounced, deptKey, region, mediaType],
     queryFn: () =>
       autoFn({
         data: {
           q: debounced,
           limit: 15,
-          department: department || undefined,
+          departments: departments && departments.length ? departments : undefined,
           region: region || undefined,
           mediaType: mediaType || undefined,
         },
@@ -325,7 +327,7 @@ function SearchPage() {
     return d.toISOString().slice(0, 10);
   });
   const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
-  const [dept, setDept] = useState("");
+  const [project, setProject] = useState("");
   const [region, setRegion] = useState("");
   const [mediaType, setMediaType] = useState("");
   const [pageSize, setPageSize] = useState(10);
@@ -371,8 +373,12 @@ function SearchPage() {
         : tab === "Analytics"
           ? "AssetHealth"
           : tab;
+  const projectDepartments = useMemo(
+    () => (project ? Array.from(departmentsForProjects([project])) : []),
+    [project],
+  );
   const { data, isFetching, refetch } = useQuery({
-    queryKey: ["comparison", codes.join(","), cmpTabForBackend, fromIso, toIso, dept, region, mediaType],
+    queryKey: ["comparison", codes.join(","), cmpTabForBackend, fromIso, toIso, project, region, mediaType],
     queryFn: () =>
       cmpFn({
         data: {
@@ -380,7 +386,7 @@ function SearchPage() {
           tab: cmpTabForBackend,
           from: fromIso,
           to: toIso,
-          department: dept || undefined,
+          departments: projectDepartments.length ? projectDepartments : undefined,
           region: region || undefined,
           mediaType: mediaType || undefined,
         },
@@ -487,12 +493,12 @@ function SearchPage() {
       <div className="rounded-xl border bg-card p-4 shadow-[var(--shadow-card)] space-y-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="text-xs font-medium text-muted-foreground">
-            🔍 กรองข้อมูลก่อนค้นหา — เลือกแผนกเจ้าของป้าย/พื้นที่/Media Type เพื่อให้ผลค้นหาในช่องด้านล่างแคบลง
+            🔍 กรองข้อมูลก่อนค้นหา — เลือกกลุ่มสื่อ/พื้นที่/Media Type เพื่อให้ผลค้นหาในช่องด้านล่างแคบลง
           </div>
-          {(dept || region || mediaType) && (
+          {(project || region || mediaType) && (
             <button
               onClick={() => {
-                setDept("");
+                setProject("");
                 setRegion("");
                 setMediaType("");
               }}
@@ -504,10 +510,10 @@ function SearchPage() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Slicer
-            label="แผนกเจ้าของป้าย (Department)"
-            value={dept}
-            onChange={setDept}
-            options={filterOpts.departments}
+            label="กลุ่มสื่อ / แผนก (Project)"
+            value={project}
+            onChange={setProject}
+            options={Object.keys(PROJECT_TO_DEPARTMENTS)}
           />
           <Slicer label="Area" value={region} onChange={setRegion} options={filterOpts.regions} />
           <Slicer label="Media Type" value={mediaType} onChange={setMediaType} options={filterOpts.mediaTypes} />
@@ -541,7 +547,7 @@ function SearchPage() {
                 <SlotCombobox
                   value={slot}
                   color={PALETTE[i % PALETTE.length]}
-                  department={dept}
+                  departments={projectDepartments.length ? projectDepartments : undefined}
                   region={region}
                   mediaType={mediaType}
                   onPick={(code) => setSlotAt(i, code)}

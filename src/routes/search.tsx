@@ -547,7 +547,7 @@ function SearchPage() {
                 <SlotCombobox
                   value={slot}
                   color={PALETTE[i % PALETTE.length]}
-                  department={dept}
+                  departments={projectDepartments.length ? projectDepartments : undefined}
                   region={region}
                   mediaType={mediaType}
                   onPick={(code) => setSlotAt(i, code)}

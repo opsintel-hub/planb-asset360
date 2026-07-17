@@ -215,6 +215,33 @@ export type Database = {
         }
         Relationships: []
       }
+      claim_next_steps: {
+        Row: {
+          created_at: string
+          note: string
+          ticket_code: string
+          updated_at: string
+          updated_by: string | null
+          updated_by_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          note: string
+          ticket_code: string
+          updated_at?: string
+          updated_by?: string | null
+          updated_by_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          note?: string
+          ticket_code?: string
+          updated_at?: string
+          updated_by?: string | null
+          updated_by_name?: string | null
+        }
+        Relationships: []
+      }
       claim_tickets: {
         Row: {
           age_hours: number | null

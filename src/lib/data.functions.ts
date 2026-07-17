@@ -503,11 +503,30 @@ export const listClaims = createServerFn({ method: "POST" })
         .in("old_code", codes);
       for (const a of assets ?? []) deptMap.set(a.old_code, a.department ?? null);
     }
+
+    // Load next-step notes for these tickets
+    const ticketCodes = tickets.map((c) => c.ref_number).filter(Boolean) as string[];
+    const nextStepMap = new Map<string, { note: string; updated_by_name: string | null; updated_at: string }>();
+    if (ticketCodes.length) {
+      const { data: notes } = await context.supabase
+        .from("claim_next_steps")
+        .select("ticket_code, note, updated_by_name, updated_at")
+        .in("ticket_code", ticketCodes);
+      for (const n of notes ?? []) {
+        nextStepMap.set(n.ticket_code, {
+          note: n.note,
+          updated_by_name: n.updated_by_name,
+          updated_at: n.updated_at,
+        });
+      }
+    }
+
     const enriched = tickets.map((c) => {
       const p = (c.payload ?? {}) as Record<string, unknown>;
       const assetStatus = (p.assetStatus ?? p.AssetStatus ?? null) as string | null;
       const totalTimeRaw = (p.totalTime ?? p.TotalTime ?? null) as number | string | null;
       const totalTime = totalTimeRaw === null || totalTimeRaw === "" ? null : Number(totalTimeRaw);
+      const ns = c.ref_number ? nextStepMap.get(c.ref_number) ?? null : null;
       return {
         id: c.ref_number,
         ticket_code: c.ref_number,
@@ -522,6 +541,9 @@ export const listClaims = createServerFn({ method: "POST" })
         status: c.status,
         asset_status: assetStatus,
         payload: c.payload,
+        next_step: ns?.note ?? null,
+        next_step_by: ns?.updated_by_name ?? null,
+        next_step_at: ns?.updated_at ?? null,
       };
     });
     const departments = Array.from(
@@ -531,6 +553,49 @@ export const listClaims = createServerFn({ method: "POST" })
       new Set(enriched.map((c) => c.asset_old_code).filter(Boolean) as string[]),
     ).sort();
     return { claims: enriched, departments, oldCodes };
+  });
+
+// Upsert (or delete when empty) a "Next Step" follow-up note for a claim ticket.
+export const upsertClaimNextStep = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        ticket_code: z.string().min(1).max(100),
+        note: z.string().max(2000),
+      })
+      .parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId, claims } = context;
+    const note = data.note.trim();
+    if (!note) {
+      const { error } = await supabase
+        .from("claim_next_steps")
+        .delete()
+        .eq("ticket_code", data.ticket_code);
+      if (error) throw new Error(error.message);
+      return { ok: true, deleted: true };
+    }
+    const c = (claims ?? {}) as Record<string, unknown>;
+    const meta = (c.user_metadata ?? {}) as Record<string, unknown>;
+    const name =
+      (meta.full_name as string | undefined) ??
+      (meta.name as string | undefined) ??
+      (c.email as string | undefined) ??
+      null;
+    const { error } = await supabase.from("claim_next_steps").upsert(
+      {
+        ticket_code: data.ticket_code,
+        note,
+        updated_by: userId,
+        updated_by_name: name,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "ticket_code" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true, deleted: false };
   });
 
 // ---------- Monitoring ----------

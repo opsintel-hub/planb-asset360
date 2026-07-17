@@ -1,44 +1,19 @@
+## เมื่อ Ticket หายจากระบบ ให้ลบ Next Step ทิ้งอัตโนมัติ
 
-## ปัญหา
-Street View editor ปัจจุบันอยู่ในกล่อง Analytics (max-w-3xl) และสูงคงที่ `h-[320px]` — พื้นที่แคบมาก ทำให้ลาก 4 มุม distort ไม่แม่น วางป้ายไม่ตรง
+**ตอนนี้ (ก่อนแก้):** ตาราง `claim_next_steps` ไม่มีความสัมพันธ์กับ `claim_tickets` เลย เวลา sync-claims ทำงานทุก 15 นาที มันจะลบแถวใน `claim_tickets` ที่ไม่อยู่ใน API response ทิ้ง แต่ Next Step notes จะค้างอยู่เป็น orphan rows ตลอดไป
 
-## แนวทางแก้
+**ทางแก้:** เชื่อม `claim_next_steps.ticket_code` เป็น Foreign Key ไปที่ `claim_tickets.ref_number` แบบ `ON DELETE CASCADE` — พอ sync ลบ ticket ทิ้ง ระบบจะลบ Next Step ที่ผูกกับ ticket นั้นให้เองอัตโนมัติ
 
-### 1) เพิ่มความสูงเริ่มต้นให้ responsive
-- เปลี่ยน `h-[320px]` → `h-[clamp(360px,55vh,640px)]` ใน `src/components/street-view-panel.tsx`
-- ได้พื้นที่ทำงานเกือบ 2 เท่าโดยไม่ต้องเปิดโหมดพิเศษ
+### ขั้นตอน (Migration เดียวจบ)
 
-### 2) เพิ่มปุ่ม "ขยายเต็มจอเพื่อแก้ไข" (Fullscreen Mockup Editor) — ตัวหลักที่ตอบโจทย์
-เพิ่มปุ่ม `Maximize` มุมขวาบนของกล่อง Street View ใน `billboard-analytics-panel.tsx` เปิด overlay เต็มจอ:
+1. ล้าง orphan rows ที่อาจมีอยู่แล้ว: `DELETE FROM claim_next_steps WHERE ticket_code NOT IN (SELECT ref_number FROM claim_tickets)`
+2. เพิ่ม unique constraint บน `claim_tickets.ref_number` (ถ้ายังไม่มี — ต้องมีก่อนจึงจะสร้าง FK ได้)
+3. เพิ่ม FK: `ALTER TABLE claim_next_steps ADD CONSTRAINT claim_next_steps_ticket_fk FOREIGN KEY (ticket_code) REFERENCES claim_tickets(ref_number) ON DELETE CASCADE`
 
-```
-┌──────────────────────────────────────────────┐
-│  Header: ชื่อป้าย + [Reset 4 มุม] [เสร็จ ✕]  │
-├───────────────────────────────┬──────────────┤
-│                               │  แผงควบคุม   │
-│                               │  • Opacity   │
-│      Street View + Mockup     │  • Rotation  │
-│   (h = 100vh − header, ~90%)  │  • Skew X/Y  │
-│                               │  • Brightness│
-│                               │  • คลิกปรับ4มุม│
-│                               │  • เลือก Mockup│
-└───────────────────────────────┴──────────────┘
-```
+### ผลลัพธ์
 
-รายละเอียด:
-- Overlay `fixed inset-0 z-[60] bg-background` (สูงกว่า analytics modal)
-- Street View กินพื้นที่ซ้าย ~75% (บนจอ 1080p ได้ ~1400×900)
-- แผงควบคุมด้านขวา 320px — reuse controls เดิม (Opacity, Rotation, Skew, Brightness, "คลิกปรับ 4 มุม", "รีเซ็ตมุม", เลือก Mockup, checkbox "แก้ไขได้")
-- state `overlay`, `selectedMockup`, `editOverlay`, `cornerPickStep` ยังคงอยู่ที่ `BillboardAnalyticsPanel` — ส่ง prop ลงไปทั้งใน inline panel และ fullscreen editor เพื่อให้ค่าที่แก้ sync กันทันที
-- ปิด fullscreen ด้วยปุ่ม X / Esc → ค่ากลับไปแสดงในกล่อง analytics เหมือนเดิม
-- Export (PNG hero / PPTX) ยังใช้ `streetViewCaptureRef` ตัวเดิม ไม่กระทบ
+- Ticket ปิดงาน/หายจาก API → Next Step ที่คุยไว้ถูกลบตามทันทีในรอบ sync ถัดไป ไม่มีขยะค้าง
+- ยังคงเขียน/แก้/ลบ Next Step ผ่านปุ่มดินสอได้เหมือนเดิม ไม่ต้องแก้โค้ด UI หรือ server function
+- ถ้า Ticket กลับมาใหม่ (เคสหายากที่ ref_number เดิมโผล่ซ้ำ) จะเริ่มเขียน Next Step ใหม่หมด — ประวัติเก่าจะไม่กลับมา ซึ่งตรงกับความต้องการ "ไม่ใช้แล้วลบทิ้ง"
 
-### 3) ปรับ handle มุมให้จับง่ายขึ้น
-- ขยาย hit area ของจุด 4 มุมจาก `size-3` → `size-4` (invisible padding 6px รอบ) เพื่อคลิกโดนง่ายในทั้ง 2 โหมด
-- คงลักษณะภาพจุด (bg-primary/70 ring-white) เท่าเดิม ไม่ให้บังภาพ
-
-## ไฟล์ที่แก้
-- `src/components/street-view-panel.tsx` — height responsive, ขยาย hit area handle
-- `src/components/billboard-analytics-panel.tsx` — ปุ่ม Maximize + fullscreen overlay (reuse `StreetViewPanel` และ controls เดิม)
-
-ไม่มี logic วิเคราะห์/ backend เปลี่ยน — เป็นงาน UI/UX ล้วน
+**ไฟล์ที่กระทบ:** Migration อย่างเดียว ไม่แตะโค้ด

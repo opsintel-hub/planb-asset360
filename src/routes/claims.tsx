@@ -1,11 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
-import { Wrench, AlertCircle, CheckCircle2, Search, Building2 } from "lucide-react";
-import { listClaims } from "@/lib/data.functions";
+import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote } from "lucide-react";
+import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import {
   PROJECT_TO_DEPARTMENTS,
   departmentsForProjects,

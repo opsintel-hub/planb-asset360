@@ -7,6 +7,11 @@ import { Wrench, AlertCircle, CheckCircle2, Search, Building2 } from "lucide-rea
 import { listClaims } from "@/lib/data.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  PROJECT_TO_DEPARTMENTS,
+  departmentsForProjects,
+  projectForDepartment,
+} from "@/lib/project-department-map";
+import {
   Select,
   SelectContent,
   SelectItem,

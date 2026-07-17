@@ -18,6 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import {
   PROJECT_TO_DEPARTMENTS,
   departmentsForProjects,
   projectForDepartment,

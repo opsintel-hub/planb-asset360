@@ -302,6 +302,45 @@ function ClaimsPage() {
           </div>
         )}
       </div>
+
+      <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Next Step — แผนติดตามงาน</DialogTitle>
+            <DialogDescription>
+              Ticket <span className="font-mono">{editing?.ticket_code}</span> — เขียนสั้นๆ ว่าจะดำเนินการอย่างไร เช่น "รออะไหล่เข้าวันที่ 20/07"
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="เช่น รออะไหล่ AC จาก supplier ETA 20/07, นัดเข้าหน้างานพรุ่งนี้ 09:00"
+            className="min-h-[140px]"
+            maxLength={2000}
+          />
+          <div className="text-[11px] text-muted-foreground text-right">{draft.length}/2000</div>
+          <DialogFooter className="gap-2">
+            {editing?.note && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="mr-auto text-destructive hover:text-destructive"
+                onClick={() => editing && saveMut.mutate({ ticket_code: editing.ticket_code, note: "" })}
+                disabled={saveMut.isPending}
+              >
+                ลบ Next Step
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setEditing(null)} disabled={saveMut.isPending}>ยกเลิก</Button>
+            <Button
+              onClick={() => editing && saveMut.mutate({ ticket_code: editing.ticket_code, note: draft })}
+              disabled={saveMut.isPending || !draft.trim()}
+            >
+              {saveMut.isPending ? "กำลังบันทึก..." : "บันทึก"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

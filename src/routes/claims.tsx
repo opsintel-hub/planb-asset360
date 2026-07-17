@@ -226,18 +226,18 @@ function ClaimsPage() {
           <div className="p-10 text-center text-sm text-muted-foreground">ยังไม่มี Claim ตามตัวกรองที่เลือก</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm table-auto">
-              <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+            <table className="w-full text-[13px] table-auto">
+              <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="text-left px-4 py-3 whitespace-nowrap">Ticket</th>
-                  <th className="text-left px-4 py-3 whitespace-nowrap">Old Code</th>
-                  <th className="text-left px-4 py-3 whitespace-nowrap">Department</th>
-                  <th className="text-left px-4 py-3">อาการ</th>
-                  <th className="text-left px-4 py-3 whitespace-nowrap">ASSET STATUS</th>
-                  <th className="text-left px-4 py-3 whitespace-nowrap">สถานะ(TICKET)</th>
-                  <th className="text-right px-4 py-3 whitespace-nowrap">อายุงาน</th>
-                  <th className="text-left px-4 py-3 whitespace-nowrap">SLA</th>
-                  <th className="text-left px-4 py-3 min-w-[220px]">Next Step</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Ticket</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Old Code</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Department</th>
+                  <th className="text-left font-medium px-4 py-3">อาการ</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Asset Status</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">สถานะ Ticket</th>
+                  <th className="text-right font-medium px-4 py-3 whitespace-nowrap">อายุงาน</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">SLA</th>
+                  <th className="text-left font-medium px-4 py-3 w-[200px]">Next Step</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -251,7 +251,7 @@ function ClaimsPage() {
                       : null;
                   return (
                     <tr key={c.id} className={isDup ? "bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100/70 dark:hover:bg-amber-950/50" : "hover:bg-accent/30"}>
-                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
+                      <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span>{c.ticket_code}</span>
                           {isDup && (
@@ -261,14 +261,16 @@ function ClaimsPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{c.asset_old_code ?? "—"}</td>
+                      <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">{c.asset_old_code ?? "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{c.department ?? "—"}</td>
-                      <td className="px-4 py-3">{c.title ?? "—"}</td>
+                      <td className="px-4 py-3 max-w-[220px]">
+                        <span className="line-clamp-2 leading-snug">{c.title ?? "—"}</span>
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap">{c.asset_status ?? "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{c.status ?? "—"}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">{ageDays != null ? `${ageDays} วัน` : "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap"><Badge tone={tone}>{c.sla_status ?? "—"}</Badge></td>
-                      <td className="px-4 py-3 align-middle">
+                      <td className="px-4 py-3 align-middle w-[200px] max-w-[200px]">
                         {c.next_step ? (
                           <HoverCard openDelay={120} closeDelay={80}>
                             <HoverCardTrigger asChild>
@@ -278,11 +280,11 @@ function ClaimsPage() {
                                   setEditing({ ticket_code: c.ticket_code ?? "", note: c.next_step ?? "" });
                                   setDraft(c.next_step ?? "");
                                 }}
-                                className="group inline-flex max-w-[240px] items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 pl-2.5 pr-2 py-1 text-xs text-foreground hover:border-primary/40 hover:bg-primary/10 transition"
+                                className="group flex w-full max-w-full items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 pl-2.5 pr-2 py-1 text-[12px] text-foreground hover:border-primary/40 hover:bg-primary/10 transition"
                                 title="ดู/แก้ไข Next Step"
                               >
                                 <StickyNote className="size-3.5 shrink-0 text-primary" />
-                                <span className="truncate">{c.next_step}</span>
+                                <span className="truncate min-w-0 flex-1 text-left">{c.next_step}</span>
                                 <Pencil className="size-3 shrink-0 text-muted-foreground group-hover:text-primary transition" />
                               </button>
                             </HoverCardTrigger>
@@ -325,6 +327,7 @@ function ClaimsPage() {
           </div>
         )}
       </div>
+
 
       <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>
         <DialogContent className="sm:max-w-lg">

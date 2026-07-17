@@ -232,6 +232,7 @@ function ClaimsPage() {
                   <th className="text-left px-4 py-3 whitespace-nowrap">สถานะ(TICKET)</th>
                   <th className="text-right px-4 py-3 whitespace-nowrap">อายุงาน</th>
                   <th className="text-left px-4 py-3 whitespace-nowrap">SLA</th>
+                  <th className="text-left px-4 py-3 min-w-[220px]">Next Step</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -262,6 +263,37 @@ function ClaimsPage() {
                       <td className="px-4 py-3 whitespace-nowrap">{c.status ?? "—"}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">{ageDays != null ? `${ageDays} วัน` : "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap"><Badge tone={tone}>{c.sla_status ?? "—"}</Badge></td>
+                      <td className="px-4 py-3 align-top">
+                        <div className="flex items-start gap-2">
+                          <button
+                            onClick={() => {
+                              setEditing({ ticket_code: c.ticket_code ?? "", note: c.next_step ?? "" });
+                              setDraft(c.next_step ?? "");
+                            }}
+                            className="shrink-0 mt-0.5 size-7 grid place-items-center rounded-md border hover:bg-accent text-muted-foreground hover:text-foreground transition"
+                            title={c.next_step ? "แก้ไข Next Step" : "เพิ่ม Next Step"}
+                            aria-label="แก้ไข Next Step"
+                          >
+                            <Pencil className="size-3.5" />
+                          </button>
+                          {c.next_step ? (
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start gap-1.5 text-sm">
+                                <StickyNote className="size-3.5 mt-0.5 shrink-0 text-primary" />
+                                <span className="whitespace-pre-wrap break-words">{c.next_step}</span>
+                              </div>
+                              {(c.next_step_by || c.next_step_at) && (
+                                <div className="mt-1 text-[10px] text-muted-foreground">
+                                  {c.next_step_by ?? "—"}
+                                  {c.next_step_at ? ` · ${new Date(c.next_step_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">— ยังไม่ได้ระบุ —</span>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}

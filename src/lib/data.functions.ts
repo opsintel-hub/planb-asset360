@@ -276,6 +276,7 @@ export const autocompleteAssets = createServerFn({ method: "POST" })
       q: z.string().max(200).optional().default(""),
       limit: z.number().int().min(1).max(50).optional().default(20),
       department: z.string().optional(),
+      departments: z.array(z.string()).optional(),
       region: z.string().optional(),
       mediaType: z.string().optional(),
     }).parse(i),
@@ -291,7 +292,8 @@ export const autocompleteAssets = createServerFn({ method: "POST" })
     if (q) {
       query = query.or(`old_code.ilike.%${q}%,name.ilike.%${q}%,area.ilike.%${q}%`);
     }
-    if (data.department) query = query.eq("department", data.department);
+    if (data.departments && data.departments.length) query = query.in("department", data.departments);
+    else if (data.department) query = query.eq("department", data.department);
     if (data.region) query = query.eq("area", data.region);
     if (data.mediaType) query = query.eq("media_type", data.mediaType);
     const { data: rowsRaw, error } = await query;

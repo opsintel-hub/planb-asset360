@@ -282,18 +282,40 @@ function ClaimsPage() {
                             <Pencil className="size-3.5" />
                           </button>
                           {c.next_step ? (
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-start gap-1.5 text-sm">
-                                <StickyNote className="size-3.5 mt-0.5 shrink-0 text-primary" />
-                                <span className="whitespace-pre-wrap break-words">{c.next_step}</span>
-                              </div>
-                              {(c.next_step_by || c.next_step_at) && (
-                                <div className="mt-1 text-[10px] text-muted-foreground">
-                                  {c.next_step_by ?? "—"}
-                                  {c.next_step_at ? ` · ${new Date(c.next_step_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                            <HoverCard openDelay={120} closeDelay={80}>
+                              <HoverCardTrigger asChild>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditing({ ticket_code: c.ticket_code ?? "", note: c.next_step ?? "" });
+                                    setDraft(c.next_step ?? "");
+                                  }}
+                                  className="min-w-0 flex-1 text-left group"
+                                >
+                                  <div className="flex items-center gap-1.5 text-sm">
+                                    <StickyNote className="size-3.5 shrink-0 text-primary" />
+                                    <span className="truncate text-foreground group-hover:text-primary transition-colors">
+                                      {c.next_step}
+                                    </span>
+                                  </div>
+                                </button>
+                              </HoverCardTrigger>
+                              <HoverCardContent side="left" align="start" className="w-80">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-primary mb-2">
+                                  <StickyNote className="size-3.5" />
+                                  Next Step
                                 </div>
-                              )}
-                            </div>
+                                <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                                  {c.next_step}
+                                </div>
+                                {(c.next_step_by || c.next_step_at) && (
+                                  <div className="mt-3 pt-2 border-t text-[11px] text-muted-foreground">
+                                    {c.next_step_by ?? "—"}
+                                    {c.next_step_at ? ` · ${new Date(c.next_step_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                                  </div>
+                                )}
+                              </HoverCardContent>
+                            </HoverCard>
                           ) : (
                             <span className="text-xs text-muted-foreground italic">— ยังไม่ได้ระบุ —</span>
                           )}

@@ -373,8 +373,12 @@ function SearchPage() {
         : tab === "Analytics"
           ? "AssetHealth"
           : tab;
+  const projectDepartments = useMemo(
+    () => (project ? Array.from(departmentsForProjects([project])) : []),
+    [project],
+  );
   const { data, isFetching, refetch } = useQuery({
-    queryKey: ["comparison", codes.join(","), cmpTabForBackend, fromIso, toIso, dept, region, mediaType],
+    queryKey: ["comparison", codes.join(","), cmpTabForBackend, fromIso, toIso, project, region, mediaType],
     queryFn: () =>
       cmpFn({
         data: {
@@ -382,7 +386,7 @@ function SearchPage() {
           tab: cmpTabForBackend,
           from: fromIso,
           to: toIso,
-          department: dept || undefined,
+          departments: projectDepartments.length ? projectDepartments : undefined,
           region: region || undefined,
           mediaType: mediaType || undefined,
         },

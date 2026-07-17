@@ -219,7 +219,7 @@ function SlotCombobox({
   onPick,
   onClear,
   color,
-  department,
+  departments,
   region,
   mediaType,
 }: {
@@ -227,7 +227,7 @@ function SlotCombobox({
   onPick: (code: string) => void;
   onClear: () => void;
   color: string;
-  department?: string;
+  departments?: string[];
   region?: string;
   mediaType?: string;
 }) {
@@ -235,14 +235,15 @@ function SlotCombobox({
   const [open, setOpen] = useState(false);
   const debounced = useDebounced(q, 250);
   const autoFn = useServerFn(autocompleteAssets);
+  const deptKey = (departments ?? []).join(",");
   const { data: ac, isFetching } = useQuery({
-    queryKey: ["autocomplete", debounced, department, region, mediaType],
+    queryKey: ["autocomplete", debounced, deptKey, region, mediaType],
     queryFn: () =>
       autoFn({
         data: {
           q: debounced,
           limit: 15,
-          department: department || undefined,
+          departments: departments && departments.length ? departments : undefined,
           region: region || undefined,
           mediaType: mediaType || undefined,
         },

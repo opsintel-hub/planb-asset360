@@ -413,8 +413,10 @@ export const getAssetsComparison = createServerFn({ method: "POST" })
 
 
     // slicer filter (in-memory)
+    const deptSet = data.departments && data.departments.length ? new Set(data.departments) : null;
     const filtered = finalAssets.filter((a) => {
-      if (data.department && (a.department ?? "") !== data.department) return false;
+      if (deptSet && !deptSet.has(a.department ?? "")) return false;
+      else if (!deptSet && data.department && (a.department ?? "") !== data.department) return false;
       if (data.region && (a.area ?? "") !== data.region) return false;
       if (data.mediaType && (a.media_type ?? "") !== data.mediaType) return false;
       return true;

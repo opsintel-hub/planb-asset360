@@ -1175,6 +1175,7 @@ function MapPage() {
           <ClientOnly fallback={<Skeleton className="w-full h-full" />}>
             <Suspense fallback={<Skeleton className="w-full h-full" />}>
               <AssetMap
+                ref={mapHandleRef}
                 assets={filtered}
                 claimedCodes={claimedCodes}
                 focusId={focusId}

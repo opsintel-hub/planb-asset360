@@ -77,6 +77,8 @@ import QRCode from "qrcode";
 import type { PoiMarker } from "@/components/asset-map";
 import type { POI, POIMatch } from "@/lib/poi-search.functions";
 import { PRESET_BY_KEY } from "@/lib/overpass";
+import type { AssetMapHandle } from "@/components/asset-map";
+import PlaceSearchBox from "@/components/place-search-box";
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
 const PoiProximityPanel = lazy(() => import("@/components/poi-proximity-panel"));

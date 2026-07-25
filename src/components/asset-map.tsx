@@ -496,7 +496,9 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
       </div>
     </div>
   );
-}
+});
+
+export default AssetMap;
 
 function escapeHtml(s: string): string {
   return s

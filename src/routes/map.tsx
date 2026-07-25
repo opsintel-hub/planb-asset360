@@ -77,6 +77,8 @@ import QRCode from "qrcode";
 import type { PoiMarker } from "@/components/asset-map";
 import type { POI, POIMatch } from "@/lib/poi-search.functions";
 import { PRESET_BY_KEY } from "@/lib/overpass";
+import type { AssetMapHandle } from "@/components/asset-map";
+import PlaceSearchBox from "@/components/place-search-box";
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
 const PoiProximityPanel = lazy(() => import("@/components/poi-proximity-panel"));
@@ -267,6 +269,18 @@ function MapPage() {
   const [poiResult, setPoiResult] = useState<{ pois: POI[]; matches: POIMatch[]; radiusM: number } | null>(null);
   const [focusPoiId, setFocusPoiId] = useState<string | null>(null);
   const [analyticsAsset, setAnalyticsAsset] = useState<MapAsset | null>(null);
+  const mapHandleRef = useRef<AssetMapHandle | null>(null);
+
+  const flyToPlace = useCallback(
+    (place: { lat: number; lng: number; name: string; viewport?: { north: number; south: number; east: number; west: number } }) => {
+      mapHandleRef.current?.flyTo({ lat: place.lat, lng: place.lng }, place.viewport);
+      mapHandleRef.current?.setTempPin({ lat: place.lat, lng: place.lng, label: place.name });
+    },
+    [],
+  );
+  const clearPlacePin = useCallback(() => {
+    mapHandleRef.current?.clearTempPin();
+  }, []);
 
 
   const assetIndexById = useMemo(() => {
@@ -807,9 +821,13 @@ function MapPage() {
         </button>
       )}
 
+      <div className="ml-auto w-full sm:w-[300px] order-last sm:order-none">
+        <PlaceSearchBox onSelect={flyToPlace} onClear={clearPlacePin} />
+      </div>
+
       <button
         onClick={() => setFullscreen((v) => !v)}
-        className="ml-auto h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 text-xs"
+        className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 text-xs"
         title={fullscreen ? "ออกจากโหมดเต็มจอ" : "ขยายเต็มจอ"}
       >
         {fullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
@@ -1161,6 +1179,7 @@ function MapPage() {
           <ClientOnly fallback={<Skeleton className="w-full h-full" />}>
             <Suspense fallback={<Skeleton className="w-full h-full" />}>
               <AssetMap
+                ref={mapHandleRef}
                 assets={filtered}
                 claimedCodes={claimedCodes}
                 focusId={focusId}

@@ -214,6 +214,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
     drawLayerRef.current = L.layerGroup().addTo(map);
     originLayerRef.current = L.layerGroup().addTo(map);
     poiLayerRef.current = L.layerGroup().addTo(map);
+    tempPinLayerRef.current = L.layerGroup().addTo(map);
     setReady(true);
 
     return () => {
@@ -224,6 +225,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
       roadLayerRef.current = null;
       originLayerRef.current = null;
       poiLayerRef.current = null;
+      tempPinLayerRef.current = null;
     };
   }, []);
 

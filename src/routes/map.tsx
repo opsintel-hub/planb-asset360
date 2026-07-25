@@ -827,7 +827,7 @@ function MapPage() {
 
       <button
         onClick={() => setFullscreen((v) => !v)}
-        className="ml-auto h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 text-xs"
+        className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 text-xs"
         title={fullscreen ? "ออกจากโหมดเต็มจอ" : "ขยายเต็มจอ"}
       >
         {fullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}

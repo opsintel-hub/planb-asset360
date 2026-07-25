@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
@@ -6,6 +6,15 @@ import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import type { MapAsset } from "@/lib/map.functions";
 import { projectForDepartment } from "@/lib/project-department-map";
+
+export type AssetMapHandle = {
+  flyTo: (
+    location: { lat: number; lng: number },
+    viewport?: { north: number; south: number; east: number; west: number },
+  ) => void;
+  setTempPin: (pin: { lat: number; lng: number; label?: string }) => void;
+  clearTempPin: () => void;
+};
 
 export const PROJECT_COLORS: Record<string, string> = {
   "7-Eleven": "#ef4444",

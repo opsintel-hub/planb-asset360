@@ -269,6 +269,18 @@ function MapPage() {
   const [poiResult, setPoiResult] = useState<{ pois: POI[]; matches: POIMatch[]; radiusM: number } | null>(null);
   const [focusPoiId, setFocusPoiId] = useState<string | null>(null);
   const [analyticsAsset, setAnalyticsAsset] = useState<MapAsset | null>(null);
+  const mapHandleRef = useRef<AssetMapHandle | null>(null);
+
+  const flyToPlace = useCallback(
+    (place: { lat: number; lng: number; name: string; viewport?: { north: number; south: number; east: number; west: number } }) => {
+      mapHandleRef.current?.flyTo({ lat: place.lat, lng: place.lng }, place.viewport);
+      mapHandleRef.current?.setTempPin({ lat: place.lat, lng: place.lng, label: place.name });
+    },
+    [],
+  );
+  const clearPlacePin = useCallback(() => {
+    mapHandleRef.current?.clearTempPin();
+  }, []);
 
 
   const assetIndexById = useMemo(() => {

@@ -113,7 +113,7 @@ type Props = {
 };
 
 
-export default function AssetMap({
+const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
   assets,
   claimedCodes,
   focusId,
@@ -134,7 +134,7 @@ export default function AssetMap({
   focusPoiId = null,
   onBboxChange,
   onSelectAsset,
-}: Props) {
+}: Props, ref) {
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);

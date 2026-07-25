@@ -821,6 +821,10 @@ function MapPage() {
         </button>
       )}
 
+      <div className="ml-auto w-full sm:w-[300px] order-last sm:order-none">
+        <PlaceSearchBox onSelect={flyToPlace} onClear={clearPlacePin} />
+      </div>
+
       <button
         onClick={() => setFullscreen((v) => !v)}
         className="ml-auto h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 text-xs"

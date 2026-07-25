@@ -146,7 +146,47 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
   const poiLayerRef = useRef<L.LayerGroup | null>(null);
   const poiMarkerByIdRef = useRef<Map<string, L.Marker>>(new Map());
   const initialFitDoneRef = useRef(false);
+  const tempPinLayerRef = useRef<L.LayerGroup | null>(null);
   const [ready, setReady] = useState(false);
+
+  useImperativeHandle(ref, () => ({
+    flyTo: (loc, viewport) => {
+      const map = mapRef.current;
+      if (!map) return;
+      if (viewport) {
+        const bounds = L.latLngBounds(
+          [viewport.south, viewport.west],
+          [viewport.north, viewport.east],
+        );
+        map.flyToBounds(bounds, { padding: [40, 40], maxZoom: 18, duration: 0.8 });
+      } else {
+        map.flyTo([loc.lat, loc.lng], 17, { duration: 0.8 });
+      }
+    },
+    setTempPin: ({ lat, lng, label }) => {
+      const map = mapRef.current;
+      const layer = tempPinLayerRef.current;
+      if (!map || !layer) return;
+      layer.clearLayers();
+      const html = `
+        <div style="position:relative;width:34px;height:44px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.35));">
+          <svg width="34" height="44" viewBox="0 0 34 44" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17 0C7.6 0 0 7.6 0 17c0 12.5 17 27 17 27s17-14.5 17-27C34 7.6 26.4 0 17 0z" fill="#2563eb" stroke="white" stroke-width="2"/>
+            <circle cx="17" cy="17" r="6" fill="white"/>
+          </svg>
+        </div>`;
+      const icon = L.divIcon({
+        html, className: "temp-pin", iconSize: [34, 44], iconAnchor: [17, 44], popupAnchor: [0, -40],
+      });
+      const m = L.marker([lat, lng], { icon, zIndexOffset: 1000 });
+      if (label) m.bindPopup(`<div style="font-weight:700;font-size:12px;">${escapeHtml(label)}</div>`);
+      m.addTo(layer);
+      if (label) setTimeout(() => m.openPopup(), 400);
+    },
+    clearTempPin: () => {
+      tempPinLayerRef.current?.clearLayers();
+    },
+  }), []);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;

@@ -11,6 +11,7 @@ export type BillboardMockupOverlay = {
   skewX?: number; // degrees (perspective X)
   skewY?: number; // degrees (perspective Y)
   brightness?: number; // 0.3..1.5, 1 = original
+  camera?: { heading: number; pitch: number; zoom: number }; // Street View camera used when placing the mockup
   keepAspect?: boolean;
   naturalAspect?: number; // width/height ratio of the source image
   corners?: {

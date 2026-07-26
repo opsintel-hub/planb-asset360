@@ -5,6 +5,8 @@ import html2canvas from "html2canvas-pro";
 import type { BillboardAnalytics } from "@/lib/billboard-analytics.functions";
 import type { BillboardMockup, BillboardMockupOverlay } from "@/lib/billboard-mockups.functions";
 import type { MapAsset } from "@/lib/map.functions";
+import type { NearbyPOI } from "@/lib/poi-search.functions";
+import { PRESET_BY_KEY } from "@/lib/overpass";
 
 export type ExportInput = {
   asset: MapAsset;
@@ -16,6 +18,9 @@ export type ExportInput = {
   /** DOM node containing the on-screen analytics report. Used to snapshot for exports so
    *  Thai text and Overpass POI data render correctly in the exported file. */
   analyticsNode?: HTMLElement | null;
+  /** Nearby POIs (OSM) already filtered by nearbyRadiusM. Rendered on slide/page 2. */
+  nearbyPois?: NearbyPOI[];
+  nearbyRadiusM?: number;
 };
 
 type CornerPoint = { x: number; y: number };

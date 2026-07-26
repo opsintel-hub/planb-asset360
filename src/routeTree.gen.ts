@@ -9,57 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as SearchRouteImport } from './routes/search'
-import { Route as RcaRouteImport } from './routes/rca'
-import { Route as PmInsightsRouteImport } from './routes/pm-insights'
-import { Route as PermissionsRouteImport } from './routes/permissions'
-import { Route as MonitoringRouteImport } from './routes/monitoring'
-import { Route as MapRouteImport } from './routes/map'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as ClaimsRouteImport } from './routes/claims'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiPublicHooksSyncClaimsRouteImport } from './routes/api/public/hooks/sync-claims'
+import { Route as ClaimsRouteImport } from './routes/claims'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as MapRouteImport } from './routes/map'
+import { Route as MonitoringRouteImport } from './routes/monitoring'
+import { Route as PermissionsRouteImport } from './routes/permissions'
+import { Route as PmInsightsRouteImport } from './routes/pm-insights'
+import { Route as RcaRouteImport } from './routes/rca'
+import { Route as SearchRouteImport } from './routes/search'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiPublicHooksSyncAssetHistoryRouteImport } from './routes/api/public/hooks/sync-asset-history'
+import { Route as ApiPublicHooksSyncClaimsRouteImport } from './routes/api/public/hooks/sync-claims'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SearchRoute = SearchRouteImport.update({
-  id: '/search',
-  path: '/search',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RcaRoute = RcaRouteImport.update({
-  id: '/rca',
-  path: '/rca',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PmInsightsRoute = PmInsightsRouteImport.update({
-  id: '/pm-insights',
-  path: '/pm-insights',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PermissionsRoute = PermissionsRouteImport.update({
-  id: '/permissions',
-  path: '/permissions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MonitoringRoute = MonitoringRouteImport.update({
-  id: '/monitoring',
-  path: '/monitoring',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MapRoute = MapRouteImport.update({
-  id: '/map',
-  path: '/map',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ClaimsRoute = ClaimsRouteImport.update({
@@ -67,21 +32,56 @@ const ClaimsRoute = ClaimsRouteImport.update({
   path: '/claims',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicHooksSyncClaimsRoute =
-  ApiPublicHooksSyncClaimsRouteImport.update({
-    id: '/api/public/hooks/sync-claims',
-    path: '/api/public/hooks/sync-claims',
-    getParentRoute: () => rootRouteImport,
-  } as any)
+const MapRoute = MapRouteImport.update({
+  id: '/map',
+  path: '/map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MonitoringRoute = MonitoringRouteImport.update({
+  id: '/monitoring',
+  path: '/monitoring',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PermissionsRoute = PermissionsRouteImport.update({
+  id: '/permissions',
+  path: '/permissions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PmInsightsRoute = PmInsightsRouteImport.update({
+  id: '/pm-insights',
+  path: '/pm-insights',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RcaRoute = RcaRouteImport.update({
+  id: '/rca',
+  path: '/rca',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksSyncAssetHistoryRoute =
   ApiPublicHooksSyncAssetHistoryRouteImport.update({
     id: '/api/public/hooks/sync-asset-history',
     path: '/api/public/hooks/sync-asset-history',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksSyncClaimsRoute =
+  ApiPublicHooksSyncClaimsRouteImport.update({
+    id: '/api/public/hooks/sync-claims',
+    path: '/api/public/hooks/sync-claims',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -190,60 +190,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/search': {
-      id: '/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof SearchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/rca': {
-      id: '/rca'
-      path: '/rca'
-      fullPath: '/rca'
-      preLoaderRoute: typeof RcaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pm-insights': {
-      id: '/pm-insights'
-      path: '/pm-insights'
-      fullPath: '/pm-insights'
-      preLoaderRoute: typeof PmInsightsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/permissions': {
-      id: '/permissions'
-      path: '/permissions'
-      fullPath: '/permissions'
-      preLoaderRoute: typeof PermissionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/monitoring': {
-      id: '/monitoring'
-      path: '/monitoring'
-      fullPath: '/monitoring'
-      preLoaderRoute: typeof MonitoringRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/map': {
-      id: '/map'
-      path: '/map'
-      fullPath: '/map'
-      preLoaderRoute: typeof MapRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/claims': {
@@ -253,18 +204,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClaimsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/hooks/sync-claims': {
-      id: '/api/public/hooks/sync-claims'
-      path: '/api/public/hooks/sync-claims'
-      fullPath: '/api/public/hooks/sync-claims'
-      preLoaderRoute: typeof ApiPublicHooksSyncClaimsRouteImport
+    '/map': {
+      id: '/map'
+      path: '/map'
+      fullPath: '/map'
+      preLoaderRoute: typeof MapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/monitoring': {
+      id: '/monitoring'
+      path: '/monitoring'
+      fullPath: '/monitoring'
+      preLoaderRoute: typeof MonitoringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/permissions': {
+      id: '/permissions'
+      path: '/permissions'
+      fullPath: '/permissions'
+      preLoaderRoute: typeof PermissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pm-insights': {
+      id: '/pm-insights'
+      path: '/pm-insights'
+      fullPath: '/pm-insights'
+      preLoaderRoute: typeof PmInsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rca': {
+      id: '/rca'
+      path: '/rca'
+      fullPath: '/rca'
+      preLoaderRoute: typeof RcaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/sync-asset-history': {
@@ -272,6 +265,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/sync-asset-history'
       fullPath: '/api/public/hooks/sync-asset-history'
       preLoaderRoute: typeof ApiPublicHooksSyncAssetHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/sync-claims': {
+      id: '/api/public/hooks/sync-claims'
+      path: '/api/public/hooks/sync-claims'
+      fullPath: '/api/public/hooks/sync-claims'
+      preLoaderRoute: typeof ApiPublicHooksSyncClaimsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

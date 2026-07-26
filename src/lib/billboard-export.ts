@@ -934,8 +934,86 @@ export async function exportBillboardPdf(input: ExportInput): Promise<void> {
     x: margin, y: pageH - 20, w: pageW - margin * 2, fontSize: 8, italic: true, color: "#94A3B8",
   });
 
+  // Second page — Nearby POIs (OSM). Uses on-the-fly HTML block so Thai text
+  // and hyperlinks render correctly through html2canvas-pro snapshot.
+  const nearby = input.nearbyPois ?? [];
+  if (nearby.length > 0) {
+    pdf.addPage("a4", "landscape");
+    const title = `Nearby POIs · ${input.asset.old_code ?? "—"} · รัศมี ${
+      (input.nearbyRadiusM ?? 500) >= 1000
+        ? `${(input.nearbyRadiusM ?? 500) / 1000} กม.`
+        : `${input.nearbyRadiusM ?? 500} ม.`
+    } · ${nearby.length} แห่ง`;
+    await drawTextImage(pdf, title, {
+      x: margin, y: margin, w: pageW - margin * 2, fontSize: 16, bold: true, color: "#0F172A",
+    });
+    const block = await renderNearbyPoiBlock(nearby);
+    if (block) {
+      const blockTop = margin + 30;
+      const blockH = Math.min((pageW - margin * 2) / block.ratio, pageH - blockTop - 30);
+      pdf.addImage(block.dataUrl, "PNG", margin, blockTop, pageW - margin * 2, blockH);
+    }
+    await drawTextImage(
+      pdf,
+      `ข้อมูลจาก OpenStreetMap · คลิกที่ชื่อ POI เพื่อเปิดใน Google Maps`,
+      { x: margin, y: pageH - 20, w: pageW - margin * 2, fontSize: 8, italic: true, color: "#94A3B8" },
+    );
+  }
+
   pdf.save(`billboard-${input.asset.old_code ?? "report"}.pdf`);
 }
+
+async function renderNearbyPoiBlock(pois: NearbyPOI[]): Promise<{ dataUrl: string; ratio: number } | null> {
+  const groups = new Map<string, NearbyPOI[]>();
+  for (const p of pois) {
+    const arr = groups.get(p.presetKey) ?? [];
+    arr.push(p);
+    groups.set(p.presetKey, arr);
+  }
+  const entries = Array.from(groups.entries()).sort((a, b) => b[1].length - a[1].length);
+  if (entries.length === 0) return null;
+
+  const host = document.createElement("div");
+  host.style.cssText = `position:fixed;left:-99999px;top:0;width:1600px;background:#fff;padding:12px;font-family:${TH_FONT},system-ui,sans-serif;color:#0f172a;`;
+  const grid = document.createElement("div");
+  grid.style.cssText = "display:grid;grid-template-columns:repeat(3,1fr);gap:12px;";
+  for (const [key, list] of entries) {
+    const preset = PRESET_BY_KEY[key];
+    const color = preset?.color ?? "#94a3b8";
+    const card = document.createElement("div");
+    card.style.cssText = "border:1px solid #dbe3ef;border-radius:8px;overflow:hidden;background:#fff;";
+    const head = document.createElement("div");
+    head.style.cssText = `padding:6px 10px;background:${color}22;color:${color};font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;`;
+    head.innerHTML = `<span>${preset?.icon ?? "📍"}</span><span>${escapeHtml(preset?.label ?? key)}</span><span style="margin-left:auto;color:#64748b;font-weight:600;">${list.length}</span>`;
+    card.appendChild(head);
+    const ul = document.createElement("ul");
+    ul.style.cssText = "list-style:none;margin:0;padding:0;";
+    list.slice(0, 8).forEach((poi) => {
+      const li = document.createElement("li");
+      li.style.cssText = "padding:5px 10px;border-top:1px solid #eef2f7;font-size:12px;display:flex;align-items:center;gap:6px;";
+      const url = `https://www.google.com/maps?q=${poi.lat},${poi.lng}`;
+      li.innerHTML = `<a href="${url}" style="color:#0f172a;text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(poi.name)}</a><span style="color:#64748b;font-weight:600;white-space:nowrap;">${Math.round(poi.distanceM)} ม.</span>`;
+      ul.appendChild(li);
+    });
+    if (list.length > 8) {
+      const li = document.createElement("li");
+      li.style.cssText = "padding:4px 10px;border-top:1px solid #eef2f7;font-size:11px;color:#94a3b8;text-align:center;background:#f8fafc;";
+      li.textContent = `+ อีก ${list.length - 8} แห่ง`;
+      ul.appendChild(li);
+    }
+    card.appendChild(ul);
+    grid.appendChild(card);
+  }
+  host.appendChild(grid);
+  document.body.appendChild(host);
+  try {
+    const canvas = await snapshotNode(host, { backgroundColor: "#ffffff", scale: 2 });
+    return { dataUrl: canvas.toDataURL("image/png"), ratio: canvas.width / canvas.height };
+  } finally {
+    host.remove();
+  }
+}
+
 
 async function drawTextImage(
   pdf: jsPDF,

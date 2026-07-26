@@ -291,9 +291,18 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
               </a>
             )}
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-accent rounded shrink-0">
-            <X className="size-4" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => setModalFs((v) => !v)}
+              className="p-1.5 hover:bg-accent rounded"
+              title={modalFs ? "ออกจากโหมดเต็มจอ" : "ขยายเต็มจอ"}
+            >
+              {modalFs ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+            </button>
+            <button onClick={onClose} className="p-1 hover:bg-accent rounded" title="ปิด">
+              <X className="size-4" />
+            </button>
+          </div>
         </div>
 
 

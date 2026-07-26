@@ -8,6 +8,8 @@ type Props = {
   lat: number;
   lng: number;
   heading?: number;
+  viewState?: { heading?: number; pitch?: number; zoom?: number };
+  onViewStateChange?: (view: { heading: number; pitch: number; zoom: number }) => void;
   overlayImageUrl?: string;
   overlay?: BillboardMockupOverlay;
   onOverlayChange?: (o: BillboardMockupOverlay) => void;
@@ -106,6 +108,8 @@ export default function StreetViewPanel({
   lat,
   lng,
   heading = 0,
+  viewState,
+  onViewStateChange,
   overlayImageUrl,
   overlay,
   onOverlayChange,
@@ -114,14 +118,18 @@ export default function StreetViewPanel({
   onCornerPick,
   fillParent = false,
 }: Props) {
+  const outerRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svRef = useRef<HTMLDivElement | null>(null);
+  const panoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [msg, setMsg] = useState<string>("");
   const [box, setBox] = useState<DOMRect | null>(null);
+  const [frameSize, setFrameSize] = useState<{ width: number; height: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const listeners: google.maps.MapsEventListener[] = [];
     setStatus("loading");
     setMsg("");
     loadGoogleMaps()
@@ -136,10 +144,10 @@ export default function StreetViewPanel({
               setStatus("no-imagery");
               return;
             }
-            new google.maps.StreetViewPanorama(svRef.current, {
+            const panorama = new google.maps.StreetViewPanorama(svRef.current, {
               position: data.location.latLng,
-              pov: { heading, pitch: 0 },
-              zoom: 0,
+              pov: { heading: viewState?.heading ?? heading, pitch: viewState?.pitch ?? 0 },
+              zoom: viewState?.zoom ?? 0,
               addressControl: false,
               fullscreenControl: true,
               motionTracking: false,
@@ -148,6 +156,19 @@ export default function StreetViewPanel({
               zoomControl: true,
               linksControl: true,
             });
+            panoramaRef.current = panorama;
+            const emitViewState = () => {
+              const pov = panorama.getPov();
+              const zoom = panorama.getZoom();
+              onViewStateChange?.({
+                heading: pov.heading,
+                pitch: pov.pitch,
+                zoom: typeof zoom === "number" ? zoom : 0,
+              });
+            };
+            listeners.push(panorama.addListener("pov_changed", emitViewState));
+            listeners.push(panorama.addListener("zoom_changed", emitViewState));
+            emitViewState();
             setStatus("ready");
           },
         );
@@ -159,18 +180,40 @@ export default function StreetViewPanel({
       });
     return () => {
       cancelled = true;
+      listeners.forEach((listener) => listener.remove());
+      panoramaRef.current = null;
     };
   }, [lat, lng, heading]);
 
   useEffect(() => {
-    const el = containerRef.current;
+    const el = outerRef.current;
     if (!el) return;
-    const update = () => setBox(el.getBoundingClientRect());
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const ratio = 16 / 9;
+      const width = Math.min(rect.width, rect.height * ratio);
+      const height = width / ratio;
+      setFrameSize((cur) => {
+        if (cur && Math.abs(cur.width - width) < 0.5 && Math.abs(cur.height - height) < 0.5) return cur;
+        return { width, height };
+      });
+      setBox(new DOMRect(0, 0, width, height));
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  useEffect(() => {
+    const panorama = panoramaRef.current;
+    if (!panorama || typeof google === "undefined") return;
+    const id = window.requestAnimationFrame(() => {
+      google.maps.event.trigger(panorama, "resize");
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [frameSize?.width, frameSize?.height]);
 
   const dragState = useRef<{
     mode: Handle | null;
@@ -294,14 +337,19 @@ export default function StreetViewPanel({
 
   return (
     <div
-      ref={containerRef}
-      className={`relative w-full rounded-md overflow-hidden border bg-muted select-none ${fillParent ? "h-full" : ""}`}
+      ref={outerRef}
+      className={`relative w-full rounded-md overflow-hidden border bg-muted select-none flex items-center justify-center ${fillParent ? "h-full" : ""}`}
       style={fillParent ? undefined : { height: "clamp(360px, 55vh, 640px)" }}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      <div ref={svRef} className="absolute inset-0" />
+      <div
+        ref={containerRef}
+        className="relative overflow-hidden bg-muted"
+        style={frameSize ? { width: `${frameSize.width}px`, height: `${frameSize.height}px` } : { width: "100%", aspectRatio: "16 / 9" }}
+      >
+        <div ref={svRef} className="absolute inset-0" />
 
       {overlayImageUrl && overlay && status === "ready" && corners && (
         <>
@@ -455,13 +503,14 @@ export default function StreetViewPanel({
           <div>ไม่มีภาพ Street View บริเวณนี้ (รัศมี 80 ม.)</div>
         </div>
       )}
-      {status === "error" && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-destructive gap-2 p-4 text-center">
-          <AlertCircle className="size-5" />
-          <div>โหลด Street View ไม่สำเร็จ</div>
-          <div className="text-xs text-muted-foreground">{msg}</div>
-        </div>
-      )}
+        {status === "error" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-destructive gap-2 p-4 text-center">
+            <AlertCircle className="size-5" />
+            <div>โหลด Street View ไม่สำเร็จ</div>
+            <div className="text-xs text-muted-foreground">{msg}</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

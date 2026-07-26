@@ -67,6 +67,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const [modalFs, setModalFs] = useState(false);
   const [showNearby, setShowNearby] = useState(false);
   const [nearbyRadius, setNearbyRadius] = useState<RadiusM>(500);
+  const [streetViewState, setStreetViewState] = useState({ heading: 0, pitch: 0, zoom: 0 });
   const streetViewCaptureRef = useRef<HTMLDivElement | null>(null);
 
   const nearbyFn = useServerFn(getNearbyPOIsForAsset);
@@ -125,6 +126,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
       ...selectedMockup.overlay,
     };
     setOverlay(base);
+    setStreetViewState(base.camera ?? { heading: 0, pitch: 0, zoom: 0 });
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
@@ -142,11 +144,27 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
           br: { x: cur.x + cur.w, y: cur.y + nh },
           bl: { x: cur.x, y: cur.y + nh },
         };
-        return { ...cur, naturalAspect: aspect, h: nh, corners };
+        return { ...cur, naturalAspect: aspect, h: nh, corners, camera: cur.camera ?? base.camera ?? { heading: 0, pitch: 0, zoom: 0 } };
       });
     };
     img.src = selectedMockup.image_url;
   }, [selectedMockup]);
+
+  useEffect(() => {
+    setOverlay((cur) => {
+      if (!cur) return cur;
+      const current = cur.camera;
+      if (
+        current &&
+        Math.abs(current.heading - streetViewState.heading) < 0.1 &&
+        Math.abs(current.pitch - streetViewState.pitch) < 0.1 &&
+        Math.abs(current.zoom - streetViewState.zoom) < 0.1
+      ) {
+        return cur;
+      }
+      return { ...cur, camera: streetViewState };
+    });
+  }, [streetViewState]);
 
 
   // Debounced persist of overlay position.
@@ -175,7 +193,15 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
       // overlay), so we always re-composite the mockup on top below.
       if (!streetViewDataUrl) {
         const sv = await getStreetViewImg({
-          data: { lat: asset.lat, lng: asset.lng, heading: 0, size: "640x400", scale: 2 },
+          data: {
+            lat: asset.lat,
+            lng: asset.lng,
+            heading: streetViewState.heading,
+            pitch: streetViewState.pitch,
+            fov: Math.max(20, Math.min(80, 80 / Math.pow(2, streetViewState.zoom))),
+            size: "1280x720",
+            scale: 2,
+          },
         });
         streetViewDataUrl = sv.ok ? sv.dataUrl ?? null : null;
         if (!sv.ok) toast.warning(`Street View: ${sv.error ?? "ไม่พร้อม"}`);
@@ -368,6 +394,8 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                   <StreetViewPanel
                     lat={asset.lat}
                     lng={asset.lng}
+                    viewState={streetViewState}
+                    onViewStateChange={setStreetViewState}
                     overlayImageUrl={selectedMockup?.image_url}
                     overlay={overlay ?? undefined}
                     onOverlayChange={setOverlay}
@@ -830,6 +858,8 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
           cornerPickStep={cornerPickStep}
           setCornerPickStep={setCornerPickStep}
           handleCornerPick={handleCornerPick}
+          streetViewState={streetViewState}
+          setStreetViewState={setStreetViewState}
           onClose={() => setFsEdit(false)}
         />
       )}
@@ -863,6 +893,8 @@ type FSProps = {
   cornerPickStep: 0 | 1 | 2 | 3 | null;
   setCornerPickStep: (v: 0 | 1 | 2 | 3 | null) => void;
   handleCornerPick: (x: number, y: number) => void;
+  streetViewState: { heading: number; pitch: number; zoom: number };
+  setStreetViewState: (view: { heading: number; pitch: number; zoom: number }) => void;
   onClose: () => void;
 };
 
@@ -876,6 +908,8 @@ function FullscreenMockupEditor({
   cornerPickStep,
   setCornerPickStep,
   handleCornerPick,
+  streetViewState,
+  setStreetViewState,
   onClose,
 }: FSProps) {
   useEffect(() => {
@@ -920,6 +954,8 @@ function FullscreenMockupEditor({
             <StreetViewPanel
               lat={asset.lat}
               lng={asset.lng}
+              viewState={streetViewState}
+              onViewStateChange={setStreetViewState}
               overlayImageUrl={selectedMockup?.image_url}
               overlay={overlay ?? undefined}
               onOverlayChange={setOverlay}

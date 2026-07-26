@@ -561,7 +561,106 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
           </div>
         </div>
 
-        {/* Body */}
+        {/* Nearby POIs (OSM) — lazy loaded */}
+        <div className="px-4 pt-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowNearby((v) => !v)}
+              className="flex-1 flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border hover:bg-accent transition-colors"
+            >
+              <ExternalLink className="size-4" />
+              <span>พื้นที่ใกล้เคียง (OSM){filteredNearby.length ? ` · ${filteredNearby.length} แห่ง` : ""}</span>
+              <ChevronDown className={`size-4 ml-auto transition-transform ${showNearby ? "rotate-180" : ""}`} />
+            </button>
+            {showNearby && (
+              <div className="inline-flex rounded-md border overflow-hidden text-xs shrink-0">
+                {NEARBY_RADIUS_OPTIONS.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setNearbyRadius(r)}
+                    className={cn(
+                      "px-2.5 py-1.5 font-medium transition-colors",
+                      nearbyRadius === r ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                    )}
+                  >
+                    {r >= 1000 ? "1 กม." : `${r} ม.`}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {showNearby && (
+            <div className="mt-2">
+              {nearbyQuery.isFetching && !nearbyQuery.data ? (
+                <div className="text-xs text-muted-foreground py-4 text-center inline-flex items-center gap-2 justify-center w-full">
+                  <Loader2 className="size-3.5 animate-spin" /> กำลังโหลดสถานที่ใกล้เคียง…
+                </div>
+              ) : nearbyQuery.error || (nearbyQuery.data && !nearbyQuery.data.ok) ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 p-3 text-xs">
+                  โหลดไม่สำเร็จ: {nearbyQuery.data?.error ?? (nearbyQuery.error as Error)?.message}
+                </div>
+              ) : filteredNearby.length === 0 ? (
+                <div className="rounded-md border bg-muted/30 p-3 text-center text-xs text-muted-foreground">
+                  ไม่พบสถานที่ในรัศมี {nearbyRadius >= 1000 ? "1 กม." : `${nearbyRadius} ม.`}
+                </div>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {groupedNearby.map(([k, list]) => {
+                    const preset = PRESET_BY_KEY[k];
+                    return (
+                      <div key={k} className="rounded-md border overflow-hidden">
+                        <div
+                          className="px-2 py-1.5 text-[11px] font-medium flex items-center gap-1.5"
+                          style={{ background: `${preset?.color ?? "#94a3b8"}15`, color: preset?.color ?? "#334155" }}
+                        >
+                          <span>{preset?.icon ?? "📍"}</span>
+                          <span>{preset?.label ?? k}</span>
+                          <span className="ml-auto text-muted-foreground">{list.length}</span>
+                        </div>
+                        <ul className="divide-y">
+                          {list.slice(0, 5).map((poi) => {
+                            const url = `https://www.google.com/maps?q=${poi.lat},${poi.lng}`;
+                            return (
+                              <li key={poi.id} className="px-2 py-1.5 text-[11px] flex items-center gap-1.5">
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="min-w-0 flex-1 hover:underline"
+                                >
+                                  <div className="truncate font-medium">{poi.name}</div>
+                                  <div className="text-muted-foreground">{Math.round(poi.distanceM)} ม.</div>
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(url, poi.name)}
+                                  className="shrink-0 p-1 rounded hover:bg-muted"
+                                  title="คัดลอกลิงก์"
+                                >
+                                  <Copy className="size-3" />
+                                </button>
+                              </li>
+                            );
+                          })}
+                          {list.length > 5 && (
+                            <li className="px-2 py-1 text-[10px] text-muted-foreground text-center bg-muted/30">
+                              + อีก {list.length - 5} แห่ง
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="mt-2 text-[10px] text-muted-foreground">
+                ข้อมูลนี้จะอยู่ในสไลด์หน้า 2 ของ PPTX/PDF ที่ส่งออก
+              </div>
+            </div>
+          )}
+        </div>
         <div ref={reportRef} className="p-4 space-y-4">
 
           {loading && (

@@ -254,11 +254,14 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center p-4">
+    <div className={cn("fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center", modalFs ? "p-0" : "p-4")}>
       <div
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        className="bg-card border rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] overflow-y-auto"
+        className={cn(
+          "bg-card border shadow-xl overflow-y-auto",
+          modalFs ? "w-screen h-screen max-w-none max-h-none rounded-none" : "w-full max-w-3xl max-h-[92vh] rounded-xl",
+        )}
       >
         {/* Header */}
         <div className="sticky top-0 bg-card border-b p-4 flex items-start justify-between z-10 gap-3">

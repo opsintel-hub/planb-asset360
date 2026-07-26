@@ -894,12 +894,22 @@ export async function exportBillboardPdf(input: ExportInput): Promise<void> {
   const HERO_MIN_H_PDF = 180;
   const hero = await buildHeroImage(input);
   let heroH = 250;
+  let heroWFinal = heroW;
+  let heroXFinal = heroX;
   if (hero) {
     try {
       const dims = await getImageDims(hero);
       const naturalRatio = dims.width / dims.height;
-      heroH = Math.max(HERO_MIN_H_PDF, Math.min(HERO_MAX_H_PDF, heroW / naturalRatio));
-      pdf.addImage(hero, "JPEG", heroX, heroY, heroW, heroH);
+      const wIfMaxH = HERO_MAX_H_PDF * naturalRatio;
+      const hIfFullW = heroW / naturalRatio;
+      if (hIfFullW <= HERO_MAX_H_PDF) {
+        heroH = Math.max(HERO_MIN_H_PDF, hIfFullW);
+      } else {
+        heroH = HERO_MAX_H_PDF;
+        heroWFinal = Math.min(heroW, wIfMaxH);
+        heroXFinal = heroX + (heroW - heroWFinal) / 2;
+      }
+      pdf.addImage(hero, "JPEG", heroXFinal, heroY, heroWFinal, heroH);
     } catch {
       // ignore
     }

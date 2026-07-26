@@ -64,7 +64,32 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const [cornerPickStep, setCornerPickStep] = useState<0 | 1 | 2 | 3 | null>(null);
   const [capturingHero, setCapturingHero] = useState(false);
   const [fsEdit, setFsEdit] = useState(false);
+  const [modalFs, setModalFs] = useState(false);
+  const [showNearby, setShowNearby] = useState(false);
+  const [nearbyRadius, setNearbyRadius] = useState<RadiusM>(500);
   const streetViewCaptureRef = useRef<HTMLDivElement | null>(null);
+
+  const nearbyFn = useServerFn(getNearbyPOIsForAsset);
+  const nearbyQuery = useQuery({
+    queryKey: ["billboard-nearby-pois", asset.id, asset.lat, asset.lng],
+    queryFn: () => nearbyFn({ data: { lat: asset.lat, lng: asset.lng } }),
+    enabled: showNearby && Number.isFinite(asset.lat) && Number.isFinite(asset.lng),
+    staleTime: 10 * 60_000,
+    retry: 1,
+  });
+  const filteredNearby = useMemo(() => {
+    const list = nearbyQuery.data?.pois ?? [];
+    return list.filter((p) => p.distanceM <= nearbyRadius);
+  }, [nearbyQuery.data, nearbyRadius]);
+  const groupedNearby = useMemo(() => {
+    const g = new Map<string, NearbyPOI[]>();
+    for (const p of filteredNearby) {
+      const arr = g.get(p.presetKey) ?? [];
+      arr.push(p);
+      g.set(p.presetKey, arr);
+    }
+    return Array.from(g.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [filteredNearby]);
 
   const run = async (r: number) => {
     setLoading(true);

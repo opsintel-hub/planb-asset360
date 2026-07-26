@@ -8,6 +8,8 @@ type Props = {
   lat: number;
   lng: number;
   heading?: number;
+  viewState?: { heading?: number; pitch?: number; zoom?: number };
+  onViewStateChange?: (view: { heading: number; pitch: number; zoom: number }) => void;
   overlayImageUrl?: string;
   overlay?: BillboardMockupOverlay;
   onOverlayChange?: (o: BillboardMockupOverlay) => void;
@@ -106,6 +108,8 @@ export default function StreetViewPanel({
   lat,
   lng,
   heading = 0,
+  viewState,
+  onViewStateChange,
   overlayImageUrl,
   overlay,
   onOverlayChange,
@@ -125,6 +129,7 @@ export default function StreetViewPanel({
 
   useEffect(() => {
     let cancelled = false;
+    const listeners: google.maps.MapsEventListener[] = [];
     setStatus("loading");
     setMsg("");
     loadGoogleMaps()
@@ -141,8 +146,8 @@ export default function StreetViewPanel({
             }
             const panorama = new google.maps.StreetViewPanorama(svRef.current, {
               position: data.location.latLng,
-              pov: { heading, pitch: 0 },
-              zoom: 0,
+              pov: { heading: viewState?.heading ?? heading, pitch: viewState?.pitch ?? 0 },
+              zoom: viewState?.zoom ?? 0,
               addressControl: false,
               fullscreenControl: true,
               motionTracking: false,
@@ -152,6 +157,18 @@ export default function StreetViewPanel({
               linksControl: true,
             });
             panoramaRef.current = panorama;
+            const emitViewState = () => {
+              const pov = panorama.getPov();
+              const zoom = panorama.getZoom();
+              onViewStateChange?.({
+                heading: pov.heading,
+                pitch: pov.pitch,
+                zoom: typeof zoom === "number" ? zoom : 0,
+              });
+            };
+            listeners.push(panorama.addListener("pov_changed", emitViewState));
+            listeners.push(panorama.addListener("zoom_changed", emitViewState));
+            emitViewState();
             setStatus("ready");
           },
         );
@@ -163,6 +180,7 @@ export default function StreetViewPanel({
       });
     return () => {
       cancelled = true;
+      listeners.forEach((listener) => listener.remove());
       panoramaRef.current = null;
     };
   }, [lat, lng, heading]);

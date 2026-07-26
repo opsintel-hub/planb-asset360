@@ -1,64 +1,58 @@
+## สาเหตุที่ยืนยันได้
 
-# แผนการปรับปรุง Asset Map — Search + Billboard Popup
+ปัญหาไม่ได้อยู่ที่ PowerPoint อย่างเดียว แต่เกิดจาก “ระบบพิกัดของ Mockup” ผูกกับขนาดกรอบที่ผู้ใช้กำลังเห็นอยู่ตอนแก้ไข
 
-## กรณีที่ 1 — รวมการค้นหาให้เป็นระบบเดียว
+ตอนนี้มี 2 กรอบที่อัตราส่วนไม่เหมือนกัน:
 
-**ปัญหาปัจจุบัน:** มี 3 จุดค้นหาซ้อนกัน (Old Code, สถานที่ Google Places, POI panel ที่มี Location + Free Text ในตัว) ทำให้ผู้ใช้สับสน
+```text
+Fullscreen editor  = กรอบ Street View สูง/กว้างตามหน้าจอผู้ใช้
+Popup ปกติ         = กรอบ Street View ใช้ความสูง clamp(360px, 55vh, 640px)
+Export PPT/PDF      = เอาภาพ Street View อีกขนาดไปวาด overlay ใหม่
+```
 
-### แนวทาง: แยก "ค้นหา" ออกจาก "ตัวกรอง" อย่างชัดเจน
+ผู้ใช้ Mock ตอนขยายเต็มจอ แต่พอหด popup หรือ export ระบบเอาค่า x/y/w/h/corners แบบเปอร์เซ็นต์เดิมไปใช้กับกรอบที่อัตราส่วนต่างกัน จึงเห็นว่าภาพบิด/ยืด/ไม่ตรง ทั้งที่ตำแหน่งเปอร์เซ็นต์ยังเหมือนเดิม
 
-**A. Toolbar (บนสุด) — เหลือ 2 ช่องค้นหาที่หน้าที่ต่างกันชัดเจน**
-1. `🔎 ค้นหาป้าย` — รวม Old Code + ชื่อ + จุดติดตั้ง (Location จากฐานข้อมูล) เป็นช่องเดียว มี autocomplete แยกกลุ่ม (ป้าย / จุดติดตั้ง) เมื่อเลือกจะ zoom เข้าหาป้ายหรือ cluster ของจุดติดตั้งนั้น
-2. `📍 ค้นหาสถานที่` — Google Places (คงเดิม) สำหรับพิมพ์ห้าง/ถนน/ซอย
+## แผนแก้ให้จบในรอบเดียว
 
-ตัวกรอง `Project / Media Type / เฉพาะที่กำลังซ่อม` คงไว้ที่ toolbar
+1. **ล็อกอัตราส่วนพื้นที่ Street View ให้คงที่ทุกโหมด**
+   - ให้ Street View ใน popup ปกติ, fullscreen editor, และ export ใช้ฐานภาพอัตราส่วนเดียวกัน
+   - ใช้กรอบแบบ `16:9` เป็น canonical frame เพื่อให้พิกัด overlay ไม่เปลี่ยนความหมายเมื่อขยาย/ย่อ
+   - fullscreen จะ “ใหญ่ขึ้น” แต่ไม่เปลี่ยนอัตราส่วนภาพ จึงแก้ปัญหา mock แล้วหด popup เพี้ยน
 
-**B. Panel ขวา (POI Search) — ตัดของซ้ำออก ให้เหลือหน้าที่เดียว**
-- **ลบ** ช่อง "จุดติดตั้ง (Location)" และ "ค้นหาชื่อ (FREE TEXT)" ออกจาก panel (ย้ายไป toolbar แล้ว)
-- **ลบ** BKK/UPC/District/Territory/Project/Media Type ที่ซ้ำกับ toolbar — ให้ POI ใช้ตัวกรองเดียวกับที่ toolbar ตั้งไว้แล้ว (ทำงานสอดคล้องกัน) 
-- **เหลือเฉพาะ:** ประเภท POI (ร้านอาหาร/ห้าง/BTS…) + รัศมี + ปุ่มค้นหา
-- เพิ่มปุ่ม toggle "ค้นเฉพาะในกรอบแผนที่ที่เห็น" (ค่าเริ่มต้น: เปิด) ให้ตรงกับพฤติกรรมที่ผู้ใช้คาดหวัง
+2. **ปรับ StreetViewPanel ให้วัดพิกัดจาก frame จริง ไม่ใช่ container ที่เปลี่ยนตาม layout**
+   - เพิ่ม inner frame ที่เป็นพื้นที่ Street View จริง
+   - pointer drag / click 4 มุม / transform overlay จะอ้างอิง inner frame เดียวกันทั้งหมด
+   - ถ้า fullscreen มีพื้นที่เหลือด้านข้าง/บนล่าง จะเป็นพื้นที่ว่าง ไม่เอามาคำนวณ overlay
 
-ผลลัพธ์: panel POI จะเรียบขึ้นมาก เหลือ 3 ส่วน (ประเภท → รัศมี → ค้นหา) แทน 8+ กล่องเดิม
+3. **ตอน export ให้ใช้ frame เดียวกับ UI**
+   - ถ่าย Street View จาก canonical frame
+   - compose overlay ด้วยพิกัดเดียวกับที่ผู้ใช้เห็นใน UI
+   - ไม่บังคับภาพให้ยืดเต็มช่องใน PowerPoint/PDF
 
----
+4. **เพิ่ม safety ตอนวางภาพลง PowerPoint/PDF**
+   - ใช้ fit-preserve-aspect เท่านั้น: ไม่ stretch, ไม่ cover crop
+   - ถ้าภาพไม่พอดีกับช่อง จะย่อให้พอดีและจัดกึ่งกลาง ไม่ยืดด้านข้าง
 
-## กรณีที่ 2 — Billboard Popup
+5. **ตัดสิ่งที่ไม่จำเป็นออก**
+   - ไม่แก้ layout รายงานทั้งชุดซ้ำ เพราะสาเหตุหลักอยู่ที่ coordinate frame และ export fitting
+   - ไม่เปลี่ยนข้อมูล POI/Analytics/PowerPoint slide 2 เพราะไม่เกี่ยวกับอาการนี้
 
-### 2.1 ปุ่มขยายเต็มจอสำหรับพื้นที่ Mockup
-เพิ่มปุ่ม `⛶ Fullscreen` ที่หัว popup — เมื่อกดจะขยาย modal เป็น 100vw × 100vh, ให้ Street View + Mockup editor ใช้พื้นที่ทั้งหมด (คล้ายที่ทำใน `street-view-panel.tsx` อยู่แล้ว แต่ที่นี่ขยายทั้ง popup ไม่ใช่แค่ editor)
+## ไฟล์ที่จะปรับ
 
-### 2.2 เพิ่มข้อมูล POI รอบป้าย (แบบหน้า Asset History)
-เพิ่ม section `พื้นที่ใกล้เคียง (OSM)` ใน billboard popup — reuse component เดิมจาก `asset-street-view.tsx` / Asset History (component ที่ดึง Overpass API พร้อมรัศมี 100/200/500/1000 ม.)
+- `src/components/street-view-panel.tsx`
+  - เพิ่ม canonical aspect-ratio frame
+  - ให้ drag/corner pick/overlay transform ใช้ frame เดียวกัน
 
-**การใช้ credit:**
-- ใช้ **Overpass (OSM) — ฟรี** ตัวเดียวกับ Asset History ไม่คิด credit
-- Cache ผลลัพธ์ที่ client (react-query) — ถ้าคลิกป้ายเดิม/รัศมีเดิมซ้ำ ไม่ยิงใหม่
-- โหลด **lazy on-demand** เฉพาะเมื่อผู้ใช้ขยาย section (accordion เริ่ม collapse) → ไม่ยิง API ทุกครั้งที่เปิด popup
+- `src/components/billboard-analytics-panel.tsx`
+  - ปรับ popup/fullscreen ให้ส่งค่า frame เดียวกัน
+  - export จะ capture จาก frame ที่เสถียร ไม่ขึ้นกับสถานะขยาย/หด
 
-### 2.3 นำ POI เข้า PPTX/PDF
-เพิ่ม **สไลด์ที่ 2** ใน export (ไม่ทับสไลด์แรกที่ layout สวยแล้ว):
-- **Slide 1:** Report เดิม (Street View + Mockup + Traffic + Demographics + POI Top 10)
-- **Slide 2 (ใหม่):** "พื้นที่ใกล้เคียง (500 ม.)" — grid หมวดหมู่ตามภาพที่ 3 (ร้านอาหาร / ร้านกาแฟ / ป้ายรถเมล์ / ธนาคาร ฯลฯ) แต่ละหมวดแสดง top 6 + ระยะทาง
+- `src/lib/billboard-export.ts`
+  - ทำ helper สำหรับวาง hero image แบบรักษาสัดส่วน
+  - ใช้ helper เดียวกันกับ PPTX และ PDF
 
-**Hyperlink ใน PPTX:** แต่ละรายชื่อ POI เป็น hyperlink → Google Maps (`https://www.google.com/maps/search/?api=1&query={lat},{lng}`) — เปิดใน browser เมื่อคลิกจาก PowerPoint/PDF ได้จริง
+## วิธีตรวจหลังแก้
 
-ใช้รัศมีที่ผู้ใช้เลือกอยู่ใน popup ตอน export (ไม่ต้อง fetch ซ้ำ — ส่งจาก state ที่โหลดไว้แล้วเข้า export function) → **ประหยัด credit** เพราะไม่ยิง API ซ้ำ
-
----
-
-## ไฟล์ที่จะแก้
-
-**กรณี 1:**
-- `src/routes/map.tsx` — รวม search box ที่ toolbar, ปรับ state
-- `src/components/poi-proximity-panel.tsx` — ลบส่วนซ้ำ, เพิ่ม toggle bbox
-- ช่องค้นหาป้ายรวม (Old Code + Location) — ปรับที่ toolbar ใน `map.tsx`
-
-**กรณี 2:**
-- `src/components/billboard-analytics-panel.tsx` — ปุ่ม fullscreen, section POI (accordion)
-- `src/lib/billboard-export.ts` — เพิ่ม slide 2 พร้อม hyperlink
-
-## Credit / Performance
-- POI ใน popup: Overpass ฟรี + cache + lazy
-- PPTX slide 2: ใช้ข้อมูลที่โหลดแล้วใน popup (ไม่ยิงซ้ำ)
-- ไม่ใช้ AI/Google API เพิ่มในฟีเจอร์เหล่านี้
+- Mock ภาพใน fullscreen แล้วกด “เสร็จ” กลับ popup ปกติ: มุมต้องยังตรงตำแหน่งเดิม
+- Export PowerPoint/PDF: ภาพ Street View ต้องไม่ยืดด้านข้าง และ overlay ต้องตรงกับที่เห็นใน UI
+- ทดสอบด้วยกรณีภาพในตัวอย่างที่ส่งมา: ป้ายด้านซ้ายต้องไม่ถูกบิด/ขยายผิดสัดส่วน

@@ -190,10 +190,9 @@ export default function StreetViewPanel({
 
   useEffect(() => {
     const panorama = panoramaRef.current;
-    const maps = window.google?.maps;
-    if (!panorama || !maps?.event) return;
+    if (!panorama || typeof google === "undefined") return;
     const id = window.requestAnimationFrame(() => {
-      maps.event.trigger(panorama, "resize");
+      google.maps.event.trigger(panorama, "resize");
     });
     return () => window.cancelAnimationFrame(id);
   }, [frameSize?.width, frameSize?.height]);

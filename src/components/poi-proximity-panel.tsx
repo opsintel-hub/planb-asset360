@@ -31,8 +31,6 @@ export default function PoiProximityPanel({
   bbox, onResult, onFocusAsset, onFocusPOI, assetIndexById,
 }: Props) {
   const searchFn = useServerFn(searchPOIsNearAssets);
-  const filterOptsFn = useServerFn(getPOIFilterOptions);
-  const searchLocationsFn = useServerFn(searchLocations);
 
   const [selectedPresets, setSelectedPresets] = useState<string[]>(["mall", "car_dealer", "subway"]);
   const [freeText, setFreeText] = useState("");
@@ -40,38 +38,11 @@ export default function PoiProximityPanel({
   const [matchMode, setMatchMode] = useState<"any" | "all">("any");
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  // Filter state (Phase B)
-  const [bkkupc, setBkkupc] = useState<"" | "BKK" | "UPC">("");
-  const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
-  const [selectedTerritories, setSelectedTerritories] = useState<string[]>([]);
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
-  const [selectedMediaTypes, setSelectedMediaTypes] = useState<string[]>([]);
-  const [districtOpen, setDistrictOpen] = useState(false);
-  const [terrOpen, setTerrOpen] = useState(false);
-  const [locOpen, setLocOpen] = useState(false);
-  const [projOpen, setProjOpen] = useState(false);
-  const [mediaOpen, setMediaOpen] = useState(false);
-  const [locQuery, setLocQuery] = useState("");
-
   const [lastResult, setLastResult] = useState<{
     pois: POI[]; matches: POIMatch[]; matchedAssetCount: number; elapsedMs?: number;
   } | null>(null);
 
-  const effectiveBbox = bbox ?? (bkkupc === "BKK" ? BANGKOK_BBOX : THAILAND_BBOX);
-
-  const filterOpts = useQuery({
-    queryKey: ["poi-filter-options"],
-    queryFn: () => filterOptsFn(),
-    staleTime: 5 * 60_000,
-  });
-
-  const locationSearch = useQuery({
-    queryKey: ["poi-location-typeahead", locQuery],
-    queryFn: () => searchLocationsFn({ data: { q: locQuery } }),
-    enabled: locOpen && locQuery.trim().length >= 2,
-    staleTime: 60_000,
-  });
+  const effectiveBbox: Bbox = bbox ?? THAILAND_BBOX;
 
   const cancelRef = useRef<{ cancelled: boolean } | null>(null);
 
@@ -86,12 +57,12 @@ export default function PoiProximityPanel({
           bbox: effectiveBbox,
           radiusM,
           matchMode,
-          bkkupc: bkkupc || null,
-          districts: selectedDistricts,
-          territories: selectedTerritories,
-          locations: selectedLocations,
-          departments: selectedProjects.flatMap((p) => PROJECT_TO_DEPARTMENTS[p] ?? []),
-          mediaTypes: selectedMediaTypes,
+          bkkupc: null,
+          districts: [],
+          territories: [],
+          locations: [],
+          departments: [],
+          mediaTypes: [],
         },
       });
       if (token.cancelled) throw new Error("__cancelled__");
@@ -128,31 +99,14 @@ export default function PoiProximityPanel({
   };
 
   const clearAll = () => {
-    clearGeoFilters();
     setSelectedPresets(["mall", "car_dealer", "subway"]);
     setFreeText("");
     setRadiusM(200);
     setMatchMode("any");
-    setLocQuery("");
     setLastResult(null);
     onResult(null);
   };
 
-  const clearGeoFilters = () => {
-    setBkkupc("");
-    setSelectedDistricts([]);
-    setSelectedTerritories([]);
-    setSelectedLocations([]);
-    setSelectedProjects([]);
-    setSelectedMediaTypes([]);
-  };
-
-  const hasGeoFilter = bkkupc !== ""
-    || selectedDistricts.length > 0
-    || selectedTerritories.length > 0
-    || selectedLocations.length > 0
-    || selectedProjects.length > 0
-    || selectedMediaTypes.length > 0;
 
   const matchesByPoi = useMemo(() => {
     if (!lastResult) return new Map<string, POIMatch[]>();

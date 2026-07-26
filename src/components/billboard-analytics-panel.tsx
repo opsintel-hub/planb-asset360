@@ -144,7 +144,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
           br: { x: cur.x + cur.w, y: cur.y + nh },
           bl: { x: cur.x, y: cur.y + nh },
         };
-        return { ...cur, naturalAspect: aspect, h: nh, corners, camera: cur.camera ?? streetViewState };
+        return { ...cur, naturalAspect: aspect, h: nh, corners, camera: cur.camera ?? base.camera ?? { heading: 0, pitch: 0, zoom: 0 } };
       });
     };
     img.src = selectedMockup.image_url;

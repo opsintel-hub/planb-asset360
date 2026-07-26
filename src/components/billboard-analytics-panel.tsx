@@ -1,14 +1,30 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Camera, ChevronDown, Image as ImageIcon, FileDown, FileText, Maximize2, Minimize2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Camera, ChevronDown, Image as ImageIcon, FileDown, FileText, Maximize2, Minimize2, ExternalLink, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { analyzeBillboardArea, type BillboardAnalytics } from "@/lib/billboard-analytics.functions";
 import { getStreetViewStaticImage, updateBillboardMockup, type BillboardMockup, type BillboardMockupOverlay } from "@/lib/billboard-mockups.functions";
 import { captureStreetViewNode, exportBillboardPptx, exportBillboardPdf, fetchImageAsDataUrl } from "@/lib/billboard-export";
 import MockupManager from "@/components/mockup-manager";
 import type { MapAsset } from "@/lib/map.functions";
+import { getNearbyPOIsForAsset, type NearbyPOI } from "@/lib/poi-search.functions";
+import { PRESET_BY_KEY } from "@/lib/overpass";
+import { cn } from "@/lib/utils";
 
 const StreetViewPanel = lazy(() => import("@/components/street-view-panel"));
+
+type RadiusM = 100 | 200 | 500 | 1000;
+const NEARBY_RADIUS_OPTIONS: RadiusM[] = [100, 200, 500, 1000];
+
+function copyToClipboard(url: string, label: string) {
+  try {
+    navigator.clipboard?.writeText(url);
+    toast.success(`คัดลอกลิงก์ ${label} แล้ว`);
+  } catch {
+    toast.error("คัดลอกไม่สำเร็จ");
+  }
+}
 
 type Props = {
   asset: MapAsset;

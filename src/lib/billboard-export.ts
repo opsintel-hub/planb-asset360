@@ -5,6 +5,8 @@ import html2canvas from "html2canvas-pro";
 import type { BillboardAnalytics } from "@/lib/billboard-analytics.functions";
 import type { BillboardMockup, BillboardMockupOverlay } from "@/lib/billboard-mockups.functions";
 import type { MapAsset } from "@/lib/map.functions";
+import type { NearbyPOI } from "@/lib/poi-search.functions";
+import { PRESET_BY_KEY } from "@/lib/overpass";
 
 export type ExportInput = {
   asset: MapAsset;
@@ -16,6 +18,9 @@ export type ExportInput = {
   /** DOM node containing the on-screen analytics report. Used to snapshot for exports so
    *  Thai text and Overpass POI data render correctly in the exported file. */
   analyticsNode?: HTMLElement | null;
+  /** Nearby POIs (OSM) already filtered by nearbyRadiusM. Rendered on slide/page 2. */
+  nearbyPois?: NearbyPOI[];
+  nearbyRadiusM?: number;
 };
 
 type CornerPoint = { x: number; y: number };
@@ -743,7 +748,107 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
     { x: 0.4, y: 7.2, w: 12.5, h: 0.25, fontSize: 8, italic: true, color: SUBTLE, fontFace: TH_FONT },
   );
 
+  // ---------- Slide 2 — Nearby POIs (OSM) with clickable Google Maps hyperlinks ----------
+  addNearbyPoiSlide(pres, input, { BRAND, MUTED, SUBTLE, BORDER, SURFACE, TEXT, TH_FONT });
+
   await pres.writeFile({ fileName: `billboard-${input.asset.old_code ?? "report"}.pptx` });
+}
+
+type PptxTheme = { BRAND: string; MUTED: string; SUBTLE: string; BORDER: string; SURFACE: string; TEXT: string; TH_FONT: string };
+
+function addNearbyPoiSlide(pres: pptxgen, input: ExportInput, t: PptxTheme): void {
+  const nearby = input.nearbyPois ?? [];
+  if (nearby.length === 0) return;
+
+  const s2 = pres.addSlide();
+  s2.background = { color: "FFFFFF" };
+
+  // Header bar
+  s2.addShape("rect", { x: 0, y: 0, w: 13.333, h: 0.6, fill: { color: t.BRAND } });
+  s2.addText(
+    `Nearby POIs · ${input.asset.old_code ?? "—"}`,
+    { x: 0.4, y: 0.1, w: 6.5, h: 0.4, fontSize: 16, bold: true, color: "FFFFFF", fontFace: t.TH_FONT, valign: "middle" },
+  );
+  const radiusM = input.nearbyRadiusM ?? 500;
+  s2.addText(
+    `รัศมี ${radiusM >= 1000 ? `${radiusM / 1000} กม.` : `${radiusM} ม.`} · ${nearby.length} แห่ง (คลิกชื่อเพื่อเปิด Google Maps)`,
+    { x: 6.9, y: 0.1, w: 6.0, h: 0.4, fontSize: 11, color: "E2E8F0", fontFace: t.TH_FONT, align: "right", valign: "middle" },
+  );
+
+  // Group by preset
+  const groups = new Map<string, NearbyPOI[]>();
+  for (const p of nearby) {
+    const arr = groups.get(p.presetKey) ?? [];
+    arr.push(p);
+    groups.set(p.presetKey, arr);
+  }
+  const entries = Array.from(groups.entries()).sort((a, b) => b[1].length - a[1].length);
+
+  // 3-column grid of cards
+  const cols = 3;
+  const gap = 0.2;
+  const marginX = 0.35;
+  const gridTop = 0.85;
+  const gridW = 13.333 - marginX * 2;
+  const cardW = (gridW - gap * (cols - 1)) / cols;
+  const cardH = 2.1;
+  const rowH = 0.22;
+  const maxPerCard = 6;
+
+  entries.forEach((entry, idx) => {
+    const [key, list] = entry;
+    const preset = PRESET_BY_KEY[key];
+    const col = idx % cols;
+    const row = Math.floor(idx / cols);
+    const x = marginX + col * (cardW + gap);
+    const y = gridTop + row * (cardH + gap);
+
+    // Guard: max 3 rows on the slide
+    if (y + cardH > 7.1) return;
+
+    s2.addShape("rect", {
+      x, y, w: cardW, h: cardH,
+      fill: { color: "FFFFFF" }, line: { color: t.BORDER, width: 1 },
+    });
+    // Header strip
+    const headColor = (preset?.color ?? "#94a3b8").replace("#", "");
+    s2.addShape("rect", {
+      x, y, w: cardW, h: 0.32,
+      fill: { color: headColor + "22" }, line: { color: headColor + "22" },
+    });
+    s2.addText(
+      `${preset?.icon ?? "📍"}  ${preset?.label ?? key}   (${list.length})`,
+      { x: x + 0.12, y: y + 0.04, w: cardW - 0.24, h: 0.24, fontSize: 10, bold: true, color: headColor, fontFace: t.TH_FONT, valign: "middle" },
+    );
+
+    // POI rows (clickable hyperlink)
+    list.slice(0, maxPerCard).forEach((poi, i) => {
+      const ry = y + 0.4 + i * rowH;
+      const url = `https://www.google.com/maps?q=${poi.lat},${poi.lng}`;
+      s2.addText(
+        [
+          { text: truncate(poi.name, 32), options: { color: t.TEXT, hyperlink: { url, tooltip: "เปิดใน Google Maps" } } },
+        ],
+        { x: x + 0.12, y: ry, w: cardW - 0.9, h: rowH, fontSize: 9, fontFace: t.TH_FONT, valign: "middle" },
+      );
+      s2.addText(`${Math.round(poi.distanceM)} ม.`, {
+        x: x + cardW - 0.75, y: ry, w: 0.65, h: rowH,
+        fontSize: 9, bold: true, color: t.MUTED, fontFace: t.TH_FONT, align: "right", valign: "middle",
+      });
+    });
+    if (list.length > maxPerCard) {
+      const ry = y + 0.4 + maxPerCard * rowH;
+      s2.addText(`+ อีก ${list.length - maxPerCard} แห่ง`, {
+        x: x + 0.12, y: ry, w: cardW - 0.24, h: rowH,
+        fontSize: 8, italic: true, color: t.SUBTLE, fontFace: t.TH_FONT,
+      });
+    }
+  });
+
+  s2.addText(
+    `สร้างเมื่อ ${new Date().toLocaleString("th-TH")} · Asset History 360 · ข้อมูลจาก OpenStreetMap`,
+    { x: 0.4, y: 7.2, w: 12.5, h: 0.25, fontSize: 8, italic: true, color: t.SUBTLE, fontFace: t.TH_FONT },
+  );
 }
 
 
@@ -829,8 +934,87 @@ export async function exportBillboardPdf(input: ExportInput): Promise<void> {
     x: margin, y: pageH - 20, w: pageW - margin * 2, fontSize: 8, italic: true, color: "#94A3B8",
   });
 
+  // Second page — Nearby POIs (OSM). Uses on-the-fly HTML block so Thai text
+  // and hyperlinks render correctly through html2canvas-pro snapshot.
+  const nearby = input.nearbyPois ?? [];
+  if (nearby.length > 0) {
+    pdf.addPage("a4", "landscape");
+    const title = `Nearby POIs · ${input.asset.old_code ?? "—"} · รัศมี ${
+      (input.nearbyRadiusM ?? 500) >= 1000
+        ? `${(input.nearbyRadiusM ?? 500) / 1000} กม.`
+        : `${input.nearbyRadiusM ?? 500} ม.`
+    } · ${nearby.length} แห่ง`;
+    await drawTextImage(pdf, title, {
+      x: margin, y: margin, w: pageW - margin * 2, fontSize: 16, bold: true, color: "#0F172A",
+    });
+    const block = await renderNearbyPoiBlock(nearby);
+    if (block) {
+      const blockTop = margin + 30;
+      const blockH = Math.min((pageW - margin * 2) / block.ratio, pageH - blockTop - 30);
+      pdf.addImage(block.dataUrl, "PNG", margin, blockTop, pageW - margin * 2, blockH);
+    }
+    await drawTextImage(
+      pdf,
+      `ข้อมูลจาก OpenStreetMap · คลิกที่ชื่อ POI เพื่อเปิดใน Google Maps`,
+      { x: margin, y: pageH - 20, w: pageW - margin * 2, fontSize: 8, italic: true, color: "#94A3B8" },
+    );
+  }
+
   pdf.save(`billboard-${input.asset.old_code ?? "report"}.pdf`);
 }
+
+async function renderNearbyPoiBlock(pois: NearbyPOI[]): Promise<{ dataUrl: string; ratio: number } | null> {
+  const groups = new Map<string, NearbyPOI[]>();
+  for (const p of pois) {
+    const arr = groups.get(p.presetKey) ?? [];
+    arr.push(p);
+    groups.set(p.presetKey, arr);
+  }
+  const entries = Array.from(groups.entries()).sort((a, b) => b[1].length - a[1].length);
+  if (entries.length === 0) return null;
+
+  const host = document.createElement("div");
+  host.style.cssText = `position:fixed;left:-99999px;top:0;width:1600px;background:#fff;padding:12px;font-family:${TH_FONT},system-ui,sans-serif;color:#0f172a;`;
+  const grid = document.createElement("div");
+  grid.style.cssText = "display:grid;grid-template-columns:repeat(3,1fr);gap:12px;";
+  for (const [key, list] of entries) {
+    const preset = PRESET_BY_KEY[key];
+    const color = preset?.color ?? "#94a3b8";
+    const card = document.createElement("div");
+    card.style.cssText = "border:1px solid #dbe3ef;border-radius:8px;overflow:hidden;background:#fff;";
+    const head = document.createElement("div");
+    head.style.cssText = `padding:6px 10px;background:${color}22;color:${color};font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;`;
+    head.innerHTML = `<span>${preset?.icon ?? "📍"}</span><span>${escapeHtml(preset?.label ?? key)}</span><span style="margin-left:auto;color:#64748b;font-weight:600;">${list.length}</span>`;
+    card.appendChild(head);
+    const ul = document.createElement("ul");
+    ul.style.cssText = "list-style:none;margin:0;padding:0;";
+    list.slice(0, 8).forEach((poi) => {
+      const li = document.createElement("li");
+      li.style.cssText = "padding:5px 10px;border-top:1px solid #eef2f7;font-size:12px;display:flex;align-items:center;gap:6px;";
+      const url = `https://www.google.com/maps?q=${poi.lat},${poi.lng}`;
+      li.innerHTML = `<a href="${url}" style="color:#0f172a;text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(poi.name)}</a><span style="color:#64748b;font-weight:600;white-space:nowrap;">${Math.round(poi.distanceM)} ม.</span>`;
+      ul.appendChild(li);
+    });
+    if (list.length > 8) {
+      const li = document.createElement("li");
+      li.style.cssText = "padding:4px 10px;border-top:1px solid #eef2f7;font-size:11px;color:#94a3b8;text-align:center;background:#f8fafc;";
+      li.textContent = `+ อีก ${list.length - 8} แห่ง`;
+      ul.appendChild(li);
+    }
+    card.appendChild(ul);
+    grid.appendChild(card);
+  }
+  host.appendChild(grid);
+  document.body.appendChild(host);
+  try {
+    const snap = await snapshotNode(host);
+    if (!snap) return null;
+    return { dataUrl: snap.dataUrl, ratio: snap.width / snap.height };
+  } finally {
+    host.remove();
+  }
+}
+
 
 async function drawTextImage(
   pdf: jsPDF,

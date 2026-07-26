@@ -1,14 +1,30 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Camera, ChevronDown, Image as ImageIcon, FileDown, FileText, Maximize2, Minimize2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { X, Loader2, TrendingUp, Users, Clock, MapPin, Building2, RefreshCcw, Camera, ChevronDown, Image as ImageIcon, FileDown, FileText, Maximize2, Minimize2, ExternalLink, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { analyzeBillboardArea, type BillboardAnalytics } from "@/lib/billboard-analytics.functions";
 import { getStreetViewStaticImage, updateBillboardMockup, type BillboardMockup, type BillboardMockupOverlay } from "@/lib/billboard-mockups.functions";
 import { captureStreetViewNode, exportBillboardPptx, exportBillboardPdf, fetchImageAsDataUrl } from "@/lib/billboard-export";
 import MockupManager from "@/components/mockup-manager";
 import type { MapAsset } from "@/lib/map.functions";
+import { getNearbyPOIsForAsset, type NearbyPOI } from "@/lib/poi-search.functions";
+import { PRESET_BY_KEY } from "@/lib/overpass";
+import { cn } from "@/lib/utils";
 
 const StreetViewPanel = lazy(() => import("@/components/street-view-panel"));
+
+type RadiusM = 100 | 200 | 500 | 1000;
+const NEARBY_RADIUS_OPTIONS: RadiusM[] = [100, 200, 500, 1000];
+
+function copyToClipboard(url: string, label: string) {
+  try {
+    navigator.clipboard?.writeText(url);
+    toast.success(`คัดลอกลิงก์ ${label} แล้ว`);
+  } catch {
+    toast.error("คัดลอกไม่สำเร็จ");
+  }
+}
 
 type Props = {
   asset: MapAsset;
@@ -48,7 +64,32 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const [cornerPickStep, setCornerPickStep] = useState<0 | 1 | 2 | 3 | null>(null);
   const [capturingHero, setCapturingHero] = useState(false);
   const [fsEdit, setFsEdit] = useState(false);
+  const [modalFs, setModalFs] = useState(false);
+  const [showNearby, setShowNearby] = useState(false);
+  const [nearbyRadius, setNearbyRadius] = useState<RadiusM>(500);
   const streetViewCaptureRef = useRef<HTMLDivElement | null>(null);
+
+  const nearbyFn = useServerFn(getNearbyPOIsForAsset);
+  const nearbyQuery = useQuery({
+    queryKey: ["billboard-nearby-pois", asset.id, asset.lat, asset.lng],
+    queryFn: () => nearbyFn({ data: { lat: asset.lat, lng: asset.lng } }),
+    enabled: showNearby && Number.isFinite(asset.lat) && Number.isFinite(asset.lng),
+    staleTime: 10 * 60_000,
+    retry: 1,
+  });
+  const filteredNearby = useMemo(() => {
+    const list = nearbyQuery.data?.pois ?? [];
+    return list.filter((p) => p.distanceM <= nearbyRadius);
+  }, [nearbyQuery.data, nearbyRadius]);
+  const groupedNearby = useMemo(() => {
+    const g = new Map<string, NearbyPOI[]>();
+    for (const p of filteredNearby) {
+      const arr = g.get(p.presetKey) ?? [];
+      arr.push(p);
+      g.set(p.presetKey, arr);
+    }
+    return Array.from(g.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [filteredNearby]);
 
   const run = async (r: number) => {
     setLoading(true);
@@ -148,6 +189,19 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
           toast.warning("โหลดภาพ Mockup ไม่สำเร็จ");
         }
       }
+      // Pre-load nearby POIs if user hasn't expanded the section yet, so
+      // slide 2 always includes proximity data.
+      let nearbyPois: NearbyPOI[] = nearbyQuery.data?.pois ?? [];
+      if (nearbyPois.length === 0 && Number.isFinite(asset.lat) && Number.isFinite(asset.lng)) {
+        try {
+          const r = await nearbyFn({ data: { lat: asset.lat, lng: asset.lng } });
+          if (r.ok) nearbyPois = r.pois;
+        } catch {
+          // non-fatal
+        }
+      }
+      const nearbyForExport = nearbyPois.filter((p) => p.distanceM <= nearbyRadius);
+
       const payload = {
         asset,
         analytics: data,
@@ -156,6 +210,8 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
         mockupDataUrl,
         overlay: heroAlreadyIncludesMockup ? null : overlay ?? selectedMockup?.overlay ?? null,
         analyticsNode: reportRef.current,
+        nearbyPois: nearbyForExport,
+        nearbyRadiusM: nearbyRadius,
       };
       if (kind === "pptx") await exportBillboardPptx(payload);
       else await exportBillboardPdf(payload);
@@ -198,11 +254,14 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center p-4">
+    <div className={cn("fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center", modalFs ? "p-0" : "p-4")}>
       <div
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
-        className="bg-card border rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] overflow-y-auto"
+        className={cn(
+          "bg-card border shadow-xl overflow-y-auto",
+          modalFs ? "w-screen h-screen max-w-none max-h-none rounded-none" : "w-full max-w-3xl max-h-[92vh] rounded-xl",
+        )}
       >
         {/* Header */}
         <div className="sticky top-0 bg-card border-b p-4 flex items-start justify-between z-10 gap-3">
@@ -232,9 +291,18 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
               </a>
             )}
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-accent rounded shrink-0">
-            <X className="size-4" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => setModalFs((v) => !v)}
+              className="p-1.5 hover:bg-accent rounded"
+              title={modalFs ? "ออกจากโหมดเต็มจอ" : "ขยายเต็มจอ"}
+            >
+              {modalFs ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+            </button>
+            <button onClick={onClose} className="p-1 hover:bg-accent rounded" title="ปิด">
+              <X className="size-4" />
+            </button>
+          </div>
         </div>
 
 
@@ -493,7 +561,106 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
           </div>
         </div>
 
-        {/* Body */}
+        {/* Nearby POIs (OSM) — lazy loaded */}
+        <div className="px-4 pt-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowNearby((v) => !v)}
+              className="flex-1 flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border hover:bg-accent transition-colors"
+            >
+              <ExternalLink className="size-4" />
+              <span>พื้นที่ใกล้เคียง (OSM){filteredNearby.length ? ` · ${filteredNearby.length} แห่ง` : ""}</span>
+              <ChevronDown className={`size-4 ml-auto transition-transform ${showNearby ? "rotate-180" : ""}`} />
+            </button>
+            {showNearby && (
+              <div className="inline-flex rounded-md border overflow-hidden text-xs shrink-0">
+                {NEARBY_RADIUS_OPTIONS.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setNearbyRadius(r)}
+                    className={cn(
+                      "px-2.5 py-1.5 font-medium transition-colors",
+                      nearbyRadius === r ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                    )}
+                  >
+                    {r >= 1000 ? "1 กม." : `${r} ม.`}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {showNearby && (
+            <div className="mt-2">
+              {nearbyQuery.isFetching && !nearbyQuery.data ? (
+                <div className="text-xs text-muted-foreground py-4 text-center inline-flex items-center gap-2 justify-center w-full">
+                  <Loader2 className="size-3.5 animate-spin" /> กำลังโหลดสถานที่ใกล้เคียง…
+                </div>
+              ) : nearbyQuery.error || (nearbyQuery.data && !nearbyQuery.data.ok) ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 p-3 text-xs">
+                  โหลดไม่สำเร็จ: {nearbyQuery.data?.error ?? (nearbyQuery.error as Error)?.message}
+                </div>
+              ) : filteredNearby.length === 0 ? (
+                <div className="rounded-md border bg-muted/30 p-3 text-center text-xs text-muted-foreground">
+                  ไม่พบสถานที่ในรัศมี {nearbyRadius >= 1000 ? "1 กม." : `${nearbyRadius} ม.`}
+                </div>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {groupedNearby.map(([k, list]) => {
+                    const preset = PRESET_BY_KEY[k];
+                    return (
+                      <div key={k} className="rounded-md border overflow-hidden">
+                        <div
+                          className="px-2 py-1.5 text-[11px] font-medium flex items-center gap-1.5"
+                          style={{ background: `${preset?.color ?? "#94a3b8"}15`, color: preset?.color ?? "#334155" }}
+                        >
+                          <span>{preset?.icon ?? "📍"}</span>
+                          <span>{preset?.label ?? k}</span>
+                          <span className="ml-auto text-muted-foreground">{list.length}</span>
+                        </div>
+                        <ul className="divide-y">
+                          {list.slice(0, 5).map((poi) => {
+                            const url = `https://www.google.com/maps?q=${poi.lat},${poi.lng}`;
+                            return (
+                              <li key={poi.id} className="px-2 py-1.5 text-[11px] flex items-center gap-1.5">
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="min-w-0 flex-1 hover:underline"
+                                >
+                                  <div className="truncate font-medium">{poi.name}</div>
+                                  <div className="text-muted-foreground">{Math.round(poi.distanceM)} ม.</div>
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(url, poi.name)}
+                                  className="shrink-0 p-1 rounded hover:bg-muted"
+                                  title="คัดลอกลิงก์"
+                                >
+                                  <Copy className="size-3" />
+                                </button>
+                              </li>
+                            );
+                          })}
+                          {list.length > 5 && (
+                            <li className="px-2 py-1 text-[10px] text-muted-foreground text-center bg-muted/30">
+                              + อีก {list.length - 5} แห่ง
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="mt-2 text-[10px] text-muted-foreground">
+                ข้อมูลนี้จะอยู่ในสไลด์หน้า 2 ของ PPTX/PDF ที่ส่งออก
+              </div>
+            </div>
+          )}
+        </div>
         <div ref={reportRef} className="p-4 space-y-4">
 
           {loading && (

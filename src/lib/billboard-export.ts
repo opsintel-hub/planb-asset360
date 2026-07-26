@@ -258,6 +258,27 @@ async function getImageDims(src: string): Promise<{ width: number; height: numbe
   }
 }
 
+function fitWithinBox(
+  natural: { width: number; height: number },
+  box: { x: number; y: number; w: number; h: number },
+): { x: number; y: number; w: number; h: number } {
+  const ratio = natural.width / Math.max(1, natural.height);
+  const boxRatio = box.w / Math.max(1, box.h);
+  let w = box.w;
+  let h = box.h;
+  if (ratio > boxRatio) {
+    h = w / ratio;
+  } else {
+    w = h * ratio;
+  }
+  return {
+    x: box.x + (box.w - w) / 2,
+    y: box.y + (box.h - h) / 2,
+    w,
+    h,
+  };
+}
+
 // Cover-crop an image data URL to exactly match targetRatio (w/h).
 // This is object-fit:cover in a canvas — no black letterbox bars.
 async function coverCropToRatio(dataUrl: string, targetRatio: number): Promise<string> {
@@ -491,31 +512,23 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
   const leftX = 0.35;
   const leftW = 7.5;
 
-  // Hero image — fit box to image's natural aspect ratio so nothing is cropped
-  // (previous cover-crop chopped the billboard off) and nothing is letterboxed.
+  // Hero image — preserve the actual Street View frame ratio. Never stretch to
+  // fill a report slot; center the fitted image instead.
   const heroY = 0.85;
-  const HERO_MIN_H = 2.8;
   const HERO_MAX_H = 3.75;
   const hero = await buildHeroImage(input);
-  let heroH = 3.8;
+  let heroH = HERO_MAX_H;
   let heroW = leftW;
   let heroXAligned = leftX;
+  let heroYAligned = heroY;
   if (hero) {
     const dims = await getImageDims(hero);
-    const naturalRatio = dims.width / dims.height;
-    // Fit-to-box preserving aspect: if height would exceed max, shrink width;
-    // never stretch width to fill.
-    const wIfMaxH = HERO_MAX_H * naturalRatio;
-    const hIfFullW = leftW / naturalRatio;
-    if (hIfFullW <= HERO_MAX_H) {
-      heroW = leftW;
-      heroH = Math.max(HERO_MIN_H, hIfFullW);
-    } else {
-      heroH = HERO_MAX_H;
-      heroW = Math.min(leftW, wIfMaxH);
-    }
-    heroXAligned = leftX + (leftW - heroW) / 2;
-    s1.addImage({ data: hero, x: heroXAligned, y: heroY, w: heroW, h: heroH });
+    const fitted = fitWithinBox(dims, { x: leftX, y: heroY, w: leftW, h: HERO_MAX_H });
+    heroW = fitted.w;
+    heroH = fitted.h;
+    heroXAligned = fitted.x;
+    heroYAligned = fitted.y;
+    s1.addImage({ data: hero, x: heroXAligned, y: heroYAligned, w: heroW, h: heroH });
   } else {
     s1.addShape("rect", {
       x: leftX, y: heroY, w: leftW, h: heroH,
@@ -527,12 +540,12 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
     });
   }
   s1.addText("Street View + Ad Mockup", {
-    x: leftX, y: heroY + heroH + 0.05, w: leftW, h: 0.22,
+    x: leftX, y: heroY + HERO_MAX_H + 0.05, w: leftW, h: 0.22,
     fontSize: 9, italic: true, color: MUTED, fontFace: TH_FONT,
   });
 
   // POI blocks (below hero)
-  const poiTop = heroY + heroH + 0.4;
+  const poiTop = heroY + HERO_MAX_H + 0.4;
   const poiH = 2.15;
   const d = input.analytics;
 
@@ -886,30 +899,25 @@ export async function exportBillboardPdf(input: ExportInput): Promise<void> {
     align: "center",
   });
 
-  // Hero (left) — fit box to natural aspect (no crop, no letterbox)
+  // Hero (left) — fit to natural aspect, centered in a fixed report slot.
   const heroX = margin;
   const heroY = 55;
   const heroW = pageW * 0.55;
   const HERO_MAX_H_PDF = 260;
-  const HERO_MIN_H_PDF = 180;
   const hero = await buildHeroImage(input);
-  let heroH = 250;
+  let heroH = HERO_MAX_H_PDF;
   let heroWFinal = heroW;
   let heroXFinal = heroX;
+  let heroYFinal = heroY;
   if (hero) {
     try {
       const dims = await getImageDims(hero);
-      const naturalRatio = dims.width / dims.height;
-      const wIfMaxH = HERO_MAX_H_PDF * naturalRatio;
-      const hIfFullW = heroW / naturalRatio;
-      if (hIfFullW <= HERO_MAX_H_PDF) {
-        heroH = Math.max(HERO_MIN_H_PDF, hIfFullW);
-      } else {
-        heroH = HERO_MAX_H_PDF;
-        heroWFinal = Math.min(heroW, wIfMaxH);
-        heroXFinal = heroX + (heroW - heroWFinal) / 2;
-      }
-      pdf.addImage(hero, "JPEG", heroXFinal, heroY, heroWFinal, heroH);
+      const fitted = fitWithinBox(dims, { x: heroX, y: heroY, w: heroW, h: HERO_MAX_H_PDF });
+      heroWFinal = fitted.w;
+      heroH = fitted.h;
+      heroXFinal = fitted.x;
+      heroYFinal = fitted.y;
+      pdf.addImage(hero, "JPEG", heroXFinal, heroYFinal, heroWFinal, heroH);
     } catch {
       // ignore
     }
@@ -921,7 +929,7 @@ export async function exportBillboardPdf(input: ExportInput): Promise<void> {
     });
   }
   await drawTextImage(pdf, "Street View + Ad Mockup", {
-    x: heroX, y: heroY + heroH + 4, w: heroW, fontSize: 8, italic: true, color: "#64748b",
+    x: heroX, y: heroY + HERO_MAX_H_PDF + 4, w: heroW, fontSize: 8, italic: true, color: "#64748b",
   });
 
   // Info block (right top)
@@ -947,7 +955,7 @@ export async function exportBillboardPdf(input: ExportInput): Promise<void> {
   // POI list block (bottom-left, under hero)
   const poi = await renderPoiListBlock(input);
   if (poi) {
-    const poiTop = heroY + heroH + 22;
+    const poiTop = heroY + HERO_MAX_H_PDF + 22;
     const poiMaxH = pageH - poiTop - 30;
     const poiH2 = Math.min(heroW / poi.ratio, poiMaxH);
     pdf.addImage(poi.dataUrl, "PNG", heroX, poiTop, heroW, poiH2);

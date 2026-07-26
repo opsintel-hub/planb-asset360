@@ -67,6 +67,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const [modalFs, setModalFs] = useState(false);
   const [showNearby, setShowNearby] = useState(false);
   const [nearbyRadius, setNearbyRadius] = useState<RadiusM>(500);
+  const [streetViewState, setStreetViewState] = useState({ heading: 0, pitch: 0, zoom: 0 });
   const streetViewCaptureRef = useRef<HTMLDivElement | null>(null);
 
   const nearbyFn = useServerFn(getNearbyPOIsForAsset);
@@ -175,7 +176,14 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
       // overlay), so we always re-composite the mockup on top below.
       if (!streetViewDataUrl) {
         const sv = await getStreetViewImg({
-          data: { lat: asset.lat, lng: asset.lng, heading: 0, size: "640x400", scale: 2 },
+          data: {
+            lat: asset.lat,
+            lng: asset.lng,
+            heading: streetViewState.heading,
+            pitch: streetViewState.pitch,
+            size: "1280x720",
+            scale: 2,
+          },
         });
         streetViewDataUrl = sv.ok ? sv.dataUrl ?? null : null;
         if (!sv.ok) toast.warning(`Street View: ${sv.error ?? "ไม่พร้อม"}`);
@@ -368,6 +376,8 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
                   <StreetViewPanel
                     lat={asset.lat}
                     lng={asset.lng}
+                    viewState={streetViewState}
+                    onViewStateChange={setStreetViewState}
                     overlayImageUrl={selectedMockup?.image_url}
                     overlay={overlay ?? undefined}
                     onOverlayChange={setOverlay}
@@ -920,6 +930,8 @@ function FullscreenMockupEditor({
             <StreetViewPanel
               lat={asset.lat}
               lng={asset.lng}
+              viewState={streetViewState}
+              onViewStateChange={setStreetViewState}
               overlayImageUrl={selectedMockup?.image_url}
               overlay={overlay ?? undefined}
               onOverlayChange={setOverlay}

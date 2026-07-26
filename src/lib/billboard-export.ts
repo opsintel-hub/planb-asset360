@@ -1007,8 +1007,9 @@ async function renderNearbyPoiBlock(pois: NearbyPOI[]): Promise<{ dataUrl: strin
   host.appendChild(grid);
   document.body.appendChild(host);
   try {
-    const canvas = await snapshotNode(host, { backgroundColor: "#ffffff", scale: 2 });
-    return { dataUrl: canvas.toDataURL("image/png"), ratio: canvas.width / canvas.height };
+    const snap = await snapshotNode(host);
+    if (!snap) return null;
+    return { dataUrl: snap.dataUrl, ratio: snap.width / snap.height };
   } finally {
     host.remove();
   }

@@ -126,6 +126,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
       ...selectedMockup.overlay,
     };
     setOverlay(base);
+    setStreetViewState(base.camera ?? { heading: 0, pitch: 0, zoom: 0 });
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
@@ -143,11 +144,27 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
           br: { x: cur.x + cur.w, y: cur.y + nh },
           bl: { x: cur.x, y: cur.y + nh },
         };
-        return { ...cur, naturalAspect: aspect, h: nh, corners };
+        return { ...cur, naturalAspect: aspect, h: nh, corners, camera: cur.camera ?? streetViewState };
       });
     };
     img.src = selectedMockup.image_url;
   }, [selectedMockup]);
+
+  useEffect(() => {
+    setOverlay((cur) => {
+      if (!cur) return cur;
+      const current = cur.camera;
+      if (
+        current &&
+        Math.abs(current.heading - streetViewState.heading) < 0.1 &&
+        Math.abs(current.pitch - streetViewState.pitch) < 0.1 &&
+        Math.abs(current.zoom - streetViewState.zoom) < 0.1
+      ) {
+        return cur;
+      }
+      return { ...cur, camera: streetViewState };
+    });
+  }, [streetViewState]);
 
 
   // Debounced persist of overlay position.
@@ -181,6 +198,7 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
             lng: asset.lng,
             heading: streetViewState.heading,
             pitch: streetViewState.pitch,
+            fov: Math.max(20, Math.min(80, 80 / Math.pow(2, streetViewState.zoom))),
             size: "1280x720",
             scale: 2,
           },

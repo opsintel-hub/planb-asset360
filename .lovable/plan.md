@@ -1,55 +1,64 @@
 
-## เป้าหมาย
-เพิ่มช่อง "ค้นหาสถานที่" บนหน้า Asset Map เพื่อให้ผู้ใช้พิมพ์ชื่อสถานที่ (เช่น "สุขุมวิท 22", "เดอะมอลล์บางกะปิ", "สาทร", "BTS อโศก", ชื่อถนน/ซอย/ห้าง/สถานี/จังหวัด) แล้วแผนที่ซูมและ pan ไปยังตำแหน่งนั้นทันที ไม่ต้องเลื่อนเมาส์เอง
+# แผนการปรับปรุง Asset Map — Search + Billboard Popup
 
-## ตำแหน่ง UI
-ใช้พื้นที่ว่างบนแถบเครื่องมือเหนือแผนที่ (ตรงตำแหน่งที่ผู้ใช้ชี้ในภาพ ข้างขวาของ dropdown "200 m / 200") — วางเป็น input พร้อมไอคอน 🔍 และ dropdown แสดง suggestion อัตโนมัติ
+## กรณีที่ 1 — รวมการค้นหาให้เป็นระบบเดียว
 
-```text
-[Draw Route] [↶] [↷] [200m ▼] [200]    [🔍 ค้นหาสถานที่ เช่น สุขุมวิท 22, เดอะมอลล์บางกะปิ ▼]
-                                       ├─ สุขุมวิท 22, คลองเตย, กรุงเทพ
-                                       ├─ ซอยสุขุมวิท 22, วัฒนา
-                                       └─ ...
-```
+**ปัญหาปัจจุบัน:** มี 3 จุดค้นหาซ้อนกัน (Old Code, สถานที่ Google Places, POI panel ที่มี Location + Free Text ในตัว) ทำให้ผู้ใช้สับสน
 
-- ความกว้าง ~320px, อยู่ในแถวเดียวกันกับปุ่ม Draw Route (บน desktop) / ตกลงมาบรรทัดใหม่บน mobile
-- Placeholder ตัวอย่าง: "ค้นหาสถานที่ / ห้าง / BTS / ถนน / ซอย"
-- แสดง 3 ตัวอย่างเป็น chip เล็กๆ ใต้ช่อง (คลิกได้): "สุขุมวิท 22", "เดอะมอลล์บางกะปิ", "สาทร" — เพื่อให้ผู้ใช้ไม่ต้องคิดว่าจะพิมพ์อะไร
+### แนวทาง: แยก "ค้นหา" ออกจาก "ตัวกรอง" อย่างชัดเจน
 
-## พฤติกรรม
-1. ผู้ใช้พิมพ์ → debounce 300ms → เรียก Google Places Autocomplete (New) ผ่าน `AutocompleteSuggestion.fetchAutocompleteSuggestions` (browser key ที่มีอยู่แล้ว) โดยจำกัด region = TH เพื่อให้ผลตรงกับประเทศไทย
-2. แสดง dropdown สูงสุด 6 รายการ (main text + secondary text)
-3. คลิกรายการ (หรือกด Enter รายการแรก) → เรียก Place Details ผ่าน gateway (`places/v1/places/{placeId}` field mask: `location,viewport,displayName`) เอา `location` + `viewport`
-4. แผนที่ทำ `map.fitBounds(viewport)` ถ้ามี viewport (ครอบคลุมทั้งห้าง/ซอยยาว); ถ้าไม่มีก็ `map.panTo(location)` + `setZoom(17)` สำหรับจุดเล็ก / `16` สำหรับพื้นที่กว้าง
-5. ปักหมุดชั่วคราว (ไอคอนต่างจาก asset marker เช่น pin สีน้ำเงินพร้อม label ชื่อสถานที่) หายไปเมื่อผู้ใช้ค้นหาใหม่หรือคลิกปุ่มปิด
-6. ESC ปิด dropdown; ปุ่ม "×" ล้าง input + ลบหมุด
-7. ถ้า Google API ล้มเหลว → fallback ไป Nominatim (OSM) แบบเดิมเงียบๆ แสดง toast เมื่อทั้งสองล้มเหลว
+**A. Toolbar (บนสุด) — เหลือ 2 ช่องค้นหาที่หน้าที่ต่างกันชัดเจน**
+1. `🔎 ค้นหาป้าย` — รวม Old Code + ชื่อ + จุดติดตั้ง (Location จากฐานข้อมูล) เป็นช่องเดียว มี autocomplete แยกกลุ่ม (ป้าย / จุดติดตั้ง) เมื่อเลือกจะ zoom เข้าหาป้ายหรือ cluster ของจุดติดตั้งนั้น
+2. `📍 ค้นหาสถานที่` — Google Places (คงเดิม) สำหรับพิมพ์ห้าง/ถนน/ซอย
 
-## Technical
+ตัวกรอง `Project / Media Type / เฉพาะที่กำลังซ่อม` คงไว้ที่ toolbar
 
-### Files to edit
-- `src/components/asset-map.tsx` — expose imperative handle (`flyTo(location, viewport?)`, `setTempPin(location, label)`, `clearTempPin()`) ผ่าน `forwardRef` + `useImperativeHandle`. เพิ่ม state สำหรับหมุดชั่วคราว
-- `src/routes/map.tsx` — เพิ่มคอมโพเนนต์ `<PlaceSearchBox />` ในแถบเครื่องมือ, เก็บ ref ไปยัง asset-map, wire callback
+**B. Panel ขวา (POI Search) — ตัดของซ้ำออก ให้เหลือหน้าที่เดียว**
+- **ลบ** ช่อง "จุดติดตั้ง (Location)" และ "ค้นหาชื่อ (FREE TEXT)" ออกจาก panel (ย้ายไป toolbar แล้ว)
+- **ลบ** BKK/UPC/District/Territory/Project/Media Type ที่ซ้ำกับ toolbar — ให้ POI ใช้ตัวกรองเดียวกับที่ toolbar ตั้งไว้แล้ว (ทำงานสอดคล้องกัน) 
+- **เหลือเฉพาะ:** ประเภท POI (ร้านอาหาร/ห้าง/BTS…) + รัศมี + ปุ่มค้นหา
+- เพิ่มปุ่ม toggle "ค้นเฉพาะในกรอบแผนที่ที่เห็น" (ค่าเริ่มต้น: เปิด) ให้ตรงกับพฤติกรรมที่ผู้ใช้คาดหวัง
 
-### Files to create
-- `src/components/place-search-box.tsx` — input + suggestion dropdown, ใช้ `loadGoogleMaps()` (มีอยู่แล้ว รองรับ libraries=streetView; จะเพิ่ม `places` เข้าไปด้วย) เพื่อโหลด `AutocompleteSuggestion` และ session token
-- `src/lib/place-details.ts` — helper เรียก `places/v1/places/{id}` ผ่าน connector gateway (ต้องใช้ server-side เพราะ field mask + REST); สร้างเป็น `createServerFn` เพื่อไม่ให้ browser key โดน CORS
+ผลลัพธ์: panel POI จะเรียบขึ้นมาก เหลือ 3 ส่วน (ประเภท → รัศมี → ค้นหา) แทน 8+ กล่องเดิม
 
-### Update `src/lib/google-maps-loader.ts`
-เปลี่ยน `libraries: "streetView"` → `libraries: "streetView,places"` เพื่อให้ `importLibrary("places")` ใช้ได้
+---
 
-### Server function (new file `src/lib/places.functions.ts`)
-```ts
-export const getPlaceDetails = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: { placeId: string }) => d)
-  .handler(async ({ data }) => {
-    // fetch places/v1/places/{placeId} with X-Goog-FieldMask: id,displayName,location,viewport
-    // return { lat, lng, viewport?: {north,south,east,west}, displayName }
-  });
-```
+## กรณีที่ 2 — Billboard Popup
 
-## ไม่ทำ (out of scope)
-- ไม่ค้นหา asset ในระบบ (มีช่อง "ค้นหา Old Code / ชื่อ / ทำเล" อยู่แล้ว)
-- ไม่เก็บประวัติการค้นหา (เพิ่มทีหลังได้)
-- ไม่รองรับ voice/geolocation
+### 2.1 ปุ่มขยายเต็มจอสำหรับพื้นที่ Mockup
+เพิ่มปุ่ม `⛶ Fullscreen` ที่หัว popup — เมื่อกดจะขยาย modal เป็น 100vw × 100vh, ให้ Street View + Mockup editor ใช้พื้นที่ทั้งหมด (คล้ายที่ทำใน `street-view-panel.tsx` อยู่แล้ว แต่ที่นี่ขยายทั้ง popup ไม่ใช่แค่ editor)
+
+### 2.2 เพิ่มข้อมูล POI รอบป้าย (แบบหน้า Asset History)
+เพิ่ม section `พื้นที่ใกล้เคียง (OSM)` ใน billboard popup — reuse component เดิมจาก `asset-street-view.tsx` / Asset History (component ที่ดึง Overpass API พร้อมรัศมี 100/200/500/1000 ม.)
+
+**การใช้ credit:**
+- ใช้ **Overpass (OSM) — ฟรี** ตัวเดียวกับ Asset History ไม่คิด credit
+- Cache ผลลัพธ์ที่ client (react-query) — ถ้าคลิกป้ายเดิม/รัศมีเดิมซ้ำ ไม่ยิงใหม่
+- โหลด **lazy on-demand** เฉพาะเมื่อผู้ใช้ขยาย section (accordion เริ่ม collapse) → ไม่ยิง API ทุกครั้งที่เปิด popup
+
+### 2.3 นำ POI เข้า PPTX/PDF
+เพิ่ม **สไลด์ที่ 2** ใน export (ไม่ทับสไลด์แรกที่ layout สวยแล้ว):
+- **Slide 1:** Report เดิม (Street View + Mockup + Traffic + Demographics + POI Top 10)
+- **Slide 2 (ใหม่):** "พื้นที่ใกล้เคียง (500 ม.)" — grid หมวดหมู่ตามภาพที่ 3 (ร้านอาหาร / ร้านกาแฟ / ป้ายรถเมล์ / ธนาคาร ฯลฯ) แต่ละหมวดแสดง top 6 + ระยะทาง
+
+**Hyperlink ใน PPTX:** แต่ละรายชื่อ POI เป็น hyperlink → Google Maps (`https://www.google.com/maps/search/?api=1&query={lat},{lng}`) — เปิดใน browser เมื่อคลิกจาก PowerPoint/PDF ได้จริง
+
+ใช้รัศมีที่ผู้ใช้เลือกอยู่ใน popup ตอน export (ไม่ต้อง fetch ซ้ำ — ส่งจาก state ที่โหลดไว้แล้วเข้า export function) → **ประหยัด credit** เพราะไม่ยิง API ซ้ำ
+
+---
+
+## ไฟล์ที่จะแก้
+
+**กรณี 1:**
+- `src/routes/map.tsx` — รวม search box ที่ toolbar, ปรับ state
+- `src/components/poi-proximity-panel.tsx` — ลบส่วนซ้ำ, เพิ่ม toggle bbox
+- ช่องค้นหาป้ายรวม (Old Code + Location) — ปรับที่ toolbar ใน `map.tsx`
+
+**กรณี 2:**
+- `src/components/billboard-analytics-panel.tsx` — ปุ่ม fullscreen, section POI (accordion)
+- `src/lib/billboard-export.ts` — เพิ่ม slide 2 พร้อม hyperlink
+
+## Credit / Performance
+- POI ใน popup: Overpass ฟรี + cache + lazy
+- PPTX slide 2: ใช้ข้อมูลที่โหลดแล้วใน popup (ไม่ยิงซ้ำ)
+- ไม่ใช้ AI/Google API เพิ่มในฟีเจอร์เหล่านี้

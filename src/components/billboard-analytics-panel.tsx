@@ -189,6 +189,19 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
           toast.warning("โหลดภาพ Mockup ไม่สำเร็จ");
         }
       }
+      // Pre-load nearby POIs if user hasn't expanded the section yet, so
+      // slide 2 always includes proximity data.
+      let nearbyPois: NearbyPOI[] = nearbyQuery.data?.pois ?? [];
+      if (nearbyPois.length === 0 && Number.isFinite(asset.lat) && Number.isFinite(asset.lng)) {
+        try {
+          const r = await nearbyFn({ data: { lat: asset.lat, lng: asset.lng } });
+          if (r.ok) nearbyPois = r.pois;
+        } catch {
+          // non-fatal
+        }
+      }
+      const nearbyForExport = nearbyPois.filter((p) => p.distanceM <= nearbyRadius);
+
       const payload = {
         asset,
         analytics: data,
@@ -197,6 +210,8 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
         mockupDataUrl,
         overlay: heroAlreadyIncludesMockup ? null : overlay ?? selectedMockup?.overlay ?? null,
         analyticsNode: reportRef.current,
+        nearbyPois: nearbyForExport,
+        nearbyRadiusM: nearbyRadius,
       };
       if (kind === "pptx") await exportBillboardPptx(payload);
       else await exportBillboardPdf(payload);

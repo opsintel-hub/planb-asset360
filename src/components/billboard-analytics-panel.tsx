@@ -840,6 +840,8 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
           cornerPickStep={cornerPickStep}
           setCornerPickStep={setCornerPickStep}
           handleCornerPick={handleCornerPick}
+          streetViewState={streetViewState}
+          setStreetViewState={setStreetViewState}
           onClose={() => setFsEdit(false)}
         />
       )}
@@ -873,6 +875,8 @@ type FSProps = {
   cornerPickStep: 0 | 1 | 2 | 3 | null;
   setCornerPickStep: (v: 0 | 1 | 2 | 3 | null) => void;
   handleCornerPick: (x: number, y: number) => void;
+  streetViewState: { heading: number; pitch: number; zoom: number };
+  setStreetViewState: (view: { heading: number; pitch: number; zoom: number }) => void;
   onClose: () => void;
 };
 
@@ -886,6 +890,8 @@ function FullscreenMockupEditor({
   cornerPickStep,
   setCornerPickStep,
   handleCornerPick,
+  streetViewState,
+  setStreetViewState,
   onClose,
 }: FSProps) {
   useEffect(() => {

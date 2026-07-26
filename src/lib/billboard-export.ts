@@ -498,11 +498,24 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
   const HERO_MAX_H = 3.75;
   const hero = await buildHeroImage(input);
   let heroH = 3.8;
+  let heroW = leftW;
+  let heroXAligned = leftX;
   if (hero) {
     const dims = await getImageDims(hero);
     const naturalRatio = dims.width / dims.height;
-    heroH = Math.max(HERO_MIN_H, Math.min(HERO_MAX_H, leftW / naturalRatio));
-    s1.addImage({ data: hero, x: leftX, y: heroY, w: leftW, h: heroH });
+    // Fit-to-box preserving aspect: if height would exceed max, shrink width;
+    // never stretch width to fill.
+    const wIfMaxH = HERO_MAX_H * naturalRatio;
+    const hIfFullW = leftW / naturalRatio;
+    if (hIfFullW <= HERO_MAX_H) {
+      heroW = leftW;
+      heroH = Math.max(HERO_MIN_H, hIfFullW);
+    } else {
+      heroH = HERO_MAX_H;
+      heroW = Math.min(leftW, wIfMaxH);
+    }
+    heroXAligned = leftX + (leftW - heroW) / 2;
+    s1.addImage({ data: hero, x: heroXAligned, y: heroY, w: heroW, h: heroH });
   } else {
     s1.addShape("rect", {
       x: leftX, y: heroY, w: leftW, h: heroH,

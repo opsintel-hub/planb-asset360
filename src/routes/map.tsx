@@ -193,11 +193,13 @@ function MapPage() {
     queryKey: ["map", "saved-locations"],
     queryFn: () => listLocFn({}),
     staleTime: 60_000,
+    enabled: !!user,
   });
   const { data: routesData } = useQuery({
     queryKey: ["map", "saved-routes"],
     queryFn: () => listRouteFn({}),
     staleTime: 60_000,
+    enabled: !!user,
   });
 
   const allAssets = assetsData?.assets ?? [];

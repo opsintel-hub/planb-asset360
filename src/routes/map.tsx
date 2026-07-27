@@ -208,15 +208,6 @@ function MapPage() {
   const savedRoutes = routesData?.rows ?? [];
 
   // ---------- Shared-link hydration (read once on mount, client-only) ----------
-  const sharedRef = useRef<{
-    initial: import("@/components/poi-proximity-panel").PoiInitialSearch;
-    project: string;
-    media: string;
-    locked: boolean;
-  } | null>(null);
-  if (typeof window !== "undefined" && sharedRef.current === undefined) {
-    // handled via lazy init below
-  }
   const [shared] = useState(() => {
     if (typeof window === "undefined") return null;
     try {

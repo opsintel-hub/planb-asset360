@@ -402,14 +402,32 @@ function MapPage() {
     return out;
   }, [mode, filtered, polyline, radius]);
 
+  // Inspection: assets the OSRM route passes near (within `radius` of the road polyline)
+  const inspectionNearby = useMemo(() => {
+    if (mode !== "inspection" || !roadPolyline || roadPolyline.length < 2)
+      return [] as Array<MapAsset & { dist: number }>;
+    const stopIds = new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
+    const out: Array<MapAsset & { dist: number }> = [];
+    for (const a of filtered) {
+      if (stopIds.has(a.id)) continue; // exclude picked stops from "passing" list
+      const d = distanceToPolyline([a.lat, a.lng], roadPolyline);
+      if (d <= radius) out.push({ ...a, dist: d });
+    }
+    out.sort((a, b) => a.dist - b.dist);
+    return out;
+  }, [mode, filtered, roadPolyline, radius, stops]);
+
   // Highlight set on the map
   const highlightIds = useMemo(() => {
     if (mode === "corridor" && polyline.length > 0) return new Set(nearby.map((a) => a.id));
-    if (mode === "inspection" && stops.length > 0)
-      return new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
+    if (mode === "inspection" && stops.length > 0) {
+      const ids = new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
+      for (const a of inspectionNearby) ids.add(a.id);
+      return ids;
+    }
     if (mode === "poi" && poiMatchedAssetIds) return poiMatchedAssetIds;
     return null;
-  }, [mode, polyline.length, nearby, stops, poiMatchedAssetIds]);
+  }, [mode, polyline.length, nearby, stops, inspectionNearby, poiMatchedAssetIds]);
 
   const suggestions = useMemo(() => {
     const qq = q.trim().toLowerCase();

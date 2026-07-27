@@ -55,7 +55,7 @@ export const createPoiShare = createServerFn({ method: "POST" })
 
     const { error } = await context.supabase.from("poi_shares").insert({
       token,
-      payload: data.payload as unknown as Record<string, unknown>,
+      payload: data.payload as never,
       created_by: context.userId,
       expires_at: expiresAt,
     });

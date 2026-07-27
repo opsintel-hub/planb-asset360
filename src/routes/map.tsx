@@ -891,7 +891,7 @@ function MapPage() {
       </div>
 
       <CompactSelect placeholder="Project" value={fProject} onChange={setFProject} options={projects} />
-      <CompactSelect placeholder="Media Type" value={fMedia} onChange={setFMedia} options={mediaTypes} />
+      <CompactSelect placeholder="Media Type" value={fMedia} onChange={setFMedia} options={filteredMediaTypes} />
 
       <label className="flex items-center gap-2 h-9 px-3 rounded-md border cursor-pointer hover:bg-accent text-xs">
         <input type="checkbox" checked={onlyClaimed} onChange={(e) => setOnlyClaimed(e.target.checked)} />

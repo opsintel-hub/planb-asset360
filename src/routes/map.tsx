@@ -1261,18 +1261,52 @@ function MapPage() {
             preMedia={fMedia}
             initialSearch={shared?.initial ?? null}
             locked={shared?.locked ?? false}
-            onShare={(state) => {
-              const payload = {
-                p: state.presetKeys, f: state.freeText, r: state.radiusM, m: state.matchMode,
-                b: state.bbox, cp: state.chipProjects, cm: state.chipMedia,
-                pj: fProject, md: fMedia, lk: 1,
-              };
-              const encoded = encodeURIComponent(btoa(JSON.stringify(payload)));
-              const url = `${window.location.origin}${window.location.pathname}?poi=${encoded}`;
-              navigator.clipboard.writeText(url).then(
-                () => toast.success("คัดลอกลิงก์ (ล็อกตัวกรอง) แล้ว"),
-                () => toast.error("คัดลอกลิงก์ล้มเหลว"),
-              );
+            onShare={async (state) => {
+              if (!poiResult) {
+                toast.error("ยังไม่มีผลลัพธ์ให้แชร์");
+                return;
+              }
+              try {
+                const matchedIds = new Set(poiResult.matches.map((m) => m.assetId));
+                const shareAssets = allAssets
+                  .filter((a) => matchedIds.has(a.id))
+                  .map((a) => ({
+                    id: a.id,
+                    old_code: a.old_code,
+                    name: a.name,
+                    department: a.department,
+                    media_type: a.media_type,
+                    location: a.location,
+                    lat: a.lat,
+                    lng: a.lng,
+                  }));
+                const result = await createPoiShareFn({
+                  data: {
+                    payload: {
+                      pois: poiResult.pois,
+                      matches: poiResult.matches,
+                      radiusM: state.radiusM,
+                      matchMode: state.matchMode,
+                      bbox: state.bbox,
+                      presetKeys: state.presetKeys,
+                      freeText: state.freeText,
+                      chipProjects: state.chipProjects,
+                      chipMedia: state.chipMedia,
+                      project: fProject,
+                      media: fMedia,
+                      assets: shareAssets,
+                    },
+                  },
+                });
+                const url = `${window.location.origin}/shared/poi/${result.token}`;
+                await navigator.clipboard.writeText(url);
+                const expires = new Date(result.expiresAt).toLocaleString("th-TH", {
+                  dateStyle: "medium", timeStyle: "short",
+                });
+                toast.success(`คัดลอกลิงก์แล้ว · หมดอายุ ${expires} น. (72 ชม.)`, { duration: 6000 });
+              } catch (e) {
+                toast.error(`สร้างลิงก์ล้มเหลว: ${(e as Error).message}`);
+              }
             }}
           />
         </Suspense>

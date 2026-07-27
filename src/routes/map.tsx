@@ -177,6 +177,7 @@ function MapPage() {
   const deleteLocFn = useServerFn(deleteSavedLocation);
   const upsertRouteFn = useServerFn(upsertSavedRoute);
   const deleteRouteFn = useServerFn(deleteSavedRoute);
+  const createPoiShareFn = useServerFn(createPoiShare);
   const qc = useQueryClient();
 
 

@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ClientOnly } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/ui-bits";
+import { useAuth } from "@/lib/auth-context";
 import {
   MapPin,
   AlertTriangle,
@@ -166,6 +167,7 @@ type Stop = {
 
 function MapPage() {
   // ---------- data ----------
+  const { user } = useAuth();
   const assetsFn = useServerFn(listAssetsForMap);
   const claimsFn = useServerFn(listOpenClaimOldCodes);
   const listLocFn = useServerFn(listSavedLocations);
@@ -175,6 +177,7 @@ function MapPage() {
   const upsertRouteFn = useServerFn(upsertSavedRoute);
   const deleteRouteFn = useServerFn(deleteSavedRoute);
   const qc = useQueryClient();
+
 
   const { data: assetsData, isLoading: loadingAssets } = useQuery({
     queryKey: ["map", "assets"],
@@ -190,11 +193,13 @@ function MapPage() {
     queryKey: ["map", "saved-locations"],
     queryFn: () => listLocFn({}),
     staleTime: 60_000,
+    enabled: !!user,
   });
   const { data: routesData } = useQuery({
     queryKey: ["map", "saved-routes"],
     queryFn: () => listRouteFn({}),
     staleTime: 60_000,
+    enabled: !!user,
   });
 
   const allAssets = assetsData?.assets ?? [];

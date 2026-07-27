@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { listAssetsForMap, listOpenClaimOldCodes, type MapAsset } from "@/lib/map.functions";
+import { createPoiShare } from "@/lib/poi-share.functions";
 import {
   listSavedLocations,
   upsertSavedLocation,
@@ -176,6 +177,7 @@ function MapPage() {
   const deleteLocFn = useServerFn(deleteSavedLocation);
   const upsertRouteFn = useServerFn(upsertSavedRoute);
   const deleteRouteFn = useServerFn(deleteSavedRoute);
+  const createPoiShareFn = useServerFn(createPoiShare);
   const qc = useQueryClient();
 
 
@@ -246,6 +248,28 @@ function MapPage() {
   const [mode, setMode] = useState<Mode>(shared ? "poi" : "corridor");
   const [fProject, setFProject] = useState(shared?.project ?? "all");
   const [fMedia, setFMedia] = useState(shared?.media ?? "all");
+
+  // Cascading Media Type list: when a Project is selected, only show media types
+  // that actually exist for that project's departments.
+  const filteredMediaTypes = useMemo(() => {
+    if (fProject === "all") return mediaTypes;
+    const projectDepts = new Set(PROJECT_TO_DEPARTMENTS[fProject] ?? []);
+    const used = new Set<string>();
+    for (const a of allAssets) {
+      if (a.department && projectDepts.has(a.department) && a.media_type) {
+        used.add(a.media_type);
+      }
+    }
+    return mediaTypes.filter((m) => used.has(m));
+  }, [fProject, mediaTypes, allAssets]);
+
+  // Reset Media Type if the current selection is not valid for the chosen project.
+  useEffect(() => {
+    if (fMedia !== "all" && !filteredMediaTypes.includes(fMedia)) {
+      setFMedia("all");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredMediaTypes]);
   const [q, setQ] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
@@ -869,7 +893,7 @@ function MapPage() {
       </div>
 
       <CompactSelect placeholder="Project" value={fProject} onChange={setFProject} options={projects} />
-      <CompactSelect placeholder="Media Type" value={fMedia} onChange={setFMedia} options={mediaTypes} />
+      <CompactSelect placeholder="Media Type" value={fMedia} onChange={setFMedia} options={filteredMediaTypes} />
 
       <label className="flex items-center gap-2 h-9 px-3 rounded-md border cursor-pointer hover:bg-accent text-xs">
         <input type="checkbox" checked={onlyClaimed} onChange={(e) => setOnlyClaimed(e.target.checked)} />
@@ -1237,18 +1261,52 @@ function MapPage() {
             preMedia={fMedia}
             initialSearch={shared?.initial ?? null}
             locked={shared?.locked ?? false}
-            onShare={(state) => {
-              const payload = {
-                p: state.presetKeys, f: state.freeText, r: state.radiusM, m: state.matchMode,
-                b: state.bbox, cp: state.chipProjects, cm: state.chipMedia,
-                pj: fProject, md: fMedia, lk: 1,
-              };
-              const encoded = encodeURIComponent(btoa(JSON.stringify(payload)));
-              const url = `${window.location.origin}${window.location.pathname}?poi=${encoded}`;
-              navigator.clipboard.writeText(url).then(
-                () => toast.success("คัดลอกลิงก์ (ล็อกตัวกรอง) แล้ว"),
-                () => toast.error("คัดลอกลิงก์ล้มเหลว"),
-              );
+            onShare={async (state) => {
+              if (!poiResult) {
+                toast.error("ยังไม่มีผลลัพธ์ให้แชร์");
+                return;
+              }
+              try {
+                const matchedIds = new Set(poiResult.matches.map((m) => m.assetId));
+                const shareAssets = allAssets
+                  .filter((a) => matchedIds.has(a.id))
+                  .map((a) => ({
+                    id: a.id,
+                    old_code: a.old_code,
+                    name: a.name,
+                    department: a.department,
+                    media_type: a.media_type,
+                    location: a.location,
+                    lat: a.lat,
+                    lng: a.lng,
+                  }));
+                const result = await createPoiShareFn({
+                  data: {
+                    payload: {
+                      pois: poiResult.pois,
+                      matches: poiResult.matches,
+                      radiusM: state.radiusM,
+                      matchMode: state.matchMode,
+                      bbox: state.bbox,
+                      presetKeys: state.presetKeys,
+                      freeText: state.freeText,
+                      chipProjects: state.chipProjects,
+                      chipMedia: state.chipMedia,
+                      project: fProject,
+                      media: fMedia,
+                      assets: shareAssets,
+                    },
+                  },
+                });
+                const url = `${window.location.origin}/shared/poi/${result.token}`;
+                await navigator.clipboard.writeText(url);
+                const expires = new Date(result.expiresAt).toLocaleString("th-TH", {
+                  dateStyle: "medium", timeStyle: "short",
+                });
+                toast.success(`คัดลอกลิงก์แล้ว · หมดอายุ ${expires} น. (72 ชม.)`, { duration: 6000 });
+              } catch (e) {
+                toast.error(`สร้างลิงก์ล้มเหลว: ${(e as Error).message}`);
+              }
             }}
           />
         </Suspense>

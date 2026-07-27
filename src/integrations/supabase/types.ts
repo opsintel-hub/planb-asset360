@@ -857,6 +857,14 @@ export type Database = {
           schedule: string
         }[]
       }
+      get_poi_share: {
+        Args: { _token: string }
+        Returns: {
+          created_at: string
+          expires_at: string
+          payload: Json
+        }[]
+      }
       get_public_schema_info: { Args: never; Returns: Json }
       has_role: {
         Args: {

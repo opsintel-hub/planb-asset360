@@ -246,6 +246,28 @@ function MapPage() {
   const [mode, setMode] = useState<Mode>(shared ? "poi" : "corridor");
   const [fProject, setFProject] = useState(shared?.project ?? "all");
   const [fMedia, setFMedia] = useState(shared?.media ?? "all");
+
+  // Cascading Media Type list: when a Project is selected, only show media types
+  // that actually exist for that project's departments.
+  const filteredMediaTypes = useMemo(() => {
+    if (fProject === "all") return mediaTypes;
+    const projectDepts = new Set(PROJECT_TO_DEPARTMENTS[fProject] ?? []);
+    const used = new Set<string>();
+    for (const a of allAssets) {
+      if (a.department && projectDepts.has(a.department) && a.media_type) {
+        used.add(a.media_type);
+      }
+    }
+    return mediaTypes.filter((m) => used.has(m));
+  }, [fProject, mediaTypes, allAssets]);
+
+  // Reset Media Type if the current selection is not valid for the chosen project.
+  useEffect(() => {
+    if (fMedia !== "all" && !filteredMediaTypes.includes(fMedia)) {
+      setFMedia("all");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredMediaTypes]);
   const [q, setQ] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [suggestOpen, setSuggestOpen] = useState(false);

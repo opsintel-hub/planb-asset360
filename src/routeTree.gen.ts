@@ -19,6 +19,7 @@ import { Route as PmInsightsRouteImport } from './routes/pm-insights'
 import { Route as RcaRouteImport } from './routes/rca'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SharedPoiTokenRouteImport } from './routes/shared/poi.$token'
 import { Route as ApiPublicHooksSyncAssetHistoryRouteImport } from './routes/api/public/hooks/sync-asset-history'
 import { Route as ApiPublicHooksSyncClaimsRouteImport } from './routes/api/public/hooks/sync-claims'
 import { Route as ApiPublicPoiShareTokenRouteImport } from './routes/api/public/poi-share/$token'
@@ -73,6 +74,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SharedPoiTokenRoute = SharedPoiTokenRouteImport.update({
+  id: '/shared/poi/$token',
+  path: '/shared/poi/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksSyncAssetHistoryRoute =
   ApiPublicHooksSyncAssetHistoryRouteImport.update({
     id: '/api/public/hooks/sync-asset-history',
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/rca': typeof RcaRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/shared/poi/$token': typeof SharedPoiTokenRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
   '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
   '/api/public/poi-share/$token': typeof ApiPublicPoiShareTokenRoute
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/rca': typeof RcaRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/shared/poi/$token': typeof SharedPoiTokenRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
   '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
   '/api/public/poi-share/$token': typeof ApiPublicPoiShareTokenRoute
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/rca': typeof RcaRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/shared/poi/$token': typeof SharedPoiTokenRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
   '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
   '/api/public/poi-share/$token': typeof ApiPublicPoiShareTokenRoute
@@ -150,6 +159,7 @@ export interface FileRouteTypes {
     | '/rca'
     | '/search'
     | '/settings'
+    | '/shared/poi/$token'
     | '/api/public/hooks/sync-asset-history'
     | '/api/public/hooks/sync-claims'
     | '/api/public/poi-share/$token'
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
     | '/rca'
     | '/search'
     | '/settings'
+    | '/shared/poi/$token'
     | '/api/public/hooks/sync-asset-history'
     | '/api/public/hooks/sync-claims'
     | '/api/public/poi-share/$token'
@@ -180,6 +191,7 @@ export interface FileRouteTypes {
     | '/rca'
     | '/search'
     | '/settings'
+    | '/shared/poi/$token'
     | '/api/public/hooks/sync-asset-history'
     | '/api/public/hooks/sync-claims'
     | '/api/public/poi-share/$token'
@@ -196,6 +208,7 @@ export interface RootRouteChildren {
   RcaRoute: typeof RcaRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
+  SharedPoiTokenRoute: typeof SharedPoiTokenRoute
   ApiPublicHooksSyncAssetHistoryRoute: typeof ApiPublicHooksSyncAssetHistoryRoute
   ApiPublicHooksSyncClaimsRoute: typeof ApiPublicHooksSyncClaimsRoute
   ApiPublicPoiShareTokenRoute: typeof ApiPublicPoiShareTokenRoute
@@ -273,6 +286,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shared/poi/$token': {
+      id: '/shared/poi/$token'
+      path: '/shared/poi/$token'
+      fullPath: '/shared/poi/$token'
+      preLoaderRoute: typeof SharedPoiTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/sync-asset-history': {
       id: '/api/public/hooks/sync-asset-history'
       path: '/api/public/hooks/sync-asset-history'
@@ -308,6 +328,7 @@ const rootRouteChildren: RootRouteChildren = {
   RcaRoute: RcaRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
+  SharedPoiTokenRoute: SharedPoiTokenRoute,
   ApiPublicHooksSyncAssetHistoryRoute: ApiPublicHooksSyncAssetHistoryRoute,
   ApiPublicHooksSyncClaimsRoute: ApiPublicHooksSyncClaimsRoute,
   ApiPublicPoiShareTokenRoute: ApiPublicPoiShareTokenRoute,

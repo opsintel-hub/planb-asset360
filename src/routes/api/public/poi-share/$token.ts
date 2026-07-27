@@ -32,14 +32,11 @@ export const Route = createFileRoute("/api/public/poi-share/$token")({
           },
         });
 
-        // Use maybeSingle so we can distinguish expired vs missing.
-        // The RLS policy for anon filters out expired rows automatically,
-        // so both look like "no row" to us — we then check via service role.
-        const { data, error } = await supabase
-          .from("poi_shares")
-          .select("payload, expires_at, created_at")
-          .eq("token", token)
-          .maybeSingle();
+        // Token-scoped RPC: only returns a row when the exact token matches
+        // and the share has not expired. No broad table SELECT for anon.
+        const { data: rows, error } = await supabase.rpc("get_poi_share", {
+          _token: token,
+        });
 
         if (error) {
           return new Response(JSON.stringify({ error: "lookup failed" }), {
@@ -48,9 +45,11 @@ export const Route = createFileRoute("/api/public/poi-share/$token")({
           });
         }
 
+        const data = Array.isArray(rows) ? rows[0] : rows;
+
         if (!data) {
-          // Row may be missing OR expired (RLS hides expired for anon).
-          // Cleanup expired via admin, then respond as gone/not-found.
+          // Row may be missing OR expired. Cleanup expired via admin,
+          // then respond as gone/not-found.
           try {
             const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
             const { data: expiredRow } = await supabaseAdmin

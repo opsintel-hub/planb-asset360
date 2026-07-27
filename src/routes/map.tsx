@@ -101,7 +101,7 @@ export const Route = createFileRoute("/map")({
   component: MapPage,
 });
 
-const RADIUS_PRESETS = [50, 100, 200, 500, 1000];
+const RADIUS_PRESETS = [5, 10, 50, 100, 200, 500, 1000];
 
 // ---------- geometry helpers ----------
 function haversine(a: LatLng, b: LatLng): number {
@@ -402,14 +402,32 @@ function MapPage() {
     return out;
   }, [mode, filtered, polyline, radius]);
 
+  // Inspection: assets the OSRM route passes near (within `radius` of the road polyline)
+  const inspectionNearby = useMemo(() => {
+    if (mode !== "inspection" || !roadPolyline || roadPolyline.length < 2)
+      return [] as Array<MapAsset & { dist: number }>;
+    const stopIds = new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
+    const out: Array<MapAsset & { dist: number }> = [];
+    for (const a of filtered) {
+      if (stopIds.has(a.id)) continue; // exclude picked stops from "passing" list
+      const d = distanceToPolyline([a.lat, a.lng], roadPolyline);
+      if (d <= radius) out.push({ ...a, dist: d });
+    }
+    out.sort((a, b) => a.dist - b.dist);
+    return out;
+  }, [mode, filtered, roadPolyline, radius, stops]);
+
   // Highlight set on the map
   const highlightIds = useMemo(() => {
     if (mode === "corridor" && polyline.length > 0) return new Set(nearby.map((a) => a.id));
-    if (mode === "inspection" && stops.length > 0)
-      return new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
+    if (mode === "inspection" && stops.length > 0) {
+      const ids = new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
+      for (const a of inspectionNearby) ids.add(a.id);
+      return ids;
+    }
     if (mode === "poi" && poiMatchedAssetIds) return poiMatchedAssetIds;
     return null;
-  }, [mode, polyline.length, nearby, stops, poiMatchedAssetIds]);
+  }, [mode, polyline.length, nearby, stops, inspectionNearby, poiMatchedAssetIds]);
 
   const suggestions = useMemo(() => {
     const qq = q.trim().toLowerCase();
@@ -969,8 +987,8 @@ function MapPage() {
             </Select>
             <input
               type="number"
-              min={10}
-              step={10}
+              min={1}
+              step={5}
               value={radius}
               onChange={(e) => {
                 const n = Number(e.target.value);
@@ -1043,6 +1061,21 @@ function MapPage() {
           >
             <Wand2 className="size-4" /> Optimize
           </button>
+          <div className="flex items-center gap-1" title="รัศมีตรวจจับป้ายที่เส้นทางผ่าน">
+            <span className="text-[11px] text-muted-foreground">รัศมี</span>
+            <Select value={String(radius)} onValueChange={(v) => setRadius(Number(v))}>
+              <SelectTrigger className="h-9 w-[100px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[1100]">
+                {RADIUS_PRESETS.map((r) => (
+                  <SelectItem key={r} value={String(r)}>
+                    {r >= 1000 ? `${r / 1000} km` : `${r} m`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           {(stops.length > 0 || origin) && (
             <button
               onClick={clearInspection}
@@ -1240,6 +1273,39 @@ function MapPage() {
               );
             })
           )}
+          {roadPolyline && roadPolyline.length >= 2 && (
+            <div className="bg-amber-50/50 dark:bg-amber-950/20">
+              <div className="px-3 py-2 border-t border-b flex items-center justify-between gap-2">
+                <div className="text-[11px] font-semibold text-amber-800 dark:text-amber-200">
+                  ป้ายที่เส้นทางผ่าน · {inspectionNearby.length}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  รัศมี {radius >= 1000 ? `${radius / 1000} km` : `${radius} m`}
+                </div>
+              </div>
+              {inspectionNearby.length === 0 ? (
+                <div className="px-3 py-2 text-[11px] text-muted-foreground">
+                  ไม่มีป้ายอื่นในรัศมีที่กำหนดตลอดเส้นทาง
+                </div>
+              ) : (
+                inspectionNearby.slice(0, 200).map((a, i) => (
+                  <button
+                    key={a.id}
+                    onClick={() => setFocusId(a.id)}
+                    className="w-full text-left px-3 py-1.5 hover:bg-accent border-t border-amber-100 dark:border-amber-900/40"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs font-semibold truncate">{i + 1}. {a.old_code ?? "—"}</div>
+                      <div className="text-[11px] text-muted-foreground tabular-nums shrink-0">{fmtDist(a.dist)}</div>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground truncate">
+                      {[projectForDepartment(a.department) ?? a.department, a.media_type, a.location].filter(Boolean).join(" • ")}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
     ) : null;
@@ -1360,7 +1426,7 @@ function MapPage() {
                   setRoadPolyline(null);
                   setRouteInfo(null);
                 }}
-                showRadiusRings={mode === "corridor"}
+                showRadiusRings={mode === "corridor" || (mode === "inspection" && !!roadPolyline && roadPolyline.length >= 2)}
                 poiMarkers={poiMarkers}
                 poiRadiusMeters={mode === "poi" && poiResult ? poiResult.radiusM : 0}
                 focusPoiId={focusPoiId}

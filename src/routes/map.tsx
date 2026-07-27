@@ -987,8 +987,8 @@ function MapPage() {
             </Select>
             <input
               type="number"
-              min={10}
-              step={10}
+              min={1}
+              step={5}
               value={radius}
               onChange={(e) => {
                 const n = Number(e.target.value);

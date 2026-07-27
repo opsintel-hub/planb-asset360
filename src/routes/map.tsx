@@ -284,8 +284,18 @@ function MapPage() {
 
 
   const assetIndexById = useMemo(() => {
-    const m = new Map<string, { old_code: string | null; name: string | null }>();
-    for (const a of allAssets) m.set(a.id, { old_code: a.old_code, name: a.name });
+    const m = new Map<string, {
+      old_code: string | null;
+      name: string | null;
+      department: string | null;
+      media_type: string | null;
+    }>();
+    for (const a of allAssets) m.set(a.id, {
+      old_code: a.old_code,
+      name: a.name,
+      department: a.department,
+      media_type: a.media_type,
+    });
     return m;
   }, [allAssets]);
 

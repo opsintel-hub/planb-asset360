@@ -166,6 +166,7 @@ type Stop = {
 
 function MapPage() {
   // ---------- data ----------
+  const { user } = useAuth();
   const assetsFn = useServerFn(listAssetsForMap);
   const claimsFn = useServerFn(listOpenClaimOldCodes);
   const listLocFn = useServerFn(listSavedLocations);
@@ -175,6 +176,7 @@ function MapPage() {
   const upsertRouteFn = useServerFn(upsertSavedRoute);
   const deleteRouteFn = useServerFn(deleteSavedRoute);
   const qc = useQueryClient();
+
 
   const { data: assetsData, isLoading: loadingAssets } = useQuery({
     queryKey: ["map", "assets"],

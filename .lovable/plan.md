@@ -1,62 +1,94 @@
-# POI Search — 4 การปรับปรุงในรอบเดียว
+# แผนการแก้ไข
 
-หลักการ: ใช้ตัวกรอง Project/Media Type ที่ **มีอยู่แล้ว** บน toolbar แผนที่ให้ทำงาน 2 ชั้น (ก่อน+หลังค้นหา) โดยไม่สร้าง UI ซ้ำ
+## 1) ตัวกรอง Media Type ผูกกับ Project
 
----
+- ในหน้า `/map` toolbar (`src/routes/map.tsx`) คำนวณ `mediaTypesForProject` จาก assets จริง: เมื่อ `fProject !== "all"` ให้เลือกเฉพาะ `media_type` ที่ปรากฏใน asset ซึ่ง department ของมัน map ไป Project นั้น (ใช้ `PROJECT_TO_DEPARTMENTS`)
+- ส่งลิสต์ที่กรองแล้วให้ `<CompactSelect placeholder="Media Type">`
+- เมื่อผู้ใช้เปลี่ยน Project และ `fMedia` เดิมไม่อยู่ในลิสต์ใหม่ → รีเซ็ต `fMedia` เป็น `"all"` (ผ่าน `useEffect`)
 
-## 1. CSV — เพิ่ม Media Type/Department/Project
-เพิ่ม 3 คอลัมน์ใหม่ต่อจาก `Asset Name`:
+## 2) แชร์ลิงก์ POI แบบสาธารณะ อายุ 72 ชั่วโมง
+
+### กระแสงาน
+
+```text
+[ผู้ใช้ที่ล็อกอิน] ── กดแชร์ ──▶ createPoiShare()  ── insert row (expires_at = now+72h)
+                                       │
+                                       └─▶ URL: /shared/poi/<token>
+                                       
+[คู่ค้า/ลูกค้า] เปิด URL ──▶ /shared/poi/<token>
+   │ 1) โหลด API สาธารณะ  GET /api/public/poi-share/<token>
+   │      • ถ้า expires_at ≤ now → ลบ row + คืน 410 Gone
+   │      • ถ้าไม่พบ → 404
+   │      • ถ้าใช้ได้ → คืน payload + expires_at
+   │ 2) แสดง Popup แจ้งเตือน (บังคับกด "ยอมรับ" ก่อนดูข้อมูล)
+   │      • บอกวัน-เวลา หมดอายุ + เวลาถอยหลัง
+   │      • คำเตือนว่าเป็นข้อมูลลับ
+   │ 3) เรนเดอร์ Map แบบ read-only + ป้าย POI + รายการผลลัพธ์
 ```
-Asset (Old Code) | Asset Name | Media Type | Department | Project | ระยะ (m)
+
+### Schema (Lovable Cloud migration)
+
+```sql
+CREATE TABLE public.poi_shares (
+  token text PRIMARY KEY,
+  payload jsonb NOT NULL,      -- POIs, matches, assets ที่แสดง, bbox, radius, filters
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL
+);
+GRANT SELECT ON public.poi_shares TO anon;         -- ผู้รับลิงก์อ่านผ่าน service role ก็ได้ แต่ SELECT ให้ anon ก็พอเพราะ token เดารายไม่ได้
+GRANT INSERT, SELECT, DELETE ON public.poi_shares TO authenticated;
+GRANT ALL ON public.poi_shares TO service_role;
+ALTER TABLE public.poi_shares ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "anon can read unexpired shares by token"
+  ON public.poi_shares FOR SELECT TO anon
+  USING (expires_at > now());
+
+CREATE POLICY "auth can create own shares"
+  ON public.poi_shares FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY "auth can read unexpired"
+  ON public.poi_shares FOR SELECT TO authenticated USING (expires_at > now());
 ```
-ข้อมูลดึงจาก `assetIndexById` ที่จะขยายให้เก็บ `department` + `media_type` (ไม่มี round-trip เพิ่ม).
 
-## 2. Pre-search filter (ทำให้ Overpass เร็วขึ้น/timeout น้อยลง)
-Toolbar เดิมมี `Project` และ `Media Type` selectors อยู่แล้ว — **ส่งค่านี้ลงไปที่ server function** (parameter `departments` + `mediaTypes` มีรองรับแล้วใน `searchPOIsNearAssets`):
-- Server จะกรอง assets จำนวนน้อยลงตั้งแต่ต้น
-- bbox หลังกระชับ (tightBbox) จะเล็กลง → Overpass query เร็ว/สำเร็จมากขึ้น
-- ไม่ต้องเพิ่ม UI ใหม่เลย เพียงต่อสาย
+### Payload ที่ฝังไปกับ share (self-contained → ไม่ต้อง auth เพื่อดึงเพิ่ม)
 
-แสดง badge เล็กบนหัวการ์ด POI panel เพื่อบอกผู้ใช้ว่า “กำลังค้นหาเฉพาะ: Digital / LED” เพื่อความชัดเจน.
+- `pois`, `matches`, `radiusM`, `matchMode`
+- `assets` (เฉพาะที่ปรากฏใน matches — ประหยัดพื้นที่): `{id, old_code, name, department, media_type, location, lat, lng}`
+- `bbox`, `chipProjects`, `chipMedia`, `project`, `media`
 
-## 3. Post-search chip filter (สลับดูทีละกลุ่ม)
-เมื่อผลลัพธ์กลับมา จะสร้าง chip filters อัตโนมัติจาก matched assets:
-- Row 1: Project chips (Digital / Static / Billboard / …) พร้อมจำนวน
-- Row 2: Media Type chips พร้อมจำนวน
+### ไฟล์ที่จะสร้าง/แก้
 
-กด chip = toggle → กรอง client-side ทันที (ไม่ยิงเซิร์ฟเวอร์ซ้ำ), รายการ POI/asset ใต้ผลลัพธ์และวงกลมบนแผนที่ถูก filter ตาม.
-
-### 3.1 ผลกระทบกับ Export
-ปุ่ม `CSV ▾` เปลี่ยนเป็น dropdown 2 ตัวเลือก:
-- **เฉพาะที่กรองอยู่ตอนนี้** (default — สอดคล้องกับที่ผู้ใช้เห็น)
-- **ทั้งหมดที่ค้นเจอ**
-
-### 3.2 pre + post = ครอบคลุมทั้งความเร็วและความสะดวก
-Pre-filter (ข้อ 2) ลดโหลด Overpass; Post-filter (ข้อ 3) ให้ผู้ใช้สลับมุมมองกลุ่มโดยไม่ต้อง search ใหม่.
-
-## 4. Shareable Locked Link
-- ปุ่มใหม่ `แชร์ลิงก์` ในหัวการ์ดผลลัพธ์ POI
-- Encode ลง URL search params: `presets`, `q`, `radius`, `bbox`, `project`, `media`, chip filter, และ `lock=1`
-- Copy URL ไป clipboard
-- เมื่อเปิดลิงก์ที่มี `lock=1`:
-  - Auto-รัน POI search ตาม state ที่ล็อกไว้ทันที
-  - `Project` / `Media Type` selects บน toolbar ถูก **disable + แสดง lock icon** (ผู้เปิดเปลี่ยนไม่ได้)
-  - Post-search chips ยัง **เปิดใช้ได้** (ให้ลูกค้าสลับดูทีละกลุ่มภายในขอบเขตที่ผู้ส่งกำหนด)
-  - แสดง banner บาง ๆ ว่า “มุมมองที่แชร์ — ตัวกรองหลักถูกล็อก”
-
-## ไฟล์ที่แก้ (3 ไฟล์)
-
-| ไฟล์ | สิ่งที่เปลี่ยน |
+| ไฟล์ | หน้าที่ |
 |---|---|
-| `src/components/poi-proximity-panel.tsx` | รับ `preProject`/`preMedia`/`assetsFullById`/`onShare`; ส่ง `departments`+`mediaTypes` ไป server; เพิ่ม post-search chips + scope toggle บน CSV + ปุ่มแชร์ลิงก์; ขยาย CSV columns |
-| `src/routes/map.tsx` | ขยาย `assetIndexById` ให้เก็บ dept+media; ต่อสาย props ใหม่; `validateSearch` สำหรับ URL params; hydrate state + auto-search เมื่อมี `lock=1`; disable Project/Media selects เมื่อ locked; handler ทำ `Copy Link` |
-| — ไม่แตะ server function | `searchPOIsNearAssets` รองรับ `departments`+`mediaTypes` อยู่แล้ว |
+| `supabase/migrations/*.sql` | สร้างตาราง `poi_shares` + policies |
+| `src/lib/poi-share.functions.ts` (ใหม่) | `createPoiShare` (auth) — สร้าง token, บันทึก payload, TTL 72h |
+| `src/routes/api/public/poi-share/$token.ts` (ใหม่) | GET public endpoint → คืน payload + expires_at, ลบถ้าหมดอายุ |
+| `src/routes/shared/poi.$token.tsx` (ใหม่) | หน้าสาธารณะ: fetch endpoint, Popup ยืนยัน + countdown, แสดง Map + POI list (read-only, ไม่มี toolbar/ทำงานย่อย) |
+| `src/routes/map.tsx` | (ก) เพิ่ม cascade Media Type. (ข) `onShare` เรียก `createPoiShare` แทนการ encode ลง URL, คัดลอกลิงก์ใหม่ |
+| `src/components/poi-proximity-panel.tsx` | ไม่ต้องแก้ (ยังส่ง state เดิมมาให้) |
 
-## จุดที่ไม่ทำ (เพื่อประหยัดเครดิต)
-- ไม่สร้างตาราง DB ใหม่ (snapshot link) — ผู้ใช้เลือก “ล็อกใน URL” ในคำตอบก่อนหน้าแล้ว
-- ไม่รื้อ layout POI panel — เพิ่มเฉพาะแถว chips + ปุ่มแชร์
-- ไม่แตะ PPTX/PDF export ในรอบนี้ (คำถามเกี่ยว CSV เป็นหลัก) — ยืนยันได้ถ้าต้องการให้ scope toggle มีผลกับ PPTX/PDF ด้วย
+### ลบข้อมูลอัตโนมัติ (ประหยัด storage)
 
----
+- `GET /api/public/poi-share/$token` handler: ถ้า `expires_at <= now()` ให้ `DELETE` แถวนั้นและคืน `410 Gone` — ลบทีละแถวตอนถูกเรียกอีกครั้ง
+- เสริม lazy sweep: `DELETE FROM poi_shares WHERE expires_at < now()` รันในทุก `createPoiShare` (มี index อยู่แล้วผ่าน PK; ราคาเล็กมาก) เพื่อล้าง row ที่ไม่มีใครแตะ
 
-**ยืนยันแผนนี้ได้เลยไหมครับ?** ถ้า OK จะลุยแก้ 2 ไฟล์ในรอบเดียว. ถ้าอยากให้ PPTX/PDF export มี scope toggle เดียวกันด้วย บอกได้ครับ จะเพิ่มไปพร้อมกัน.
+### Popup ยืนยัน (หน้า `/shared/poi/:token`)
+
+- Dialog บังคับ modal, ไม่มีปุ่ม close
+- แสดง:
+  - "ลิงก์นี้เป็นข้อมูลลับของบริษัท"
+  - "ลิงก์จะหมดอายุ: 27 ก.ค. 2569 14:32 น. (เหลืออีก 71 ชม. 59 นาที)" — อัปเดตทุกนาที
+  - ปุ่ม "ยอมรับและดูข้อมูล"
+- หลังกดยอมรับจึง render Map ด้านล่าง
+- แถบบนสุดของหน้าโชว์ countdown ตลอดเวลา
+
+### เหตุผลของการเลือก approach นี้
+
+1. Payload บันทึกลง DB → ผู้รับลิงก์ **ไม่ต้องล็อกอิน**, ไม่ต้อง auth ใดๆ
+2. Token เป็น URL-safe random 24 ไบต์ → เดาไม่ได้
+3. `expires_at` เก็บไว้ตายตัวใน DB — server เป็นแหล่งความจริงเดียว, ปิดจ๊อบเวลาที่ client
+4. ลบตอน request หมดอายุ + sweep ตอนสร้างใหม่ → ไม่ต้องมี cron แยก, ประหยัด
+5. หน้า public แยกจาก `/map` โดยสมบูรณ์ → ไม่ต้องแก้ auth guard, ไม่มีความเสี่ยงเปิดพื้นที่อื่นให้ anonymous
+
+ยืนยันไหมครับ ถ้ายืนยันจะลงมือทำต่อ

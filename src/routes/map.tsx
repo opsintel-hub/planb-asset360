@@ -1211,6 +1211,23 @@ function MapPage() {
             onFocusAsset={(id) => setFocusId(id)}
             onFocusPOI={(p) => setFocusPoiId(p.id)}
             assetIndexById={assetIndexById}
+            preProject={fProject}
+            preMedia={fMedia}
+            initialSearch={shared?.initial ?? null}
+            locked={shared?.locked ?? false}
+            onShare={(state) => {
+              const payload = {
+                p: state.presetKeys, f: state.freeText, r: state.radiusM, m: state.matchMode,
+                b: state.bbox, cp: state.chipProjects, cm: state.chipMedia,
+                pj: fProject, md: fMedia, lk: 1,
+              };
+              const encoded = encodeURIComponent(btoa(JSON.stringify(payload)));
+              const url = `${window.location.origin}${window.location.pathname}?poi=${encoded}`;
+              navigator.clipboard.writeText(url).then(
+                () => toast.success("คัดลอกลิงก์ (ล็อกตัวกรอง) แล้ว"),
+                () => toast.error("คัดลอกลิงก์ล้มเหลว"),
+              );
+            }}
           />
         </Suspense>
       </div>

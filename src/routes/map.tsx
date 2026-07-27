@@ -1393,7 +1393,7 @@ function MapPage() {
                   setRoadPolyline(null);
                   setRouteInfo(null);
                 }}
-                showRadiusRings={mode === "corridor"}
+                showRadiusRings={mode === "corridor" || (mode === "inspection" && !!roadPolyline && roadPolyline.length >= 2)}
                 poiMarkers={poiMarkers}
                 poiRadiusMeters={mode === "poi" && poiResult ? poiResult.radiusM : 0}
                 focusPoiId={focusPoiId}

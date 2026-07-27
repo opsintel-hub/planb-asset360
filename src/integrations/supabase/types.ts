@@ -740,6 +740,30 @@ export type Database = {
         }
         Relationships: []
       }
+      poi_shares: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          payload: Json
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          payload: Json
+          token: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          payload?: Json
+          token?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

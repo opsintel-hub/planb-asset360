@@ -207,10 +207,49 @@ function MapPage() {
   const savedLocations = locsData?.rows ?? [];
   const savedRoutes = routesData?.rows ?? [];
 
+  // ---------- Shared-link hydration (read once on mount, client-only) ----------
+  const sharedRef = useRef<{
+    initial: import("@/components/poi-proximity-panel").PoiInitialSearch;
+    project: string;
+    media: string;
+    locked: boolean;
+  } | null>(null);
+  if (typeof window !== "undefined" && sharedRef.current === undefined) {
+    // handled via lazy init below
+  }
+  const [shared] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const raw = sp.get("poi");
+      if (!raw) return null;
+      const decoded = JSON.parse(atob(decodeURIComponent(raw))) as {
+        p: string[]; f: string; r: number; m: "any" | "all";
+        b: [number, number, number, number];
+        cp: string[]; cm: string[];
+        pj?: string; md?: string; lk?: 0 | 1;
+      };
+      return {
+        initial: {
+          presetKeys: decoded.p ?? [],
+          freeText: decoded.f ?? "",
+          radiusM: decoded.r ?? 200,
+          matchMode: decoded.m ?? "any",
+          bbox: decoded.b,
+          chipProjects: decoded.cp ?? [],
+          chipMedia: decoded.cm ?? [],
+        },
+        project: decoded.pj ?? "all",
+        media: decoded.md ?? "all",
+        locked: decoded.lk === 1,
+      };
+    } catch { return null; }
+  });
+
   // ---------- shared UI state ----------
-  const [mode, setMode] = useState<Mode>("corridor");
-  const [fProject, setFProject] = useState("all");
-  const [fMedia, setFMedia] = useState("all");
+  const [mode, setMode] = useState<Mode>(shared ? "poi" : "corridor");
+  const [fProject, setFProject] = useState(shared?.project ?? "all");
+  const [fMedia, setFMedia] = useState(shared?.media ?? "all");
   const [q, setQ] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [suggestOpen, setSuggestOpen] = useState(false);

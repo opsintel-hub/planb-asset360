@@ -1061,6 +1061,21 @@ function MapPage() {
           >
             <Wand2 className="size-4" /> Optimize
           </button>
+          <div className="flex items-center gap-1" title="รัศมีตรวจจับป้ายที่เส้นทางผ่าน">
+            <span className="text-[11px] text-muted-foreground">รัศมี</span>
+            <Select value={String(radius)} onValueChange={(v) => setRadius(Number(v))}>
+              <SelectTrigger className="h-9 w-[100px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-[1100]">
+                {RADIUS_PRESETS.map((r) => (
+                  <SelectItem key={r} value={String(r)}>
+                    {r >= 1000 ? `${r / 1000} km` : `${r} m`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           {(stops.length > 0 || origin) && (
             <button
               onClick={clearInspection}

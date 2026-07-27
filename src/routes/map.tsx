@@ -207,10 +207,40 @@ function MapPage() {
   const savedLocations = locsData?.rows ?? [];
   const savedRoutes = routesData?.rows ?? [];
 
+  // ---------- Shared-link hydration (read once on mount, client-only) ----------
+  const [shared] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const raw = sp.get("poi");
+      if (!raw) return null;
+      const decoded = JSON.parse(atob(decodeURIComponent(raw))) as {
+        p: string[]; f: string; r: number; m: "any" | "all";
+        b: [number, number, number, number];
+        cp: string[]; cm: string[];
+        pj?: string; md?: string; lk?: 0 | 1;
+      };
+      return {
+        initial: {
+          presetKeys: decoded.p ?? [],
+          freeText: decoded.f ?? "",
+          radiusM: decoded.r ?? 200,
+          matchMode: decoded.m ?? "any",
+          bbox: decoded.b,
+          chipProjects: decoded.cp ?? [],
+          chipMedia: decoded.cm ?? [],
+        },
+        project: decoded.pj ?? "all",
+        media: decoded.md ?? "all",
+        locked: decoded.lk === 1,
+      };
+    } catch { return null; }
+  });
+
   // ---------- shared UI state ----------
-  const [mode, setMode] = useState<Mode>("corridor");
-  const [fProject, setFProject] = useState("all");
-  const [fMedia, setFMedia] = useState("all");
+  const [mode, setMode] = useState<Mode>(shared ? "poi" : "corridor");
+  const [fProject, setFProject] = useState(shared?.project ?? "all");
+  const [fMedia, setFMedia] = useState(shared?.media ?? "all");
   const [q, setQ] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
@@ -284,8 +314,18 @@ function MapPage() {
 
 
   const assetIndexById = useMemo(() => {
-    const m = new Map<string, { old_code: string | null; name: string | null }>();
-    for (const a of allAssets) m.set(a.id, { old_code: a.old_code, name: a.name });
+    const m = new Map<string, {
+      old_code: string | null;
+      name: string | null;
+      department: string | null;
+      media_type: string | null;
+    }>();
+    for (const a of allAssets) m.set(a.id, {
+      old_code: a.old_code,
+      name: a.name,
+      department: a.department,
+      media_type: a.media_type,
+    });
     return m;
   }, [allAssets]);
 
@@ -1162,6 +1202,23 @@ function MapPage() {
             onFocusAsset={(id) => setFocusId(id)}
             onFocusPOI={(p) => setFocusPoiId(p.id)}
             assetIndexById={assetIndexById}
+            preProject={fProject}
+            preMedia={fMedia}
+            initialSearch={shared?.initial ?? null}
+            locked={shared?.locked ?? false}
+            onShare={(state) => {
+              const payload = {
+                p: state.presetKeys, f: state.freeText, r: state.radiusM, m: state.matchMode,
+                b: state.bbox, cp: state.chipProjects, cm: state.chipMedia,
+                pj: fProject, md: fMedia, lk: 1,
+              };
+              const encoded = encodeURIComponent(btoa(JSON.stringify(payload)));
+              const url = `${window.location.origin}${window.location.pathname}?poi=${encoded}`;
+              navigator.clipboard.writeText(url).then(
+                () => toast.success("คัดลอกลิงก์ (ล็อกตัวกรอง) แล้ว"),
+                () => toast.error("คัดลอกลิงก์ล้มเหลว"),
+              );
+            }}
           />
         </Suspense>
       </div>

@@ -101,7 +101,7 @@ export const Route = createFileRoute("/map")({
   component: MapPage,
 });
 
-const RADIUS_PRESETS = [50, 100, 200, 500, 1000];
+const RADIUS_PRESETS = [5, 10, 50, 100, 200, 500, 1000];
 
 // ---------- geometry helpers ----------
 function haversine(a: LatLng, b: LatLng): number {

@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { listAssetsForMap, listOpenClaimOldCodes, type MapAsset } from "@/lib/map.functions";
+import { createPoiShare } from "@/lib/poi-share.functions";
 import {
   listSavedLocations,
   upsertSavedLocation,

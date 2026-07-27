@@ -21,6 +21,7 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiPublicHooksSyncAssetHistoryRouteImport } from './routes/api/public/hooks/sync-asset-history'
 import { Route as ApiPublicHooksSyncClaimsRouteImport } from './routes/api/public/hooks/sync-claims'
+import { Route as ApiPublicPoiShareTokenRouteImport } from './routes/api/public/poi-share/$token'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -84,6 +85,11 @@ const ApiPublicHooksSyncClaimsRoute =
     path: '/api/public/hooks/sync-claims',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicPoiShareTokenRoute = ApiPublicPoiShareTokenRouteImport.update({
+  id: '/api/public/poi-share/$token',
+  path: '/api/public/poi-share/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -98,6 +104,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
   '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
+  '/api/public/poi-share/$token': typeof ApiPublicPoiShareTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -112,6 +119,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
   '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
+  '/api/public/poi-share/$token': typeof ApiPublicPoiShareTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -127,6 +135,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
   '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
+  '/api/public/poi-share/$token': typeof ApiPublicPoiShareTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -143,6 +152,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/public/hooks/sync-asset-history'
     | '/api/public/hooks/sync-claims'
+    | '/api/public/poi-share/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/public/hooks/sync-asset-history'
     | '/api/public/hooks/sync-claims'
+    | '/api/public/poi-share/$token'
   id:
     | '__root__'
     | '/'
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/public/hooks/sync-asset-history'
     | '/api/public/hooks/sync-claims'
+    | '/api/public/poi-share/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -186,6 +198,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   ApiPublicHooksSyncAssetHistoryRoute: typeof ApiPublicHooksSyncAssetHistoryRoute
   ApiPublicHooksSyncClaimsRoute: typeof ApiPublicHooksSyncClaimsRoute
+  ApiPublicPoiShareTokenRoute: typeof ApiPublicPoiShareTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -274,6 +287,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksSyncClaimsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/poi-share/$token': {
+      id: '/api/public/poi-share/$token'
+      path: '/api/public/poi-share/$token'
+      fullPath: '/api/public/poi-share/$token'
+      preLoaderRoute: typeof ApiPublicPoiShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -290,6 +310,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   ApiPublicHooksSyncAssetHistoryRoute: ApiPublicHooksSyncAssetHistoryRoute,
   ApiPublicHooksSyncClaimsRoute: ApiPublicHooksSyncClaimsRoute,
+  ApiPublicPoiShareTokenRoute: ApiPublicPoiShareTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

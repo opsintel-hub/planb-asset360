@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { ClientOnly } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "@/components/ui-bits";
+import { useAuth } from "@/lib/auth-context";
 import {
   MapPin,
   AlertTriangle,

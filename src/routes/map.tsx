@@ -500,6 +500,32 @@ function MapPage() {
     }
   };
 
+  // Auto-draw route on the map whenever origin/stops change (debounced).
+  // Users saw waypoints listed but no line on the map until manually clicking Auto Route.
+  useEffect(() => {
+    if (mode !== "inspection") return;
+    if (routePoints.length < 2) return;
+    if (roadPolyline) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        setRouting(true);
+        const r = await osrmRoute(routePoints);
+        if (cancelled) return;
+        setRoadPolyline(r.geometry);
+        setRouteInfo({ distance: r.distance, duration: r.duration, legs: r.legs });
+      } catch {
+        // silent: keep the manual Auto Route button available; avoid toast spam on each edit
+      } finally {
+        if (!cancelled) setRouting(false);
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [mode, routePoints, roadPolyline]);
+
   const clearInspection = () => {
     setStops([]);
     setOrigin(null);

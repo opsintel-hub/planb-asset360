@@ -269,8 +269,10 @@ function MapPage() {
 
   // Drop Media Type selections that are no longer valid for the chosen projects.
   useEffect(() => {
-    setFMedias((prev) => prev.filter((m) => filteredMediaTypes.includes(m)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setFMedias((prev) => {
+      const next = prev.filter((m) => filteredMediaTypes.includes(m));
+      return next.length === prev.length ? prev : next;
+    });
   }, [filteredMediaTypes]);
   const [q, setQ] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);

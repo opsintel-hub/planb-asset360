@@ -468,7 +468,7 @@ function MapPage() {
   }, [fullscreen]);
 
   const projects = Object.keys(PROJECT_TO_DEPARTMENTS);
-  const hasFilter = fProject !== "all" || fMedia !== "all" || q || onlyClaimed;
+  const hasFilter = fProjects.length > 0 || fMedias.length > 0 || q || onlyClaimed;
 
   // ---------- Inspection actions ----------
   const addStop = (a: MapAsset) => {

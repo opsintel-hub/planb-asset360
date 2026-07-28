@@ -108,9 +108,10 @@ export default function PoiProximityPanel({
       const token = { cancelled: false };
       cancelRef.current = token;
 
-      const departments =
-        preProject !== "all" ? (PROJECT_TO_DEPARTMENTS[preProject] ?? []) : [];
-      const mediaTypes = preMedia !== "all" ? [preMedia] : [];
+      const departments = preProjects.length > 0
+        ? Array.from(new Set(preProjects.flatMap((p) => PROJECT_TO_DEPARTMENTS[p] ?? [])))
+        : [];
+      const mediaTypes = preMedias.length > 0 ? preMedias : [];
 
       const result = await searchFn({
         data: {

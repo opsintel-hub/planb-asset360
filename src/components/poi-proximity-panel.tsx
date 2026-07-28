@@ -348,19 +348,19 @@ export default function PoiProximityPanel({
         <div className="text-[10px] text-muted-foreground mt-0.5">
           ใช้ Overpass (OpenStreetMap) — ฟรี ไม่ต้องสมัคร key
         </div>
-        {(preProject !== "all" || preMedia !== "all") && (
+        {(preProjects.length > 0 || preMedias.length > 0) && (
           <div className="mt-1.5 flex flex-wrap gap-1 text-[10px]">
             <span className="text-muted-foreground">กำลังค้นหาเฉพาะ:</span>
-            {preProject !== "all" && (
-              <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                {preProject}
+            {preProjects.map((p) => (
+              <span key={`pp-${p}`} className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                {p}
               </span>
-            )}
-            {preMedia !== "all" && (
-              <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                {preMedia}
+            ))}
+            {preMedias.map((m) => (
+              <span key={`pm-${m}`} className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                {m}
               </span>
-            )}
+            ))}
           </div>
         )}
         {locked && (

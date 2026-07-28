@@ -205,8 +205,8 @@ function MapPage() {
     enabled: !!user,
   });
 
-  const allAssets = assetsData?.assets ?? [];
-  const mediaTypes = assetsData?.mediaTypes ?? [];
+  const allAssets = useMemo(() => assetsData?.assets ?? [], [assetsData?.assets]);
+  const mediaTypes = useMemo(() => assetsData?.mediaTypes ?? [], [assetsData?.mediaTypes]);
   const claimedCodes = useMemo(
     () => new Set(claimsData?.oldCodes ?? []),
     [claimsData?.oldCodes],

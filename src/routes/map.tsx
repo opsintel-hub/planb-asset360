@@ -225,7 +225,7 @@ function MapPage() {
         p: string[]; f: string; r: number; m: "any" | "all";
         b: [number, number, number, number];
         cp: string[]; cm: string[];
-        pj?: string; md?: string; lk?: 0 | 1;
+        pj?: string; md?: string; pjs?: string[]; mds?: string[]; lk?: 0 | 1;
       };
       return {
         initial: {
@@ -237,8 +237,8 @@ function MapPage() {
           chipProjects: decoded.cp ?? [],
           chipMedia: decoded.cm ?? [],
         },
-        project: decoded.pj ?? "all",
-        media: decoded.md ?? "all",
+        projects: decoded.pjs ?? (decoded.pj && decoded.pj !== "all" ? [decoded.pj] : []),
+        medias: decoded.mds ?? (decoded.md && decoded.md !== "all" ? [decoded.md] : []),
         locked: decoded.lk === 1,
       };
     } catch { return null; }

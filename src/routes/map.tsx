@@ -246,14 +246,17 @@ function MapPage() {
 
   // ---------- shared UI state ----------
   const [mode, setMode] = useState<Mode>(shared ? "poi" : "corridor");
-  const [fProject, setFProject] = useState(shared?.project ?? "all");
-  const [fMedia, setFMedia] = useState(shared?.media ?? "all");
+  const [fProjects, setFProjects] = useState<string[]>(shared?.projects ?? []);
+  const [fMedias, setFMedias] = useState<string[]>(shared?.medias ?? []);
 
-  // Cascading Media Type list: when a Project is selected, only show media types
-  // that actually exist for that project's departments.
+  // Cascading Media Type list: when Projects are selected, only show media types
+  // that actually exist for those projects' departments.
   const filteredMediaTypes = useMemo(() => {
-    if (fProject === "all") return mediaTypes;
-    const projectDepts = new Set(PROJECT_TO_DEPARTMENTS[fProject] ?? []);
+    if (fProjects.length === 0) return mediaTypes;
+    const projectDepts = new Set<string>();
+    for (const p of fProjects) {
+      for (const d of PROJECT_TO_DEPARTMENTS[p] ?? []) projectDepts.add(d);
+    }
     const used = new Set<string>();
     for (const a of allAssets) {
       if (a.department && projectDepts.has(a.department) && a.media_type) {
@@ -261,13 +264,11 @@ function MapPage() {
       }
     }
     return mediaTypes.filter((m) => used.has(m));
-  }, [fProject, mediaTypes, allAssets]);
+  }, [fProjects, mediaTypes, allAssets]);
 
-  // Reset Media Type if the current selection is not valid for the chosen project.
+  // Drop Media Type selections that are no longer valid for the chosen projects.
   useEffect(() => {
-    if (fMedia !== "all" && !filteredMediaTypes.includes(fMedia)) {
-      setFMedia("all");
-    }
+    setFMedias((prev) => prev.filter((m) => filteredMediaTypes.includes(m)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredMediaTypes]);
   const [q, setQ] = useState("");

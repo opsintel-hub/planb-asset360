@@ -58,8 +58,8 @@ type Props = {
   onFocusPOI: (poi: POI) => void;
   assetIndexById: Map<string, AssetInfo>;
   /** Pre-filters mirrored from the map toolbar. Narrow the DB query for speed. */
-  preProject?: string; // "all" | project key
-  preMedia?: string;   // "all" | media_type
+  preProjects?: string[]; // empty = all
+  preMedias?: string[];   // empty = all
   /** When set, panel auto-runs a search once using these values (used for shareable links). */
   initialSearch?: PoiInitialSearch | null;
   /** When set, the search inputs render as read-only "locked" chips (shared link mode). */
@@ -70,7 +70,7 @@ type Props = {
 
 export default function PoiProximityPanel({
   bbox, onResult, onFocusAsset, onFocusPOI, assetIndexById,
-  preProject = "all", preMedia = "all", initialSearch = null, locked = false, onShare,
+  preProjects = [], preMedias = [], initialSearch = null, locked = false, onShare,
 }: Props) {
   const searchFn = useServerFn(searchPOIsNearAssets);
 

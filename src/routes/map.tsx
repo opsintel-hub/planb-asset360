@@ -38,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { listAssetsForMap, listOpenClaimOldCodes, type MapAsset } from "@/lib/map.functions";
 import { createPoiShare } from "@/lib/poi-share.functions";

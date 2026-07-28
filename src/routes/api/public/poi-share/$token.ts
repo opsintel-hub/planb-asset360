@@ -1,6 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
 
 // Public endpoint — bypasses auth. Reads a POI share by token.
 // Returns 404 when missing, 410 when expired (and deletes the row).
@@ -16,25 +14,12 @@ export const Route = createFileRoute("/api/public/poi-share/$token")({
           });
         }
 
-        const url = process.env.SUPABASE_URL!;
-        const key = process.env.SUPABASE_PUBLISHABLE_KEY!;
-        const supabase = createClient<Database>(url, key, {
-          auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
-          global: {
-            fetch: (input, init) => {
-              const h = new Headers(init?.headers);
-              if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) {
-                h.delete("Authorization");
-              }
-              h.set("apikey", key);
-              return fetch(input, { ...init, headers: h });
-            },
-          },
-        });
+        // Use the service-role admin client so we can keep the SECURITY DEFINER
+        // RPC locked down (no EXECUTE for anon/public). The handler itself
+        // validates the token format above and only exposes the matching row.
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-        // Token-scoped RPC: only returns a row when the exact token matches
-        // and the share has not expired. No broad table SELECT for anon.
-        const { data: rows, error } = await supabase.rpc("get_poi_share", {
+        const { data: rows, error } = await supabaseAdmin.rpc("get_poi_share", {
           _token: token,
         });
 

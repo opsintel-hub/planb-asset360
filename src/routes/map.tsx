@@ -382,14 +382,21 @@ function MapPage() {
 
   // ---------- Filters ----------
   const filtered = useMemo(() => {
-    const projectDepts = fProject !== "all" ? new Set(PROJECT_TO_DEPARTMENTS[fProject] ?? []) : null;
+    let projectDepts: Set<string> | null = null;
+    if (fProjects.length > 0) {
+      projectDepts = new Set<string>();
+      for (const p of fProjects) {
+        for (const d of PROJECT_TO_DEPARTMENTS[p] ?? []) projectDepts.add(d);
+      }
+    }
+    const mediaSet = fMedias.length > 0 ? new Set(fMedias) : null;
     return allAssets.filter((a) => {
       if (projectDepts && (!a.department || !projectDepts.has(a.department))) return false;
-      if (fMedia !== "all" && a.media_type !== fMedia) return false;
+      if (mediaSet && (!a.media_type || !mediaSet.has(a.media_type))) return false;
       if (onlyClaimed && (!a.old_code || !claimedCodes.has(a.old_code))) return false;
       return true;
     });
-  }, [allAssets, fProject, fMedia, onlyClaimed, claimedCodes]);
+  }, [allAssets, fProjects, fMedias, onlyClaimed, claimedCodes]);
 
   // Corridor: nearby along drawn polyline
   const nearby = useMemo(() => {

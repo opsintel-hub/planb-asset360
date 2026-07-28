@@ -93,19 +93,21 @@ function AuthGate() {
   const { pathname } = useLocation();
   const nav = useNavigate();
   const isLogin = pathname === "/login";
+  const isPublicShared = pathname.startsWith("/shared/");
   const isAuthed = !!user && !!session?.access_token;
 
   useEffect(() => {
-    if (!loading && !isAuthed && !isLogin) nav({ to: "/login" });
-  }, [loading, isAuthed, isLogin, nav]);
+    if (!loading && !isAuthed && !isLogin && !isPublicShared) nav({ to: "/login" });
+  }, [loading, isAuthed, isLogin, isPublicShared, nav]);
 
-  if (loading) {
+  if (loading && !isPublicShared) {
     return (
       <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">
         กำลังโหลด...
       </div>
     );
   }
+  if (isPublicShared) return <Outlet />;
   if (isLogin) return <Outlet />;
   if (!isAuthed) return null;
   return <AppShell><Outlet /></AppShell>;

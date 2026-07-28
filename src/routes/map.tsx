@@ -1331,8 +1331,8 @@ function MapPage() {
             onFocusAsset={(id) => setFocusId(id)}
             onFocusPOI={(p) => setFocusPoiId(p.id)}
             assetIndexById={assetIndexById}
-            preProject={fProject}
-            preMedia={fMedia}
+            preProjects={fProjects}
+            preMedias={fMedias}
             initialSearch={shared?.initial ?? null}
             locked={shared?.locked ?? false}
             onShare={async (state) => {

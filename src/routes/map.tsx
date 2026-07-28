@@ -38,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { listAssetsForMap, listOpenClaimOldCodes, type MapAsset } from "@/lib/map.functions";
 import { createPoiShare } from "@/lib/poi-share.functions";
@@ -225,7 +226,7 @@ function MapPage() {
         p: string[]; f: string; r: number; m: "any" | "all";
         b: [number, number, number, number];
         cp: string[]; cm: string[];
-        pj?: string; md?: string; lk?: 0 | 1;
+        pj?: string; md?: string; pjs?: string[]; mds?: string[]; lk?: 0 | 1;
       };
       return {
         initial: {
@@ -237,8 +238,8 @@ function MapPage() {
           chipProjects: decoded.cp ?? [],
           chipMedia: decoded.cm ?? [],
         },
-        project: decoded.pj ?? "all",
-        media: decoded.md ?? "all",
+        projects: decoded.pjs ?? (decoded.pj && decoded.pj !== "all" ? [decoded.pj] : []),
+        medias: decoded.mds ?? (decoded.md && decoded.md !== "all" ? [decoded.md] : []),
         locked: decoded.lk === 1,
       };
     } catch { return null; }
@@ -246,14 +247,17 @@ function MapPage() {
 
   // ---------- shared UI state ----------
   const [mode, setMode] = useState<Mode>(shared ? "poi" : "corridor");
-  const [fProject, setFProject] = useState(shared?.project ?? "all");
-  const [fMedia, setFMedia] = useState(shared?.media ?? "all");
+  const [fProjects, setFProjects] = useState<string[]>(shared?.projects ?? []);
+  const [fMedias, setFMedias] = useState<string[]>(shared?.medias ?? []);
 
-  // Cascading Media Type list: when a Project is selected, only show media types
-  // that actually exist for that project's departments.
+  // Cascading Media Type list: when Projects are selected, only show media types
+  // that actually exist for those projects' departments.
   const filteredMediaTypes = useMemo(() => {
-    if (fProject === "all") return mediaTypes;
-    const projectDepts = new Set(PROJECT_TO_DEPARTMENTS[fProject] ?? []);
+    if (fProjects.length === 0) return mediaTypes;
+    const projectDepts = new Set<string>();
+    for (const p of fProjects) {
+      for (const d of PROJECT_TO_DEPARTMENTS[p] ?? []) projectDepts.add(d);
+    }
     const used = new Set<string>();
     for (const a of allAssets) {
       if (a.department && projectDepts.has(a.department) && a.media_type) {
@@ -261,13 +265,11 @@ function MapPage() {
       }
     }
     return mediaTypes.filter((m) => used.has(m));
-  }, [fProject, mediaTypes, allAssets]);
+  }, [fProjects, mediaTypes, allAssets]);
 
-  // Reset Media Type if the current selection is not valid for the chosen project.
+  // Drop Media Type selections that are no longer valid for the chosen projects.
   useEffect(() => {
-    if (fMedia !== "all" && !filteredMediaTypes.includes(fMedia)) {
-      setFMedia("all");
-    }
+    setFMedias((prev) => prev.filter((m) => filteredMediaTypes.includes(m)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredMediaTypes]);
   const [q, setQ] = useState("");
@@ -381,14 +383,21 @@ function MapPage() {
 
   // ---------- Filters ----------
   const filtered = useMemo(() => {
-    const projectDepts = fProject !== "all" ? new Set(PROJECT_TO_DEPARTMENTS[fProject] ?? []) : null;
+    let projectDepts: Set<string> | null = null;
+    if (fProjects.length > 0) {
+      projectDepts = new Set<string>();
+      for (const p of fProjects) {
+        for (const d of PROJECT_TO_DEPARTMENTS[p] ?? []) projectDepts.add(d);
+      }
+    }
+    const mediaSet = fMedias.length > 0 ? new Set(fMedias) : null;
     return allAssets.filter((a) => {
       if (projectDepts && (!a.department || !projectDepts.has(a.department))) return false;
-      if (fMedia !== "all" && a.media_type !== fMedia) return false;
+      if (mediaSet && (!a.media_type || !mediaSet.has(a.media_type))) return false;
       if (onlyClaimed && (!a.old_code || !claimedCodes.has(a.old_code))) return false;
       return true;
     });
-  }, [allAssets, fProject, fMedia, onlyClaimed, claimedCodes]);
+  }, [allAssets, fProjects, fMedias, onlyClaimed, claimedCodes]);
 
   // Corridor: nearby along drawn polyline
   const nearby = useMemo(() => {
@@ -460,7 +469,7 @@ function MapPage() {
   }, [fullscreen]);
 
   const projects = Object.keys(PROJECT_TO_DEPARTMENTS);
-  const hasFilter = fProject !== "all" || fMedia !== "all" || q || onlyClaimed;
+  const hasFilter = fProjects.length > 0 || fMedias.length > 0 || q || onlyClaimed;
 
   // ---------- Inspection actions ----------
   const addStop = (a: MapAsset) => {
@@ -910,8 +919,8 @@ function MapPage() {
         )}
       </div>
 
-      <CompactSelect placeholder="Project" value={fProject} onChange={setFProject} options={projects} />
-      <CompactSelect placeholder="Media Type" value={fMedia} onChange={setFMedia} options={filteredMediaTypes} />
+      <MultiCompactSelect placeholder="Project" values={fProjects} onChange={setFProjects} options={projects} />
+      <MultiCompactSelect placeholder="Media Type" values={fMedias} onChange={setFMedias} options={filteredMediaTypes} />
 
       <label className="flex items-center gap-2 h-9 px-3 rounded-md border cursor-pointer hover:bg-accent text-xs">
         <input type="checkbox" checked={onlyClaimed} onChange={(e) => setOnlyClaimed(e.target.checked)} />
@@ -921,8 +930,8 @@ function MapPage() {
       {hasFilter && (
         <button
           onClick={() => {
-            setFProject("all");
-            setFMedia("all");
+            setFProjects([]);
+            setFMedias([]);
             setQ("");
             setOnlyClaimed(false);
             setFocusId(null);
@@ -1323,8 +1332,8 @@ function MapPage() {
             onFocusAsset={(id) => setFocusId(id)}
             onFocusPOI={(p) => setFocusPoiId(p.id)}
             assetIndexById={assetIndexById}
-            preProject={fProject}
-            preMedia={fMedia}
+            preProjects={fProjects}
+            preMedias={fMedias}
             initialSearch={shared?.initial ?? null}
             locked={shared?.locked ?? false}
             onShare={async (state) => {
@@ -1358,8 +1367,10 @@ function MapPage() {
                       freeText: state.freeText,
                       chipProjects: state.chipProjects,
                       chipMedia: state.chipMedia,
-                      project: fProject,
-                      media: fMedia,
+                      project: fProjects[0] ?? "all",
+                      media: fMedias[0] ?? "all",
+                      projects: fProjects,
+                      medias: fMedias,
                       assets: shareAssets,
                     },
                   },
@@ -1623,6 +1634,68 @@ function CompactSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function MultiCompactSelect({
+  placeholder,
+  values,
+  onChange,
+  options,
+}: {
+  placeholder: string;
+  values: string[];
+  onChange: (v: string[]) => void;
+  options: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const label =
+    values.length === 0
+      ? `${placeholder}: ทั้งหมด`
+      : values.length === 1
+        ? `${placeholder}: ${values[0]}`
+        : `${placeholder}: ${values.length} รายการ`;
+  const toggle = (opt: string) => {
+    onChange(values.includes(opt) ? values.filter((v) => v !== opt) : [...values, opt]);
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="h-9 w-[170px] text-xs px-3 rounded-md border bg-background hover:bg-accent inline-flex items-center justify-between gap-1"
+          title={values.join(", ") || placeholder}
+        >
+          <span className="truncate">{label}</span>
+          <ChevronDown className="size-3.5 opacity-60 shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[240px] p-1 z-[1100] max-h-[320px] overflow-auto" align="start">
+        <div className="flex items-center justify-between px-2 py-1 text-[11px] text-muted-foreground">
+          <span>{values.length > 0 ? `เลือก ${values.length} รายการ` : "ทั้งหมด"}</span>
+          {values.length > 0 && (
+            <button className="hover:underline" onClick={() => onChange([])}>ล้าง</button>
+          )}
+        </div>
+        <div className="max-h-[260px] overflow-auto">
+          {options.length === 0 && (
+            <div className="text-[11px] text-muted-foreground px-2 py-2">ไม่มีตัวเลือก</div>
+          )}
+          {options.map((o) => {
+            const checked = values.includes(o);
+            return (
+              <label
+                key={o}
+                className="flex items-center gap-2 px-2 py-1.5 text-xs rounded hover:bg-accent cursor-pointer"
+              >
+                <input type="checkbox" checked={checked} onChange={() => toggle(o)} />
+                <span className="truncate">{o}</span>
+              </label>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

@@ -26,6 +26,8 @@ export type PoiSharePayload = {
   chipMedia: string[];
   project: string;
   media: string;
+  projects?: string[];
+  medias?: string[];
   assets: PoiShareAsset[];
   createdByLabel?: string | null;
 };

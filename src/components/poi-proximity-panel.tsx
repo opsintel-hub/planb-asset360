@@ -58,8 +58,8 @@ type Props = {
   onFocusPOI: (poi: POI) => void;
   assetIndexById: Map<string, AssetInfo>;
   /** Pre-filters mirrored from the map toolbar. Narrow the DB query for speed. */
-  preProject?: string; // "all" | project key
-  preMedia?: string;   // "all" | media_type
+  preProjects?: string[]; // empty = all
+  preMedias?: string[];   // empty = all
   /** When set, panel auto-runs a search once using these values (used for shareable links). */
   initialSearch?: PoiInitialSearch | null;
   /** When set, the search inputs render as read-only "locked" chips (shared link mode). */
@@ -70,7 +70,7 @@ type Props = {
 
 export default function PoiProximityPanel({
   bbox, onResult, onFocusAsset, onFocusPOI, assetIndexById,
-  preProject = "all", preMedia = "all", initialSearch = null, locked = false, onShare,
+  preProjects = [], preMedias = [], initialSearch = null, locked = false, onShare,
 }: Props) {
   const searchFn = useServerFn(searchPOIsNearAssets);
 
@@ -108,9 +108,10 @@ export default function PoiProximityPanel({
       const token = { cancelled: false };
       cancelRef.current = token;
 
-      const departments =
-        preProject !== "all" ? (PROJECT_TO_DEPARTMENTS[preProject] ?? []) : [];
-      const mediaTypes = preMedia !== "all" ? [preMedia] : [];
+      const departments = preProjects.length > 0
+        ? Array.from(new Set(preProjects.flatMap((p) => PROJECT_TO_DEPARTMENTS[p] ?? [])))
+        : [];
+      const mediaTypes = preMedias.length > 0 ? preMedias : [];
 
       const result = await searchFn({
         data: {
@@ -347,19 +348,19 @@ export default function PoiProximityPanel({
         <div className="text-[10px] text-muted-foreground mt-0.5">
           ใช้ Overpass (OpenStreetMap) — ฟรี ไม่ต้องสมัคร key
         </div>
-        {(preProject !== "all" || preMedia !== "all") && (
+        {(preProjects.length > 0 || preMedias.length > 0) && (
           <div className="mt-1.5 flex flex-wrap gap-1 text-[10px]">
             <span className="text-muted-foreground">กำลังค้นหาเฉพาะ:</span>
-            {preProject !== "all" && (
-              <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                {preProject}
+            {preProjects.map((p) => (
+              <span key={`pp-${p}`} className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                {p}
               </span>
-            )}
-            {preMedia !== "all" && (
-              <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                {preMedia}
+            ))}
+            {preMedias.map((m) => (
+              <span key={`pm-${m}`} className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                {m}
               </span>
-            )}
+            ))}
           </div>
         )}
         {locked && (

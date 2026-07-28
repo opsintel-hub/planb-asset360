@@ -918,8 +918,8 @@ function MapPage() {
         )}
       </div>
 
-      <CompactSelect placeholder="Project" value={fProject} onChange={setFProject} options={projects} />
-      <CompactSelect placeholder="Media Type" value={fMedia} onChange={setFMedia} options={filteredMediaTypes} />
+      <MultiCompactSelect placeholder="Project" values={fProjects} onChange={setFProjects} options={projects} />
+      <MultiCompactSelect placeholder="Media Type" values={fMedias} onChange={setFMedias} options={filteredMediaTypes} />
 
       <label className="flex items-center gap-2 h-9 px-3 rounded-md border cursor-pointer hover:bg-accent text-xs">
         <input type="checkbox" checked={onlyClaimed} onChange={(e) => setOnlyClaimed(e.target.checked)} />
@@ -929,8 +929,8 @@ function MapPage() {
       {hasFilter && (
         <button
           onClick={() => {
-            setFProject("all");
-            setFMedia("all");
+            setFProjects([]);
+            setFMedias([]);
             setQ("");
             setOnlyClaimed(false);
             setFocusId(null);

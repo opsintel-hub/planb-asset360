@@ -1637,6 +1637,68 @@ function CompactSelect({
   );
 }
 
+function MultiCompactSelect({
+  placeholder,
+  values,
+  onChange,
+  options,
+}: {
+  placeholder: string;
+  values: string[];
+  onChange: (v: string[]) => void;
+  options: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const label =
+    values.length === 0
+      ? `${placeholder}: ทั้งหมด`
+      : values.length === 1
+        ? `${placeholder}: ${values[0]}`
+        : `${placeholder}: ${values.length} รายการ`;
+  const toggle = (opt: string) => {
+    onChange(values.includes(opt) ? values.filter((v) => v !== opt) : [...values, opt]);
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="h-9 w-[170px] text-xs px-3 rounded-md border bg-background hover:bg-accent inline-flex items-center justify-between gap-1"
+          title={values.join(", ") || placeholder}
+        >
+          <span className="truncate">{label}</span>
+          <ChevronDown className="size-3.5 opacity-60 shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[240px] p-1 z-[1100] max-h-[320px] overflow-auto" align="start">
+        <div className="flex items-center justify-between px-2 py-1 text-[11px] text-muted-foreground">
+          <span>{values.length > 0 ? `เลือก ${values.length} รายการ` : "ทั้งหมด"}</span>
+          {values.length > 0 && (
+            <button className="hover:underline" onClick={() => onChange([])}>ล้าง</button>
+          )}
+        </div>
+        <div className="max-h-[260px] overflow-auto">
+          {options.length === 0 && (
+            <div className="text-[11px] text-muted-foreground px-2 py-2">ไม่มีตัวเลือก</div>
+          )}
+          {options.map((o) => {
+            const checked = values.includes(o);
+            return (
+              <label
+                key={o}
+                className="flex items-center gap-2 px-2 py-1.5 text-xs rounded hover:bg-accent cursor-pointer"
+              >
+                <input type="checkbox" checked={checked} onChange={() => toggle(o)} />
+                <span className="truncate">{o}</span>
+              </label>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center p-4">

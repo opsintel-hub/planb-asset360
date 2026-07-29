@@ -1,94 +1,66 @@
-# แผนการแก้ไข
 
-## 1) ตัวกรอง Media Type ผูกกับ Project
+## สรุปการทำงานปัจจุบัน (verified จากโค้ด `src/routes/map.tsx`)
 
-- ในหน้า `/map` toolbar (`src/routes/map.tsx`) คำนวณ `mediaTypesForProject` จาก assets จริง: เมื่อ `fProject !== "all"` ให้เลือกเฉพาะ `media_type` ที่ปรากฏใน asset ซึ่ง department ของมัน map ไป Project นั้น (ใช้ `PROJECT_TO_DEPARTMENTS`)
-- ส่งลิสต์ที่กรองแล้วให้ `<CompactSelect placeholder="Media Type">`
-- เมื่อผู้ใช้เปลี่ยน Project และ `fMedia` เดิมไม่อยู่ในลิสต์ใหม่ → รีเซ็ต `fMedia` เป็น `"all"` (ผ่าน `useEffect`)
+### Corridor (โหมด "วาดเส้นทาง")
+- ผู้ใช้คลิกบนแผนที่เพื่อวาง waypoints ด้วยมือ (Draw Route)
+- ระบบใช้ waypoints เหล่านั้น + `radius` เพื่อหาป้ายที่อยู่ใน "แถบ" ตามเส้น (buffer/corridor)
+- **ไม่มี** OSRM auto-route และ **ไม่มี** optimize — เป็นเส้นตรงเชื่อมจุดเท่านั้น
+- เหมาะกับ: กำหนดพื้นที่/โซนเอง เช่น "อยากเห็นป้ายตามแนวสุขุมวิท" โดยไม่สนใจการเดินทางจริง
 
-## 2) แชร์ลิงก์ POI แบบสาธารณะ อายุ 72 ชั่วโมง
+### Inspection (โหมด "วางแผนตรวจสื่อ")
+- ผู้ใช้เลือก Origin + Stops (คลิกป้าย หรือ Pick Stop)
+- **Auto Route** = คำนวณเส้นทางถนนจริงผ่าน OSRM ตามลำดับที่ผู้ใช้กำหนด (ลำดับตายตัวตามที่เพิ่ม)
+- **Optimize** = ใช้ OSRM Trip API จัดลำดับ stops ใหม่ให้ระยะทางรวมสั้นที่สุด (fixedStart, ไม่ roundtrip)
+- ตั้งแต่ turn ก่อน ระบบมี **auto-debounce 350ms** ที่เรียก `osrmRoute` อัตโนมัติเมื่อ origin/stops เปลี่ยน → เส้นทางถูกวาดให้เองแล้ว
+- แต่ **ไม่ได้ optimize อัตโนมัติ** — ลำดับยังคงเป็นตามที่ผู้ใช้เพิ่ม
 
-### กระแสงาน
+---
 
-```text
-[ผู้ใช้ที่ล็อกอิน] ── กดแชร์ ──▶ createPoiShare()  ── insert row (expires_at = now+72h)
-                                       │
-                                       └─▶ URL: /shared/poi/<token>
-                                       
-[คู่ค้า/ลูกค้า] เปิด URL ──▶ /shared/poi/<token>
-   │ 1) โหลด API สาธารณะ  GET /api/public/poi-share/<token>
-   │      • ถ้า expires_at ≤ now → ลบ row + คืน 410 Gone
-   │      • ถ้าไม่พบ → 404
-   │      • ถ้าใช้ได้ → คืน payload + expires_at
-   │ 2) แสดง Popup แจ้งเตือน (บังคับกด "ยอมรับ" ก่อนดูข้อมูล)
-   │      • บอกวัน-เวลา หมดอายุ + เวลาถอยหลัง
-   │      • คำเตือนว่าเป็นข้อมูลลับ
-   │ 3) เรนเดอร์ Map แบบ read-only + ป้าย POI + รายการผลลัพธ์
-```
+## ตอบคำถาม
 
-### Schema (Lovable Cloud migration)
+**1. Corridor ควรเพิ่ม Auto Route / Optimize ไหม?**
+- **ไม่แนะนำ** — จะทับซ้อนกับ Inspection ทันที Corridor มีจุดขายคือ "วาดโซนอิสระ" ไม่ผูกกับถนนจริง ถ้าใส่ auto-route เข้าไป จะกลายเป็น Inspection รุ่นย่อ ผู้ใช้จะสับสนหนักกว่าเดิม
+- ถ้าอยากได้ผลลัพธ์แบบ "ไปตามถนนจริง" → ควรใช้ Inspection อยู่แล้ว
 
-```sql
-CREATE TABLE public.poi_shares (
-  token text PRIMARY KEY,
-  payload jsonb NOT NULL,      -- POIs, matches, assets ที่แสดง, bbox, radius, filters
-  created_at timestamptz NOT NULL DEFAULT now(),
-  expires_at timestamptz NOT NULL
-);
-GRANT SELECT ON public.poi_shares TO anon;         -- ผู้รับลิงก์อ่านผ่าน service role ก็ได้ แต่ SELECT ให้ anon ก็พอเพราะ token เดารายไม่ได้
-GRANT INSERT, SELECT, DELETE ON public.poi_shares TO authenticated;
-GRANT ALL ON public.poi_shares TO service_role;
-ALTER TABLE public.poi_shares ENABLE ROW LEVEL SECURITY;
+**2. Inspection ปักหมุดแล้ว optimize อัตโนมัติหรือยัง? ปุ่มยังจำเป็นไหม?**
+- ตอนนี้ระบบ **auto-route** ให้ (วาดเส้นถนนจริง) แต่ **ไม่ auto-optimize** (ไม่จัดลำดับ)
+- **Auto Route ปุ่ม**: ซ้ำซ้อนกับ auto-debounce แล้ว 90% — เก็บไว้เป็น "คำนวณใหม่/retry" กรณี OSRM พลาดเงียบ ๆ ก็พอ แต่ควรลด prominence
+- **Optimize ปุ่ม**: **ยังจำเป็น** เพราะเป็น action ที่เปลี่ยนลำดับ stops (destructive-ish) ผู้ใช้ควรกดเอง ไม่ควรทำอัตโนมัติ
 
-CREATE POLICY "anon can read unexpired shares by token"
-  ON public.poi_shares FOR SELECT TO anon
-  USING (expires_at > now());
+**3. จุดประสงค์ต่างกันอย่างไร**
 
-CREATE POLICY "auth can create own shares"
-  ON public.poi_shares FOR INSERT TO authenticated WITH CHECK (true);
+| ด้าน | Corridor | Inspection |
+|---|---|---|
+| เป้าหมาย | สำรวจ/เลือกป้ายในแนว/โซนที่ผู้ใช้วาด | วางแผนทริปตรวจสื่อ ไปจริงตามถนน |
+| Input | คลิกวาง waypoints อิสระ | Origin + Stops (จากป้ายที่มีจริง) |
+| เส้นทาง | เส้นตรงระหว่างจุด | ถนนจริงผ่าน OSRM |
+| ผลลัพธ์ | รายชื่อป้ายในรัศมีของเส้น | ลำดับทริป + ระยะ/เวลา + ป้ายที่ผ่าน |
+| Export | CSV ป้าย + GPX/KML | CSV ทริป + GPX/KML + ลิงก์ Google/Apple/Waze |
 
-CREATE POLICY "auth can read unexpired"
-  ON public.poi_shares FOR SELECT TO authenticated USING (expires_at > now());
-```
+---
 
-### Payload ที่ฝังไปกับ share (self-contained → ไม่ต้อง auth เพื่อดึงเพิ่ม)
+## ข้อเสนอปรับปรุง (สั้น ๆ ประหยัดเครดิต)
 
-- `pois`, `matches`, `radiusM`, `matchMode`
-- `assets` (เฉพาะที่ปรากฏใน matches — ประหยัดพื้นที่): `{id, old_code, name, department, media_type, location, lat, lng}`
-- `bbox`, `chipProjects`, `chipMedia`, `project`, `media`
+1. **Inspection — ลด prominence "Auto Route"**
+   - เปลี่ยนจากปุ่มหลัก → เป็น icon-button เล็ก ๆ tooltip "คำนวณใหม่" (ระบบทำอัตโนมัติอยู่แล้ว)
+   - คง Optimize ไว้เด่นเหมือนเดิม เพราะเป็น action ที่ต้องยืนยัน
 
-### ไฟล์ที่จะสร้าง/แก้
+2. **Inspection — แสดงสถานะ auto-route ให้ชัด**
+   - เพิ่มข้อความเล็ก ๆ ใต้ toolbar: "🔄 ระบบคำนวณเส้นทางอัตโนมัติ" หรือ spinner ตอน routing = true
+   - ผู้ใช้จะไม่งงว่าทำไม Auto Route ปุ่มเทา
 
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `supabase/migrations/*.sql` | สร้างตาราง `poi_shares` + policies |
-| `src/lib/poi-share.functions.ts` (ใหม่) | `createPoiShare` (auth) — สร้าง token, บันทึก payload, TTL 72h |
-| `src/routes/api/public/poi-share/$token.ts` (ใหม่) | GET public endpoint → คืน payload + expires_at, ลบถ้าหมดอายุ |
-| `src/routes/shared/poi.$token.tsx` (ใหม่) | หน้าสาธารณะ: fetch endpoint, Popup ยืนยัน + countdown, แสดง Map + POI list (read-only, ไม่มี toolbar/ทำงานย่อย) |
-| `src/routes/map.tsx` | (ก) เพิ่ม cascade Media Type. (ข) `onShare` เรียก `createPoiShare` แทนการ encode ลง URL, คัดลอกลิงก์ใหม่ |
-| `src/components/poi-proximity-panel.tsx` | ไม่ต้องแก้ (ยังส่ง state เดิมมาให้) |
+3. **Corridor — เพิ่มคำอธิบายสั้นใต้ toolbar** (ไม่เพิ่ม feature)
+   - "วาดจุดอิสระ · เส้นตรงเชื่อม · หาป้ายในรัศมีรอบเส้น"
+   - ให้ผู้ใช้เข้าใจว่าจงใจไม่ใช้ถนนจริง ต่างจาก Inspection
 
-### ลบข้อมูลอัตโนมัติ (ประหยัด storage)
+4. **ไม่ต้อง** ใส่ Auto Route/Optimize ใน Corridor
 
-- `GET /api/public/poi-share/$token` handler: ถ้า `expires_at <= now()` ให้ `DELETE` แถวนั้นและคืน `410 Gone` — ลบทีละแถวตอนถูกเรียกอีกครั้ง
-- เสริม lazy sweep: `DELETE FROM poi_shares WHERE expires_at < now()` รันในทุก `createPoiShare` (มี index อยู่แล้วผ่าน PK; ราคาเล็กมาก) เพื่อล้าง row ที่ไม่มีใครแตะ
+### ไฟล์ที่จะแก้
+- `src/routes/map.tsx` เท่านั้น (UI/labeling; ไม่แตะ logic OSRM หรือ server functions)
 
-### Popup ยืนยัน (หน้า `/shared/poi/:token`)
+### สิ่งที่จะไม่ทำ
+- ไม่รวม Corridor + Inspection เป็นโหมดเดียว (คนละ use case)
+- ไม่ auto-optimize (เสี่ยงเปลี่ยนลำดับโดยไม่ตั้งใจ)
+- ไม่ลบปุ่ม Auto Route ทิ้ง (ยังมีประโยชน์เป็น manual retry)
 
-- Dialog บังคับ modal, ไม่มีปุ่ม close
-- แสดง:
-  - "ลิงก์นี้เป็นข้อมูลลับของบริษัท"
-  - "ลิงก์จะหมดอายุ: 27 ก.ค. 2569 14:32 น. (เหลืออีก 71 ชม. 59 นาที)" — อัปเดตทุกนาที
-  - ปุ่ม "ยอมรับและดูข้อมูล"
-- หลังกดยอมรับจึง render Map ด้านล่าง
-- แถบบนสุดของหน้าโชว์ countdown ตลอดเวลา
-
-### เหตุผลของการเลือก approach นี้
-
-1. Payload บันทึกลง DB → ผู้รับลิงก์ **ไม่ต้องล็อกอิน**, ไม่ต้อง auth ใดๆ
-2. Token เป็น URL-safe random 24 ไบต์ → เดาไม่ได้
-3. `expires_at` เก็บไว้ตายตัวใน DB — server เป็นแหล่งความจริงเดียว, ปิดจ๊อบเวลาที่ client
-4. ลบตอน request หมดอายุ + sweep ตอนสร้างใหม่ → ไม่ต้องมี cron แยก, ประหยัด
-5. หน้า public แยกจาก `/map` โดยสมบูรณ์ → ไม่ต้องแก้ auth guard, ไม่มีความเสี่ยงเปิดพื้นที่อื่นให้ anonymous
-
-ยืนยันไหมครับ ถ้ายืนยันจะลงมือทำต่อ
+ยืนยันแนวทางนี้ไหม หรืออยากปรับข้อไหนก่อนลงมือ?

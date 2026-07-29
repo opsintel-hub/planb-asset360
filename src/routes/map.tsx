@@ -1059,10 +1059,11 @@ function MapPage() {
           <button
             onClick={runAutoRoute}
             disabled={routing || routePoints.length < 2}
-            className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 disabled:opacity-40"
-            title="คำนวณเส้นทางบนถนนจริง (OSRM)"
+            className="h-9 w-9 rounded-md border hover:bg-accent inline-flex items-center justify-center disabled:opacity-40"
+            title="คำนวณเส้นทางใหม่ (ระบบคำนวณอัตโนมัติเมื่อจุดเปลี่ยน — ปุ่มนี้ใช้กรณีต้อง retry)"
+            aria-label="คำนวณเส้นทางใหม่"
           >
-            {routing ? <Loader2 className="size-4 animate-spin" /> : <RouteIcon className="size-4" />} Auto Route
+            {routing ? <Loader2 className="size-4 animate-spin" /> : <RouteIcon className="size-4" />}
           </button>
           <button
             onClick={runOptimize}
@@ -1186,6 +1187,7 @@ function MapPage() {
         <div>ระยะทางรวม: <b>{fmtDist(polylineLength(polyline))}</b></div>
         <div>รัศมี: <b>{radius >= 1000 ? `${radius / 1000} km` : `${radius} m`}</b></div>
         <div>ป้ายใกล้เส้นทาง: <b>{nearby.length}</b></div>
+        <div className="opacity-70 basis-full">วาดจุดอิสระ · เส้นตรงเชื่อม · หาป้ายในรัศมีรอบเส้น (ไม่ใช้ถนนจริง — สำหรับกำหนดโซนสำรวจ)</div>
         {drawMode && <div className="ml-auto opacity-80">คลิก = เพิ่มจุด • ลากหมุด = ขยับ • คลิกขวาบนหมุด = ลบ</div>}
       </div>
     ) : mode === "inspection" && routeInfo ? (
@@ -1196,6 +1198,9 @@ function MapPage() {
         <div>จุดหมาย: <b>{stops.length}</b></div>
         <div>ระยะทางถนน: <b>{fmtDist(routeInfo.distance)}</b></div>
         <div>เวลาโดยประมาณ: <b>{fmtDur(routeInfo.duration)}</b></div>
+        <div className="opacity-70 basis-full inline-flex items-center gap-1">
+          {routing ? <><Loader2 className="size-3 animate-spin" /> กำลังคำนวณเส้นทาง…</> : <>🔄 ระบบคำนวณเส้นทางอัตโนมัติเมื่อจุดเปลี่ยน · กด Optimize เพื่อจัดลำดับสั้นที่สุด</>}
+        </div>
         {originPickMode && <div className="ml-auto opacity-80">คลิกบนแผนที่เพื่อกำหนดต้นทาง</div>}
       </div>
     ) : null;

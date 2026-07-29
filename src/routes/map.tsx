@@ -1059,10 +1059,11 @@ function MapPage() {
           <button
             onClick={runAutoRoute}
             disabled={routing || routePoints.length < 2}
-            className="h-9 px-2.5 rounded-md border hover:bg-accent inline-flex items-center gap-1 disabled:opacity-40"
-            title="คำนวณเส้นทางบนถนนจริง (OSRM)"
+            className="h-9 w-9 rounded-md border hover:bg-accent inline-flex items-center justify-center disabled:opacity-40"
+            title="คำนวณเส้นทางใหม่ (ระบบคำนวณอัตโนมัติเมื่อจุดเปลี่ยน — ปุ่มนี้ใช้กรณีต้อง retry)"
+            aria-label="คำนวณเส้นทางใหม่"
           >
-            {routing ? <Loader2 className="size-4 animate-spin" /> : <RouteIcon className="size-4" />} Auto Route
+            {routing ? <Loader2 className="size-4 animate-spin" /> : <RouteIcon className="size-4" />}
           </button>
           <button
             onClick={runOptimize}

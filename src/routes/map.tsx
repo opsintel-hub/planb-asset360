@@ -497,7 +497,7 @@ function MapPage() {
     }
     if (mode === "poi" && poiMatchedAssetIds) return poiMatchedAssetIds;
     return null;
-  }, [mode, polyline.length, nearby, stops, inspectionNearby, poiMatchedAssetIds]);
+  }, [mode, polyline.length, nearby, stops, inspectionSideList, poiMatchedAssetIds]);
 
   const suggestions = useMemo(() => {
     const qq = q.trim().toLowerCase();

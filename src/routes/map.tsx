@@ -665,10 +665,25 @@ function MapPage() {
             ]),
           ]
         : [
-            ["ลำดับ", "Old Code", "Name", "Latitude", "Longitude"],
-            ...(origin ? [["0 (ต้นทาง)", "", origin.name ?? "Origin", String(origin.lat), String(origin.lng)]] : []),
-            ...stops.map((s, i) => [String(i + 1), s.old_code ?? "", s.name ?? "", String(s.lat), String(s.lng)]),
+            ["ประเภท", "ลำดับ", "Old Code", "Name", "Media Type", "ฝั่งถนน", "ตรวจในขา", "ระยะจากเส้นทาง (m)", "Latitude", "Longitude"],
+            ...(origin ? [["ต้นทาง", "0", "", origin.name ?? "Origin", "", "", "", "", String(origin.lat), String(origin.lng)]] : []),
+            ...stops.map((s, i) => [
+              "จุดแวะ", String(i + 1), s.old_code ?? "", s.name ?? "", "", "", "", "", String(s.lat), String(s.lng),
+            ]),
+            ...inspectionSideList.map((a, i) => [
+              "ป้ายที่ผ่าน",
+              String(i + 1),
+              a.old_code ?? "",
+              a.name ?? "",
+              a.media_type ?? "",
+              a.side === "L" ? "ซ้าย" : a.side === "R" ? "ขวา" : "ไม่ชัด",
+              a.side === "L" ? "ขาไป" : a.side === "R" ? "ขากลับ" : "ไป/กลับ",
+              a.dist.toFixed(1),
+              String(a.lat),
+              String(a.lng),
+            ]),
           ];
+
     const csv = rows
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
       .join("\n");

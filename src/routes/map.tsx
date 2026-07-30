@@ -189,6 +189,14 @@ function fmtDur(sec: number) {
 // ---------- Types ----------
 type Mode = "corridor" | "inspection" | "poi";
 
+function sideLabel(s: RoadSide) {
+  return s === "L" ? "[ซ้าย]" : s === "R" ? "[ขวา]" : "[?]";
+}
+function sideTripLabel(s: RoadSide) {
+  return s === "L" ? "ตรวจขาไป" : s === "R" ? "ตรวจขากลับ" : "ระบุฝั่งไม่ชัด";
+}
+
+
 const SIDE_FILTERS: Array<{ key: "all" | "leftOut" | "leftBack" | "both"; label: string; hint: string }> = [
   { key: "all", label: "ทุกฝั่ง", hint: "แสดงป้ายทุกฝั่งของถนน" },
   { key: "leftOut", label: "ซ้าย·ขาไป", hint: "เฉพาะป้ายฝั่งซ้ายตามทิศขาไป (รวมป้ายที่ระบุฝั่งไม่ชัด)" },

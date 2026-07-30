@@ -189,6 +189,14 @@ function fmtDur(sec: number) {
 // ---------- Types ----------
 type Mode = "corridor" | "inspection" | "poi";
 
+const SIDE_FILTERS: Array<{ key: "all" | "leftOut" | "leftBack" | "both"; label: string; hint: string }> = [
+  { key: "all", label: "ทุกฝั่ง", hint: "แสดงป้ายทุกฝั่งของถนน" },
+  { key: "leftOut", label: "ซ้าย·ขาไป", hint: "เฉพาะป้ายฝั่งซ้ายตามทิศขาไป (รวมป้ายที่ระบุฝั่งไม่ชัด)" },
+  { key: "leftBack", label: "ซ้าย·ขากลับ", hint: "เฉพาะป้ายฝั่งซ้ายเมื่อขับย้อนกลับ (= ฝั่งขวาของขาไป)" },
+  { key: "both", label: "ไป-กลับ", hint: "แสดงทุกป้ายพร้อมระบุว่าตรวจได้ในขาไปหรือขากลับ" },
+];
+
+
 type Stop = {
   key: string; // client key
   asset_id?: string | null;

@@ -445,19 +445,30 @@ function MapPage() {
   }, [mode, filtered, polyline, radius]);
 
   // Inspection: assets the OSRM route passes near (within `radius` of the road polyline)
+  // `side` is relative to the OUTBOUND direction of travel (ขาไป).
+  // Thailand drives on the left, so side "L" = ป้ายฝั่งซ้าย = ตรวจได้โดยไม่ต้องข้ามถนน.
+  // On the return trip the direction flips, so "R" (ขาไป) becomes ฝั่งซ้ายของขากลับ.
   const inspectionNearby = useMemo(() => {
     if (mode !== "inspection" || !roadPolyline || roadPolyline.length < 2)
-      return [] as Array<MapAsset & { dist: number }>;
+      return [] as Array<MapAsset & { dist: number; side: RoadSide }>;
     const stopIds = new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
-    const out: Array<MapAsset & { dist: number }> = [];
+    const out: Array<MapAsset & { dist: number; side: RoadSide }> = [];
     for (const a of filtered) {
       if (stopIds.has(a.id)) continue; // exclude picked stops from "passing" list
-      const d = distanceToPolyline([a.lat, a.lng], roadPolyline);
-      if (d <= radius) out.push({ ...a, dist: d });
+      const { dist, side } = sideOfPolyline([a.lat, a.lng], roadPolyline);
+      if (dist <= radius) out.push({ ...a, dist, side });
     }
     out.sort((a, b) => a.dist - b.dist);
     return out;
   }, [mode, filtered, roadPolyline, radius, stops]);
+
+  // Side filter: which leg of the trip the inspector is walking
+  const inspectionSideList = useMemo(() => {
+    if (sideFilter === "leftOut") return inspectionNearby.filter((a) => a.side !== "R");
+    if (sideFilter === "leftBack") return inspectionNearby.filter((a) => a.side !== "L");
+    return inspectionNearby;
+  }, [inspectionNearby, sideFilter]);
+
 
   // Highlight set on the map
   const highlightIds = useMemo(() => {

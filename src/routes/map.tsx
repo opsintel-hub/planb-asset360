@@ -1311,35 +1311,73 @@ function MapPage() {
             <div className="bg-amber-50/50 dark:bg-amber-950/20">
               <div className="px-3 py-2 border-t border-b flex items-center justify-between gap-2">
                 <div className="text-[11px] font-semibold text-amber-800 dark:text-amber-200">
-                  ป้ายที่เส้นทางผ่าน · {inspectionNearby.length}
+                  ป้ายที่เส้นทางผ่าน · {inspectionSideList.length}
+                  {sideFilter !== "all" && (
+                    <span className="text-muted-foreground font-normal"> / {inspectionNearby.length}</span>
+                  )}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
                   รัศมี {radius >= 1000 ? `${radius / 1000} km` : `${radius} m`}
                 </div>
               </div>
-              {inspectionNearby.length === 0 ? (
+              <div className="px-3 py-2 border-b flex flex-wrap gap-1">
+                {SIDE_FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => setSideFilter(f.key)}
+                    title={f.hint}
+                    className={`px-2 py-1 rounded-md text-[10px] border ${
+                      sideFilter === f.key
+                        ? "bg-amber-600 text-white border-amber-600"
+                        : "bg-background hover:bg-accent"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+                <div className="w-full text-[10px] text-muted-foreground pt-1">
+                  ◀ ซ้าย = ตรวจได้โดยไม่ต้องข้ามถนน (ไทยขับชิดซ้าย) · ขากลับคือเส้นทางเดิมย้อนกลับ · “?” = ใกล้แนวถนนมาก ระบุฝั่งไม่ชัด
+                </div>
+              </div>
+              {inspectionSideList.length === 0 ? (
                 <div className="px-3 py-2 text-[11px] text-muted-foreground">
-                  ไม่มีป้ายอื่นในรัศมีที่กำหนดตลอดเส้นทาง
+                  ไม่มีป้ายอื่นในรัศมี/ฝั่งที่กำหนดตลอดเส้นทาง
                 </div>
               ) : (
-                inspectionNearby.slice(0, 200).map((a, i) => (
-                  <button
-                    key={a.id}
-                    onClick={() => setFocusId(a.id)}
-                    className="w-full text-left px-3 py-1.5 hover:bg-accent border-t border-amber-100 dark:border-amber-900/40"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs font-semibold truncate">{i + 1}. {a.old_code ?? "—"}</div>
-                      <div className="text-[11px] text-muted-foreground tabular-nums shrink-0">{fmtDist(a.dist)}</div>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground truncate">
-                      {[projectForDepartment(a.department) ?? a.department, a.media_type, a.location].filter(Boolean).join(" • ")}
-                    </div>
-                  </button>
-                ))
+                inspectionSideList.slice(0, 200).map((a, i) => {
+                  const activeSide = sideFilter === "leftBack" ? "R" : "L";
+                  const dim = a.side !== activeSide && a.side !== "?" && sideFilter !== "both";
+                  const badge =
+                    a.side === "?"
+                      ? { text: "? ไม่ชัด", cls: "bg-muted text-muted-foreground" }
+                      : a.side === "L"
+                      ? { text: "◀ ซ้าย·ขาไป", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" }
+                      : { text: "▶ ขวา·ขากลับ", cls: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200" };
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => setFocusId(a.id)}
+                      className={`w-full text-left px-3 py-1.5 hover:bg-accent border-t border-amber-100 dark:border-amber-900/40 ${
+                        dim ? "opacity-40" : ""
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs font-semibold truncate">{i + 1}. {a.old_code ?? "—"}</div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${badge.cls}`}>{badge.text}</span>
+                          <span className="text-[11px] text-muted-foreground tabular-nums">{fmtDist(a.dist)}</span>
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {[projectForDepartment(a.department) ?? a.department, a.media_type, a.location].filter(Boolean).join(" • ")}
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
           )}
+
         </div>
       </div>
     ) : null;

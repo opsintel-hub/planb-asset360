@@ -709,7 +709,14 @@ function MapPage() {
         : [
             ...(origin ? [{ lat: origin.lat, lng: origin.lng, name: origin.name ?? "Origin" }] : []),
             ...stops.map((s, i) => ({ lat: s.lat, lng: s.lng, name: `${i + 1}. ${s.old_code ?? s.name ?? ""}` })),
+            ...inspectionSideList.map((a) => ({
+              lat: a.lat,
+              lng: a.lng,
+              name: `${sideLabel(a.side)} ${a.old_code ?? a.name ?? ""}`,
+              description: [a.name, a.media_type, sideTripLabel(a.side)].filter(Boolean).join(" • "),
+            })),
           ];
+
     if (track.length < 2) {
       toast.error("ต้องมีเส้นทางอย่างน้อย 2 จุด");
       return;

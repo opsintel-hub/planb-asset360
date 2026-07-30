@@ -492,7 +492,7 @@ function MapPage() {
     if (mode === "corridor" && polyline.length > 0) return new Set(nearby.map((a) => a.id));
     if (mode === "inspection" && stops.length > 0) {
       const ids = new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
-      for (const a of inspectionNearby) ids.add(a.id);
+      for (const a of inspectionSideList) ids.add(a.id);
       return ids;
     }
     if (mode === "poi" && poiMatchedAssetIds) return poiMatchedAssetIds;

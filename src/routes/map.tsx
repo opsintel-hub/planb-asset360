@@ -140,7 +140,38 @@ function distanceToPolyline(p: LatLng, line: LatLng[]): number {
   }
   return min;
 }
+// Which side of the (directed) polyline a point lies on.
+// Returns "L" (left of travel direction), "R" (right), or "?" when too close to the
+// centerline to be reliable (median-mounted / GPS noise).
+export type RoadSide = "L" | "R" | "?";
+const SIDE_AMBIGUOUS_M = 8;
+function sideOfPolyline(p: LatLng, line: LatLng[]): { dist: number; side: RoadSide } {
+  if (line.length < 2) return { dist: Infinity, side: "?" };
+  let best = Infinity;
+  let bi = 0;
+  for (let i = 0; i < line.length - 1; i++) {
+    const d = distanceToSegment(p, line[i], line[i + 1]);
+    if (d < best) {
+      best = d;
+      bi = i;
+    }
+  }
+  const a = line[bi];
+  const b = line[bi + 1];
+  const lat0 = (a[0] * Math.PI) / 180;
+  const mLat = 111_320;
+  const mLng = 111_320 * Math.cos(lat0);
+  const bx = (b[1] - a[1]) * mLng;
+  const by = (b[0] - a[0]) * mLat;
+  const px = (p[1] - a[1]) * mLng;
+  const py = (p[0] - a[0]) * mLat;
+  // cross product z: >0 => point is left of the direction of travel
+  const cross = bx * py - by * px;
+  if (best < SIDE_AMBIGUOUS_M || cross === 0) return { dist: best, side: "?" };
+  return { dist: best, side: cross > 0 ? "L" : "R" };
+}
 function polylineLength(line: LatLng[]): number {
+
   let total = 0;
   for (let i = 0; i < line.length - 1; i++) total += haversine(line[i], line[i + 1]);
   return total;

@@ -140,7 +140,38 @@ function distanceToPolyline(p: LatLng, line: LatLng[]): number {
   }
   return min;
 }
+// Which side of the (directed) polyline a point lies on.
+// Returns "L" (left of travel direction), "R" (right), or "?" when too close to the
+// centerline to be reliable (median-mounted / GPS noise).
+export type RoadSide = "L" | "R" | "?";
+const SIDE_AMBIGUOUS_M = 8;
+function sideOfPolyline(p: LatLng, line: LatLng[]): { dist: number; side: RoadSide } {
+  if (line.length < 2) return { dist: Infinity, side: "?" };
+  let best = Infinity;
+  let bi = 0;
+  for (let i = 0; i < line.length - 1; i++) {
+    const d = distanceToSegment(p, line[i], line[i + 1]);
+    if (d < best) {
+      best = d;
+      bi = i;
+    }
+  }
+  const a = line[bi];
+  const b = line[bi + 1];
+  const lat0 = (a[0] * Math.PI) / 180;
+  const mLat = 111_320;
+  const mLng = 111_320 * Math.cos(lat0);
+  const bx = (b[1] - a[1]) * mLng;
+  const by = (b[0] - a[0]) * mLat;
+  const px = (p[1] - a[1]) * mLng;
+  const py = (p[0] - a[0]) * mLat;
+  // cross product z: >0 => point is left of the direction of travel
+  const cross = bx * py - by * px;
+  if (best < SIDE_AMBIGUOUS_M || cross === 0) return { dist: best, side: "?" };
+  return { dist: best, side: cross > 0 ? "L" : "R" };
+}
 function polylineLength(line: LatLng[]): number {
+
   let total = 0;
   for (let i = 0; i < line.length - 1; i++) total += haversine(line[i], line[i + 1]);
   return total;
@@ -157,6 +188,22 @@ function fmtDur(sec: number) {
 
 // ---------- Types ----------
 type Mode = "corridor" | "inspection" | "poi";
+
+function sideLabel(s: RoadSide) {
+  return s === "L" ? "[ซ้าย]" : s === "R" ? "[ขวา]" : "[?]";
+}
+function sideTripLabel(s: RoadSide) {
+  return s === "L" ? "ตรวจขาไป" : s === "R" ? "ตรวจขากลับ" : "ระบุฝั่งไม่ชัด";
+}
+
+
+const SIDE_FILTERS: Array<{ key: "all" | "leftOut" | "leftBack" | "both"; label: string; hint: string }> = [
+  { key: "all", label: "ทุกฝั่ง", hint: "แสดงป้ายทุกฝั่งของถนน" },
+  { key: "leftOut", label: "ซ้าย·ขาไป", hint: "เฉพาะป้ายฝั่งซ้ายตามทิศขาไป (รวมป้ายที่ระบุฝั่งไม่ชัด)" },
+  { key: "leftBack", label: "ซ้าย·ขากลับ", hint: "เฉพาะป้ายฝั่งซ้ายเมื่อขับย้อนกลับ (= ฝั่งขวาของขาไป)" },
+  { key: "both", label: "ไป-กลับ", hint: "แสดงทุกป้ายพร้อมระบุว่าตรวจได้ในขาไปหรือขากลับ" },
+];
+
 
 type Stop = {
   key: string; // client key
@@ -285,6 +332,7 @@ function MapPage() {
   const [drawMode, setDrawMode] = useState(false);
   const [polyline, setPolyline] = useState<LatLng[]>([]);
   const [radius, setRadius] = useState<number>(200);
+  const [sideFilter, setSideFilter] = useState<"all" | "leftOut" | "leftBack" | "both">("all");
   const historyRef = useRef<{ past: LatLng[][]; future: LatLng[][] }>({ past: [], future: [] });
   const [, forceHistoryRerender] = useState(0);
   const setPolylineTracked = useCallback((next: LatLng[] | ((p: LatLng[]) => LatLng[])) => {
@@ -414,31 +462,42 @@ function MapPage() {
   }, [mode, filtered, polyline, radius]);
 
   // Inspection: assets the OSRM route passes near (within `radius` of the road polyline)
+  // `side` is relative to the OUTBOUND direction of travel (ขาไป).
+  // Thailand drives on the left, so side "L" = ป้ายฝั่งซ้าย = ตรวจได้โดยไม่ต้องข้ามถนน.
+  // On the return trip the direction flips, so "R" (ขาไป) becomes ฝั่งซ้ายของขากลับ.
   const inspectionNearby = useMemo(() => {
     if (mode !== "inspection" || !roadPolyline || roadPolyline.length < 2)
-      return [] as Array<MapAsset & { dist: number }>;
+      return [] as Array<MapAsset & { dist: number; side: RoadSide }>;
     const stopIds = new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
-    const out: Array<MapAsset & { dist: number }> = [];
+    const out: Array<MapAsset & { dist: number; side: RoadSide }> = [];
     for (const a of filtered) {
       if (stopIds.has(a.id)) continue; // exclude picked stops from "passing" list
-      const d = distanceToPolyline([a.lat, a.lng], roadPolyline);
-      if (d <= radius) out.push({ ...a, dist: d });
+      const { dist, side } = sideOfPolyline([a.lat, a.lng], roadPolyline);
+      if (dist <= radius) out.push({ ...a, dist, side });
     }
     out.sort((a, b) => a.dist - b.dist);
     return out;
   }, [mode, filtered, roadPolyline, radius, stops]);
+
+  // Side filter: which leg of the trip the inspector is walking
+  const inspectionSideList = useMemo(() => {
+    if (sideFilter === "leftOut") return inspectionNearby.filter((a) => a.side !== "R");
+    if (sideFilter === "leftBack") return inspectionNearby.filter((a) => a.side !== "L");
+    return inspectionNearby;
+  }, [inspectionNearby, sideFilter]);
+
 
   // Highlight set on the map
   const highlightIds = useMemo(() => {
     if (mode === "corridor" && polyline.length > 0) return new Set(nearby.map((a) => a.id));
     if (mode === "inspection" && stops.length > 0) {
       const ids = new Set(stops.map((s) => s.asset_id).filter(Boolean) as string[]);
-      for (const a of inspectionNearby) ids.add(a.id);
+      for (const a of inspectionSideList) ids.add(a.id);
       return ids;
     }
     if (mode === "poi" && poiMatchedAssetIds) return poiMatchedAssetIds;
     return null;
-  }, [mode, polyline.length, nearby, stops, inspectionNearby, poiMatchedAssetIds]);
+  }, [mode, polyline.length, nearby, stops, inspectionSideList, poiMatchedAssetIds]);
 
   const suggestions = useMemo(() => {
     const qq = q.trim().toLowerCase();
@@ -614,10 +673,25 @@ function MapPage() {
             ]),
           ]
         : [
-            ["ลำดับ", "Old Code", "Name", "Latitude", "Longitude"],
-            ...(origin ? [["0 (ต้นทาง)", "", origin.name ?? "Origin", String(origin.lat), String(origin.lng)]] : []),
-            ...stops.map((s, i) => [String(i + 1), s.old_code ?? "", s.name ?? "", String(s.lat), String(s.lng)]),
+            ["ประเภท", "ลำดับ", "Old Code", "Name", "Media Type", "ฝั่งถนน", "ตรวจในขา", "ระยะจากเส้นทาง (m)", "Latitude", "Longitude"],
+            ...(origin ? [["ต้นทาง", "0", "", origin.name ?? "Origin", "", "", "", "", String(origin.lat), String(origin.lng)]] : []),
+            ...stops.map((s, i) => [
+              "จุดแวะ", String(i + 1), s.old_code ?? "", s.name ?? "", "", "", "", "", String(s.lat), String(s.lng),
+            ]),
+            ...inspectionSideList.map((a, i) => [
+              "ป้ายที่ผ่าน",
+              String(i + 1),
+              a.old_code ?? "",
+              a.name ?? "",
+              a.media_type ?? "",
+              a.side === "L" ? "ซ้าย" : a.side === "R" ? "ขวา" : "ไม่ชัด",
+              a.side === "L" ? "ขาไป" : a.side === "R" ? "ขากลับ" : "ไป/กลับ",
+              a.dist.toFixed(1),
+              String(a.lat),
+              String(a.lng),
+            ]),
           ];
+
     const csv = rows
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
       .join("\n");
@@ -643,7 +717,14 @@ function MapPage() {
         : [
             ...(origin ? [{ lat: origin.lat, lng: origin.lng, name: origin.name ?? "Origin" }] : []),
             ...stops.map((s, i) => ({ lat: s.lat, lng: s.lng, name: `${i + 1}. ${s.old_code ?? s.name ?? ""}` })),
+            ...inspectionSideList.map((a) => ({
+              lat: a.lat,
+              lng: a.lng,
+              name: `${sideLabel(a.side)} ${a.old_code ?? a.name ?? ""}`,
+              description: [a.name, a.media_type, sideTripLabel(a.side)].filter(Boolean).join(" • "),
+            })),
           ];
+
     if (track.length < 2) {
       toast.error("ต้องมีเส้นทางอย่างน้อย 2 จุด");
       return;
@@ -663,7 +744,14 @@ function MapPage() {
         : [
             ...(origin ? [{ lat: origin.lat, lng: origin.lng, name: origin.name ?? "Origin" }] : []),
             ...stops.map((s, i) => ({ lat: s.lat, lng: s.lng, name: `${i + 1}. ${s.old_code ?? s.name ?? ""}` })),
+            ...inspectionSideList.map((a) => ({
+              lat: a.lat,
+              lng: a.lng,
+              name: `${sideLabel(a.side)} ${a.old_code ?? a.name ?? ""}`,
+              description: [a.name, a.media_type, sideTripLabel(a.side)].filter(Boolean).join(" • "),
+            })),
           ];
+
     if (track.length < 2) {
       toast.error("ต้องมีเส้นทางอย่างน้อย 2 จุด");
       return;
@@ -1268,35 +1356,73 @@ function MapPage() {
             <div className="bg-amber-50/50 dark:bg-amber-950/20">
               <div className="px-3 py-2 border-t border-b flex items-center justify-between gap-2">
                 <div className="text-[11px] font-semibold text-amber-800 dark:text-amber-200">
-                  ป้ายที่เส้นทางผ่าน · {inspectionNearby.length}
+                  ป้ายที่เส้นทางผ่าน · {inspectionSideList.length}
+                  {sideFilter !== "all" && (
+                    <span className="text-muted-foreground font-normal"> / {inspectionNearby.length}</span>
+                  )}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
                   รัศมี {radius >= 1000 ? `${radius / 1000} km` : `${radius} m`}
                 </div>
               </div>
-              {inspectionNearby.length === 0 ? (
+              <div className="px-3 py-2 border-b flex flex-wrap gap-1">
+                {SIDE_FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => setSideFilter(f.key)}
+                    title={f.hint}
+                    className={`px-2 py-1 rounded-md text-[10px] border ${
+                      sideFilter === f.key
+                        ? "bg-amber-600 text-white border-amber-600"
+                        : "bg-background hover:bg-accent"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+                <div className="w-full text-[10px] text-muted-foreground pt-1">
+                  ◀ ซ้าย = ตรวจได้โดยไม่ต้องข้ามถนน (ไทยขับชิดซ้าย) · ขากลับคือเส้นทางเดิมย้อนกลับ · “?” = ใกล้แนวถนนมาก ระบุฝั่งไม่ชัด
+                </div>
+              </div>
+              {inspectionSideList.length === 0 ? (
                 <div className="px-3 py-2 text-[11px] text-muted-foreground">
-                  ไม่มีป้ายอื่นในรัศมีที่กำหนดตลอดเส้นทาง
+                  ไม่มีป้ายอื่นในรัศมี/ฝั่งที่กำหนดตลอดเส้นทาง
                 </div>
               ) : (
-                inspectionNearby.slice(0, 200).map((a, i) => (
-                  <button
-                    key={a.id}
-                    onClick={() => setFocusId(a.id)}
-                    className="w-full text-left px-3 py-1.5 hover:bg-accent border-t border-amber-100 dark:border-amber-900/40"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs font-semibold truncate">{i + 1}. {a.old_code ?? "—"}</div>
-                      <div className="text-[11px] text-muted-foreground tabular-nums shrink-0">{fmtDist(a.dist)}</div>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground truncate">
-                      {[projectForDepartment(a.department) ?? a.department, a.media_type, a.location].filter(Boolean).join(" • ")}
-                    </div>
-                  </button>
-                ))
+                inspectionSideList.slice(0, 200).map((a, i) => {
+                  const activeSide = sideFilter === "leftBack" ? "R" : "L";
+                  const dim = a.side !== activeSide && a.side !== "?" && sideFilter !== "both";
+                  const badge =
+                    a.side === "?"
+                      ? { text: "? ไม่ชัด", cls: "bg-muted text-muted-foreground" }
+                      : a.side === "L"
+                      ? { text: "◀ ซ้าย·ขาไป", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" }
+                      : { text: "▶ ขวา·ขากลับ", cls: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200" };
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => setFocusId(a.id)}
+                      className={`w-full text-left px-3 py-1.5 hover:bg-accent border-t border-amber-100 dark:border-amber-900/40 ${
+                        dim ? "opacity-40" : ""
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs font-semibold truncate">{i + 1}. {a.old_code ?? "—"}</div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium ${badge.cls}`}>{badge.text}</span>
+                          <span className="text-[11px] text-muted-foreground tabular-nums">{fmtDist(a.dist)}</span>
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {[projectForDepartment(a.department) ?? a.department, a.media_type, a.location].filter(Boolean).join(" • ")}
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
           )}
+
         </div>
       </div>
     ) : null;

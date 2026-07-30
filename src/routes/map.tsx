@@ -316,6 +316,7 @@ function MapPage() {
   const [drawMode, setDrawMode] = useState(false);
   const [polyline, setPolyline] = useState<LatLng[]>([]);
   const [radius, setRadius] = useState<number>(200);
+  const [sideFilter, setSideFilter] = useState<"all" | "leftOut" | "leftBack" | "both">("all");
   const historyRef = useRef<{ past: LatLng[][]; future: LatLng[][] }>({ past: [], future: [] });
   const [, forceHistoryRerender] = useState(0);
   const setPolylineTracked = useCallback((next: LatLng[] | ((p: LatLng[]) => LatLng[])) => {

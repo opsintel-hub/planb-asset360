@@ -13,6 +13,7 @@ import {
   X,
   MapPin,
   Sparkles,
+  Navigation,
 } from "lucide-react";
 
 import { useState, useEffect } from "react";

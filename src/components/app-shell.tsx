@@ -28,6 +28,7 @@ const NAV_ALL = [
   { to: "/monitoring", label: "Monitoring", icon: Activity },
   { to: "/rca", label: "Root Cause Analysis", icon: Microscope },
   { to: "/map", label: "Asset Map", icon: MapPin },
+  { to: "/route-monitoring", label: "Route Monitoring", icon: Navigation },
   { to: "/settings", label: "ตั้งค่าระบบ", icon: Settings },
   { to: "/permissions", label: "จัดการสิทธิ์", icon: Users },
 ] as const;

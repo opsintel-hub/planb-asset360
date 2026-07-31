@@ -90,6 +90,7 @@ type Props = {
   assets: MapAsset[];
   claimedCodes: Set<string>;
   focusId?: string | null;
+  focusNonce?: number;
   drawMode?: boolean;
   polyline?: LatLng[];
   onPolylineChange?: (pts: LatLng[]) => void;
@@ -117,6 +118,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
   assets,
   claimedCodes,
   focusId,
+  focusNonce = 0,
   drawMode = false,
   polyline = [],
   onPolylineChange,

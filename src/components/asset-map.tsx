@@ -90,6 +90,7 @@ type Props = {
   assets: MapAsset[];
   claimedCodes: Set<string>;
   focusId?: string | null;
+  focusNonce?: number;
   drawMode?: boolean;
   polyline?: LatLng[];
   onPolylineChange?: (pts: LatLng[]) => void;
@@ -117,6 +118,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
   assets,
   claimedCodes,
   focusId,
+  focusNonce = 0,
   drawMode = false,
   polyline = [],
   onPolylineChange,
@@ -454,11 +456,28 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
     const cluster = clusterRef.current;
     const marker = markerByIdRef.current.get(focusId);
     if (!map || !cluster || !marker) return;
-    map.setView(marker.getLatLng(), 17, { animate: true });
-    setTimeout(() => {
-      cluster.zoomToShowLayer(marker, () => marker.openPopup());
+    const asset = assets.find((a) => a.id === focusId);
+    map.setView(marker.getLatLng(), Math.max(map.getZoom(), 17), { animate: true });
+    const t = setTimeout(() => {
+      cluster.zoomToShowLayer(marker, () => {
+        if (marker.getPopup()) {
+          marker.openPopup();
+        } else if (asset) {
+          const label = `<div style="font-size:12px;min-width:150px;">
+            <div style="font-weight:700;font-size:13px;">${escapeHtml(asset.old_code ?? "—")}</div>
+            <div style="color:#6b7280;">${escapeHtml(asset.name ?? "")}</div>
+            <div style="color:#6b7280;">${escapeHtml(asset.media_type ?? "")}</div>
+          </div>`;
+          L.popup({ offset: [0, -28], autoClose: true })
+            .setLatLng(marker.getLatLng())
+            .setContent(label)
+            .openOn(map);
+        }
+      });
     }, 200);
-  }, [focusId, ready, assets]);
+    return () => clearTimeout(t);
+  }, [focusId, focusNonce, ready, assets]);
+
 
   const legendItems = useMemo(() => {
     const shown = new Set<string>();

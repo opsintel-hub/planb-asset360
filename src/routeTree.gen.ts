@@ -17,6 +17,7 @@ import { Route as MonitoringRouteImport } from './routes/monitoring'
 import { Route as PermissionsRouteImport } from './routes/permissions'
 import { Route as PmInsightsRouteImport } from './routes/pm-insights'
 import { Route as RcaRouteImport } from './routes/rca'
+import { Route as RouteMonitoringRouteImport } from './routes/route-monitoring'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SharedPoiTokenRouteImport } from './routes/shared/poi.$token'
@@ -64,6 +65,11 @@ const RcaRoute = RcaRouteImport.update({
   path: '/rca',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RouteMonitoringRoute = RouteMonitoringRouteImport.update({
+  id: '/route-monitoring',
+  path: '/route-monitoring',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
@@ -106,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/permissions': typeof PermissionsRoute
   '/pm-insights': typeof PmInsightsRoute
   '/rca': typeof RcaRoute
+  '/route-monitoring': typeof RouteMonitoringRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/shared/poi/$token': typeof SharedPoiTokenRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByTo {
   '/permissions': typeof PermissionsRoute
   '/pm-insights': typeof PmInsightsRoute
   '/rca': typeof RcaRoute
+  '/route-monitoring': typeof RouteMonitoringRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/shared/poi/$token': typeof SharedPoiTokenRoute
@@ -139,6 +147,7 @@ export interface FileRoutesById {
   '/permissions': typeof PermissionsRoute
   '/pm-insights': typeof PmInsightsRoute
   '/rca': typeof RcaRoute
+  '/route-monitoring': typeof RouteMonitoringRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/shared/poi/$token': typeof SharedPoiTokenRoute
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/pm-insights'
     | '/rca'
+    | '/route-monitoring'
     | '/search'
     | '/settings'
     | '/shared/poi/$token'
@@ -173,6 +183,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/pm-insights'
     | '/rca'
+    | '/route-monitoring'
     | '/search'
     | '/settings'
     | '/shared/poi/$token'
@@ -189,6 +200,7 @@ export interface FileRouteTypes {
     | '/permissions'
     | '/pm-insights'
     | '/rca'
+    | '/route-monitoring'
     | '/search'
     | '/settings'
     | '/shared/poi/$token'
@@ -206,6 +218,7 @@ export interface RootRouteChildren {
   PermissionsRoute: typeof PermissionsRoute
   PmInsightsRoute: typeof PmInsightsRoute
   RcaRoute: typeof RcaRoute
+  RouteMonitoringRoute: typeof RouteMonitoringRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   SharedPoiTokenRoute: typeof SharedPoiTokenRoute
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RcaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/route-monitoring': {
+      id: '/route-monitoring'
+      path: '/route-monitoring'
+      fullPath: '/route-monitoring'
+      preLoaderRoute: typeof RouteMonitoringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/search': {
       id: '/search'
       path: '/search'
@@ -326,6 +346,7 @@ const rootRouteChildren: RootRouteChildren = {
   PermissionsRoute: PermissionsRoute,
   PmInsightsRoute: PmInsightsRoute,
   RcaRoute: RcaRoute,
+  RouteMonitoringRoute: RouteMonitoringRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   SharedPoiTokenRoute: SharedPoiTokenRoute,
@@ -336,13 +357,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

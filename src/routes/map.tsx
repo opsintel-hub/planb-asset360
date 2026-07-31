@@ -323,6 +323,11 @@ function MapPage() {
   }, [filteredMediaTypes]);
   const [q, setQ] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [focusNonce, setFocusNonce] = useState(0);
+  const focusAsset = (id: string | null) => {
+    setFocusId(id);
+    setFocusNonce((n) => n + 1);
+  };
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [onlyClaimed, setOnlyClaimed] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -933,7 +938,7 @@ function MapPage() {
       setSuggestOpen(false);
       toast.success(`เพิ่มปลายทาง: ${a.old_code ?? a.name}`);
     } else {
-      setFocusId(a.id);
+      focusAsset(a.id);
       setQ(a.old_code ?? a.name ?? "");
       setSuggestOpen(false);
     }
@@ -1279,7 +1284,7 @@ function MapPage() {
             <div className="p-4 text-xs text-muted-foreground">ไม่มีป้ายในรัศมี {radius} m</div>
           ) : (
             nearby.map((a, i) => (
-              <button key={a.id} onClick={() => setFocusId(a.id)} className="w-full text-left px-3 py-2 hover:bg-accent">
+              <button key={a.id} onClick={() => focusAsset(a.id)} className="w-full text-left px-3 py-2 hover:bg-accent">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-xs font-semibold truncate">{i + 1}. {a.old_code ?? "—"}</div>
                   <div className="text-[11px] text-muted-foreground tabular-nums shrink-0">{fmtDist(a.dist)}</div>
@@ -1331,7 +1336,7 @@ function MapPage() {
                     </div>
                   )}
                   <div className="flex items-start gap-2">
-                    <button onClick={() => s.asset_id && setFocusId(s.asset_id)} className="flex-1 text-left min-w-0">
+                    <button onClick={() => s.asset_id && focusAsset(s.asset_id)} className="flex-1 text-left min-w-0">
                       <div className="text-xs font-semibold truncate">{i + 1}. {s.old_code ?? s.name ?? "—"}</div>
                       <div className="text-[11px] text-muted-foreground break-words">{s.name ?? ""}</div>
                       <div className="text-[10px] text-muted-foreground">{s.lat.toFixed(5)}, {s.lng.toFixed(5)}</div>
@@ -1401,7 +1406,7 @@ function MapPage() {
                   return (
                     <button
                       key={a.id}
-                      onClick={() => setFocusId(a.id)}
+                      onClick={() => focusAsset(a.id)}
                       className={`w-full text-left px-3 py-1.5 hover:bg-accent border-t border-amber-100 dark:border-amber-900/40 ${
                         dim ? "opacity-40" : ""
                       }`}
@@ -1437,7 +1442,7 @@ function MapPage() {
               setPoiResult(r);
               setFocusPoiId(null);
             }}
-            onFocusAsset={(id) => setFocusId(id)}
+            onFocusAsset={(id) => focusAsset(id)}
             onFocusPOI={(p) => setFocusPoiId(p.id)}
             assetIndexById={assetIndexById}
             preProjects={fProjects}
@@ -1514,6 +1519,7 @@ function MapPage() {
                 assets={filtered}
                 claimedCodes={claimedCodes}
                 focusId={focusId}
+                focusNonce={focusNonce}
                 drawMode={mode === "corridor" && drawMode}
                 polyline={mode === "corridor" ? polyline : []}
                 onPolylineChange={mode === "corridor" ? setPolylineTracked : undefined}

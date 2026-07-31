@@ -1,66 +1,61 @@
+# Route Monitoring — แผนสร้างแบบ 6 Phase (ประหยัดเครดิต)
 
-## สรุปการทำงานปัจจุบัน (verified จากโค้ด `src/routes/map.tsx`)
+## สรุปคำตอบคำถามหลัก
 
-### Corridor (โหมด "วาดเส้นทาง")
-- ผู้ใช้คลิกบนแผนที่เพื่อวาง waypoints ด้วยมือ (Draw Route)
-- ระบบใช้ waypoints เหล่านั้น + `radius` เพื่อหาป้ายที่อยู่ใน "แถบ" ตามเส้น (buffer/corridor)
-- **ไม่มี** OSRM auto-route และ **ไม่มี** optimize — เป็นเส้นตรงเชื่อมจุดเท่านั้น
-- เหมาะกับ: กำหนดพื้นที่/โซนเอง เช่น "อยากเห็นป้ายตามแนวสุขุมวิท" โดยไม่สนใจการเดินทางจริง
+**ต้องแยกเมนูใหม่ไหม?** ใช่ — สร้างเมนูใหม่ `/route-monitoring` แยกจาก Asset Map
+เหตุผล: `src/routes/map.tsx` ตอนนี้ยาว ~1,800 บรรทัดและมี 3 โหมดอยู่แล้ว (POI / Corridor / Inspection) การยัดเพิ่มจะทำให้แก้ยากและเปลืองเครดิตทุกครั้งที่ต้องแก้ไฟล์ใหญ่ ส่วนหน้าใหม่จะ *reuse* ของเดิมทั้งหมด: `AssetMap`, `osrm.ts` (route/trip/GPX/KML), `map_saved_routes`, ตัวกรอง Project/Media/Zone
 
-### Inspection (โหมด "วางแผนตรวจสื่อ")
-- ผู้ใช้เลือก Origin + Stops (คลิกป้าย หรือ Pick Stop)
-- **Auto Route** = คำนวณเส้นทางถนนจริงผ่าน OSRM ตามลำดับที่ผู้ใช้กำหนด (ลำดับตายตัวตามที่เพิ่ม)
-- **Optimize** = ใช้ OSRM Trip API จัดลำดับ stops ใหม่ให้ระยะทางรวมสั้นที่สุด (fixedStart, ไม่ roundtrip)
-- ตั้งแต่ turn ก่อน ระบบมี **auto-debounce 350ms** ที่เรียก `osrmRoute` อัตโนมัติเมื่อ origin/stops เปลี่ยน → เส้นทางถูกวาดให้เองแล้ว
-- แต่ **ไม่ได้ optimize อัตโนมัติ** — ลำดับยังคงเป็นตามที่ผู้ใช้เพิ่ม
+**ประหยัดเครดิตอย่างไร**
+- คำนวณ K-Means + แบ่งวัน + Risk Score ทำใน **client/server function ธรรมดา ไม่เรียก AI model เลย** (เป็นคณิตศาสตร์ล้วน) → 0 credit ต่อการรัน
+- OSRM เป็นบริการฟรี ไม่คิดเครดิต — แต่จะลดจำนวน request ด้วย debounce + cache ผลลง `map_saved_routes`
+- ดึงป้ายจากที่โหลดอยู่บนแผนที่แล้ว (live filtered assets) ไม่ query ใหม่
+- Risk Score ดึง claims 30–90 วันแบบ aggregate ครั้งเดียว (SQL group by asset) ไม่ดึง 353k rows มาที่ browser
 
----
+## หน้าตาการใช้งาน
 
-## ตอบคำถาม
+```text
+[ Route Monitoring ]
+Toolbar: Project(multi) | Media Type(multi) | Zone | จำนวนป้ายที่แสดง: 2,000 (auto)
+Panel ซ้าย (Inputs):
+  จำนวนพนักงาน [5]   กรอบเวลา (วัน) [3]
+  จุดเริ่มต้น: [ใช้จุดกลางโซน / เลือกจากแผนที่ / คลังสินค้าที่บันทึกไว้]
+  [ ] เหตุฉุกเฉิน: คนลา [1] คน
+  [ Run Routing Plan ]
+Panel ขวา: สรุปต่อคน/ต่อวัน (จำนวนป้าย, ระยะทาง, เวลาโดยประมาณ)
+  → คลิกวัน = แสดงเส้นทางบนแผนที่ + รายการป้ายเรียงลำดับ
+  Export: CSV / GPX / KML / Copy Google Maps URL
+```
 
-**1. Corridor ควรเพิ่ม Auto Route / Optimize ไหม?**
-- **ไม่แนะนำ** — จะทับซ้อนกับ Inspection ทันที Corridor มีจุดขายคือ "วาดโซนอิสระ" ไม่ผูกกับถนนจริง ถ้าใส่ auto-route เข้าไป จะกลายเป็น Inspection รุ่นย่อ ผู้ใช้จะสับสนหนักกว่าเดิม
-- ถ้าอยากได้ผลลัพธ์แบบ "ไปตามถนนจริง" → ควรใช้ Inspection อยู่แล้ว
+## Phase (แต่ละ Phase ใช้งานได้จริง ไม่ต้องรอ Phase ถัดไป)
 
-**2. Inspection ปักหมุดแล้ว optimize อัตโนมัติหรือยัง? ปุ่มยังจำเป็นไหม?**
-- ตอนนี้ระบบ **auto-route** ให้ (วาดเส้นถนนจริง) แต่ **ไม่ auto-optimize** (ไม่จัดลำดับ)
-- **Auto Route ปุ่ม**: ซ้ำซ้อนกับ auto-debounce แล้ว 90% — เก็บไว้เป็น "คำนวณใหม่/retry" กรณี OSRM พลาดเงียบ ๆ ก็พอ แต่ควรลด prominence
-- **Optimize ปุ่ม**: **ยังจำเป็น** เพราะเป็น action ที่เปลี่ยนลำดับ stops (destructive-ish) ผู้ใช้ควรกดเอง ไม่ควรทำอัตโนมัติ
+**Phase 1 — โครงหน้าใหม่ + Inputs + Live Count**
+เมนู/route ใหม่, sidebar item, แผนที่ + ตัวกรองเดิม (reuse), ฟอร์ม 4 ค่า (คน/วัน/จุดเริ่ม/toggle ฉุกเฉิน), แสดงจำนวนป้ายที่กรองได้แบบสด ยังไม่คำนวณเส้นทาง
 
-**3. จุดประสงค์ต่างกันอย่างไร**
+**Phase 2 — Spatial Clustering (K-Means)**
+`src/lib/route-planner.ts` (pure TS, ไม่มี dependency ใหม่): k-means บน lat/lng + ถ่วงให้จำนวนป้ายแต่ละโซนใกล้เคียงกัน แสดงโซนด้วยสีบนแผนที่ + ตารางสรุปต่อคน ยังไม่ยิง OSRM
 
-| ด้าน | Corridor | Inspection |
-|---|---|---|
-| เป้าหมาย | สำรวจ/เลือกป้ายในแนว/โซนที่ผู้ใช้วาด | วางแผนทริปตรวจสื่อ ไปจริงตามถนน |
-| Input | คลิกวาง waypoints อิสระ | Origin + Stops (จากป้ายที่มีจริง) |
-| เส้นทาง | เส้นตรงระหว่างจุด | ถนนจริงผ่าน OSRM |
-| ผลลัพธ์ | รายชื่อป้ายในรัศมีของเส้น | ลำดับทริป + ระยะ/เวลา + ป้ายที่ผ่าน |
-| Export | CSV ป้าย + GPX/KML | CSV ทริป + GPX/KML + ลิงก์ Google/Apple/Waze |
+**Phase 3 — แบ่งวัน + TSP Routing จริง**
+แบ่งป้ายของแต่ละคนเป็น N วัน (แบ่งตามความใกล้กันเชิงพื้นที่ ไม่ใช่สุ่ม), ยิง OSRM `/trip` เป็นก้อนละ ≤100 จุด แล้วต่อกัน (ข้อจำกัด OSRM public), debounce 350ms, แสดง polyline + ลำดับหยุด + ระยะทาง/เวลา
 
----
+**Phase 4 — บันทึก + Export**
+บันทึกแผนลง `map_saved_routes` (reuse ตารางเดิม, เก็บ plan ทั้งชุดใน payload), โหลดแผนเก่ากลับมา, Export CSV/GPX/KML ต่อวัน/ต่อคน + Copy Google Maps URL (reuse `osrm.ts`)
 
-## ข้อเสนอปรับปรุง (สั้น ๆ ประหยัดเครดิต)
+**Phase 5 — Risk Score + Emergency Re-balance**
+server function ใหม่: aggregate `claims` ย้อนหลัง 30/90 วัน → คะแนนความเสี่ยงต่อป้าย (มีเคลม 30 วัน = High, 0 เคลม 90 วัน = Low)
+เมื่อเปิด toggle คนลา: เกลี่ยงานให้คนที่เหลือก่อน (Phase 1 re-balance) และแสดงชั่วโมงงาน/วันที่เพิ่มขึ้น
 
-1. **Inspection — ลด prominence "Auto Route"**
-   - เปลี่ยนจากปุ่มหลัก → เป็น icon-button เล็ก ๆ tooltip "คำนวณใหม่" (ระบบทำอัตโนมัติอยู่แล้ว)
-   - คง Optimize ไว้เด่นเหมือนเดิม เพราะเป็น action ที่ต้องยืนยัน
+**Phase 6 — Priority Skipping + Auto-Promote Catch-up**
+ถ้าเกลี่ยแล้วเกินเพดานชั่วโมง → ตัดป้าย Low-Risk ออกชั่วคราว, ป้ายที่ถูกข้ามบันทึกลงตารางใหม่ `route_skipped_assets` และถูกดันเป็น Priority 1 ในแผนรอบถัดไปโดยอัตโนมัติ + แผงสรุปสำหรับนำเสนอ (ประหยัดระยะทางกี่ %)
 
-2. **Inspection — แสดงสถานะ auto-route ให้ชัด**
-   - เพิ่มข้อความเล็ก ๆ ใต้ toolbar: "🔄 ระบบคำนวณเส้นทางอัตโนมัติ" หรือ spinner ตอน routing = true
-   - ผู้ใช้จะไม่งงว่าทำไม Auto Route ปุ่มเทา
+## รายละเอียดทางเทคนิค
 
-3. **Corridor — เพิ่มคำอธิบายสั้นใต้ toolbar** (ไม่เพิ่ม feature)
-   - "วาดจุดอิสระ · เส้นตรงเชื่อม · หาป้ายในรัศมีรอบเส้น"
-   - ให้ผู้ใช้เข้าใจว่าจงใจไม่ใช้ถนนจริง ต่างจาก Inspection
+- ไฟล์ใหม่: `src/routes/route-monitoring.tsx` (UI), `src/lib/route-planner.ts` (k-means + day split + risk, pure), `src/lib/route-planner.functions.ts` (server fn: risk aggregate, save/load plan)
+- ไม่แก้ `src/routes/map.tsx` (ยกเว้นเพิ่มลิงก์เมนู) เพื่อลดความเสี่ยงและเครดิต
+- OSRM: `/trip` รับสูงสุด ~100 พิกัด/คำขอ → chunk 90 จุด แล้วเชื่อมด้วย `/route` ระหว่างก้อน
+- Risk Score: server function + SQL aggregate เท่านั้น (ไม่ดึง row ดิบมา client)
+- DB: Phase 4 ใช้ `map_saved_routes` เดิม; Phase 6 เพิ่ม 1 ตารางพร้อม RLS + GRANT
+- ไม่มีการเรียก AI model — คำว่า "AI Engine" ในเอกสารคืออัลกอริทึม geospatial ซึ่งรันฟรี
 
-4. **ไม่ต้อง** ใส่ Auto Route/Optimize ใน Corridor
-
-### ไฟล์ที่จะแก้
-- `src/routes/map.tsx` เท่านั้น (UI/labeling; ไม่แตะ logic OSRM หรือ server functions)
-
-### สิ่งที่จะไม่ทำ
-- ไม่รวม Corridor + Inspection เป็นโหมดเดียว (คนละ use case)
-- ไม่ auto-optimize (เสี่ยงเปลี่ยนลำดับโดยไม่ตั้งใจ)
-- ไม่ลบปุ่ม Auto Route ทิ้ง (ยังมีประโยชน์เป็น manual retry)
-
-ยืนยันแนวทางนี้ไหม หรืออยากปรับข้อไหนก่อนลงมือ?
+## ข้อควรตัดสินใจ (บอกได้ระหว่างทาง)
+1. เวลาต่อป้าย/ความเร็วเฉลี่ย ใช้ค่าเริ่มต้น 5 นาที/ป้าย และเพดาน 8 ชม./วัน (ปรับได้ในหน้าตั้งค่า)
+2. จุดเริ่มต้น: เริ่มจาก "จุดกลางของแต่ละโซน" ก่อน แล้วค่อยเพิ่มคลังสินค้าใน Phase 4

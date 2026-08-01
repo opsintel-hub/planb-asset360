@@ -271,13 +271,44 @@ function RouteMonitoringPage() {
             <div className="flex flex-wrap gap-2">
               <MultiSelect label="Project" options={projectOptions} value={fProjects} onChange={setFProjects} />
               <MultiSelect label="Media" options={mediaOptions} value={fMedias} onChange={setFMedias} />
+              <MultiSelect
+                label="ภูมิภาค"
+                options={regionOptions}
+                value={fRegions.map((r) => REGION_LABELS[r])}
+                onChange={(labels) => {
+                  const keys = REGION_ORDER.filter((r) => labels.includes(REGION_LABELS[r]));
+                  setFRegions(keys);
+                  // keep provinces consistent with the chosen regions
+                  const allowed = new Set(provincesInRegions(keys));
+                  setFProvinces((prev) => prev.filter((p) => allowed.has(p)));
+                }}
+              />
+              <MultiSelect
+                label="จังหวัด"
+                options={provinceOptions}
+                value={fProvinces}
+                onChange={setFProvinces}
+              />
             </div>
+            <label className="flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={lockProvince}
+                onChange={(e) => setLockProvince(e.target.checked)}
+              />
+              <span>
+                <b>ไม่ให้โซนข้ามจังหวัด</b> — ปิดไว้ (ค่าเริ่มต้น) ระบบจะจัดทริปยาวข้ามจังหวัดได้
+                เช่น ตะวันออก → อีสานล่าง → อีสานบน → กลับ กทม.
+              </span>
+            </label>
             <div className="flex items-center gap-2 text-sm">
               <MapPin className="size-4 text-primary" />
               <span className="font-semibold tabular-nums">{filtered.length.toLocaleString()}</span>
               <span className="text-muted-foreground">ป้ายที่จะนำไปวางแผน</span>
             </div>
             {isLoading && <Skeleton className="h-4 w-32" />}
+
           </div>
 
           <div className="rounded-xl border bg-card p-4 space-y-3">

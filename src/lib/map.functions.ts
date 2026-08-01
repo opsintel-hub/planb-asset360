@@ -9,9 +9,11 @@ export type MapAsset = {
   media_type: string | null;
   status: string | null;
   location: string | null;
+  district?: string | null;
   lat: number;
   lng: number;
 };
+
 
 function parseLatLng(raw: unknown): [number, number] | null {
   if (typeof raw !== "string") return null;
@@ -33,6 +35,7 @@ export const listAssetsForMap = createServerFn({ method: "GET" })
       old_code: string | null;
       name: string | null;
       department: string | null;
+      district: string | null;
       status: string | null;
       latitude: number | null;
       longitude: number | null;
@@ -44,7 +47,7 @@ export const listAssetsForMap = createServerFn({ method: "GET" })
     while (true) {
       const { data, error } = await context.supabase
         .from("assets")
-        .select("id, old_code, name, department, status, latitude, longitude, payload")
+        .select("id, old_code, name, department, district, status, latitude, longitude, payload")
         .range(from, from + pageSize - 1);
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) break;
@@ -72,6 +75,7 @@ export const listAssetsForMap = createServerFn({ method: "GET" })
         media_type: typeof p.MediaType === "string" ? p.MediaType : null,
         status: r.status,
         location: typeof p.Location === "string" ? p.Location : null,
+        district: r.district,
         lat,
         lng,
       });

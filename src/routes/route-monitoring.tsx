@@ -11,6 +11,14 @@ import { cn } from "@/lib/utils";
 import { listAssetsForMap, type MapAsset } from "@/lib/map.functions";
 import { PROJECT_TO_DEPARTMENTS, projectForDepartment } from "@/lib/project-department-map";
 import {
+  REGION_LABELS,
+  REGION_ORDER,
+  provinceForPoint,
+  provincesInRegions,
+  regionForProvince,
+  type RegionKey,
+} from "@/lib/thai-regions";
+import {
   balancedKMeans,
   estimateTourMeters,
   splitIntoDays,
@@ -18,6 +26,7 @@ import {
   type PlanPoint,
 } from "@/lib/route-planner";
 import type { AssetMapHandle } from "@/components/asset-map";
+
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
 
@@ -114,6 +123,9 @@ function RouteMonitoringPage() {
 
   const [fProjects, setFProjects] = useState<string[]>([]);
   const [fMedias, setFMedias] = useState<string[]>([]);
+  const [fRegions, setFRegions] = useState<RegionKey[]>([]);
+  const [fProvinces, setFProvinces] = useState<string[]>([]);
+  const [lockProvince, setLockProvince] = useState(false);
   const [inspectors, setInspectors] = useState(5);
   const [days, setDays] = useState(3);
   const [emergency, setEmergency] = useState(false);
@@ -122,25 +134,45 @@ function RouteMonitoringPage() {
   const [selected, setSelected] = useState<{ i: number; d: number } | null>(null);
   const mapRef = useRef<AssetMapHandle | null>(null);
 
+  // Province resolved offline from coordinates — zero credits.
+  const geoAssets = useMemo(
+    () =>
+      allAssets.map((a) => {
+        const province = provinceForPoint(a.lat, a.lng, a.district ?? null);
+        return { ...a, province, region: regionForProvince(province) };
+      }),
+    [allAssets],
+  );
+
   const mediaOptions = useMemo(() => {
     const s = new Set<string>();
     for (const a of allAssets) if (a.media_type) s.add(a.media_type);
     return Array.from(s).sort();
   }, [allAssets]);
   const projectOptions = useMemo(() => Object.keys(PROJECT_TO_DEPARTMENTS).sort(), []);
+  const regionOptions = useMemo(() => REGION_ORDER.map((r) => REGION_LABELS[r]), []);
+  // Province list is locked to the chosen regions and to provinces that have assets.
+  const provinceOptions = useMemo(() => {
+    const withAssets = new Set(geoAssets.map((a) => a.province));
+    return provincesInRegions(fRegions).filter((p) => withAssets.has(p));
+  }, [geoAssets, fRegions]);
 
   const filtered = useMemo(() => {
     const projSet = new Set(fProjects);
     const medSet = new Set(fMedias);
-    return allAssets.filter((a) => {
+    const regSet = new Set(fRegions);
+    const provSet = new Set(fProvinces.filter((p) => provinceOptions.includes(p)));
+    return geoAssets.filter((a) => {
       if (projSet.size) {
         const p = projectForDepartment(a.department);
         if (!p || !projSet.has(p)) return false;
       }
       if (medSet.size && !(a.media_type && medSet.has(a.media_type))) return false;
+      if (regSet.size && !(a.region && regSet.has(a.region))) return false;
+      if (provSet.size && !provSet.has(a.province)) return false;
       return true;
     });
-  }, [allAssets, fProjects, fMedias]);
+  }, [geoAssets, fProjects, fMedias, fRegions, fProvinces, provinceOptions]);
 
   const activeInspectors = Math.max(1, inspectors - (emergency ? absent : 0));
 
@@ -151,10 +183,37 @@ function RouteMonitoringPage() {
       name: a.name,
       department: a.department,
       mediaType: a.media_type,
+      province: a.province,
       lat: a.lat,
       lng: a.lng,
     }));
-    const clusters = balancedKMeans(points, activeInspectors);
+
+    // Long-haul trips are the default: clustering may cross provinces freely.
+    // "lockProvince" instead allocates staff per province so no zone straddles a border.
+    let clusters = [] as ReturnType<typeof balancedKMeans>;
+    if (lockProvince) {
+      const groups = new Map<string, PlanPoint[]>();
+      for (const p of points) {
+        const key = p.province ?? "-";
+        const arr = groups.get(key);
+        if (arr) arr.push(p);
+        else groups.set(key, [p]);
+      }
+      const total = points.length || 1;
+      const entries = Array.from(groups.values()).sort((a, b) => b.length - a.length);
+      let left = activeInspectors;
+      entries.forEach((g, i) => {
+        const remainingGroups = entries.length - i;
+        const want = Math.round((g.length / total) * activeInspectors) || 1;
+        const k = Math.max(1, Math.min(want, left - (remainingGroups - 1)));
+        left -= k;
+        clusters.push(...balancedKMeans(g, Math.max(1, k)));
+      });
+      clusters = clusters.map((c, i) => ({ ...c, index: i }));
+    } else {
+      clusters = balancedKMeans(points, activeInspectors);
+    }
+
     const result: InspectorPlan[] = clusters.map((c) => {
       const dayBatches = splitIntoDays(c.points, days);
       return {
@@ -173,6 +232,13 @@ function RouteMonitoringPage() {
     setPlan(result);
     setSelected(null);
   }
+
+  function provincesOf(pts: PlanPoint[]) {
+    const s = new Set<string>();
+    for (const p of pts) if (p.province) s.add(p.province);
+    return Array.from(s);
+  }
+
 
   const shownAssets = useMemo(() => {
     if (!plan || !selected) return filtered;
@@ -205,13 +271,44 @@ function RouteMonitoringPage() {
             <div className="flex flex-wrap gap-2">
               <MultiSelect label="Project" options={projectOptions} value={fProjects} onChange={setFProjects} />
               <MultiSelect label="Media" options={mediaOptions} value={fMedias} onChange={setFMedias} />
+              <MultiSelect
+                label="ภูมิภาค"
+                options={regionOptions}
+                value={fRegions.map((r) => REGION_LABELS[r])}
+                onChange={(labels) => {
+                  const keys = REGION_ORDER.filter((r) => labels.includes(REGION_LABELS[r]));
+                  setFRegions(keys);
+                  // keep provinces consistent with the chosen regions
+                  const allowed = new Set(provincesInRegions(keys));
+                  setFProvinces((prev) => prev.filter((p) => allowed.has(p)));
+                }}
+              />
+              <MultiSelect
+                label="จังหวัด"
+                options={provinceOptions}
+                value={fProvinces}
+                onChange={setFProvinces}
+              />
             </div>
+            <label className="flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={lockProvince}
+                onChange={(e) => setLockProvince(e.target.checked)}
+              />
+              <span>
+                <b>ไม่ให้โซนข้ามจังหวัด</b> — ปิดไว้ (ค่าเริ่มต้น) ระบบจะจัดทริปยาวข้ามจังหวัดได้
+                เช่น ตะวันออก → อีสานล่าง → อีสานบน → กลับ กทม.
+              </span>
+            </label>
             <div className="flex items-center gap-2 text-sm">
               <MapPin className="size-4 text-primary" />
               <span className="font-semibold tabular-nums">{filtered.length.toLocaleString()}</span>
               <span className="text-muted-foreground">ป้ายที่จะนำไปวางแผน</span>
             </div>
             {isLoading && <Skeleton className="h-4 w-32" />}
+
           </div>
 
           <div className="rounded-xl border bg-card p-4 space-y-3">
@@ -353,7 +450,23 @@ function RouteMonitoringPage() {
                         {p.points.length.toLocaleString()} ป้าย
                       </span>
                     </button>
+                    <div className="pl-6 mt-1 flex flex-wrap gap-1">
+                      {provincesOf(p.points).slice(0, 6).map((pv) => (
+                        <span
+                          key={pv}
+                          className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+                        >
+                          {pv}
+                        </span>
+                      ))}
+                      {provincesOf(p.points).length > 6 && (
+                        <span className="text-[11px] text-muted-foreground">
+                          +{provincesOf(p.points).length - 6}
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-3 gap-1.5 pl-6">
+
                       {p.days.map((d) => (
                         <button
                           key={d.day}

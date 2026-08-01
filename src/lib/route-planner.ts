@@ -6,9 +6,11 @@ export type PlanPoint = {
   name: string | null;
   department: string | null;
   mediaType: string | null;
+  province?: string | null;
   lat: number;
   lng: number;
 };
+
 
 export function haversineM(
   a: { lat: number; lng: number },

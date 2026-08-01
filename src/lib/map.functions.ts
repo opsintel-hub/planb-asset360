@@ -9,9 +9,11 @@ export type MapAsset = {
   media_type: string | null;
   status: string | null;
   location: string | null;
+  district?: string | null;
   lat: number;
   lng: number;
 };
+
 
 function parseLatLng(raw: unknown): [number, number] | null {
   if (typeof raw !== "string") return null;

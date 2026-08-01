@@ -11,6 +11,14 @@ import { cn } from "@/lib/utils";
 import { listAssetsForMap, type MapAsset } from "@/lib/map.functions";
 import { PROJECT_TO_DEPARTMENTS, projectForDepartment } from "@/lib/project-department-map";
 import {
+  REGION_LABELS,
+  REGION_ORDER,
+  provinceForPoint,
+  provincesInRegions,
+  regionForProvince,
+  type RegionKey,
+} from "@/lib/thai-regions";
+import {
   balancedKMeans,
   estimateTourMeters,
   splitIntoDays,
@@ -18,6 +26,7 @@ import {
   type PlanPoint,
 } from "@/lib/route-planner";
 import type { AssetMapHandle } from "@/components/asset-map";
+
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
 

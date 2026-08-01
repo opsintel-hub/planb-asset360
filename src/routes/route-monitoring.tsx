@@ -450,7 +450,23 @@ function RouteMonitoringPage() {
                         {p.points.length.toLocaleString()} ป้าย
                       </span>
                     </button>
+                    <div className="pl-6 mt-1 flex flex-wrap gap-1">
+                      {provincesOf(p.points).slice(0, 6).map((pv) => (
+                        <span
+                          key={pv}
+                          className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+                        >
+                          {pv}
+                        </span>
+                      ))}
+                      {provincesOf(p.points).length > 6 && (
+                        <span className="text-[11px] text-muted-foreground">
+                          +{provincesOf(p.points).length - 6}
+                        </span>
+                      )}
+                    </div>
                     <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-3 gap-1.5 pl-6">
+
                       {p.days.map((d) => (
                         <button
                           key={d.day}

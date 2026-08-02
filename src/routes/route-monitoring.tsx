@@ -2,8 +2,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ClientOnly } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { lazy, Suspense, useMemo, useRef, useState } from "react";
-import { Users, CalendarDays, Route as RouteIcon, Play, MapPin, AlertTriangle } from "lucide-react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Users,
+  CalendarDays,
+  Route as RouteIcon,
+  Play,
+  MapPin,
+  AlertTriangle,
+  Loader2,
+  Navigation,
+  RefreshCw,
+} from "lucide-react";
 import { PageHeader } from "@/components/ui-bits";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -25,10 +35,13 @@ import {
   CLUSTER_COLORS,
   type PlanPoint,
 } from "@/lib/route-planner";
+import { computeDayRoute, fmtDuration, fmtKm, type DayRoute } from "@/lib/route-osrm";
+import { googleMapsDirectionsUrl, type LatLng } from "@/lib/osrm";
 import type { AssetMapHandle } from "@/components/asset-map";
 
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
+
 
 export const Route = createFileRoute("/route-monitoring")({
   head: () => ({
@@ -53,6 +66,9 @@ export const Route = createFileRoute("/route-monitoring")({
 
 const MINUTES_PER_ASSET = 5;
 const AVG_SPEED_KMH = 22;
+/** Hard cap on stops routed per day (keeps the free OSRM demo happy). */
+const MAX_ROUTE_STOPS = 200;
+
 
 function MultiSelect({
   label,
@@ -132,7 +148,12 @@ function RouteMonitoringPage() {
   const [absent, setAbsent] = useState(1);
   const [plan, setPlan] = useState<InspectorPlan[] | null>(null);
   const [selected, setSelected] = useState<{ i: number; d: number } | null>(null);
+  const [routes, setRoutes] = useState<Record<string, DayRoute>>({});
+  const [routingKey, setRoutingKey] = useState<string | null>(null);
+  const [planNonce, setPlanNonce] = useState(0);
+  const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null);
   const mapRef = useRef<AssetMapHandle | null>(null);
+
 
   // Province resolved offline from coordinates — zero credits.
   const geoAssets = useMemo(
@@ -231,6 +252,9 @@ function RouteMonitoringPage() {
     });
     setPlan(result);
     setSelected(null);
+    setRoutes({});
+    setFocus(null);
+    setPlanNonce((n) => n + 1);
   }
 
   function provincesOf(pts: PlanPoint[]) {
@@ -253,6 +277,61 @@ function RouteMonitoringPage() {
   const maxHours = plan
     ? Math.max(0, ...plan.flatMap((p) => p.days.map((d) => d.hours)))
     : 0;
+
+  // ---------- Phase 3: real road routing (OSRM /trip + /route) ----------
+  const routeKey =
+    plan && selected && selected.d > 0 ? `${planNonce}:${selected.i}:${selected.d}` : null;
+  const activeRoute = routeKey ? routes[routeKey] ?? null : null;
+
+  const selectedDayCount =
+    plan && selected && selected.d > 0
+      ? plan[selected.i]?.days[selected.d - 1]?.points.length ?? 0
+      : 0;
+  const overRouteCap = selectedDayCount > MAX_ROUTE_STOPS;
+
+  async function computeRoute(force = false) {
+    if (!plan || !selected || selected.d === 0 || !routeKey) return;
+    if (!force && routes[routeKey]) return;
+    const insp = plan[selected.i];
+    const day = insp?.days[selected.d - 1];
+    if (!insp || !day || day.points.length === 0) return;
+    setRoutingKey(routeKey);
+    try {
+      // Cap requests to the public OSRM server: route the first MAX_ROUTE_STOPS
+      // stops of the day so a huge day never floods it.
+      const pts = day.points.slice(0, MAX_ROUTE_STOPS);
+      const r = await computeDayRoute(pts, insp.center);
+      setRoutes((prev) => ({ ...prev, [routeKey]: r }));
+    } finally {
+      setRoutingKey((k) => (k === routeKey ? null : k));
+    }
+  }
+
+  // Auto-compute once per selected day; results are cached so re-selecting is free.
+  useEffect(() => {
+    if (!routeKey || routes[routeKey] || routingKey) return;
+
+    const t = setTimeout(() => void computeRoute(), 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey, routingKey]);
+
+  const roadPolyline: LatLng[] | null =
+    activeRoute && activeRoute.geometry.length > 1 ? activeRoute.geometry : null;
+
+  const onSiteHours = activeRoute ? (activeRoute.stops.length * MINUTES_PER_ASSET) / 60 : 0;
+
+  function copyGoogleUrl() {
+    if (!activeRoute || !plan || !selected) return;
+    const insp = plan[selected.i];
+    const pts: LatLng[] = [
+      [insp.center.lat, insp.center.lng],
+      ...activeRoute.stops.slice(0, 9).map((s) => [s.point.lat, s.point.lng] as LatLng),
+    ];
+    const url = googleMapsDirectionsUrl(pts);
+    if (url) void navigator.clipboard.writeText(url);
+  }
+
 
   return (
     <div className="space-y-4">
@@ -413,10 +492,115 @@ function RouteMonitoringPage() {
                   assets={shownAssets}
                   claimedCodes={new Set<string>()}
                   showRadiusRings={false}
+                  roadPolyline={roadPolyline}
+                  origin={
+                    plan && selected
+                      ? {
+                          lat: plan[selected.i]?.center.lat ?? 0,
+                          lng: plan[selected.i]?.center.lng ?? 0,
+                          name: `จุดเริ่มต้น คนที่ ${selected.i + 1}`,
+                        }
+                      : null
+                  }
+                  focusId={focus?.id ?? null}
+                  focusNonce={focus?.nonce ?? 0}
                 />
               </Suspense>
             </ClientOnly>
           </div>
+
+          {/* ---------- Phase 3: ordered stops with real distance/time ---------- */}
+          {plan && selected && selected.d > 0 && (
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <div className="px-4 py-2.5 border-b text-sm font-semibold flex flex-wrap items-center gap-2">
+                <Navigation className="size-4 text-primary" />
+                เส้นทางจริง — คนที่ {selected.i + 1} · วันที่ {selected.d}
+                {routingKey === routeKey ? (
+                  <span className="text-xs font-normal text-muted-foreground inline-flex items-center gap-1">
+                    <Loader2 className="size-3.5 animate-spin" /> กำลังคำนวณเส้นทางบนถนน…
+                  </span>
+                ) : activeRoute ? (
+                  <span className="text-xs font-normal text-muted-foreground tabular-nums">
+                    {activeRoute.stops.length} จุด · {fmtKm(activeRoute.totalMeters)} ·
+                    ขับ {fmtDuration(activeRoute.totalSeconds)} · รวมเวลาตรวจ{" "}
+                    {(activeRoute.totalSeconds / 3600 + onSiteHours).toFixed(1)} ชม.
+                    {activeRoute.approximate && " · (ประมาณการ)"}
+                  </span>
+                ) : null}
+                {overRouteCap && (
+                  <span className="text-xs font-normal text-warning">
+                    วันนี้มี {selectedDayCount.toLocaleString()} ป้าย — คำนวณเส้นทางจริงให้{" "}
+                    {MAX_ROUTE_STOPS} จุดแรก (เพิ่มพนักงานหรือขยายวันเพื่อให้ครบ)
+                  </span>
+                )}
+
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={() => void computeRoute(true)}
+                    disabled={routingKey === routeKey}
+                    className="text-xs inline-flex items-center gap-1 rounded-lg border px-2 py-1 hover:bg-accent disabled:opacity-50"
+                  >
+                    <RefreshCw className="size-3.5" /> คำนวณใหม่
+                  </button>
+                  <button
+                    onClick={copyGoogleUrl}
+                    disabled={!activeRoute}
+                    className="text-xs rounded-lg border px-2 py-1 hover:bg-accent disabled:opacity-50"
+                  >
+                    Copy Google Maps URL
+                  </button>
+                </div>
+              </div>
+              {activeRoute && (
+                <div className="max-h-80 overflow-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-muted/80 backdrop-blur">
+                      <tr className="text-left text-muted-foreground">
+                        <th className="px-3 py-2 w-10">#</th>
+                        <th className="px-3 py-2">รหัสป้าย</th>
+                        <th className="px-3 py-2">Media</th>
+                        <th className="px-3 py-2 text-right">ระยะจากจุดก่อน</th>
+                        <th className="px-3 py-2 text-right">เวลาขับ</th>
+                        <th className="px-3 py-2 text-right">สะสม</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {activeRoute.stops.map((s) => (
+                        <tr
+                          key={s.point.id}
+                          onClick={() => setFocus({ id: s.point.id, nonce: Date.now() })}
+                          className="cursor-pointer hover:bg-accent/60"
+                        >
+                          <td className="px-3 py-1.5 tabular-nums text-muted-foreground">{s.seq}</td>
+                          <td className="px-3 py-1.5 font-medium">
+                            {s.point.code}
+                            {s.point.name && (
+                              <span className="ml-1 text-muted-foreground font-normal">
+                                {s.point.name}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5 text-muted-foreground">
+                            {s.point.mediaType ?? "-"}
+                          </td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">
+                            {fmtKm(s.legMeters)}
+                          </td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">
+                            {fmtDuration(s.legSeconds)}
+                          </td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                            {fmtKm(s.cumMeters)} · {fmtDuration(s.cumSeconds)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
 
           {plan && (
             <div className="rounded-xl border bg-card overflow-hidden">

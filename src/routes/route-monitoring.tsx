@@ -331,8 +331,25 @@ function RouteMonitoringPage() {
     : 0;
 
   // ---------- Phase 3: real road routing (OSRM /trip + /route) ----------
+  /** Start/end of a given inspector-day, honouring the depot settings. */
+  function startFor(i: number): Depot {
+    const c = plan?.[i]?.center ?? { lat: 0, lng: 0 };
+    if (startMode === "centroid" || !startPoint)
+      return { ...c, name: `ศูนย์กลางโซน คนที่ ${i + 1}` };
+    return startPoint;
+  }
+  function endFor(i: number): Depot | null {
+    if (endMode === "last") return null;
+    if (endMode === "custom") return endPoint ?? startFor(i);
+    return startFor(i);
+  }
+
+  // Depot + time settings are part of the cache key so changing them recomputes.
+  const depotSig = `${startMode}:${startPoint?.lat ?? ""},${startPoint?.lng ?? ""}:${endMode}:${endPoint?.lat ?? ""},${endPoint?.lng ?? ""}`;
   const routeKey =
-    plan && selected && selected.d > 0 ? `${planNonce}:${selected.i}:${selected.d}` : null;
+    plan && selected && selected.d > 0
+      ? `${planNonce}:${selected.i}:${selected.d}:${depotSig}`
+      : null;
   const activeRoute = routeKey ? routes[routeKey] ?? null : null;
 
   const selectedDayCount =
@@ -352,7 +369,7 @@ function RouteMonitoringPage() {
       // Cap requests to the public OSRM server: route the first MAX_ROUTE_STOPS
       // stops of the day so a huge day never floods it.
       const pts = day.points.slice(0, MAX_ROUTE_STOPS);
-      const r = await computeDayRoute(pts, insp.center);
+      const r = await computeDayRoute(pts, startFor(selected.i), endFor(selected.i));
       setRoutes((prev) => ({ ...prev, [routeKey]: r }));
     } finally {
       setRoutingKey((k) => (k === routeKey ? null : k));
@@ -371,15 +388,17 @@ function RouteMonitoringPage() {
   const roadPolyline: LatLng[] | null =
     activeRoute && activeRoute.geometry.length > 1 ? activeRoute.geometry : null;
 
-  const onSiteHours = activeRoute ? (activeRoute.stops.length * MINUTES_PER_ASSET) / 60 : 0;
+  const onSiteHours = activeRoute ? serviceHours(activeRoute.stops.map((s) => s.point)) : 0;
 
   function copyGoogleUrl() {
     if (!activeRoute || !plan || !selected) return;
-    const insp = plan[selected.i];
+    const s0 = startFor(selected.i);
+    const e0 = endFor(selected.i);
     const pts: LatLng[] = [
-      [insp.center.lat, insp.center.lng],
+      [s0.lat, s0.lng],
       ...activeRoute.stops.slice(0, 9).map((s) => [s.point.lat, s.point.lng] as LatLng),
     ];
+    if (e0) pts.push([e0.lat, e0.lng]);
     const url = googleMapsDirectionsUrl(pts);
     if (url) void navigator.clipboard.writeText(url);
   }

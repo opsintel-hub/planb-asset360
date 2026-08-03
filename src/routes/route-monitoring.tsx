@@ -13,11 +13,15 @@ import {
   Loader2,
   Navigation,
   RefreshCw,
+  Clock,
+  Warehouse,
+  Crosshair,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui-bits";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { listSavedLocations } from "@/lib/map-store.functions";
 import { listAssetsForMap, type MapAsset } from "@/lib/map.functions";
 import { PROJECT_TO_DEPARTMENTS, projectForDepartment } from "@/lib/project-department-map";
 import {
@@ -31,6 +35,7 @@ import {
 import {
   balancedKMeans,
   estimateTourMeters,
+  haversineM,
   splitIntoDays,
   CLUSTER_COLORS,
   type PlanPoint,
@@ -64,10 +69,15 @@ export const Route = createFileRoute("/route-monitoring")({
   component: RouteMonitoringPage,
 });
 
-const MINUTES_PER_ASSET = 5;
-const AVG_SPEED_KMH = 22;
+const DEFAULT_MINUTES_PER_ASSET = 5;
+const DEFAULT_SPEED_KMH = 22;
+const DEFAULT_DAILY_HOURS = 8;
 /** Hard cap on stops routed per day (keeps the free OSRM demo happy). */
 const MAX_ROUTE_STOPS = 200;
+
+type Depot = { lat: number; lng: number; name: string };
+type StartMode = "centroid" | "saved" | "pin";
+type EndMode = "roundtrip" | "last" | "custom";
 
 
 function MultiSelect({
@@ -153,6 +163,38 @@ function RouteMonitoringPage() {
   const [planNonce, setPlanNonce] = useState(0);
   const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null);
   const mapRef = useRef<AssetMapHandle | null>(null);
+
+  // ---- depot (start / end of each day) ----
+  const [startMode, setStartMode] = useState<StartMode>("centroid");
+  const [startPoint, setStartPoint] = useState<Depot | null>(null);
+  const [endMode, setEndMode] = useState<EndMode>("roundtrip");
+  const [endPoint, setEndPoint] = useState<Depot | null>(null);
+  const [pinTarget, setPinTarget] = useState<"start" | "end" | null>(null);
+
+  // ---- work-time model ----
+  const [minutesPerAsset, setMinutesPerAsset] = useState(DEFAULT_MINUTES_PER_ASSET);
+  const [speedKmh, setSpeedKmh] = useState(DEFAULT_SPEED_KMH);
+  const [dailyHours, setDailyHours] = useState(DEFAULT_DAILY_HOURS);
+  const [mediaMinutes, setMediaMinutes] = useState<Record<string, number>>({});
+
+  const savedFn = useServerFn(listSavedLocations);
+  const { data: savedLocations } = useQuery({
+    queryKey: ["map-saved-locations"],
+    queryFn: () => savedFn({}),
+    staleTime: 5 * 60_000,
+  });
+  const savedList = useMemo(() => savedLocations?.rows ?? [], [savedLocations]);
+
+  /** Service minutes for one asset — per-media override wins over the default. */
+  function minutesFor(p: { mediaType: string | null }) {
+    const m = p.mediaType ? mediaMinutes[p.mediaType] : undefined;
+    return m && m > 0 ? m : minutesPerAsset;
+  }
+  function serviceHours(pts: Array<{ mediaType: string | null }>) {
+    return pts.reduce((s, p) => s + minutesFor(p), 0) / 60;
+  }
+
+
 
 
   // Province resolved offline from coordinates — zero credits.
@@ -243,9 +285,14 @@ function RouteMonitoringPage() {
         center: c.center,
         points: c.points,
         days: dayBatches.map((pts, di) => {
-          const meters = estimateTourMeters(pts, c.center);
-          const hours =
-            (pts.length * MINUTES_PER_ASSET) / 60 + meters / 1000 / AVG_SPEED_KMH;
+          const startAt = startMode === "centroid" ? c.center : startPoint ?? c.center;
+          let meters = estimateTourMeters(pts, startAt);
+          if (endMode === "roundtrip" && pts.length) {
+            meters += haversineM(pts[pts.length - 1], startAt);
+          } else if (endMode === "custom" && endPoint && pts.length) {
+            meters += haversineM(pts[pts.length - 1], endPoint);
+          }
+          const hours = serviceHours(pts) + meters / 1000 / Math.max(1, speedKmh);
           return { day: di + 1, points: pts, meters, hours };
         }),
       };
@@ -274,13 +321,39 @@ function RouteMonitoringPage() {
     return filtered.filter((a) => set.has(a.id));
   }, [plan, selected, filtered]);
 
+  /** Media types actually present in the filtered scope — keeps overrides short. */
+  const activeMediaTypes = useMemo(() => {
+    const s = new Set<string>();
+    for (const a of filtered) if (a.media_type) s.add(a.media_type);
+    return Array.from(s).sort();
+  }, [filtered]);
+
   const maxHours = plan
     ? Math.max(0, ...plan.flatMap((p) => p.days.map((d) => d.hours)))
     : 0;
 
+
+
   // ---------- Phase 3: real road routing (OSRM /trip + /route) ----------
+  /** Start/end of a given inspector-day, honouring the depot settings. */
+  function startFor(i: number): Depot {
+    const c = plan?.[i]?.center ?? { lat: 0, lng: 0 };
+    if (startMode === "centroid" || !startPoint)
+      return { ...c, name: `ศูนย์กลางโซน คนที่ ${i + 1}` };
+    return startPoint;
+  }
+  function endFor(i: number): Depot | null {
+    if (endMode === "last") return null;
+    if (endMode === "custom") return endPoint ?? startFor(i);
+    return startFor(i);
+  }
+
+  // Depot + time settings are part of the cache key so changing them recomputes.
+  const depotSig = `${startMode}:${startPoint?.lat ?? ""},${startPoint?.lng ?? ""}:${endMode}:${endPoint?.lat ?? ""},${endPoint?.lng ?? ""}`;
   const routeKey =
-    plan && selected && selected.d > 0 ? `${planNonce}:${selected.i}:${selected.d}` : null;
+    plan && selected && selected.d > 0
+      ? `${planNonce}:${selected.i}:${selected.d}:${depotSig}`
+      : null;
   const activeRoute = routeKey ? routes[routeKey] ?? null : null;
 
   const selectedDayCount =
@@ -300,7 +373,7 @@ function RouteMonitoringPage() {
       // Cap requests to the public OSRM server: route the first MAX_ROUTE_STOPS
       // stops of the day so a huge day never floods it.
       const pts = day.points.slice(0, MAX_ROUTE_STOPS);
-      const r = await computeDayRoute(pts, insp.center);
+      const r = await computeDayRoute(pts, startFor(selected.i), endFor(selected.i));
       setRoutes((prev) => ({ ...prev, [routeKey]: r }));
     } finally {
       setRoutingKey((k) => (k === routeKey ? null : k));
@@ -319,15 +392,17 @@ function RouteMonitoringPage() {
   const roadPolyline: LatLng[] | null =
     activeRoute && activeRoute.geometry.length > 1 ? activeRoute.geometry : null;
 
-  const onSiteHours = activeRoute ? (activeRoute.stops.length * MINUTES_PER_ASSET) / 60 : 0;
+  const onSiteHours = activeRoute ? serviceHours(activeRoute.stops.map((s) => s.point)) : 0;
 
   function copyGoogleUrl() {
     if (!activeRoute || !plan || !selected) return;
-    const insp = plan[selected.i];
+    const s0 = startFor(selected.i);
+    const e0 = endFor(selected.i);
     const pts: LatLng[] = [
-      [insp.center.lat, insp.center.lng],
+      [s0.lat, s0.lng],
       ...activeRoute.stops.slice(0, 9).map((s) => [s.point.lat, s.point.lng] as LatLng),
     ];
+    if (e0) pts.push([e0.lat, e0.lng]);
     const url = googleMapsDirectionsUrl(pts);
     if (url) void navigator.clipboard.writeText(url);
   }
@@ -445,7 +520,8 @@ function RouteMonitoringPage() {
             )}
             <div className="text-xs text-muted-foreground">
               พนักงานที่ใช้วางแผนจริง: <b className="tabular-nums">{activeInspectors}</b> คน ·
-              ประมาณการ {MINUTES_PER_ASSET} นาที/ป้าย · ความเร็วเฉลี่ย {AVG_SPEED_KMH} กม./ชม.
+              ค่าเริ่มต้น {minutesPerAsset} นาที/ป้าย · ความเร็วเฉลี่ย {speedKmh} กม./ชม. ·
+              เพดาน {dailyHours} ชม./วัน
             </div>
             <button
               onClick={run}
@@ -454,6 +530,212 @@ function RouteMonitoringPage() {
             >
               <Play className="size-4" /> Run Routing Plan
             </button>
+          </div>
+
+          {/* ---------- Depot: start / end of each day ---------- */}
+          <div className="rounded-xl border bg-card p-4 space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+              <Warehouse className="size-3.5" /> จุดเริ่มต้น / จุดสิ้นสุดของแต่ละวัน
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium">ออกเดินทางจาก</div>
+              <div className="grid grid-cols-3 gap-1">
+                {(
+                  [
+                    ["centroid", "ศูนย์กลางโซน"],
+                    ["saved", "คลัง/ที่บันทึกไว้"],
+                    ["pin", "ปักหมุดบนแผนที่"],
+                  ] as Array<[StartMode, string]>
+                ).map(([m, label]) => (
+                  <button
+                    key={m}
+                    onClick={() => {
+                      setStartMode(m);
+                      setPinTarget(m === "pin" ? "start" : null);
+                    }}
+                    className={cn(
+                      "h-8 rounded-lg border text-[11px] px-1 hover:bg-accent transition",
+                      startMode === m && "bg-accent border-primary font-medium",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {startMode === "saved" && (
+                <select
+                  value={startPoint?.name ?? ""}
+                  onChange={(e) => {
+                    const loc = savedList.find((l) => l.name === e.target.value);
+                    setStartPoint(loc ? { lat: loc.lat, lng: loc.lng, name: loc.name } : null);
+                  }}
+                  className="h-9 w-full rounded-lg border bg-background px-2 text-xs"
+                >
+                  <option value="">— เลือกสถานที่ที่บันทึกไว้ —</option>
+                  {savedList.map((l) => (
+                    <option key={l.id} value={l.name}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {startMode === "pin" && (
+                <button
+                  onClick={() => setPinTarget(pinTarget === "start" ? null : "start")}
+                  className={cn(
+                    "h-8 w-full rounded-lg border text-xs inline-flex items-center justify-center gap-1.5 hover:bg-accent",
+                    pinTarget === "start" && "bg-accent border-primary",
+                  )}
+                >
+                  <Crosshair className="size-3.5" />
+                  {pinTarget === "start" ? "คลิกบนแผนที่เพื่อวางจุดเริ่มต้น…" : "ปักหมุดใหม่"}
+                </button>
+              )}
+              {startMode !== "centroid" && startPoint && (
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {startPoint.name} · {startPoint.lat.toFixed(5)}, {startPoint.lng.toFixed(5)}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium">สิ้นสุดวันที่</div>
+              <div className="grid grid-cols-3 gap-1">
+                {(
+                  [
+                    ["roundtrip", "กลับจุดเริ่มต้น"],
+                    ["last", "จบที่ป้ายสุดท้าย"],
+                    ["custom", "จุดสิ้นสุดอื่น"],
+                  ] as Array<[EndMode, string]>
+                ).map(([m, label]) => (
+                  <button
+                    key={m}
+                    onClick={() => {
+                      setEndMode(m);
+                      setPinTarget(null);
+                    }}
+                    className={cn(
+                      "h-8 rounded-lg border text-[11px] px-1 hover:bg-accent transition",
+                      endMode === m && "bg-accent border-primary font-medium",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {endMode === "custom" && (
+                <>
+                  <select
+                    value={endPoint?.name ?? ""}
+                    onChange={(e) => {
+                      const loc = savedList.find((l) => l.name === e.target.value);
+                      setEndPoint(loc ? { lat: loc.lat, lng: loc.lng, name: loc.name } : null);
+                    }}
+                    className="h-9 w-full rounded-lg border bg-background px-2 text-xs"
+                  >
+                    <option value="">— เลือกสถานที่ที่บันทึกไว้ —</option>
+                    {savedList.map((l) => (
+                      <option key={l.id} value={l.name}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => setPinTarget(pinTarget === "end" ? null : "end")}
+                    className={cn(
+                      "h-8 w-full rounded-lg border text-xs inline-flex items-center justify-center gap-1.5 hover:bg-accent",
+                      pinTarget === "end" && "bg-accent border-primary",
+                    )}
+                  >
+                    <Crosshair className="size-3.5" />
+                    {pinTarget === "end" ? "คลิกบนแผนที่เพื่อวางจุดสิ้นสุด…" : "หรือปักหมุดบนแผนที่"}
+                  </button>
+                  {endPoint && (
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      {endPoint.name} · {endPoint.lat.toFixed(5)}, {endPoint.lng.toFixed(5)}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              เปลี่ยนค่าแล้วระบบจะคำนวณเส้นทางของวันที่เลือกใหม่ให้อัตโนมัติ (ไม่ใช้เครดิต AI)
+            </div>
+          </div>
+
+          {/* ---------- Work-time model ---------- */}
+          <div className="rounded-xl border bg-card p-4 space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+              <Clock className="size-3.5" /> เวลาทำงานต่อป้าย
+            </div>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>เวลาเฉลี่ย/ป้าย (นาที)</span>
+              <input
+                type="number"
+                min={1}
+                max={480}
+                value={minutesPerAsset}
+                onChange={(e) => setMinutesPerAsset(Math.max(1, Number(e.target.value) || 1))}
+                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>ความเร็วเฉลี่ย (กม./ชม.)</span>
+              <input
+                type="number"
+                min={5}
+                max={120}
+                value={speedKmh}
+                onChange={(e) => setSpeedKmh(Math.max(5, Number(e.target.value) || 5))}
+                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>เพดานชั่วโมงงาน/วัน</span>
+              <input
+                type="number"
+                min={1}
+                max={24}
+                value={dailyHours}
+                onChange={(e) => setDailyHours(Math.max(1, Number(e.target.value) || 1))}
+                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
+              />
+            </label>
+            {activeMediaTypes.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium">
+                  ระบุเวลาแยกตามประเภทสื่อ (ว่าง = ใช้ค่าเฉลี่ย)
+                </div>
+                <div className="max-h-40 overflow-auto space-y-1 pr-1">
+                  {activeMediaTypes.map((m) => (
+                    <label key={m} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="truncate">{m}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={480}
+                        placeholder={String(minutesPerAsset)}
+                        value={mediaMinutes[m] ?? ""}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          setMediaMinutes((prev) => {
+                            const next = { ...prev };
+                            if (!e.target.value || !Number.isFinite(v) || v <= 0) delete next[m];
+                            else next[m] = v;
+                            return next;
+                          });
+                        }}
+                        className="h-8 w-16 rounded-lg border bg-background px-2 text-right tabular-nums"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="text-[11px] text-muted-foreground">
+              กด “Run Routing Plan” อีกครั้งเพื่อให้ค่าเวลาใหม่มีผลกับการแบ่งงานต่อวัน
+            </div>
           </div>
 
           {plan && (
@@ -472,11 +754,22 @@ function RouteMonitoringPage() {
               <div
                 className={cn(
                   "text-sm",
-                  maxHours > 8 ? "text-destructive font-semibold" : "text-muted-foreground",
+                  maxHours > dailyHours ? "text-destructive font-semibold" : "text-muted-foreground",
                 )}
               >
                 ชั่วโมงงานสูงสุด/วัน: {maxHours.toFixed(1)} ชม.
-                {maxHours > 8 && " (เกิน 8 ชม. — พิจารณาเพิ่มคนหรือขยายวัน)"}
+                {maxHours > dailyHours &&
+                  ` (เกิน ${dailyHours} ชม. — พิจารณาเพิ่มคนหรือขยายวัน)`}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                วันที่เกินเพดาน:{" "}
+                <b className="tabular-nums">
+                  {plan.reduce(
+                    (n, p) => n + p.days.filter((d) => d.hours > dailyHours).length,
+                    0,
+                  )}
+                </b>{" "}
+                / {plan.length * days} วัน-คน
               </div>
             </div>
           )}
@@ -494,16 +787,27 @@ function RouteMonitoringPage() {
                   showRadiusRings={false}
                   roadPolyline={roadPolyline}
                   origin={
-                    plan && selected
-                      ? {
-                          lat: plan[selected.i]?.center.lat ?? 0,
-                          lng: plan[selected.i]?.center.lng ?? 0,
-                          name: `จุดเริ่มต้น คนที่ ${selected.i + 1}`,
-                        }
-                      : null
+                    startMode !== "centroid" && startPoint
+                      ? startPoint
+                      : plan && selected
+                        ? {
+                            lat: plan[selected.i]?.center.lat ?? 0,
+                            lng: plan[selected.i]?.center.lng ?? 0,
+                            name: `จุดเริ่มต้น คนที่ ${selected.i + 1}`,
+                          }
+                        : null
                   }
+                  originPickMode={pinTarget !== null}
+                  onOriginPick={(lat, lng) => {
+                    if (pinTarget === "start")
+                      setStartPoint({ lat, lng, name: "จุดเริ่มต้น (ปักหมุด)" });
+                    else if (pinTarget === "end")
+                      setEndPoint({ lat, lng, name: "จุดสิ้นสุด (ปักหมุด)" });
+                    setPinTarget(null);
+                  }}
                   focusId={focus?.id ?? null}
                   focusNonce={focus?.nonce ?? 0}
+
                 />
               </Suspense>
             </ClientOnly>
@@ -520,10 +824,20 @@ function RouteMonitoringPage() {
                     <Loader2 className="size-3.5 animate-spin" /> กำลังคำนวณเส้นทางบนถนน…
                   </span>
                 ) : activeRoute ? (
-                  <span className="text-xs font-normal text-muted-foreground tabular-nums">
+                  <span
+                    className={cn(
+                      "text-xs font-normal tabular-nums",
+                      activeRoute.totalSeconds / 3600 + onSiteHours > dailyHours
+                        ? "text-destructive font-medium"
+                        : "text-muted-foreground",
+                    )}
+                  >
                     {activeRoute.stops.length} จุด · {fmtKm(activeRoute.totalMeters)} ·
-                    ขับ {fmtDuration(activeRoute.totalSeconds)} · รวมเวลาตรวจ{" "}
-                    {(activeRoute.totalSeconds / 3600 + onSiteHours).toFixed(1)} ชม.
+                    ขับ {fmtDuration(activeRoute.totalSeconds)} · เวลาตรวจ{" "}
+                    {onSiteHours.toFixed(1)} ชม. · รวม{" "}
+                    {(activeRoute.totalSeconds / 3600 + onSiteHours).toFixed(1)}/{dailyHours} ชม.
+                    {activeRoute.returnMeters > 0 &&
+                      ` · ขากลับ ${fmtKm(activeRoute.returnMeters)}`}
                     {activeRoute.approximate && " · (ประมาณการ)"}
                   </span>
                 ) : null}
@@ -561,6 +875,7 @@ function RouteMonitoringPage() {
                         <th className="px-3 py-2">Media</th>
                         <th className="px-3 py-2 text-right">ระยะจากจุดก่อน</th>
                         <th className="px-3 py-2 text-right">เวลาขับ</th>
+                        <th className="px-3 py-2 text-right">เวลาตรวจ</th>
                         <th className="px-3 py-2 text-right">สะสม</th>
                       </tr>
                     </thead>
@@ -588,6 +903,9 @@ function RouteMonitoringPage() {
                           </td>
                           <td className="px-3 py-1.5 text-right tabular-nums">
                             {fmtDuration(s.legSeconds)}
+                          </td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                            {minutesFor(s.point)} นาที
                           </td>
                           <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
                             {fmtKm(s.cumMeters)} · {fmtDuration(s.cumSeconds)}

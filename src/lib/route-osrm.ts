@@ -28,6 +28,9 @@ export type DayRoute = {
   geometry: LatLng[];
   totalMeters: number;
   totalSeconds: number;
+  /** distance/time of the closing leg back to the day's end point (0 when none) */
+  returnMeters: number;
+  returnSeconds: number;
   /** true when OSRM was unreachable and we fell back to straight-line math */
   approximate: boolean;
 };

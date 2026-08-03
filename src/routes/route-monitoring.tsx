@@ -163,6 +163,43 @@ function RouteMonitoringPage() {
   const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null);
   const mapRef = useRef<AssetMapHandle | null>(null);
 
+  // ---- depot (start / end of each day) ----
+  const [startMode, setStartMode] = useState<StartMode>("centroid");
+  const [startPoint, setStartPoint] = useState<Depot | null>(null);
+  const [endMode, setEndMode] = useState<EndMode>("roundtrip");
+  const [endPoint, setEndPoint] = useState<Depot | null>(null);
+  const [pinTarget, setPinTarget] = useState<"start" | "end" | null>(null);
+
+  // ---- work-time model ----
+  const [minutesPerAsset, setMinutesPerAsset] = useState(DEFAULT_MINUTES_PER_ASSET);
+  const [speedKmh, setSpeedKmh] = useState(DEFAULT_SPEED_KMH);
+  const [dailyHours, setDailyHours] = useState(DEFAULT_DAILY_HOURS);
+  const [mediaMinutes, setMediaMinutes] = useState<Record<string, number>>({});
+
+  const savedFn = useServerFn(listSavedLocations);
+  const { data: savedLocations } = useQuery({
+    queryKey: ["map-saved-locations"],
+    queryFn: () => savedFn({}),
+    staleTime: 5 * 60_000,
+  });
+  const savedList = useMemo(
+    () =>
+      ((savedLocations as Array<{ id: string; name: string; lat: number; lng: number }> | undefined) ??
+        []),
+    [savedLocations],
+  );
+
+  /** Service minutes for one asset — per-media override wins over the default. */
+  function minutesFor(p: { mediaType: string | null }) {
+    const m = p.mediaType ? mediaMinutes[p.mediaType] : undefined;
+    return m && m > 0 ? m : minutesPerAsset;
+  }
+  function serviceHours(pts: Array<{ mediaType: string | null }>) {
+    return pts.reduce((s, p) => s + minutesFor(p), 0) / 60;
+  }
+
+
+
 
   // Province resolved offline from coordinates — zero credits.
   const geoAssets = useMemo(

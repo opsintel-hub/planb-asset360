@@ -516,7 +516,8 @@ function RouteMonitoringPage() {
             )}
             <div className="text-xs text-muted-foreground">
               พนักงานที่ใช้วางแผนจริง: <b className="tabular-nums">{activeInspectors}</b> คน ·
-              ประมาณการ {MINUTES_PER_ASSET} นาที/ป้าย · ความเร็วเฉลี่ย {AVG_SPEED_KMH} กม./ชม.
+              ค่าเริ่มต้น {minutesPerAsset} นาที/ป้าย · ความเร็วเฉลี่ย {speedKmh} กม./ชม. ·
+              เพดาน {dailyHours} ชม./วัน
             </div>
             <button
               onClick={run}
@@ -525,6 +526,212 @@ function RouteMonitoringPage() {
             >
               <Play className="size-4" /> Run Routing Plan
             </button>
+          </div>
+
+          {/* ---------- Depot: start / end of each day ---------- */}
+          <div className="rounded-xl border bg-card p-4 space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+              <Warehouse className="size-3.5" /> จุดเริ่มต้น / จุดสิ้นสุดของแต่ละวัน
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium">ออกเดินทางจาก</div>
+              <div className="grid grid-cols-3 gap-1">
+                {(
+                  [
+                    ["centroid", "ศูนย์กลางโซน"],
+                    ["saved", "คลัง/ที่บันทึกไว้"],
+                    ["pin", "ปักหมุดบนแผนที่"],
+                  ] as Array<[StartMode, string]>
+                ).map(([m, label]) => (
+                  <button
+                    key={m}
+                    onClick={() => {
+                      setStartMode(m);
+                      setPinTarget(m === "pin" ? "start" : null);
+                    }}
+                    className={cn(
+                      "h-8 rounded-lg border text-[11px] px-1 hover:bg-accent transition",
+                      startMode === m && "bg-accent border-primary font-medium",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {startMode === "saved" && (
+                <select
+                  value={startPoint?.name ?? ""}
+                  onChange={(e) => {
+                    const loc = savedList.find((l) => l.name === e.target.value);
+                    setStartPoint(loc ? { lat: loc.lat, lng: loc.lng, name: loc.name } : null);
+                  }}
+                  className="h-9 w-full rounded-lg border bg-background px-2 text-xs"
+                >
+                  <option value="">— เลือกสถานที่ที่บันทึกไว้ —</option>
+                  {savedList.map((l) => (
+                    <option key={l.id} value={l.name}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {startMode === "pin" && (
+                <button
+                  onClick={() => setPinTarget(pinTarget === "start" ? null : "start")}
+                  className={cn(
+                    "h-8 w-full rounded-lg border text-xs inline-flex items-center justify-center gap-1.5 hover:bg-accent",
+                    pinTarget === "start" && "bg-accent border-primary",
+                  )}
+                >
+                  <Crosshair className="size-3.5" />
+                  {pinTarget === "start" ? "คลิกบนแผนที่เพื่อวางจุดเริ่มต้น…" : "ปักหมุดใหม่"}
+                </button>
+              )}
+              {startMode !== "centroid" && startPoint && (
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {startPoint.name} · {startPoint.lat.toFixed(5)}, {startPoint.lng.toFixed(5)}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium">สิ้นสุดวันที่</div>
+              <div className="grid grid-cols-3 gap-1">
+                {(
+                  [
+                    ["roundtrip", "กลับจุดเริ่มต้น"],
+                    ["last", "จบที่ป้ายสุดท้าย"],
+                    ["custom", "จุดสิ้นสุดอื่น"],
+                  ] as Array<[EndMode, string]>
+                ).map(([m, label]) => (
+                  <button
+                    key={m}
+                    onClick={() => {
+                      setEndMode(m);
+                      setPinTarget(null);
+                    }}
+                    className={cn(
+                      "h-8 rounded-lg border text-[11px] px-1 hover:bg-accent transition",
+                      endMode === m && "bg-accent border-primary font-medium",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {endMode === "custom" && (
+                <>
+                  <select
+                    value={endPoint?.name ?? ""}
+                    onChange={(e) => {
+                      const loc = savedList.find((l) => l.name === e.target.value);
+                      setEndPoint(loc ? { lat: loc.lat, lng: loc.lng, name: loc.name } : null);
+                    }}
+                    className="h-9 w-full rounded-lg border bg-background px-2 text-xs"
+                  >
+                    <option value="">— เลือกสถานที่ที่บันทึกไว้ —</option>
+                    {savedList.map((l) => (
+                      <option key={l.id} value={l.name}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => setPinTarget(pinTarget === "end" ? null : "end")}
+                    className={cn(
+                      "h-8 w-full rounded-lg border text-xs inline-flex items-center justify-center gap-1.5 hover:bg-accent",
+                      pinTarget === "end" && "bg-accent border-primary",
+                    )}
+                  >
+                    <Crosshair className="size-3.5" />
+                    {pinTarget === "end" ? "คลิกบนแผนที่เพื่อวางจุดสิ้นสุด…" : "หรือปักหมุดบนแผนที่"}
+                  </button>
+                  {endPoint && (
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      {endPoint.name} · {endPoint.lat.toFixed(5)}, {endPoint.lng.toFixed(5)}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              เปลี่ยนค่าแล้วระบบจะคำนวณเส้นทางของวันที่เลือกใหม่ให้อัตโนมัติ (ไม่ใช้เครดิต AI)
+            </div>
+          </div>
+
+          {/* ---------- Work-time model ---------- */}
+          <div className="rounded-xl border bg-card p-4 space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+              <Clock className="size-3.5" /> เวลาทำงานต่อป้าย
+            </div>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>เวลาเฉลี่ย/ป้าย (นาที)</span>
+              <input
+                type="number"
+                min={1}
+                max={480}
+                value={minutesPerAsset}
+                onChange={(e) => setMinutesPerAsset(Math.max(1, Number(e.target.value) || 1))}
+                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>ความเร็วเฉลี่ย (กม./ชม.)</span>
+              <input
+                type="number"
+                min={5}
+                max={120}
+                value={speedKmh}
+                onChange={(e) => setSpeedKmh(Math.max(5, Number(e.target.value) || 5))}
+                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>เพดานชั่วโมงงาน/วัน</span>
+              <input
+                type="number"
+                min={1}
+                max={24}
+                value={dailyHours}
+                onChange={(e) => setDailyHours(Math.max(1, Number(e.target.value) || 1))}
+                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
+              />
+            </label>
+            {activeMediaTypes.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium">
+                  ระบุเวลาแยกตามประเภทสื่อ (ว่าง = ใช้ค่าเฉลี่ย)
+                </div>
+                <div className="max-h-40 overflow-auto space-y-1 pr-1">
+                  {activeMediaTypes.map((m) => (
+                    <label key={m} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="truncate">{m}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={480}
+                        placeholder={String(minutesPerAsset)}
+                        value={mediaMinutes[m] ?? ""}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          setMediaMinutes((prev) => {
+                            const next = { ...prev };
+                            if (!e.target.value || !Number.isFinite(v) || v <= 0) delete next[m];
+                            else next[m] = v;
+                            return next;
+                          });
+                        }}
+                        className="h-8 w-16 rounded-lg border bg-background px-2 text-right tabular-nums"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="text-[11px] text-muted-foreground">
+              กด “Run Routing Plan” อีกครั้งเพื่อให้ค่าเวลาใหม่มีผลกับการแบ่งงานต่อวัน
+            </div>
           </div>
 
           {plan && (
@@ -543,11 +750,22 @@ function RouteMonitoringPage() {
               <div
                 className={cn(
                   "text-sm",
-                  maxHours > 8 ? "text-destructive font-semibold" : "text-muted-foreground",
+                  maxHours > dailyHours ? "text-destructive font-semibold" : "text-muted-foreground",
                 )}
               >
                 ชั่วโมงงานสูงสุด/วัน: {maxHours.toFixed(1)} ชม.
-                {maxHours > 8 && " (เกิน 8 ชม. — พิจารณาเพิ่มคนหรือขยายวัน)"}
+                {maxHours > dailyHours &&
+                  ` (เกิน ${dailyHours} ชม. — พิจารณาเพิ่มคนหรือขยายวัน)`}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                วันที่เกินเพดาน:{" "}
+                <b className="tabular-nums">
+                  {plan.reduce(
+                    (n, p) => n + p.days.filter((d) => d.hours > dailyHours).length,
+                    0,
+                  )}
+                </b>{" "}
+                / {plan.length * days} วัน-คน
               </div>
             </div>
           )}

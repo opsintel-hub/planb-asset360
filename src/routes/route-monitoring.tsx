@@ -68,10 +68,15 @@ export const Route = createFileRoute("/route-monitoring")({
   component: RouteMonitoringPage,
 });
 
-const MINUTES_PER_ASSET = 5;
-const AVG_SPEED_KMH = 22;
+const DEFAULT_MINUTES_PER_ASSET = 5;
+const DEFAULT_SPEED_KMH = 22;
+const DEFAULT_DAILY_HOURS = 8;
 /** Hard cap on stops routed per day (keeps the free OSRM demo happy). */
 const MAX_ROUTE_STOPS = 200;
+
+type Depot = { lat: number; lng: number; name: string };
+type StartMode = "centroid" | "saved" | "pin";
+type EndMode = "roundtrip" | "last" | "custom";
 
 
 function MultiSelect({

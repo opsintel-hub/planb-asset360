@@ -35,6 +35,7 @@ import {
 import {
   balancedKMeans,
   estimateTourMeters,
+  haversineM,
   splitIntoDays,
   CLUSTER_COLORS,
   type PlanPoint,

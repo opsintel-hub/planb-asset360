@@ -326,9 +326,18 @@ function RouteMonitoringPage() {
     return filtered.filter((a) => set.has(a.id));
   }, [plan, selected, filtered]);
 
+  /** Media types actually present in the filtered scope — keeps overrides short. */
+  const activeMediaTypes = useMemo(() => {
+    const s = new Set<string>();
+    for (const a of filtered) if (a.media_type) s.add(a.media_type);
+    return Array.from(s).sort();
+  }, [filtered]);
+
   const maxHours = plan
     ? Math.max(0, ...plan.flatMap((p) => p.days.map((d) => d.hours)))
     : 0;
+
+
 
   // ---------- Phase 3: real road routing (OSRM /trip + /route) ----------
   /** Start/end of a given inspector-day, honouring the depot settings. */

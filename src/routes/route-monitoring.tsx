@@ -875,6 +875,7 @@ function RouteMonitoringPage() {
                         <th className="px-3 py-2">Media</th>
                         <th className="px-3 py-2 text-right">ระยะจากจุดก่อน</th>
                         <th className="px-3 py-2 text-right">เวลาขับ</th>
+                        <th className="px-3 py-2 text-right">เวลาตรวจ</th>
                         <th className="px-3 py-2 text-right">สะสม</th>
                       </tr>
                     </thead>

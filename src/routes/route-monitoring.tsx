@@ -792,16 +792,27 @@ function RouteMonitoringPage() {
                   showRadiusRings={false}
                   roadPolyline={roadPolyline}
                   origin={
-                    plan && selected
-                      ? {
-                          lat: plan[selected.i]?.center.lat ?? 0,
-                          lng: plan[selected.i]?.center.lng ?? 0,
-                          name: `จุดเริ่มต้น คนที่ ${selected.i + 1}`,
-                        }
-                      : null
+                    startMode !== "centroid" && startPoint
+                      ? startPoint
+                      : plan && selected
+                        ? {
+                            lat: plan[selected.i]?.center.lat ?? 0,
+                            lng: plan[selected.i]?.center.lng ?? 0,
+                            name: `จุดเริ่มต้น คนที่ ${selected.i + 1}`,
+                          }
+                        : null
                   }
+                  originPickMode={pinTarget !== null}
+                  onOriginPick={(lat, lng) => {
+                    if (pinTarget === "start")
+                      setStartPoint({ lat, lng, name: "จุดเริ่มต้น (ปักหมุด)" });
+                    else if (pinTarget === "end")
+                      setEndPoint({ lat, lng, name: "จุดสิ้นสุด (ปักหมุด)" });
+                    setPinTarget(null);
+                  }}
                   focusId={focus?.id ?? null}
                   focusNonce={focus?.nonce ?? 0}
+
                 />
               </Suspense>
             </ClientOnly>

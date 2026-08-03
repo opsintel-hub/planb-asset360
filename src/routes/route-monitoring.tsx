@@ -905,6 +905,9 @@ function RouteMonitoringPage() {
                             {fmtDuration(s.legSeconds)}
                           </td>
                           <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                            {minutesFor(s.point)} นาที
+                          </td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
                             {fmtKm(s.cumMeters)} · {fmtDuration(s.cumSeconds)}
                           </td>
                         </tr>

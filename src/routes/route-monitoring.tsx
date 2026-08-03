@@ -289,9 +289,14 @@ function RouteMonitoringPage() {
         center: c.center,
         points: c.points,
         days: dayBatches.map((pts, di) => {
-          const meters = estimateTourMeters(pts, c.center);
-          const hours =
-            (pts.length * MINUTES_PER_ASSET) / 60 + meters / 1000 / AVG_SPEED_KMH;
+          const startAt = startMode === "centroid" ? c.center : startPoint ?? c.center;
+          let meters = estimateTourMeters(pts, startAt);
+          if (endMode === "roundtrip" && pts.length) {
+            meters += haversineM(pts[pts.length - 1], startAt);
+          } else if (endMode === "custom" && endPoint && pts.length) {
+            meters += haversineM(pts[pts.length - 1], endPoint);
+          }
+          const hours = serviceHours(pts) + meters / 1000 / Math.max(1, speedKmh);
           return { day: di + 1, points: pts, meters, hours };
         }),
       };

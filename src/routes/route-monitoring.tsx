@@ -183,12 +183,7 @@ function RouteMonitoringPage() {
     queryFn: () => savedFn({}),
     staleTime: 5 * 60_000,
   });
-  const savedList = useMemo(
-    () =>
-      ((savedLocations as Array<{ id: string; name: string; lat: number; lng: number }> | undefined) ??
-        []),
-    [savedLocations],
-  );
+  const savedList = useMemo(() => savedLocations?.rows ?? [], [savedLocations]);
 
   /** Service minutes for one asset — per-media override wins over the default. */
   function minutesFor(p: { mediaType: string | null }) {

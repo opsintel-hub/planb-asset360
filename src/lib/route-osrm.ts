@@ -111,8 +111,10 @@ async function optimiseOrder(
 async function legsFor(
   ordered: PlanPoint[],
   origin: { lat: number; lng: number },
+  end?: { lat: number; lng: number } | null,
 ): Promise<{ legs: OsrmLeg[]; geometry: LatLng[]; ok: boolean }> {
   const path: LatLng[] = [[origin.lat, origin.lng], ...ordered.map((p) => [p.lat, p.lng] as LatLng)];
+  if (end) path.push([end.lat, end.lng]);
   if (path.length < 2) return { legs: [], geometry: [], ok: false };
 
   const legs: OsrmLeg[] = [];
@@ -146,12 +148,21 @@ async function legsFor(
 export async function computeDayRoute(
   points: PlanPoint[],
   origin: { lat: number; lng: number },
+  end?: { lat: number; lng: number } | null,
 ): Promise<DayRoute> {
   if (points.length === 0) {
-    return { stops: [], geometry: [], totalMeters: 0, totalSeconds: 0, approximate: false };
+    return {
+      stops: [],
+      geometry: [],
+      totalMeters: 0,
+      totalSeconds: 0,
+      returnMeters: 0,
+      returnSeconds: 0,
+      approximate: false,
+    };
   }
   const { ordered, usedOsrm } = await optimiseOrder(points, origin);
-  const { legs, geometry, ok } = await legsFor(ordered, origin);
+  const { legs, geometry, ok } = await legsFor(ordered, origin, end);
 
   let cumM = 0;
   let cumS = 0;
@@ -169,11 +180,16 @@ export async function computeDayRoute(
     };
   });
 
+  // Closing leg (only present when an explicit end point was requested).
+  const closing = end ? legs[ordered.length] ?? { distance: 0, duration: 0 } : null;
+
   return {
     stops,
     geometry,
-    totalMeters: cumM,
-    totalSeconds: cumS,
+    totalMeters: cumM + (closing?.distance ?? 0),
+    totalSeconds: cumS + (closing?.duration ?? 0),
+    returnMeters: closing?.distance ?? 0,
+    returnSeconds: closing?.duration ?? 0,
     approximate: !ok || (!usedOsrm && points.length >= 3),
   };
 }

@@ -829,10 +829,20 @@ function RouteMonitoringPage() {
                     <Loader2 className="size-3.5 animate-spin" /> กำลังคำนวณเส้นทางบนถนน…
                   </span>
                 ) : activeRoute ? (
-                  <span className="text-xs font-normal text-muted-foreground tabular-nums">
+                  <span
+                    className={cn(
+                      "text-xs font-normal tabular-nums",
+                      activeRoute.totalSeconds / 3600 + onSiteHours > dailyHours
+                        ? "text-destructive font-medium"
+                        : "text-muted-foreground",
+                    )}
+                  >
                     {activeRoute.stops.length} จุด · {fmtKm(activeRoute.totalMeters)} ·
-                    ขับ {fmtDuration(activeRoute.totalSeconds)} · รวมเวลาตรวจ{" "}
-                    {(activeRoute.totalSeconds / 3600 + onSiteHours).toFixed(1)} ชม.
+                    ขับ {fmtDuration(activeRoute.totalSeconds)} · เวลาตรวจ{" "}
+                    {onSiteHours.toFixed(1)} ชม. · รวม{" "}
+                    {(activeRoute.totalSeconds / 3600 + onSiteHours).toFixed(1)}/{dailyHours} ชม.
+                    {activeRoute.returnMeters > 0 &&
+                      ` · ขากลับ ${fmtKm(activeRoute.returnMeters)}`}
                     {activeRoute.approximate && " · (ประมาณการ)"}
                   </span>
                 ) : null}

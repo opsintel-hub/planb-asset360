@@ -981,7 +981,140 @@ function RouteMonitoringPage() {
               </div>
             </div>
           )}
+
+          {/* ---------- Phase 4: save / load / export ---------- */}
+          <div className="rounded-xl border bg-card p-4 space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+              <Save className="size-3.5" /> บันทึกแผน / โหลดแผนเก่า
+            </div>
+            <input
+              value={planName}
+              onChange={(e) => setPlanName(e.target.value)}
+              placeholder="ชื่อแผน เช่น ตรวจสื่อ ก.ค. รอบ 1"
+              className="h-9 w-full rounded-lg border bg-background px-2 text-xs"
+            />
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={planShared}
+                onChange={(e) => setPlanShared(e.target.checked)}
+              />
+              แชร์ให้ทีมเห็น
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleSave(false)}
+                disabled={!plan || savePlan.isPending}
+                className="flex-1 h-9 rounded-lg bg-primary text-primary-foreground text-xs font-semibold inline-flex items-center justify-center gap-1.5 disabled:opacity-50 hover:opacity-90"
+              >
+                {savePlan.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Save className="size-3.5" />
+                )}
+                {loadedId ? "บันทึกทับ" : "บันทึกแผน"}
+              </button>
+              {loadedId && (
+                <button
+                  onClick={() => handleSave(true)}
+                  disabled={!plan || savePlan.isPending}
+                  className="h-9 px-3 rounded-lg border text-xs hover:bg-accent disabled:opacity-50"
+                >
+                  บันทึกเป็นแผนใหม่
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-xs font-medium flex items-center gap-1.5">
+                <FolderOpen className="size-3.5" /> แผนที่บันทึกไว้ ({savedPlans.length})
+              </div>
+              {savedPlans.length === 0 ? (
+                <div className="text-[11px] text-muted-foreground">ยังไม่มีแผนที่บันทึกไว้</div>
+              ) : (
+                <div className="max-h-40 overflow-auto space-y-1 pr-1">
+                  {savedPlans.map((r) => (
+                    <div
+                      key={r.id}
+                      className={cn(
+                        "flex items-center gap-1 rounded-lg border px-2 py-1.5",
+                        loadedId === r.id && "border-primary bg-accent",
+                      )}
+                    >
+                      <button
+                        onClick={() => handleLoad(r)}
+                        className="flex-1 min-w-0 text-left text-xs"
+                      >
+                        <div className="truncate font-medium">{r.name}</div>
+                        <div className="text-[10px] text-muted-foreground tabular-nums">
+                          {new Date(r.updated_at).toLocaleDateString("th-TH")} ·{" "}
+                          {r.waypoints?.length ?? 0} ป้าย
+                          {r.is_shared && " · แชร์"}
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => removePlan.mutate(r.id)}
+                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                        title="ลบแผน"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {plan && (
+              <div className="space-y-1.5 pt-1 border-t">
+                <div className="text-xs font-medium flex items-center gap-1.5">
+                  <Download className="size-3.5" /> Export
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => exportCsv("day")}
+                    disabled={!selected || selected.d === 0}
+                    className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
+                  >
+                    CSV วันที่เลือก
+                  </button>
+                  <button
+                    onClick={() => exportCsv("inspector")}
+                    disabled={!selected}
+                    className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
+                  >
+                    CSV รายคน
+                  </button>
+                  <button
+                    onClick={() => exportCsv("all")}
+                    className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent"
+                  >
+                    CSV ทั้งแผน
+                  </button>
+                  <button
+                    onClick={() => exportDayGeo("gpx")}
+                    disabled={!selected || selected.d === 0}
+                    className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
+                  >
+                    GPX วันที่เลือก
+                  </button>
+                  <button
+                    onClick={() => exportDayGeo("kml")}
+                    disabled={!selected || selected.d === 0}
+                    className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
+                  >
+                    KML วันที่เลือก
+                  </button>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  ถ้ายังไม่ได้คำนวณเส้นทางจริงของวันนั้น ไฟล์จะใช้ลำดับจากการแบ่งโซน
+                  (ไม่มีระยะทาง/เวลาต่อช่วง)
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+
 
         {/* ---------- Map + result ---------- */}
         <div className="space-y-3">

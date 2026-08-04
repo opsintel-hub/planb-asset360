@@ -260,7 +260,7 @@ function MapPage() {
   );
   const totalTickets = claimsData?.totalTickets ?? 0;
   const savedLocations = locsData?.rows ?? [];
-  const savedRoutes = routesData?.rows ?? [];
+  const savedRoutes = (routesData?.rows ?? []).filter((r) => r.kind !== "monitoring");
 
   // ---------- Shared-link hydration (read once on mount, client-only) ----------
   const [shared] = useState(() => {

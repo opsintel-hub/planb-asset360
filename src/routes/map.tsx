@@ -852,6 +852,7 @@ function MapPage() {
   });
 
   const loadRoute = (r: SavedRoute) => {
+    if (r.kind === "monitoring") return; // Route Monitoring plans are loaded on their own page
     setMode(r.kind);
     if (r.kind === "corridor") {
       setPolyline(r.waypoints.map((w) => [w.lat, w.lng] as LatLng));

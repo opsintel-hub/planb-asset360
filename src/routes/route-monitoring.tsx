@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ClientOnly } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   Users,
@@ -16,12 +17,22 @@ import {
   Clock,
   Warehouse,
   Crosshair,
+  Save,
+  Download,
+  Trash2,
+  FolderOpen,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui-bits";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { listSavedLocations } from "@/lib/map-store.functions";
+import {
+  listSavedLocations,
+  listSavedRoutes,
+  upsertSavedRoute,
+  deleteSavedRoute,
+  type SavedRoute,
+} from "@/lib/map-store.functions";
 import { listAssetsForMap, type MapAsset } from "@/lib/map.functions";
 import { PROJECT_TO_DEPARTMENTS, projectForDepartment } from "@/lib/project-department-map";
 import {
@@ -42,6 +53,16 @@ import {
 } from "@/lib/route-planner";
 import { computeDayRoute, fmtDuration, fmtKm, type DayRoute } from "@/lib/route-osrm";
 import { googleMapsDirectionsUrl, type LatLng } from "@/lib/osrm";
+import {
+  buildPlanCsv,
+  decodePlan,
+  downloadCsv,
+  downloadDayGpx,
+  downloadDayKml,
+  encodePlan,
+  type CsvDaySource,
+  type SavedPlanPayload,
+} from "@/lib/route-plan-export";
 import type { AssetMapHandle } from "@/components/asset-map";
 
 
@@ -405,7 +426,194 @@ function RouteMonitoringPage() {
     if (e0) pts.push([e0.lat, e0.lng]);
     const url = googleMapsDirectionsUrl(pts);
     if (url) void navigator.clipboard.writeText(url);
+    toast.success("คัดลอกลิงก์ Google Maps แล้ว");
   }
+
+  // ---------- Phase 4: save / load plan + exports ----------
+  const qc = useQueryClient();
+  const [planName, setPlanName] = useState("");
+  const [planShared, setPlanShared] = useState(false);
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+
+  const listRoutesFn = useServerFn(listSavedRoutes);
+  const { data: savedRoutesData } = useQuery({
+    queryKey: ["route-monitoring-plans"],
+    queryFn: () => listRoutesFn({}),
+    staleTime: 60_000,
+  });
+  const savedPlans = useMemo(
+    () => (savedRoutesData?.rows ?? []).filter((r) => r.kind === "monitoring"),
+    [savedRoutesData],
+  );
+
+  const upsertFn = useServerFn(upsertSavedRoute);
+  const deleteFn = useServerFn(deleteSavedRoute);
+  const savePlan = useMutation({
+    mutationFn: (vars: { id?: string | null; name: string; payload: SavedPlanPayload; shared: boolean }) =>
+      upsertFn({
+        data: {
+          id: vars.id ?? null,
+          name: vars.name,
+          kind: "monitoring",
+          origin: vars.payload.depot.startPoint,
+          waypoints: vars.payload.plan.flatMap((p) =>
+            p.days.flatMap((d) =>
+              d.points.map((pt) => ({
+                lat: pt.lat,
+                lng: pt.lng,
+                asset_id: pt.id,
+                old_code: pt.code,
+                name: pt.name,
+              })),
+            ),
+          ),
+          radius_m: 50,
+          notes: encodePlan(vars.payload),
+          is_shared: vars.shared,
+        },
+      }),
+    onSuccess: (row) => {
+      setLoadedId((row as SavedRoute).id);
+      void qc.invalidateQueries({ queryKey: ["route-monitoring-plans"] });
+      toast.success("บันทึกแผนแล้ว");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const removePlan = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["route-monitoring-plans"] });
+      toast.success("ลบแผนแล้ว");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function currentPayload(): SavedPlanPayload | null {
+    if (!plan) return null;
+    return {
+      v: 1,
+      filters: {
+        projects: fProjects,
+        medias: fMedias,
+        regions: fRegions,
+        provinces: fProvinces,
+        lockProvince,
+      },
+      resources: { inspectors, days, emergency, absent },
+      work: { minutesPerAsset, speedKmh, dailyHours, mediaMinutes },
+      depot: { startMode, startPoint, endMode, endPoint },
+      plan: plan.map((p) => ({
+        index: p.index,
+        color: p.color,
+        center: p.center,
+        days: p.days.map((d) => ({
+          day: d.day,
+          meters: d.meters,
+          hours: d.hours,
+          points: d.points,
+        })),
+      })),
+    };
+  }
+
+  function handleSave(asNew = false) {
+    const payload = currentPayload();
+    if (!payload) return;
+    const name = planName.trim();
+    if (!name) {
+      toast.error("ตั้งชื่อแผนก่อนบันทึก");
+      return;
+    }
+    savePlan.mutate({ id: asNew ? null : loadedId, name, payload, shared: planShared });
+  }
+
+  function handleLoad(row: SavedRoute) {
+    const p = decodePlan(row.notes);
+    if (!p) {
+      toast.error("ไฟล์แผนนี้อ่านไม่ได้");
+      return;
+    }
+    setFProjects(p.filters.projects ?? []);
+    setFMedias(p.filters.medias ?? []);
+    setFRegions((p.filters.regions ?? []) as RegionKey[]);
+    setFProvinces(p.filters.provinces ?? []);
+    setLockProvince(!!p.filters.lockProvince);
+    setInspectors(p.resources.inspectors);
+    setDays(p.resources.days);
+    setEmergency(p.resources.emergency);
+    setAbsent(p.resources.absent);
+    setMinutesPerAsset(p.work.minutesPerAsset);
+    setSpeedKmh(p.work.speedKmh);
+    setDailyHours(p.work.dailyHours);
+    setMediaMinutes(p.work.mediaMinutes ?? {});
+    setStartMode(p.depot.startMode as StartMode);
+    setStartPoint(p.depot.startPoint);
+    setEndMode(p.depot.endMode as EndMode);
+    setEndPoint(p.depot.endPoint);
+    setPlan(
+      p.plan.map((ip) => ({
+        index: ip.index,
+        color: ip.color,
+        center: ip.center,
+        points: ip.days.flatMap((d) => d.points),
+        days: ip.days.map((d) => ({
+          day: d.day,
+          points: d.points,
+          meters: d.meters,
+          hours: d.hours,
+        })),
+      })),
+    );
+    setSelected(null);
+    setRoutes({});
+    setFocus(null);
+    setPlanNonce((n) => n + 1);
+    setPlanName(row.name);
+    setPlanShared(row.is_shared);
+    setLoadedId(row.id);
+    toast.success(`โหลดแผน “${row.name}” แล้ว`);
+  }
+
+  const fileBase = (planName.trim() || "route-plan").replace(/[^\w\u0E00-\u0E7F-]+/g, "_");
+
+  /** CSV of one day, the selected inspector, or the whole plan. */
+  function exportCsv(scope: "day" | "inspector" | "all") {
+    if (!plan) return;
+    const sources: CsvDaySource[] = [];
+    const push = (i: number, d: number, points: PlanPoint[]) => {
+      const key = `${planNonce}:${i}:${d}:${depotSig}`;
+      sources.push({ inspector: i + 1, day: d, points, route: routes[key] ?? null });
+    };
+    if (scope === "day" && selected && selected.d > 0) {
+      const day = plan[selected.i]?.days[selected.d - 1];
+      if (day) push(selected.i, day.day, day.points);
+    } else if (scope === "inspector" && selected) {
+      for (const d of plan[selected.i]?.days ?? []) push(selected.i, d.day, d.points);
+    } else {
+      for (const p of plan) for (const d of p.days) push(p.index, d.day, d.points);
+    }
+    if (!sources.length) return;
+    const suffix =
+      scope === "day" && selected
+        ? `-คนที่${selected.i + 1}-วันที่${selected.d}`
+        : scope === "inspector" && selected
+          ? `-คนที่${selected.i + 1}`
+          : "-ทั้งแผน";
+    downloadCsv(`${fileBase}${suffix}.csv`, buildPlanCsv(sources, minutesFor));
+    toast.success("ดาวน์โหลด CSV แล้ว");
+  }
+
+  function exportDayGeo(kind: "gpx" | "kml") {
+    if (!plan || !selected || selected.d === 0) return;
+    const day = plan[selected.i]?.days[selected.d - 1];
+    if (!day) return;
+    const name = `${fileBase}-คนที่${selected.i + 1}-วันที่${selected.d}`;
+    if (kind === "gpx") downloadDayGpx(name, day.points, activeRoute);
+    else downloadDayKml(name, day.points, activeRoute);
+    toast.success(`ดาวน์โหลด ${kind.toUpperCase()} แล้ว`);
+  }
+
+
 
 
   return (
@@ -773,7 +981,140 @@ function RouteMonitoringPage() {
               </div>
             </div>
           )}
+
+          {/* ---------- Phase 4: save / load / export ---------- */}
+          <div className="rounded-xl border bg-card p-4 space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+              <Save className="size-3.5" /> บันทึกแผน / โหลดแผนเก่า
+            </div>
+            <input
+              value={planName}
+              onChange={(e) => setPlanName(e.target.value)}
+              placeholder="ชื่อแผน เช่น ตรวจสื่อ ก.ค. รอบ 1"
+              className="h-9 w-full rounded-lg border bg-background px-2 text-xs"
+            />
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={planShared}
+                onChange={(e) => setPlanShared(e.target.checked)}
+              />
+              แชร์ให้ทีมเห็น
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleSave(false)}
+                disabled={!plan || savePlan.isPending}
+                className="flex-1 h-9 rounded-lg bg-primary text-primary-foreground text-xs font-semibold inline-flex items-center justify-center gap-1.5 disabled:opacity-50 hover:opacity-90"
+              >
+                {savePlan.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Save className="size-3.5" />
+                )}
+                {loadedId ? "บันทึกทับ" : "บันทึกแผน"}
+              </button>
+              {loadedId && (
+                <button
+                  onClick={() => handleSave(true)}
+                  disabled={!plan || savePlan.isPending}
+                  className="h-9 px-3 rounded-lg border text-xs hover:bg-accent disabled:opacity-50"
+                >
+                  บันทึกเป็นแผนใหม่
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-xs font-medium flex items-center gap-1.5">
+                <FolderOpen className="size-3.5" /> แผนที่บันทึกไว้ ({savedPlans.length})
+              </div>
+              {savedPlans.length === 0 ? (
+                <div className="text-[11px] text-muted-foreground">ยังไม่มีแผนที่บันทึกไว้</div>
+              ) : (
+                <div className="max-h-40 overflow-auto space-y-1 pr-1">
+                  {savedPlans.map((r) => (
+                    <div
+                      key={r.id}
+                      className={cn(
+                        "flex items-center gap-1 rounded-lg border px-2 py-1.5",
+                        loadedId === r.id && "border-primary bg-accent",
+                      )}
+                    >
+                      <button
+                        onClick={() => handleLoad(r)}
+                        className="flex-1 min-w-0 text-left text-xs"
+                      >
+                        <div className="truncate font-medium">{r.name}</div>
+                        <div className="text-[10px] text-muted-foreground tabular-nums">
+                          {new Date(r.updated_at).toLocaleDateString("th-TH")} ·{" "}
+                          {r.waypoints?.length ?? 0} ป้าย
+                          {r.is_shared && " · แชร์"}
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => removePlan.mutate(r.id)}
+                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                        title="ลบแผน"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {plan && (
+              <div className="space-y-1.5 pt-1 border-t">
+                <div className="text-xs font-medium flex items-center gap-1.5">
+                  <Download className="size-3.5" /> Export
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => exportCsv("day")}
+                    disabled={!selected || selected.d === 0}
+                    className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
+                  >
+                    CSV วันที่เลือก
+                  </button>
+                  <button
+                    onClick={() => exportCsv("inspector")}
+                    disabled={!selected}
+                    className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
+                  >
+                    CSV รายคน
+                  </button>
+                  <button
+                    onClick={() => exportCsv("all")}
+                    className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent"
+                  >
+                    CSV ทั้งแผน
+                  </button>
+                  <button
+                    onClick={() => exportDayGeo("gpx")}
+                    disabled={!selected || selected.d === 0}
+                    className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
+                  >
+                    GPX วันที่เลือก
+                  </button>
+                  <button
+                    onClick={() => exportDayGeo("kml")}
+                    disabled={!selected || selected.d === 0}
+                    className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
+                  >
+                    KML วันที่เลือก
+                  </button>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  ถ้ายังไม่ได้คำนวณเส้นทางจริงของวันนั้น ไฟล์จะใช้ลำดับจากการแบ่งโซน
+                  (ไม่มีระยะทาง/เวลาต่อช่วง)
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+
 
         {/* ---------- Map + result ---------- */}
         <div className="space-y-3">

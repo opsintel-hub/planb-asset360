@@ -426,7 +426,194 @@ function RouteMonitoringPage() {
     if (e0) pts.push([e0.lat, e0.lng]);
     const url = googleMapsDirectionsUrl(pts);
     if (url) void navigator.clipboard.writeText(url);
+    toast.success("คัดลอกลิงก์ Google Maps แล้ว");
   }
+
+  // ---------- Phase 4: save / load plan + exports ----------
+  const qc = useQueryClient();
+  const [planName, setPlanName] = useState("");
+  const [planShared, setPlanShared] = useState(false);
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+
+  const listRoutesFn = useServerFn(listSavedRoutes);
+  const { data: savedRoutesData } = useQuery({
+    queryKey: ["route-monitoring-plans"],
+    queryFn: () => listRoutesFn({}),
+    staleTime: 60_000,
+  });
+  const savedPlans = useMemo(
+    () => (savedRoutesData?.rows ?? []).filter((r) => r.kind === "monitoring"),
+    [savedRoutesData],
+  );
+
+  const upsertFn = useServerFn(upsertSavedRoute);
+  const deleteFn = useServerFn(deleteSavedRoute);
+  const savePlan = useMutation({
+    mutationFn: (vars: { id?: string | null; name: string; payload: SavedPlanPayload; shared: boolean }) =>
+      upsertFn({
+        data: {
+          id: vars.id ?? null,
+          name: vars.name,
+          kind: "monitoring",
+          origin: vars.payload.depot.startPoint,
+          waypoints: vars.payload.plan.flatMap((p) =>
+            p.days.flatMap((d) =>
+              d.points.map((pt) => ({
+                lat: pt.lat,
+                lng: pt.lng,
+                asset_id: pt.id,
+                old_code: pt.code,
+                name: pt.name,
+              })),
+            ),
+          ),
+          radius_m: 50,
+          notes: encodePlan(vars.payload),
+          is_shared: vars.shared,
+        },
+      }),
+    onSuccess: (row) => {
+      setLoadedId((row as SavedRoute).id);
+      void qc.invalidateQueries({ queryKey: ["route-monitoring-plans"] });
+      toast.success("บันทึกแผนแล้ว");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const removePlan = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["route-monitoring-plans"] });
+      toast.success("ลบแผนแล้ว");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function currentPayload(): SavedPlanPayload | null {
+    if (!plan) return null;
+    return {
+      v: 1,
+      filters: {
+        projects: fProjects,
+        medias: fMedias,
+        regions: fRegions,
+        provinces: fProvinces,
+        lockProvince,
+      },
+      resources: { inspectors, days, emergency, absent },
+      work: { minutesPerAsset, speedKmh, dailyHours, mediaMinutes },
+      depot: { startMode, startPoint, endMode, endPoint },
+      plan: plan.map((p) => ({
+        index: p.index,
+        color: p.color,
+        center: p.center,
+        days: p.days.map((d) => ({
+          day: d.day,
+          meters: d.meters,
+          hours: d.hours,
+          points: d.points,
+        })),
+      })),
+    };
+  }
+
+  function handleSave(asNew = false) {
+    const payload = currentPayload();
+    if (!payload) return;
+    const name = planName.trim();
+    if (!name) {
+      toast.error("ตั้งชื่อแผนก่อนบันทึก");
+      return;
+    }
+    savePlan.mutate({ id: asNew ? null : loadedId, name, payload, shared: planShared });
+  }
+
+  function handleLoad(row: SavedRoute) {
+    const p = decodePlan(row.notes);
+    if (!p) {
+      toast.error("ไฟล์แผนนี้อ่านไม่ได้");
+      return;
+    }
+    setFProjects(p.filters.projects ?? []);
+    setFMedias(p.filters.medias ?? []);
+    setFRegions((p.filters.regions ?? []) as RegionKey[]);
+    setFProvinces(p.filters.provinces ?? []);
+    setLockProvince(!!p.filters.lockProvince);
+    setInspectors(p.resources.inspectors);
+    setDays(p.resources.days);
+    setEmergency(p.resources.emergency);
+    setAbsent(p.resources.absent);
+    setMinutesPerAsset(p.work.minutesPerAsset);
+    setSpeedKmh(p.work.speedKmh);
+    setDailyHours(p.work.dailyHours);
+    setMediaMinutes(p.work.mediaMinutes ?? {});
+    setStartMode(p.depot.startMode as StartMode);
+    setStartPoint(p.depot.startPoint);
+    setEndMode(p.depot.endMode as EndMode);
+    setEndPoint(p.depot.endPoint);
+    setPlan(
+      p.plan.map((ip) => ({
+        index: ip.index,
+        color: ip.color,
+        center: ip.center,
+        points: ip.days.flatMap((d) => d.points),
+        days: ip.days.map((d) => ({
+          day: d.day,
+          points: d.points,
+          meters: d.meters,
+          hours: d.hours,
+        })),
+      })),
+    );
+    setSelected(null);
+    setRoutes({});
+    setFocus(null);
+    setPlanNonce((n) => n + 1);
+    setPlanName(row.name);
+    setPlanShared(row.is_shared);
+    setLoadedId(row.id);
+    toast.success(`โหลดแผน “${row.name}” แล้ว`);
+  }
+
+  const fileBase = (planName.trim() || "route-plan").replace(/[^\w\u0E00-\u0E7F-]+/g, "_");
+
+  /** CSV of one day, the selected inspector, or the whole plan. */
+  function exportCsv(scope: "day" | "inspector" | "all") {
+    if (!plan) return;
+    const sources: CsvDaySource[] = [];
+    const push = (i: number, d: number, points: PlanPoint[]) => {
+      const key = `${planNonce}:${i}:${d}:${depotSig}`;
+      sources.push({ inspector: i + 1, day: d, points, route: routes[key] ?? null });
+    };
+    if (scope === "day" && selected && selected.d > 0) {
+      const day = plan[selected.i]?.days[selected.d - 1];
+      if (day) push(selected.i, day.day, day.points);
+    } else if (scope === "inspector" && selected) {
+      for (const d of plan[selected.i]?.days ?? []) push(selected.i, d.day, d.points);
+    } else {
+      for (const p of plan) for (const d of p.days) push(p.index, d.day, d.points);
+    }
+    if (!sources.length) return;
+    const suffix =
+      scope === "day" && selected
+        ? `-คนที่${selected.i + 1}-วันที่${selected.d}`
+        : scope === "inspector" && selected
+          ? `-คนที่${selected.i + 1}`
+          : "-ทั้งแผน";
+    downloadCsv(`${fileBase}${suffix}.csv`, buildPlanCsv(sources, minutesFor));
+    toast.success("ดาวน์โหลด CSV แล้ว");
+  }
+
+  function exportDayGeo(kind: "gpx" | "kml") {
+    if (!plan || !selected || selected.d === 0) return;
+    const day = plan[selected.i]?.days[selected.d - 1];
+    if (!day) return;
+    const name = `${fileBase}-คนที่${selected.i + 1}-วันที่${selected.d}`;
+    if (kind === "gpx") downloadDayGpx(name, day.points, activeRoute);
+    else downloadDayKml(name, day.points, activeRoute);
+    toast.success(`ดาวน์โหลด ${kind.toUpperCase()} แล้ว`);
+  }
+
+
 
 
   return (

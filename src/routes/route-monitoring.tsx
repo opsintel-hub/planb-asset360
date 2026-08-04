@@ -53,6 +53,16 @@ import {
 } from "@/lib/route-planner";
 import { computeDayRoute, fmtDuration, fmtKm, type DayRoute } from "@/lib/route-osrm";
 import { googleMapsDirectionsUrl, type LatLng } from "@/lib/osrm";
+import {
+  buildPlanCsv,
+  decodePlan,
+  downloadCsv,
+  downloadDayGpx,
+  downloadDayKml,
+  encodePlan,
+  type CsvDaySource,
+  type SavedPlanPayload,
+} from "@/lib/route-plan-export";
 import type { AssetMapHandle } from "@/components/asset-map";
 
 

@@ -13,7 +13,7 @@ export type SavedLocation = {
   updated_at: string;
 };
 
-export type SavedRouteKind = "corridor" | "inspection";
+export type SavedRouteKind = "corridor" | "inspection" | "monitoring";
 
 export type SavedRoute = {
   id: string;

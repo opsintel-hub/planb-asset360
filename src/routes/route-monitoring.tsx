@@ -371,63 +371,70 @@ function RouteMonitoringPage() {
 
   // Depot + time settings are part of the cache key so changing them recomputes.
   const depotSig = `${startMode}:${startPoint?.lat ?? ""},${startPoint?.lng ?? ""}:${endMode}:${endPoint?.lat ?? ""},${endPoint?.lng ?? ""}`;
-  const routeKey =
-    plan && selected && selected.d > 0
-      ? `${planNonce}:${selected.i}:${selected.d}:${depotSig}`
-      : null;
-  const activeRoute = routeKey ? routes[routeKey] ?? null : null;
+  function keyFor(i: number, d: number) {
+    return `${planNonce}:${i}:${d}:${depotSig}`;
+  }
 
-  const selectedDayCount =
-    plan && selected && selected.d > 0
-      ? plan[selected.i]?.days[selected.d - 1]?.points.length ?? 0
-      : 0;
-  const overRouteCap = selectedDayCount > MAX_ROUTE_STOPS;
-
-  async function computeRoute(force = false) {
-    if (!plan || !selected || selected.d === 0 || !routeKey) return;
-    if (!force && routes[routeKey]) return;
-    const insp = plan[selected.i];
-    const day = insp?.days[selected.d - 1];
+  async function computeRoute(i: number, d: number, force = false) {
+    if (!plan || d === 0) return;
+    const key = keyFor(i, d);
+    if (!force && routes[key]) return;
+    const insp = plan[i];
+    const day = insp?.days[d - 1];
     if (!insp || !day || day.points.length === 0) return;
-    setRoutingKey(routeKey);
+    setRoutingKey(key);
     try {
       // Cap requests to the public OSRM server: route the first MAX_ROUTE_STOPS
       // stops of the day so a huge day never floods it.
       const pts = day.points.slice(0, MAX_ROUTE_STOPS);
-      const r = await computeDayRoute(pts, startFor(selected.i), endFor(selected.i));
-      setRoutes((prev) => ({ ...prev, [routeKey]: r }));
+      const r = await computeDayRoute(pts, startFor(i), endFor(i));
+      setRoutes((prev) => ({ ...prev, [key]: r }));
     } finally {
-      setRoutingKey((k) => (k === routeKey ? null : k));
+      setRoutingKey((k) => (k === key ? null : k));
     }
   }
 
-  // Auto-compute once per selected day; results are cached so re-selecting is free.
+  // Auto-compute the selected days one at a time (cached, so re-selecting is free).
+  const pendingKeys = selDays.filter(({ i, d }) => !routes[keyFor(i, d)]);
+  const nextPending = pendingKeys[0] ?? null;
   useEffect(() => {
-    if (!routeKey || routes[routeKey] || routingKey) return;
-
-    const t = setTimeout(() => void computeRoute(), 350);
+    if (!nextPending || routingKey) return;
+    const t = setTimeout(() => void computeRoute(nextPending.i, nextPending.d), 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeKey, routingKey]);
+  }, [nextPending?.i, nextPending?.d, routingKey]);
 
-  const roadPolyline: LatLng[] | null =
-    activeRoute && activeRoute.geometry.length > 1 ? activeRoute.geometry : null;
+  /** One coloured polyline per selected day. */
+  const roadPolylines = useMemo(() => {
+    const out: Array<{ points: LatLng[]; color: string; label: string }> = [];
+    for (const { i, d } of selDays) {
+      const r = routes[keyFor(i, d)];
+      if (!r || r.geometry.length < 2) continue;
+      out.push({
+        points: r.geometry,
+        color: colorOf(i, d) ?? "#1d4ed8",
+        label: `คนที่ ${i + 1} · วันที่ ${d} · ${fmtKm(r.totalMeters)}`,
+      });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selDays, routes, planNonce, depotSig, plan]);
 
-  const onSiteHours = activeRoute ? serviceHours(activeRoute.stops.map((s) => s.point)) : 0;
-
-  function copyGoogleUrl() {
-    if (!activeRoute || !plan || !selected) return;
-    const s0 = startFor(selected.i);
-    const e0 = endFor(selected.i);
+  function copyGoogleUrl(i: number, d: number) {
+    const route = routes[keyFor(i, d)];
+    if (!route) return;
+    const s0 = startFor(i);
+    const e0 = endFor(i);
     const pts: LatLng[] = [
       [s0.lat, s0.lng],
-      ...activeRoute.stops.slice(0, 9).map((s) => [s.point.lat, s.point.lng] as LatLng),
+      ...route.stops.slice(0, 9).map((s) => [s.point.lat, s.point.lng] as LatLng),
     ];
     if (e0) pts.push([e0.lat, e0.lng]);
     const url = googleMapsDirectionsUrl(pts);
     if (url) void navigator.clipboard.writeText(url);
     toast.success("คัดลอกลิงก์ Google Maps แล้ว");
   }
+
 
   // ---------- Phase 4: save / load plan + exports ----------
   const qc = useQueryClient();

@@ -1118,7 +1118,7 @@ function RouteMonitoringPage() {
 
         {/* ---------- Map + result ---------- */}
         <div className="space-y-3">
-          <div className="rounded-xl border overflow-hidden bg-card" style={{ height: 460 }}>
+          <div className="rounded-xl border overflow-hidden bg-card relative" style={{ height: 460 }}>
             <ClientOnly fallback={<Skeleton className="h-full w-full" />}>
               <Suspense fallback={<Skeleton className="h-full w-full" />}>
                 <AssetMap
@@ -1126,15 +1126,15 @@ function RouteMonitoringPage() {
                   assets={shownAssets}
                   claimedCodes={new Set<string>()}
                   showRadiusRings={false}
-                  roadPolyline={roadPolyline}
+                  roadPolylines={roadPolylines}
                   origin={
                     startMode !== "centroid" && startPoint
                       ? startPoint
-                      : plan && selected
+                      : plan && primary
                         ? {
-                            lat: plan[selected.i]?.center.lat ?? 0,
-                            lng: plan[selected.i]?.center.lng ?? 0,
-                            name: `จุดเริ่มต้น คนที่ ${selected.i + 1}`,
+                            lat: plan[primary.i]?.center.lat ?? 0,
+                            lng: plan[primary.i]?.center.lng ?? 0,
+                            name: `จุดเริ่มต้น คนที่ ${primary.i + 1}`,
                           }
                         : null
                   }
@@ -1152,7 +1152,21 @@ function RouteMonitoringPage() {
                 />
               </Suspense>
             </ClientOnly>
+            {roadPolylines.length > 0 && (
+              <div className="absolute right-2 bottom-2 z-[500] rounded-lg border bg-card/95 backdrop-blur px-2 py-1.5 space-y-0.5 max-h-40 overflow-auto shadow">
+                {roadPolylines.map((l) => (
+                  <div key={l.label} className="flex items-center gap-1.5 text-[11px]">
+                    <span
+                      className="h-1 w-5 rounded-full shrink-0"
+                      style={{ background: l.color }}
+                    />
+                    <span className="truncate">{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
 
           {/* ---------- Phase 3: ordered stops with real distance/time ---------- */}
           {plan && selDays.length > 0 && (

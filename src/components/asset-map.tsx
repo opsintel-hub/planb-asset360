@@ -127,6 +127,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
   radiusMeters = 200,
   nearbyIds = null,
   roadPolyline = null,
+  roadPolylines = null,
   origin = null,
   onOriginPick,
   originPickMode = false,

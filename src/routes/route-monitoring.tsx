@@ -1263,12 +1263,16 @@ function RouteMonitoringPage() {
 
           {plan && (
             <div className="rounded-xl border bg-card overflow-hidden">
-              <div className="px-4 py-2.5 border-b text-sm font-semibold flex items-center gap-2">
+              <div className="px-4 py-2.5 border-b text-sm font-semibold flex flex-wrap items-center gap-2">
                 <RouteIcon className="size-4 text-primary" /> แผนงานต่อคน / ต่อวัน
-                {selected && (
+                <span className="text-[11px] font-normal text-muted-foreground">
+                  คลิกการ์ดวันเพื่อเลือกหลายวันพร้อมกัน (เส้นคนละสี) · เลือกได้สูงสุด{" "}
+                  {MAX_ROUTE_DAYS} วัน
+                </span>
+                {sel.length > 0 && (
                   <button
                     className="ml-auto text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => setSelected(null)}
+                    onClick={() => setSel([])}
                   >
                     แสดงทุกโซน
                   </button>
@@ -1277,22 +1281,36 @@ function RouteMonitoringPage() {
               <div className="divide-y">
                 {plan.map((p) => (
                   <div key={p.index} className="p-3">
-                    <button
-                      onClick={() => setSelected({ i: p.index, d: 0 })}
-                      className={cn(
-                        "w-full flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 hover:bg-accent transition",
-                        selected?.i === p.index && selected.d === 0 && "bg-accent",
-                      )}
-                    >
-                      <span
-                        className="size-3 rounded-full shrink-0"
-                        style={{ background: p.color }}
-                      />
-                      <span className="font-medium">พนักงานคนที่ {p.index + 1}</span>
-                      <span className="ml-auto text-muted-foreground tabular-nums">
-                        {p.points.length.toLocaleString()} ป้าย
-                      </span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSel([{ i: p.index, d: 0 }])}
+                        className={cn(
+                          "flex-1 flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 hover:bg-accent transition",
+                          isSel(p.index, 0) && "bg-accent",
+                        )}
+                      >
+                        <span
+                          className="size-3 rounded-full shrink-0"
+                          style={{ background: p.color }}
+                        />
+                        <span className="font-medium">พนักงานคนที่ {p.index + 1}</span>
+                        <span className="ml-auto text-muted-foreground tabular-nums">
+                          {p.points.length.toLocaleString()} ป้าย
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => selectAllDays(p.index)}
+                        className="h-7 px-2 rounded-lg border text-[11px] hover:bg-accent"
+                      >
+                        ทุกวัน
+                      </button>
+                      <button
+                        onClick={() => setSel((prev) => prev.filter((s) => s.i !== p.index))}
+                        className="h-7 px-2 rounded-lg border text-[11px] hover:bg-accent"
+                      >
+                        ล้าง
+                      </button>
+                    </div>
                     <div className="pl-6 mt-1 flex flex-wrap gap-1">
                       {provincesOf(p.points).slice(0, 6).map((pv) => (
                         <span
@@ -1309,29 +1327,50 @@ function RouteMonitoringPage() {
                       )}
                     </div>
                     <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-3 gap-1.5 pl-6">
-
-                      {p.days.map((d) => (
-                        <button
-                          key={d.day}
-                          onClick={() => setSelected({ i: p.index, d: d.day })}
-                          className={cn(
-                            "text-left rounded-lg border px-2 py-1.5 text-xs hover:bg-accent transition",
-                            selected?.i === p.index && selected.d === d.day && "bg-accent border-primary",
-                          )}
-                        >
-                          <div className="font-medium">วันที่ {d.day}</div>
-                          <div className="text-muted-foreground tabular-nums">
-                            {d.points.length} ป้าย · ~{(d.meters / 1000).toFixed(1)} กม. ·{" "}
-                            {d.hours.toFixed(1)} ชม.
-                          </div>
-                        </button>
-                      ))}
+                      {p.days.map((d) => {
+                        const on = isSel(p.index, d.day);
+                        const col = colorOf(p.index, d.day);
+                        return (
+                          <button
+                            key={d.day}
+                            onClick={() => toggleDay(p.index, d.day)}
+                            className={cn(
+                              "text-left rounded-lg border px-2 py-1.5 text-xs hover:bg-accent transition",
+                              on && "bg-accent border-primary",
+                              d.hours > dailyHours && "border-destructive/60",
+                            )}
+                            style={on && col ? { borderColor: col } : undefined}
+                          >
+                            <div className="font-medium flex items-center gap-1.5">
+                              {on && col && (
+                                <span
+                                  className="size-2.5 rounded-full shrink-0"
+                                  style={{ background: col }}
+                                />
+                              )}
+                              วันที่ {d.day}
+                            </div>
+                            <div
+                              className={cn(
+                                "tabular-nums",
+                                d.hours > dailyHours
+                                  ? "text-destructive"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {d.points.length} ป้าย · ~{(d.meters / 1000).toFixed(1)} กม. ·{" "}
+                              {d.hours.toFixed(1)} ชม.
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
+
         </div>
       </div>
     </div>

@@ -44,10 +44,11 @@ import {
   type RegionKey,
 } from "@/lib/thai-regions";
 import {
-  balancedKMeans,
+  allocateProportional,
+  clusterBalanced,
   estimateTourMeters,
   haversineM,
-  splitIntoDays,
+  splitIntoDaysBalanced,
   CLUSTER_COLORS,
   type PlanPoint,
 } from "@/lib/route-planner";

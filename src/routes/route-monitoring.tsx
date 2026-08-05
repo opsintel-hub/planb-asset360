@@ -1073,14 +1073,14 @@ function RouteMonitoringPage() {
                 <div className="flex flex-wrap gap-1.5">
                   <button
                     onClick={() => exportCsv("day")}
-                    disabled={!selected || selected.d === 0}
+                    disabled={selDays.length === 0}
                     className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
                   >
                     CSV วันที่เลือก
                   </button>
                   <button
                     onClick={() => exportCsv("inspector")}
-                    disabled={!selected}
+                    disabled={!primary}
                     className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
                   >
                     CSV รายคน
@@ -1093,14 +1093,14 @@ function RouteMonitoringPage() {
                   </button>
                   <button
                     onClick={() => exportDayGeo("gpx")}
-                    disabled={!selected || selected.d === 0}
+                    disabled={selDays.length === 0}
                     className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
                   >
                     GPX วันที่เลือก
                   </button>
                   <button
                     onClick={() => exportDayGeo("kml")}
-                    disabled={!selected || selected.d === 0}
+                    disabled={selDays.length === 0}
                     className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
                   >
                     KML วันที่เลือก
@@ -1108,8 +1108,9 @@ function RouteMonitoringPage() {
                 </div>
                 <div className="text-[11px] text-muted-foreground">
                   ถ้ายังไม่ได้คำนวณเส้นทางจริงของวันนั้น ไฟล์จะใช้ลำดับจากการแบ่งโซน
-                  (ไม่มีระยะทาง/เวลาต่อช่วง)
+                  (ไม่มีระยะทาง/เวลาต่อช่วง) · เลือกหลายวันจะได้หลายไฟล์
                 </div>
+
               </div>
             )}
           </div>

@@ -98,6 +98,8 @@ type Props = {
   nearbyIds?: Set<string> | null;
   // Phase 3 additions:
   roadPolyline?: LatLng[] | null; // actual road-following route (from OSRM)
+  /** Multiple coloured routes drawn at once (Route Monitoring: many days/people). */
+  roadPolylines?: Array<{ points: LatLng[]; color: string; label?: string }> | null;
   origin?: { lat: number; lng: number; name?: string } | null;
   onOriginPick?: (lat: number, lng: number) => void; // when originPickMode is on and user clicks map
   originPickMode?: boolean;

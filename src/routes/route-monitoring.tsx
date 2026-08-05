@@ -1155,110 +1155,128 @@ function RouteMonitoringPage() {
           </div>
 
           {/* ---------- Phase 3: ordered stops with real distance/time ---------- */}
-          {plan && selected && selected.d > 0 && (
-            <div className="rounded-xl border bg-card overflow-hidden">
-              <div className="px-4 py-2.5 border-b text-sm font-semibold flex flex-wrap items-center gap-2">
-                <Navigation className="size-4 text-primary" />
-                เส้นทางจริง — คนที่ {selected.i + 1} · วันที่ {selected.d}
-                {routingKey === routeKey ? (
-                  <span className="text-xs font-normal text-muted-foreground inline-flex items-center gap-1">
-                    <Loader2 className="size-3.5 animate-spin" /> กำลังคำนวณเส้นทางบนถนน…
-                  </span>
-                ) : activeRoute ? (
-                  <span
-                    className={cn(
-                      "text-xs font-normal tabular-nums",
-                      activeRoute.totalSeconds / 3600 + onSiteHours > dailyHours
-                        ? "text-destructive font-medium"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {activeRoute.stops.length} จุด · {fmtKm(activeRoute.totalMeters)} ·
-                    ขับ {fmtDuration(activeRoute.totalSeconds)} · เวลาตรวจ{" "}
-                    {onSiteHours.toFixed(1)} ชม. · รวม{" "}
-                    {(activeRoute.totalSeconds / 3600 + onSiteHours).toFixed(1)}/{dailyHours} ชม.
-                    {activeRoute.returnMeters > 0 &&
-                      ` · ขากลับ ${fmtKm(activeRoute.returnMeters)}`}
-                    {activeRoute.approximate && " · (ประมาณการ)"}
-                  </span>
-                ) : null}
-                {overRouteCap && (
-                  <span className="text-xs font-normal text-warning">
-                    วันนี้มี {selectedDayCount.toLocaleString()} ป้าย — คำนวณเส้นทางจริงให้{" "}
-                    {MAX_ROUTE_STOPS} จุดแรก (เพิ่มพนักงานหรือขยายวันเพื่อให้ครบ)
-                  </span>
-                )}
-
-                <div className="ml-auto flex items-center gap-2">
-                  <button
-                    onClick={() => void computeRoute(true)}
-                    disabled={routingKey === routeKey}
-                    className="text-xs inline-flex items-center gap-1 rounded-lg border px-2 py-1 hover:bg-accent disabled:opacity-50"
-                  >
-                    <RefreshCw className="size-3.5" /> คำนวณใหม่
-                  </button>
-                  <button
-                    onClick={copyGoogleUrl}
-                    disabled={!activeRoute}
-                    className="text-xs rounded-lg border px-2 py-1 hover:bg-accent disabled:opacity-50"
-                  >
-                    Copy Google Maps URL
-                  </button>
-                </div>
-              </div>
-              {activeRoute && (
-                <div className="max-h-80 overflow-auto">
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-muted/80 backdrop-blur">
-                      <tr className="text-left text-muted-foreground">
-                        <th className="px-3 py-2 w-10">#</th>
-                        <th className="px-3 py-2">รหัสป้าย</th>
-                        <th className="px-3 py-2">Media</th>
-                        <th className="px-3 py-2 text-right">ระยะจากจุดก่อน</th>
-                        <th className="px-3 py-2 text-right">เวลาขับ</th>
-                        <th className="px-3 py-2 text-right">เวลาตรวจ</th>
-                        <th className="px-3 py-2 text-right">สะสม</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {activeRoute.stops.map((s) => (
-                        <tr
-                          key={s.point.id}
-                          onClick={() => setFocus({ id: s.point.id, nonce: Date.now() })}
-                          className="cursor-pointer hover:bg-accent/60"
+          {plan && selDays.length > 0 && (
+            <div className="space-y-3">
+              {selDays.map(({ i, d }) => {
+                const key = keyFor(i, d);
+                const route = routes[key] ?? null;
+                const day = plan[i]?.days[d - 1];
+                const col = colorOf(i, d) ?? plan[i]?.color ?? "#1d4ed8";
+                const onSite = route ? serviceHours(route.stops.map((s) => s.point)) : 0;
+                const total = route ? route.totalSeconds / 3600 + onSite : 0;
+                const over = (day?.points.length ?? 0) > MAX_ROUTE_STOPS;
+                return (
+                  <div key={key} className="rounded-xl border bg-card overflow-hidden">
+                    <div className="px-4 py-2.5 border-b text-sm font-semibold flex flex-wrap items-center gap-2">
+                      <span className="size-3 rounded-full shrink-0" style={{ background: col }} />
+                      <Navigation className="size-4" style={{ color: col }} />
+                      เส้นทางจริง — คนที่ {i + 1} · วันที่ {d}
+                      {routingKey === key ? (
+                        <span className="text-xs font-normal text-muted-foreground inline-flex items-center gap-1">
+                          <Loader2 className="size-3.5 animate-spin" /> กำลังคำนวณเส้นทางบนถนน…
+                        </span>
+                      ) : route ? (
+                        <span
+                          className={cn(
+                            "text-xs font-normal tabular-nums",
+                            total > dailyHours
+                              ? "text-destructive font-medium"
+                              : "text-muted-foreground",
+                          )}
                         >
-                          <td className="px-3 py-1.5 tabular-nums text-muted-foreground">{s.seq}</td>
-                          <td className="px-3 py-1.5 font-medium">
-                            {s.point.code}
-                            {s.point.name && (
-                              <span className="ml-1 text-muted-foreground font-normal">
-                                {s.point.name}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-1.5 text-muted-foreground">
-                            {s.point.mediaType ?? "-"}
-                          </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">
-                            {fmtKm(s.legMeters)}
-                          </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">
-                            {fmtDuration(s.legSeconds)}
-                          </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
-                            {minutesFor(s.point)} นาที
-                          </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
-                            {fmtKm(s.cumMeters)} · {fmtDuration(s.cumSeconds)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                          {route.stops.length} จุด · {fmtKm(route.totalMeters)} · ขับ{" "}
+                          {fmtDuration(route.totalSeconds)} · เวลาตรวจ {onSite.toFixed(1)} ชม. ·
+                          รวม {total.toFixed(1)}/{dailyHours} ชม.
+                          {route.returnMeters > 0 && ` · ขากลับ ${fmtKm(route.returnMeters)}`}
+                          {route.approximate && " · (ประมาณการ)"}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-normal text-muted-foreground">
+                          รอคิวคำนวณ…
+                        </span>
+                      )}
+                      {over && (
+                        <span className="text-xs font-normal text-warning">
+                          วันนี้มี {(day?.points.length ?? 0).toLocaleString()} ป้าย — คำนวณให้{" "}
+                          {MAX_ROUTE_STOPS} จุดแรก
+                        </span>
+                      )}
+                      <div className="ml-auto flex items-center gap-2">
+                        <button
+                          onClick={() => void computeRoute(i, d, true)}
+                          disabled={routingKey === key}
+                          className="text-xs inline-flex items-center gap-1 rounded-lg border px-2 py-1 hover:bg-accent disabled:opacity-50"
+                        >
+                          <RefreshCw className="size-3.5" /> คำนวณใหม่
+                        </button>
+                        <button
+                          onClick={() => copyGoogleUrl(i, d)}
+                          disabled={!route}
+                          className="text-xs rounded-lg border px-2 py-1 hover:bg-accent disabled:opacity-50"
+                        >
+                          Copy Google Maps URL
+                        </button>
+                      </div>
+                    </div>
+                    {route && (
+                      <div className="max-h-80 overflow-auto">
+                        <table className="w-full text-xs">
+                          <thead className="sticky top-0 bg-muted/80 backdrop-blur">
+                            <tr className="text-left text-muted-foreground">
+                              <th className="px-3 py-2 w-10">#</th>
+                              <th className="px-3 py-2">รหัสป้าย</th>
+                              <th className="px-3 py-2">Media</th>
+                              <th className="px-3 py-2 text-right">ระยะจากจุดก่อน</th>
+                              <th className="px-3 py-2 text-right">เวลาขับ</th>
+                              <th className="px-3 py-2 text-right">เวลาตรวจ</th>
+                              <th className="px-3 py-2 text-right">สะสม</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {route.stops.map((s) => (
+                              <tr
+                                key={s.point.id}
+                                onClick={() => setFocus({ id: s.point.id, nonce: Date.now() })}
+                                className="cursor-pointer hover:bg-accent/60"
+                              >
+                                <td className="px-3 py-1.5 tabular-nums text-muted-foreground">
+                                  {s.seq}
+                                </td>
+                                <td className="px-3 py-1.5 font-medium">
+                                  {s.point.code}
+                                  {s.point.name && (
+                                    <span className="ml-1 text-muted-foreground font-normal">
+                                      {s.point.name}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-1.5 text-muted-foreground">
+                                  {s.point.mediaType ?? "-"}
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums">
+                                  {fmtKm(s.legMeters)}
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums">
+                                  {fmtDuration(s.legSeconds)}
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                                  {minutesFor(s.point)} นาที
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                                  {fmtKm(s.cumMeters)} · {fmtDuration(s.cumSeconds)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
+
 
 
           {plan && (

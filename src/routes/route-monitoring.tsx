@@ -44,10 +44,11 @@ import {
   type RegionKey,
 } from "@/lib/thai-regions";
 import {
-  balancedKMeans,
+  allocateProportional,
+  clusterBalanced,
   estimateTourMeters,
   haversineM,
-  splitIntoDays,
+  splitIntoDaysBalanced,
   CLUSTER_COLORS,
   type PlanPoint,
 } from "@/lib/route-planner";
@@ -95,6 +96,8 @@ const DEFAULT_SPEED_KMH = 22;
 const DEFAULT_DAILY_HOURS = 8;
 /** Hard cap on stops routed per day (keeps the free OSRM demo happy). */
 const MAX_ROUTE_STOPS = 200;
+/** Cap on how many day-routes may be drawn/computed at once. */
+const MAX_ROUTE_DAYS = 8;
 
 type Depot = { lat: number; lng: number; name: string };
 type StartMode = "centroid" | "saved" | "pin";
@@ -178,7 +181,7 @@ function RouteMonitoringPage() {
   const [emergency, setEmergency] = useState(false);
   const [absent, setAbsent] = useState(1);
   const [plan, setPlan] = useState<InspectorPlan[] | null>(null);
-  const [selected, setSelected] = useState<{ i: number; d: number } | null>(null);
+  const [sel, setSel] = useState<Array<{ i: number; d: number }>>([]);
   const [routes, setRoutes] = useState<Record<string, DayRoute>>({});
   const [routingKey, setRoutingKey] = useState<string | null>(null);
   const [planNonce, setPlanNonce] = useState(0);
@@ -272,9 +275,12 @@ function RouteMonitoringPage() {
       lng: a.lng,
     }));
 
+    // Workload (service minutes), not raw asset count, is what we balance on.
+    const weight = (p: PlanPoint) => minutesFor(p);
+
     // Long-haul trips are the default: clustering may cross provinces freely.
     // "lockProvince" instead allocates staff per province so no zone straddles a border.
-    let clusters = [] as ReturnType<typeof balancedKMeans>;
+    let clusters = [] as ReturnType<typeof clusterBalanced>;
     if (lockProvince) {
       const groups = new Map<string, PlanPoint[]>();
       for (const p of points) {
@@ -283,23 +289,26 @@ function RouteMonitoringPage() {
         if (arr) arr.push(p);
         else groups.set(key, [p]);
       }
-      const total = points.length || 1;
-      const entries = Array.from(groups.values()).sort((a, b) => b.length - a.length);
-      let left = activeInspectors;
+      const entries = Array.from(groups.values()).sort(
+        (a, b) =>
+          b.reduce((s, p) => s + weight(p), 0) - a.reduce((s, p) => s + weight(p), 0),
+      );
+      const alloc = allocateProportional(
+        entries.map((g) => g.reduce((s, p) => s + weight(p), 0)),
+        activeInspectors,
+      );
       entries.forEach((g, i) => {
-        const remainingGroups = entries.length - i;
-        const want = Math.round((g.length / total) * activeInspectors) || 1;
-        const k = Math.max(1, Math.min(want, left - (remainingGroups - 1)));
-        left -= k;
-        clusters.push(...balancedKMeans(g, Math.max(1, k)));
+        if (alloc[i] <= 0) return;
+        clusters.push(...clusterBalanced(g, alloc[i], weight));
       });
-      clusters = clusters.map((c, i) => ({ ...c, index: i }));
+      clusters = clusters.filter((c) => c.points.length > 0).map((c, i) => ({ ...c, index: i }));
     } else {
-      clusters = balancedKMeans(points, activeInspectors);
+      clusters = clusterBalanced(points, activeInspectors, weight);
     }
 
     const result: InspectorPlan[] = clusters.map((c) => {
-      const dayBatches = splitIntoDays(c.points, days);
+      const dayBatches = splitIntoDaysBalanced(c.points, days, weight);
+
       return {
         index: c.index,
         color: CLUSTER_COLORS[c.index % CLUSTER_COLORS.length],
@@ -319,7 +328,7 @@ function RouteMonitoringPage() {
       };
     });
     setPlan(result);
-    setSelected(null);
+    setSel([]);
     setRoutes({});
     setFocus(null);
     setPlanNonce((n) => n + 1);
@@ -332,15 +341,62 @@ function RouteMonitoringPage() {
   }
 
 
+  // ---------- multi-day selection ----------
+  const selDays = useMemo(() => sel.filter((s) => s.d > 0), [sel]);
+  const primary = sel[0] ?? null;
+  const isSel = (i: number, d: number) => sel.some((s) => s.i === i && s.d === d);
+
+  function toggleDay(i: number, d: number) {
+    setSel((prev) => {
+      if (prev.some((s) => s.i === i && s.d === d))
+        return prev.filter((s) => !(s.i === i && s.d === d));
+      const next = prev.filter((s) => s.d > 0);
+      if (next.length >= MAX_ROUTE_DAYS) {
+        toast.info(`เลือกดูได้สูงสุด ${MAX_ROUTE_DAYS} วันพร้อมกัน`);
+        return prev;
+      }
+      return [...next, { i, d }];
+    });
+  }
+
+  function selectAllDays(i: number) {
+    const all = (plan?.[i]?.days ?? []).filter((d) => d.points.length > 0);
+    setSel((prev) => {
+      const others = prev.filter((s) => s.i !== i && s.d > 0);
+      const room = Math.max(0, MAX_ROUTE_DAYS - others.length);
+      if (all.length > room)
+        toast.info(`แสดงได้ ${room} วันแรกของคนที่ ${i + 1} (สูงสุด ${MAX_ROUTE_DAYS} วัน)`);
+      return [...others, ...all.slice(0, room).map((d) => ({ i, d: d.day }))];
+    });
+  }
+
+  /** Per-inspector base colour, lightened progressively per day. */
+  function colorOf(i: number, d: number): string | null {
+    const base = plan?.[i]?.color;
+    if (!base) return null;
+    if (d <= 0) return base;
+    const total = Math.max(1, plan?.[i]?.days.length ?? 1);
+    const t = total > 1 ? ((d - 1) / (total - 1)) * 0.55 : 0;
+    const num = parseInt(base.slice(1), 16);
+    const mix = (c: number) => Math.round(c + (255 - c) * t);
+    const r = mix((num >> 16) & 255);
+    const g = mix((num >> 8) & 255);
+    const b = mix(num & 255);
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+  }
+
   const shownAssets = useMemo(() => {
-    if (!plan || !selected) return filtered;
-    const p = plan[selected.i];
-    if (!p) return filtered;
-    const set = new Set(
-      (selected.d === 0 ? p.points : p.days[selected.d - 1]?.points ?? []).map((x) => x.id),
-    );
+    if (!plan || sel.length === 0) return filtered;
+    const set = new Set<string>();
+    for (const s of sel) {
+      const p = plan[s.i];
+      if (!p) continue;
+      for (const pt of s.d === 0 ? p.points : p.days[s.d - 1]?.points ?? []) set.add(pt.id);
+    }
+    if (set.size === 0) return filtered;
     return filtered.filter((a) => set.has(a.id));
-  }, [plan, selected, filtered]);
+  }, [plan, sel, filtered]);
+
 
   /** Media types actually present in the filtered scope — keeps overrides short. */
   const activeMediaTypes = useMemo(() => {
@@ -371,63 +427,70 @@ function RouteMonitoringPage() {
 
   // Depot + time settings are part of the cache key so changing them recomputes.
   const depotSig = `${startMode}:${startPoint?.lat ?? ""},${startPoint?.lng ?? ""}:${endMode}:${endPoint?.lat ?? ""},${endPoint?.lng ?? ""}`;
-  const routeKey =
-    plan && selected && selected.d > 0
-      ? `${planNonce}:${selected.i}:${selected.d}:${depotSig}`
-      : null;
-  const activeRoute = routeKey ? routes[routeKey] ?? null : null;
+  function keyFor(i: number, d: number) {
+    return `${planNonce}:${i}:${d}:${depotSig}`;
+  }
 
-  const selectedDayCount =
-    plan && selected && selected.d > 0
-      ? plan[selected.i]?.days[selected.d - 1]?.points.length ?? 0
-      : 0;
-  const overRouteCap = selectedDayCount > MAX_ROUTE_STOPS;
-
-  async function computeRoute(force = false) {
-    if (!plan || !selected || selected.d === 0 || !routeKey) return;
-    if (!force && routes[routeKey]) return;
-    const insp = plan[selected.i];
-    const day = insp?.days[selected.d - 1];
+  async function computeRoute(i: number, d: number, force = false) {
+    if (!plan || d === 0) return;
+    const key = keyFor(i, d);
+    if (!force && routes[key]) return;
+    const insp = plan[i];
+    const day = insp?.days[d - 1];
     if (!insp || !day || day.points.length === 0) return;
-    setRoutingKey(routeKey);
+    setRoutingKey(key);
     try {
       // Cap requests to the public OSRM server: route the first MAX_ROUTE_STOPS
       // stops of the day so a huge day never floods it.
       const pts = day.points.slice(0, MAX_ROUTE_STOPS);
-      const r = await computeDayRoute(pts, startFor(selected.i), endFor(selected.i));
-      setRoutes((prev) => ({ ...prev, [routeKey]: r }));
+      const r = await computeDayRoute(pts, startFor(i), endFor(i));
+      setRoutes((prev) => ({ ...prev, [key]: r }));
     } finally {
-      setRoutingKey((k) => (k === routeKey ? null : k));
+      setRoutingKey((k) => (k === key ? null : k));
     }
   }
 
-  // Auto-compute once per selected day; results are cached so re-selecting is free.
+  // Auto-compute the selected days one at a time (cached, so re-selecting is free).
+  const pendingKeys = selDays.filter(({ i, d }) => !routes[keyFor(i, d)]);
+  const nextPending = pendingKeys[0] ?? null;
   useEffect(() => {
-    if (!routeKey || routes[routeKey] || routingKey) return;
-
-    const t = setTimeout(() => void computeRoute(), 350);
+    if (!nextPending || routingKey) return;
+    const t = setTimeout(() => void computeRoute(nextPending.i, nextPending.d), 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeKey, routingKey]);
+  }, [nextPending?.i, nextPending?.d, routingKey]);
 
-  const roadPolyline: LatLng[] | null =
-    activeRoute && activeRoute.geometry.length > 1 ? activeRoute.geometry : null;
+  /** One coloured polyline per selected day. */
+  const roadPolylines = useMemo(() => {
+    const out: Array<{ points: LatLng[]; color: string; label: string }> = [];
+    for (const { i, d } of selDays) {
+      const r = routes[keyFor(i, d)];
+      if (!r || r.geometry.length < 2) continue;
+      out.push({
+        points: r.geometry,
+        color: colorOf(i, d) ?? "#1d4ed8",
+        label: `คนที่ ${i + 1} · วันที่ ${d} · ${fmtKm(r.totalMeters)}`,
+      });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selDays, routes, planNonce, depotSig, plan]);
 
-  const onSiteHours = activeRoute ? serviceHours(activeRoute.stops.map((s) => s.point)) : 0;
-
-  function copyGoogleUrl() {
-    if (!activeRoute || !plan || !selected) return;
-    const s0 = startFor(selected.i);
-    const e0 = endFor(selected.i);
+  function copyGoogleUrl(i: number, d: number) {
+    const route = routes[keyFor(i, d)];
+    if (!route) return;
+    const s0 = startFor(i);
+    const e0 = endFor(i);
     const pts: LatLng[] = [
       [s0.lat, s0.lng],
-      ...activeRoute.stops.slice(0, 9).map((s) => [s.point.lat, s.point.lng] as LatLng),
+      ...route.stops.slice(0, 9).map((s) => [s.point.lat, s.point.lng] as LatLng),
     ];
     if (e0) pts.push([e0.lat, e0.lng]);
     const url = googleMapsDirectionsUrl(pts);
     if (url) void navigator.clipboard.writeText(url);
     toast.success("คัดลอกลิงก์ Google Maps แล้ว");
   }
+
 
   // ---------- Phase 4: save / load plan + exports ----------
   const qc = useQueryClient();
@@ -564,7 +627,7 @@ function RouteMonitoringPage() {
         })),
       })),
     );
-    setSelected(null);
+    setSel([]);
     setRoutes({});
     setFocus(null);
     setPlanNonce((n) => n + 1);
@@ -576,42 +639,49 @@ function RouteMonitoringPage() {
 
   const fileBase = (planName.trim() || "route-plan").replace(/[^\w\u0E00-\u0E7F-]+/g, "_");
 
-  /** CSV of one day, the selected inspector, or the whole plan. */
+  /** CSV of the selected days, the first selected inspector, or the whole plan. */
   function exportCsv(scope: "day" | "inspector" | "all") {
     if (!plan) return;
     const sources: CsvDaySource[] = [];
     const push = (i: number, d: number, points: PlanPoint[]) => {
-      const key = `${planNonce}:${i}:${d}:${depotSig}`;
-      sources.push({ inspector: i + 1, day: d, points, route: routes[key] ?? null });
+      sources.push({ inspector: i + 1, day: d, points, route: routes[keyFor(i, d)] ?? null });
     };
-    if (scope === "day" && selected && selected.d > 0) {
-      const day = plan[selected.i]?.days[selected.d - 1];
-      if (day) push(selected.i, day.day, day.points);
-    } else if (scope === "inspector" && selected) {
-      for (const d of plan[selected.i]?.days ?? []) push(selected.i, d.day, d.points);
+    if (scope === "day" && selDays.length) {
+      for (const { i, d } of selDays) {
+        const day = plan[i]?.days[d - 1];
+        if (day) push(i, day.day, day.points);
+      }
+    } else if (scope === "inspector" && primary) {
+      for (const d of plan[primary.i]?.days ?? []) push(primary.i, d.day, d.points);
     } else {
       for (const p of plan) for (const d of p.days) push(p.index, d.day, d.points);
     }
     if (!sources.length) return;
     const suffix =
-      scope === "day" && selected
-        ? `-คนที่${selected.i + 1}-วันที่${selected.d}`
-        : scope === "inspector" && selected
-          ? `-คนที่${selected.i + 1}`
+      scope === "day" && selDays.length
+        ? selDays.length === 1
+          ? `-คนที่${selDays[0].i + 1}-วันที่${selDays[0].d}`
+          : `-${selDays.length}วันที่เลือก`
+        : scope === "inspector" && primary
+          ? `-คนที่${primary.i + 1}`
           : "-ทั้งแผน";
     downloadCsv(`${fileBase}${suffix}.csv`, buildPlanCsv(sources, minutesFor));
     toast.success("ดาวน์โหลด CSV แล้ว");
   }
 
   function exportDayGeo(kind: "gpx" | "kml") {
-    if (!plan || !selected || selected.d === 0) return;
-    const day = plan[selected.i]?.days[selected.d - 1];
-    if (!day) return;
-    const name = `${fileBase}-คนที่${selected.i + 1}-วันที่${selected.d}`;
-    if (kind === "gpx") downloadDayGpx(name, day.points, activeRoute);
-    else downloadDayKml(name, day.points, activeRoute);
+    if (!plan || selDays.length === 0) return;
+    for (const { i, d } of selDays) {
+      const day = plan[i]?.days[d - 1];
+      if (!day) continue;
+      const name = `${fileBase}-คนที่${i + 1}-วันที่${d}`;
+      const route = routes[keyFor(i, d)] ?? null;
+      if (kind === "gpx") downloadDayGpx(name, day.points, route);
+      else downloadDayKml(name, day.points, route);
+    }
     toast.success(`ดาวน์โหลด ${kind.toUpperCase()} แล้ว`);
   }
+
 
 
 
@@ -1073,14 +1143,14 @@ function RouteMonitoringPage() {
                 <div className="flex flex-wrap gap-1.5">
                   <button
                     onClick={() => exportCsv("day")}
-                    disabled={!selected || selected.d === 0}
+                    disabled={selDays.length === 0}
                     className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
                   >
                     CSV วันที่เลือก
                   </button>
                   <button
                     onClick={() => exportCsv("inspector")}
-                    disabled={!selected}
+                    disabled={!primary}
                     className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
                   >
                     CSV รายคน
@@ -1093,14 +1163,14 @@ function RouteMonitoringPage() {
                   </button>
                   <button
                     onClick={() => exportDayGeo("gpx")}
-                    disabled={!selected || selected.d === 0}
+                    disabled={selDays.length === 0}
                     className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
                   >
                     GPX วันที่เลือก
                   </button>
                   <button
                     onClick={() => exportDayGeo("kml")}
-                    disabled={!selected || selected.d === 0}
+                    disabled={selDays.length === 0}
                     className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
                   >
                     KML วันที่เลือก
@@ -1108,8 +1178,9 @@ function RouteMonitoringPage() {
                 </div>
                 <div className="text-[11px] text-muted-foreground">
                   ถ้ายังไม่ได้คำนวณเส้นทางจริงของวันนั้น ไฟล์จะใช้ลำดับจากการแบ่งโซน
-                  (ไม่มีระยะทาง/เวลาต่อช่วง)
+                  (ไม่มีระยะทาง/เวลาต่อช่วง) · เลือกหลายวันจะได้หลายไฟล์
                 </div>
+
               </div>
             )}
           </div>
@@ -1118,7 +1189,7 @@ function RouteMonitoringPage() {
 
         {/* ---------- Map + result ---------- */}
         <div className="space-y-3">
-          <div className="rounded-xl border overflow-hidden bg-card" style={{ height: 460 }}>
+          <div className="rounded-xl border overflow-hidden bg-card relative" style={{ height: 460 }}>
             <ClientOnly fallback={<Skeleton className="h-full w-full" />}>
               <Suspense fallback={<Skeleton className="h-full w-full" />}>
                 <AssetMap
@@ -1126,15 +1197,15 @@ function RouteMonitoringPage() {
                   assets={shownAssets}
                   claimedCodes={new Set<string>()}
                   showRadiusRings={false}
-                  roadPolyline={roadPolyline}
+                  roadPolylines={roadPolylines}
                   origin={
                     startMode !== "centroid" && startPoint
                       ? startPoint
-                      : plan && selected
+                      : plan && primary
                         ? {
-                            lat: plan[selected.i]?.center.lat ?? 0,
-                            lng: plan[selected.i]?.center.lng ?? 0,
-                            name: `จุดเริ่มต้น คนที่ ${selected.i + 1}`,
+                            lat: plan[primary.i]?.center.lat ?? 0,
+                            lng: plan[primary.i]?.center.lng ?? 0,
+                            name: `จุดเริ่มต้น คนที่ ${primary.i + 1}`,
                           }
                         : null
                   }
@@ -1152,123 +1223,159 @@ function RouteMonitoringPage() {
                 />
               </Suspense>
             </ClientOnly>
+            {roadPolylines.length > 0 && (
+              <div className="absolute right-2 bottom-2 z-[500] rounded-lg border bg-card/95 backdrop-blur px-2 py-1.5 space-y-0.5 max-h-40 overflow-auto shadow">
+                {roadPolylines.map((l) => (
+                  <div key={l.label} className="flex items-center gap-1.5 text-[11px]">
+                    <span
+                      className="h-1 w-5 rounded-full shrink-0"
+                      style={{ background: l.color }}
+                    />
+                    <span className="truncate">{l.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* ---------- Phase 3: ordered stops with real distance/time ---------- */}
-          {plan && selected && selected.d > 0 && (
-            <div className="rounded-xl border bg-card overflow-hidden">
-              <div className="px-4 py-2.5 border-b text-sm font-semibold flex flex-wrap items-center gap-2">
-                <Navigation className="size-4 text-primary" />
-                เส้นทางจริง — คนที่ {selected.i + 1} · วันที่ {selected.d}
-                {routingKey === routeKey ? (
-                  <span className="text-xs font-normal text-muted-foreground inline-flex items-center gap-1">
-                    <Loader2 className="size-3.5 animate-spin" /> กำลังคำนวณเส้นทางบนถนน…
-                  </span>
-                ) : activeRoute ? (
-                  <span
-                    className={cn(
-                      "text-xs font-normal tabular-nums",
-                      activeRoute.totalSeconds / 3600 + onSiteHours > dailyHours
-                        ? "text-destructive font-medium"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {activeRoute.stops.length} จุด · {fmtKm(activeRoute.totalMeters)} ·
-                    ขับ {fmtDuration(activeRoute.totalSeconds)} · เวลาตรวจ{" "}
-                    {onSiteHours.toFixed(1)} ชม. · รวม{" "}
-                    {(activeRoute.totalSeconds / 3600 + onSiteHours).toFixed(1)}/{dailyHours} ชม.
-                    {activeRoute.returnMeters > 0 &&
-                      ` · ขากลับ ${fmtKm(activeRoute.returnMeters)}`}
-                    {activeRoute.approximate && " · (ประมาณการ)"}
-                  </span>
-                ) : null}
-                {overRouteCap && (
-                  <span className="text-xs font-normal text-warning">
-                    วันนี้มี {selectedDayCount.toLocaleString()} ป้าย — คำนวณเส้นทางจริงให้{" "}
-                    {MAX_ROUTE_STOPS} จุดแรก (เพิ่มพนักงานหรือขยายวันเพื่อให้ครบ)
-                  </span>
-                )}
 
-                <div className="ml-auto flex items-center gap-2">
-                  <button
-                    onClick={() => void computeRoute(true)}
-                    disabled={routingKey === routeKey}
-                    className="text-xs inline-flex items-center gap-1 rounded-lg border px-2 py-1 hover:bg-accent disabled:opacity-50"
-                  >
-                    <RefreshCw className="size-3.5" /> คำนวณใหม่
-                  </button>
-                  <button
-                    onClick={copyGoogleUrl}
-                    disabled={!activeRoute}
-                    className="text-xs rounded-lg border px-2 py-1 hover:bg-accent disabled:opacity-50"
-                  >
-                    Copy Google Maps URL
-                  </button>
-                </div>
-              </div>
-              {activeRoute && (
-                <div className="max-h-80 overflow-auto">
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 bg-muted/80 backdrop-blur">
-                      <tr className="text-left text-muted-foreground">
-                        <th className="px-3 py-2 w-10">#</th>
-                        <th className="px-3 py-2">รหัสป้าย</th>
-                        <th className="px-3 py-2">Media</th>
-                        <th className="px-3 py-2 text-right">ระยะจากจุดก่อน</th>
-                        <th className="px-3 py-2 text-right">เวลาขับ</th>
-                        <th className="px-3 py-2 text-right">เวลาตรวจ</th>
-                        <th className="px-3 py-2 text-right">สะสม</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {activeRoute.stops.map((s) => (
-                        <tr
-                          key={s.point.id}
-                          onClick={() => setFocus({ id: s.point.id, nonce: Date.now() })}
-                          className="cursor-pointer hover:bg-accent/60"
+          {/* ---------- Phase 3: ordered stops with real distance/time ---------- */}
+          {plan && selDays.length > 0 && (
+            <div className="space-y-3">
+              {selDays.map(({ i, d }) => {
+                const key = keyFor(i, d);
+                const route = routes[key] ?? null;
+                const day = plan[i]?.days[d - 1];
+                const col = colorOf(i, d) ?? plan[i]?.color ?? "#1d4ed8";
+                const onSite = route ? serviceHours(route.stops.map((s) => s.point)) : 0;
+                const total = route ? route.totalSeconds / 3600 + onSite : 0;
+                const over = (day?.points.length ?? 0) > MAX_ROUTE_STOPS;
+                return (
+                  <div key={key} className="rounded-xl border bg-card overflow-hidden">
+                    <div className="px-4 py-2.5 border-b text-sm font-semibold flex flex-wrap items-center gap-2">
+                      <span className="size-3 rounded-full shrink-0" style={{ background: col }} />
+                      <Navigation className="size-4" style={{ color: col }} />
+                      เส้นทางจริง — คนที่ {i + 1} · วันที่ {d}
+                      {routingKey === key ? (
+                        <span className="text-xs font-normal text-muted-foreground inline-flex items-center gap-1">
+                          <Loader2 className="size-3.5 animate-spin" /> กำลังคำนวณเส้นทางบนถนน…
+                        </span>
+                      ) : route ? (
+                        <span
+                          className={cn(
+                            "text-xs font-normal tabular-nums",
+                            total > dailyHours
+                              ? "text-destructive font-medium"
+                              : "text-muted-foreground",
+                          )}
                         >
-                          <td className="px-3 py-1.5 tabular-nums text-muted-foreground">{s.seq}</td>
-                          <td className="px-3 py-1.5 font-medium">
-                            {s.point.code}
-                            {s.point.name && (
-                              <span className="ml-1 text-muted-foreground font-normal">
-                                {s.point.name}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-1.5 text-muted-foreground">
-                            {s.point.mediaType ?? "-"}
-                          </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">
-                            {fmtKm(s.legMeters)}
-                          </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">
-                            {fmtDuration(s.legSeconds)}
-                          </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
-                            {minutesFor(s.point)} นาที
-                          </td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
-                            {fmtKm(s.cumMeters)} · {fmtDuration(s.cumSeconds)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                          {route.stops.length} จุด · {fmtKm(route.totalMeters)} · ขับ{" "}
+                          {fmtDuration(route.totalSeconds)} · เวลาตรวจ {onSite.toFixed(1)} ชม. ·
+                          รวม {total.toFixed(1)}/{dailyHours} ชม.
+                          {route.returnMeters > 0 && ` · ขากลับ ${fmtKm(route.returnMeters)}`}
+                          {route.approximate && " · (ประมาณการ)"}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-normal text-muted-foreground">
+                          รอคิวคำนวณ…
+                        </span>
+                      )}
+                      {over && (
+                        <span className="text-xs font-normal text-warning">
+                          วันนี้มี {(day?.points.length ?? 0).toLocaleString()} ป้าย — คำนวณให้{" "}
+                          {MAX_ROUTE_STOPS} จุดแรก
+                        </span>
+                      )}
+                      <div className="ml-auto flex items-center gap-2">
+                        <button
+                          onClick={() => void computeRoute(i, d, true)}
+                          disabled={routingKey === key}
+                          className="text-xs inline-flex items-center gap-1 rounded-lg border px-2 py-1 hover:bg-accent disabled:opacity-50"
+                        >
+                          <RefreshCw className="size-3.5" /> คำนวณใหม่
+                        </button>
+                        <button
+                          onClick={() => copyGoogleUrl(i, d)}
+                          disabled={!route}
+                          className="text-xs rounded-lg border px-2 py-1 hover:bg-accent disabled:opacity-50"
+                        >
+                          Copy Google Maps URL
+                        </button>
+                      </div>
+                    </div>
+                    {route && (
+                      <div className="max-h-80 overflow-auto">
+                        <table className="w-full text-xs">
+                          <thead className="sticky top-0 bg-muted/80 backdrop-blur">
+                            <tr className="text-left text-muted-foreground">
+                              <th className="px-3 py-2 w-10">#</th>
+                              <th className="px-3 py-2">รหัสป้าย</th>
+                              <th className="px-3 py-2">Media</th>
+                              <th className="px-3 py-2 text-right">ระยะจากจุดก่อน</th>
+                              <th className="px-3 py-2 text-right">เวลาขับ</th>
+                              <th className="px-3 py-2 text-right">เวลาตรวจ</th>
+                              <th className="px-3 py-2 text-right">สะสม</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {route.stops.map((s) => (
+                              <tr
+                                key={s.point.id}
+                                onClick={() => setFocus({ id: s.point.id, nonce: Date.now() })}
+                                className="cursor-pointer hover:bg-accent/60"
+                              >
+                                <td className="px-3 py-1.5 tabular-nums text-muted-foreground">
+                                  {s.seq}
+                                </td>
+                                <td className="px-3 py-1.5 font-medium">
+                                  {s.point.code}
+                                  {s.point.name && (
+                                    <span className="ml-1 text-muted-foreground font-normal">
+                                      {s.point.name}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-1.5 text-muted-foreground">
+                                  {s.point.mediaType ?? "-"}
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums">
+                                  {fmtKm(s.legMeters)}
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums">
+                                  {fmtDuration(s.legSeconds)}
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                                  {minutesFor(s.point)} นาที
+                                </td>
+                                <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                                  {fmtKm(s.cumMeters)} · {fmtDuration(s.cumSeconds)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
 
+
           {plan && (
             <div className="rounded-xl border bg-card overflow-hidden">
-              <div className="px-4 py-2.5 border-b text-sm font-semibold flex items-center gap-2">
+              <div className="px-4 py-2.5 border-b text-sm font-semibold flex flex-wrap items-center gap-2">
                 <RouteIcon className="size-4 text-primary" /> แผนงานต่อคน / ต่อวัน
-                {selected && (
+                <span className="text-[11px] font-normal text-muted-foreground">
+                  คลิกการ์ดวันเพื่อเลือกหลายวันพร้อมกัน (เส้นคนละสี) · เลือกได้สูงสุด{" "}
+                  {MAX_ROUTE_DAYS} วัน
+                </span>
+                {sel.length > 0 && (
                   <button
                     className="ml-auto text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => setSelected(null)}
+                    onClick={() => setSel([])}
                   >
                     แสดงทุกโซน
                   </button>
@@ -1277,22 +1384,36 @@ function RouteMonitoringPage() {
               <div className="divide-y">
                 {plan.map((p) => (
                   <div key={p.index} className="p-3">
-                    <button
-                      onClick={() => setSelected({ i: p.index, d: 0 })}
-                      className={cn(
-                        "w-full flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 hover:bg-accent transition",
-                        selected?.i === p.index && selected.d === 0 && "bg-accent",
-                      )}
-                    >
-                      <span
-                        className="size-3 rounded-full shrink-0"
-                        style={{ background: p.color }}
-                      />
-                      <span className="font-medium">พนักงานคนที่ {p.index + 1}</span>
-                      <span className="ml-auto text-muted-foreground tabular-nums">
-                        {p.points.length.toLocaleString()} ป้าย
-                      </span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSel([{ i: p.index, d: 0 }])}
+                        className={cn(
+                          "flex-1 flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 hover:bg-accent transition",
+                          isSel(p.index, 0) && "bg-accent",
+                        )}
+                      >
+                        <span
+                          className="size-3 rounded-full shrink-0"
+                          style={{ background: p.color }}
+                        />
+                        <span className="font-medium">พนักงานคนที่ {p.index + 1}</span>
+                        <span className="ml-auto text-muted-foreground tabular-nums">
+                          {p.points.length.toLocaleString()} ป้าย
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => selectAllDays(p.index)}
+                        className="h-7 px-2 rounded-lg border text-[11px] hover:bg-accent"
+                      >
+                        ทุกวัน
+                      </button>
+                      <button
+                        onClick={() => setSel((prev) => prev.filter((s) => s.i !== p.index))}
+                        className="h-7 px-2 rounded-lg border text-[11px] hover:bg-accent"
+                      >
+                        ล้าง
+                      </button>
+                    </div>
                     <div className="pl-6 mt-1 flex flex-wrap gap-1">
                       {provincesOf(p.points).slice(0, 6).map((pv) => (
                         <span
@@ -1309,29 +1430,50 @@ function RouteMonitoringPage() {
                       )}
                     </div>
                     <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-3 gap-1.5 pl-6">
-
-                      {p.days.map((d) => (
-                        <button
-                          key={d.day}
-                          onClick={() => setSelected({ i: p.index, d: d.day })}
-                          className={cn(
-                            "text-left rounded-lg border px-2 py-1.5 text-xs hover:bg-accent transition",
-                            selected?.i === p.index && selected.d === d.day && "bg-accent border-primary",
-                          )}
-                        >
-                          <div className="font-medium">วันที่ {d.day}</div>
-                          <div className="text-muted-foreground tabular-nums">
-                            {d.points.length} ป้าย · ~{(d.meters / 1000).toFixed(1)} กม. ·{" "}
-                            {d.hours.toFixed(1)} ชม.
-                          </div>
-                        </button>
-                      ))}
+                      {p.days.map((d) => {
+                        const on = isSel(p.index, d.day);
+                        const col = colorOf(p.index, d.day);
+                        return (
+                          <button
+                            key={d.day}
+                            onClick={() => toggleDay(p.index, d.day)}
+                            className={cn(
+                              "text-left rounded-lg border px-2 py-1.5 text-xs hover:bg-accent transition",
+                              on && "bg-accent border-primary",
+                              d.hours > dailyHours && "border-destructive/60",
+                            )}
+                            style={on && col ? { borderColor: col } : undefined}
+                          >
+                            <div className="font-medium flex items-center gap-1.5">
+                              {on && col && (
+                                <span
+                                  className="size-2.5 rounded-full shrink-0"
+                                  style={{ background: col }}
+                                />
+                              )}
+                              วันที่ {d.day}
+                            </div>
+                            <div
+                              className={cn(
+                                "tabular-nums",
+                                d.hours > dailyHours
+                                  ? "text-destructive"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {d.points.length} ป้าย · ~{(d.meters / 1000).toFixed(1)} กม. ·{" "}
+                              {d.hours.toFixed(1)} ชม.
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
+
         </div>
       </div>
     </div>

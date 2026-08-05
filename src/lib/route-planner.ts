@@ -187,6 +187,216 @@ export function splitIntoDays(points: PlanPoint[], days: number): PlanPoint[][] 
     .sort((a, b) => b.length - a.length);
 }
 
+// ---------------------------------------------------------------------------
+// Workload-balanced clustering
+// ---------------------------------------------------------------------------
+
+/** Plain k-means (k-means++ style seeding, no capacity pass). */
+function kmeansGeo(
+  points: PlanPoint[],
+  k: number,
+  iterations = 30,
+): { assign: number[]; centers: Array<{ lat: number; lng: number }> } {
+  const rand = mulberry32(points.length * 7919 + k);
+  const centers: Array<{ lat: number; lng: number }> = [{ lat: points[0].lat, lng: points[0].lng }];
+  while (centers.length < k) {
+    let best: PlanPoint | null = null;
+    let bestD = -1;
+    for (const p of points) {
+      let d = Infinity;
+      for (const c of centers) d = Math.min(d, haversineM(p, c));
+      const jitter = 0.9 + rand() * 0.2;
+      if (d * jitter > bestD) {
+        bestD = d * jitter;
+        best = p;
+      }
+    }
+    centers.push({ lat: best!.lat, lng: best!.lng });
+  }
+
+  const assign = new Array<number>(points.length).fill(0);
+  for (let it = 0; it < iterations; it++) {
+    let moved = false;
+    for (let i = 0; i < points.length; i++) {
+      let bi = 0;
+      let bd = Infinity;
+      for (let c = 0; c < centers.length; c++) {
+        const d = haversineM(points[i], centers[c]);
+        if (d < bd) {
+          bd = d;
+          bi = c;
+        }
+      }
+      if (assign[i] !== bi) {
+        assign[i] = bi;
+        moved = true;
+      }
+    }
+    for (let c = 0; c < centers.length; c++) {
+      const members = points.filter((_, i) => assign[i] === c);
+      if (members.length) centers[c] = centroid(members);
+    }
+    if (!moved) break;
+  }
+  return { assign, centers };
+}
+
+/**
+ * Cluster points into `k` groups whose *workload* (not raw count) is balanced.
+ * `weight` returns the workload of one point (e.g. service minutes).
+ * Transfers always pick the point that is geographically cheapest to move,
+ * so zones stay contiguous while loads even out. Runs until convergence
+ * (bounded by point count) instead of a fixed small number of passes.
+ */
+export function clusterBalanced(
+  points: PlanPoint[],
+  k: number,
+  weight: (p: PlanPoint) => number = () => 1,
+  tolerance = 0.08,
+): Cluster[] {
+  const kk = Math.max(1, Math.min(k, Math.max(1, points.length)));
+  if (points.length === 0) {
+    return Array.from({ length: kk }, (_, i) => ({
+      index: i,
+      center: { lat: 0, lng: 0 },
+      points: [],
+    }));
+  }
+  if (kk === 1) return [{ index: 0, center: centroid(points), points: [...points] }];
+
+  const { assign, centers } = kmeansGeo(points, kk, 30);
+  const buckets: number[][] = Array.from({ length: kk }, () => []);
+  points.forEach((_, i) => buckets[assign[i]].push(i));
+
+  const w = points.map((p) => Math.max(0.0001, weight(p)));
+  const load = buckets.map((b) => b.reduce((s, i) => s + w[i], 0));
+  const total = load.reduce((s, x) => s + x, 0);
+  const target = total / kk;
+  const limit = Math.max(300, points.length * 4);
+
+  for (let move = 0; move < limit; move++) {
+    let hi = 0;
+    let lo = 0;
+    for (let c = 0; c < kk; c++) {
+      if (load[c] > load[hi]) hi = c;
+      if (load[c] < load[lo]) lo = c;
+    }
+    const diff = load[hi] - load[lo];
+    if (diff <= Math.max(tolerance * target, 1e-6)) break;
+    if (buckets[hi].length === 0) break;
+
+    // Cheapest point to hand over: closest to the receiving centre, and small
+    // enough that the transfer actually reduces the gap.
+    let bestIdx = -1;
+    let bestCost = Infinity;
+    for (const i of buckets[hi]) {
+      if (w[i] >= diff) continue;
+      const cost = haversineM(points[i], centers[lo]) - haversineM(points[i], centers[hi]);
+      if (cost < bestCost) {
+        bestCost = cost;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx === -1) break;
+
+    buckets[hi] = buckets[hi].filter((i) => i !== bestIdx);
+    buckets[lo].push(bestIdx);
+    load[hi] -= w[bestIdx];
+    load[lo] += w[bestIdx];
+    for (const c of [hi, lo]) {
+      const m = buckets[c].map((i) => points[i]);
+      if (m.length) centers[c] = centroid(m);
+    }
+  }
+
+  return buckets.map((b, i) => {
+    const pts = b.map((idx) => points[idx]);
+    return { index: i, center: pts.length ? centroid(pts) : centers[i], points: pts };
+  });
+}
+
+/** Split one inspector's assets into `days` batches with balanced workload. */
+export function splitIntoDaysBalanced(
+  points: PlanPoint[],
+  days: number,
+  weight: (p: PlanPoint) => number = () => 1,
+): PlanPoint[][] {
+  const d = Math.max(1, days);
+  if (points.length === 0) return Array.from({ length: d }, () => []);
+  if (d === 1) return [[...points]];
+  const clusters = clusterBalanced(points, d, weight);
+  // Order days west→east-ish (by centre longitude) so consecutive days are near
+  // each other geographically instead of "biggest first".
+  const sorted = clusters
+    .slice()
+    .sort((a, b) => a.center.lng - b.center.lng || a.center.lat - b.center.lat)
+    .map((c) => c.points);
+  while (sorted.length < d) sorted.push([]);
+  return sorted;
+}
+
+/**
+ * Allocate `total` staff across groups proportionally to workload using the
+ * largest-remainder method, so a 1,200-asset province never gets the same
+ * head-count as a 2-asset one. Groups only get 0 when staff run out.
+ */
+export function allocateProportional(weights: number[], total: number): number[] {
+  const n = weights.length;
+  const out = new Array<number>(n).fill(0);
+  if (n === 0 || total <= 0) return out;
+  const sum = weights.reduce((s, x) => s + x, 0);
+  if (sum <= 0) return out;
+
+  if (total <= n) {
+    // Not enough staff for one each — give them to the heaviest groups.
+    const order = weights
+      .map((wv, i) => ({ wv, i }))
+      .sort((a, b) => b.wv - a.wv)
+      .slice(0, total);
+    for (const o of order) out[o.i] = 1;
+    return out;
+  }
+
+  const quota = weights.map((wv) => (wv / sum) * total);
+  let used = 0;
+  for (let i = 0; i < n; i++) {
+    out[i] = Math.max(1, Math.floor(quota[i]));
+    used += out[i];
+  }
+  // Trim if the "at least 1" rule overshot: take from the largest allocations.
+  while (used > total) {
+    let bi = -1;
+    let best = -Infinity;
+    for (let i = 0; i < n; i++) {
+      if (out[i] <= 1) continue;
+      const over = out[i] - quota[i];
+      if (over > best) {
+        best = over;
+        bi = i;
+      }
+    }
+    if (bi === -1) break;
+    out[bi] -= 1;
+    used -= 1;
+  }
+  // Hand out the remainder to the largest fractional parts.
+  while (used < total) {
+    let bi = 0;
+    let best = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const rem = quota[i] - out[i];
+      if (rem > best) {
+        best = rem;
+        bi = i;
+      }
+    }
+    out[bi] += 1;
+    used += 1;
+  }
+  return out;
+}
+
+
 export const CLUSTER_COLORS = [
   "#2563eb",
   "#16a34a",

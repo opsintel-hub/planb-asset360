@@ -95,6 +95,8 @@ const DEFAULT_SPEED_KMH = 22;
 const DEFAULT_DAILY_HOURS = 8;
 /** Hard cap on stops routed per day (keeps the free OSRM demo happy). */
 const MAX_ROUTE_STOPS = 200;
+/** Cap on how many day-routes may be drawn/computed at once. */
+const MAX_ROUTE_DAYS = 8;
 
 type Depot = { lat: number; lng: number; name: string };
 type StartMode = "centroid" | "saved" | "pin";
@@ -178,7 +180,7 @@ function RouteMonitoringPage() {
   const [emergency, setEmergency] = useState(false);
   const [absent, setAbsent] = useState(1);
   const [plan, setPlan] = useState<InspectorPlan[] | null>(null);
-  const [selected, setSelected] = useState<{ i: number; d: number } | null>(null);
+  const [sel, setSel] = useState<Array<{ i: number; d: number }>>([]);
   const [routes, setRoutes] = useState<Record<string, DayRoute>>({});
   const [routingKey, setRoutingKey] = useState<string | null>(null);
   const [planNonce, setPlanNonce] = useState(0);
@@ -319,7 +321,7 @@ function RouteMonitoringPage() {
       };
     });
     setPlan(result);
-    setSelected(null);
+    setSel([]);
     setRoutes({});
     setFocus(null);
     setPlanNonce((n) => n + 1);
@@ -618,7 +620,7 @@ function RouteMonitoringPage() {
         })),
       })),
     );
-    setSelected(null);
+    setSel([]);
     setRoutes({});
     setFocus(null);
     setPlanNonce((n) => n + 1);

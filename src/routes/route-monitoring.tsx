@@ -274,9 +274,12 @@ function RouteMonitoringPage() {
       lng: a.lng,
     }));
 
+    // Workload (service minutes), not raw asset count, is what we balance on.
+    const weight = (p: PlanPoint) => minutesFor(p);
+
     // Long-haul trips are the default: clustering may cross provinces freely.
     // "lockProvince" instead allocates staff per province so no zone straddles a border.
-    let clusters = [] as ReturnType<typeof balancedKMeans>;
+    let clusters = [] as ReturnType<typeof clusterBalanced>;
     if (lockProvince) {
       const groups = new Map<string, PlanPoint[]>();
       for (const p of points) {
@@ -285,23 +288,26 @@ function RouteMonitoringPage() {
         if (arr) arr.push(p);
         else groups.set(key, [p]);
       }
-      const total = points.length || 1;
-      const entries = Array.from(groups.values()).sort((a, b) => b.length - a.length);
-      let left = activeInspectors;
+      const entries = Array.from(groups.values()).sort(
+        (a, b) =>
+          b.reduce((s, p) => s + weight(p), 0) - a.reduce((s, p) => s + weight(p), 0),
+      );
+      const alloc = allocateProportional(
+        entries.map((g) => g.reduce((s, p) => s + weight(p), 0)),
+        activeInspectors,
+      );
       entries.forEach((g, i) => {
-        const remainingGroups = entries.length - i;
-        const want = Math.round((g.length / total) * activeInspectors) || 1;
-        const k = Math.max(1, Math.min(want, left - (remainingGroups - 1)));
-        left -= k;
-        clusters.push(...balancedKMeans(g, Math.max(1, k)));
+        if (alloc[i] <= 0) return;
+        clusters.push(...clusterBalanced(g, alloc[i], weight));
       });
-      clusters = clusters.map((c, i) => ({ ...c, index: i }));
+      clusters = clusters.filter((c) => c.points.length > 0).map((c, i) => ({ ...c, index: i }));
     } else {
-      clusters = balancedKMeans(points, activeInspectors);
+      clusters = clusterBalanced(points, activeInspectors, weight);
     }
 
     const result: InspectorPlan[] = clusters.map((c) => {
-      const dayBatches = splitIntoDays(c.points, days);
+      const dayBatches = splitIntoDaysBalanced(c.points, days, weight);
+
       return {
         index: c.index,
         color: CLUSTER_COLORS[c.index % CLUSTER_COLORS.length],

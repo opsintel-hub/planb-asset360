@@ -334,18 +334,28 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
     }
   }, [polyline, radiusMeters, ready, onPolylineChange, roadPolyline, showRadiusRings]);
 
-  // Render road (OSRM) polyline
+  // Render road (OSRM) polylines — one or many (coloured per day/person)
   useEffect(() => {
     const layer = roadLayerRef.current;
     if (!ready || !layer) return;
     layer.clearLayers();
-    if (!roadPolyline || roadPolyline.length < 2) return;
-    L.polyline(roadPolyline, {
-      color: "#1d4ed8",
-      weight: 5,
-      opacity: 0.9,
-    }).addTo(layer);
-  }, [roadPolyline, ready]);
+    const lines =
+      roadPolylines && roadPolylines.length
+        ? roadPolylines
+        : roadPolyline && roadPolyline.length > 1
+          ? [{ points: roadPolyline, color: "#1d4ed8" }]
+          : [];
+    for (const l of lines) {
+      if (!l.points || l.points.length < 2) continue;
+      const pl = L.polyline(l.points, {
+        color: l.color,
+        weight: 5,
+        opacity: 0.85,
+      }).addTo(layer);
+      if (l.label) pl.bindTooltip(l.label, { sticky: true });
+    }
+  }, [roadPolyline, roadPolylines, ready]);
+
 
   // Render origin marker
   useEffect(() => {

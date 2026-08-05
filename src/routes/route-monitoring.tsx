@@ -332,15 +332,62 @@ function RouteMonitoringPage() {
   }
 
 
+  // ---------- multi-day selection ----------
+  const selDays = useMemo(() => sel.filter((s) => s.d > 0), [sel]);
+  const primary = sel[0] ?? null;
+  const isSel = (i: number, d: number) => sel.some((s) => s.i === i && s.d === d);
+
+  function toggleDay(i: number, d: number) {
+    setSel((prev) => {
+      if (prev.some((s) => s.i === i && s.d === d))
+        return prev.filter((s) => !(s.i === i && s.d === d));
+      const next = prev.filter((s) => s.d > 0);
+      if (next.length >= MAX_ROUTE_DAYS) {
+        toast.info(`เลือกดูได้สูงสุด ${MAX_ROUTE_DAYS} วันพร้อมกัน`);
+        return prev;
+      }
+      return [...next, { i, d }];
+    });
+  }
+
+  function selectAllDays(i: number) {
+    const all = (plan?.[i]?.days ?? []).filter((d) => d.points.length > 0);
+    setSel((prev) => {
+      const others = prev.filter((s) => s.i !== i && s.d > 0);
+      const room = Math.max(0, MAX_ROUTE_DAYS - others.length);
+      if (all.length > room)
+        toast.info(`แสดงได้ ${room} วันแรกของคนที่ ${i + 1} (สูงสุด ${MAX_ROUTE_DAYS} วัน)`);
+      return [...others, ...all.slice(0, room).map((d) => ({ i, d: d.day }))];
+    });
+  }
+
+  /** Per-inspector base colour, lightened progressively per day. */
+  function colorOf(i: number, d: number): string | null {
+    const base = plan?.[i]?.color;
+    if (!base) return null;
+    if (d <= 0) return base;
+    const total = Math.max(1, plan?.[i]?.days.length ?? 1);
+    const t = total > 1 ? ((d - 1) / (total - 1)) * 0.55 : 0;
+    const num = parseInt(base.slice(1), 16);
+    const mix = (c: number) => Math.round(c + (255 - c) * t);
+    const r = mix((num >> 16) & 255);
+    const g = mix((num >> 8) & 255);
+    const b = mix(num & 255);
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+  }
+
   const shownAssets = useMemo(() => {
-    if (!plan || !selected) return filtered;
-    const p = plan[selected.i];
-    if (!p) return filtered;
-    const set = new Set(
-      (selected.d === 0 ? p.points : p.days[selected.d - 1]?.points ?? []).map((x) => x.id),
-    );
+    if (!plan || sel.length === 0) return filtered;
+    const set = new Set<string>();
+    for (const s of sel) {
+      const p = plan[s.i];
+      if (!p) continue;
+      for (const pt of s.d === 0 ? p.points : p.days[s.d - 1]?.points ?? []) set.add(pt.id);
+    }
+    if (set.size === 0) return filtered;
     return filtered.filter((a) => set.has(a.id));
-  }, [plan, selected, filtered]);
+  }, [plan, sel, filtered]);
+
 
   /** Media types actually present in the filtered scope — keeps overrides short. */
   const activeMediaTypes = useMemo(() => {

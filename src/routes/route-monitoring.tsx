@@ -576,42 +576,49 @@ function RouteMonitoringPage() {
 
   const fileBase = (planName.trim() || "route-plan").replace(/[^\w\u0E00-\u0E7F-]+/g, "_");
 
-  /** CSV of one day, the selected inspector, or the whole plan. */
+  /** CSV of the selected days, the first selected inspector, or the whole plan. */
   function exportCsv(scope: "day" | "inspector" | "all") {
     if (!plan) return;
     const sources: CsvDaySource[] = [];
     const push = (i: number, d: number, points: PlanPoint[]) => {
-      const key = `${planNonce}:${i}:${d}:${depotSig}`;
-      sources.push({ inspector: i + 1, day: d, points, route: routes[key] ?? null });
+      sources.push({ inspector: i + 1, day: d, points, route: routes[keyFor(i, d)] ?? null });
     };
-    if (scope === "day" && selected && selected.d > 0) {
-      const day = plan[selected.i]?.days[selected.d - 1];
-      if (day) push(selected.i, day.day, day.points);
-    } else if (scope === "inspector" && selected) {
-      for (const d of plan[selected.i]?.days ?? []) push(selected.i, d.day, d.points);
+    if (scope === "day" && selDays.length) {
+      for (const { i, d } of selDays) {
+        const day = plan[i]?.days[d - 1];
+        if (day) push(i, day.day, day.points);
+      }
+    } else if (scope === "inspector" && primary) {
+      for (const d of plan[primary.i]?.days ?? []) push(primary.i, d.day, d.points);
     } else {
       for (const p of plan) for (const d of p.days) push(p.index, d.day, d.points);
     }
     if (!sources.length) return;
     const suffix =
-      scope === "day" && selected
-        ? `-คนที่${selected.i + 1}-วันที่${selected.d}`
-        : scope === "inspector" && selected
-          ? `-คนที่${selected.i + 1}`
+      scope === "day" && selDays.length
+        ? selDays.length === 1
+          ? `-คนที่${selDays[0].i + 1}-วันที่${selDays[0].d}`
+          : `-${selDays.length}วันที่เลือก`
+        : scope === "inspector" && primary
+          ? `-คนที่${primary.i + 1}`
           : "-ทั้งแผน";
     downloadCsv(`${fileBase}${suffix}.csv`, buildPlanCsv(sources, minutesFor));
     toast.success("ดาวน์โหลด CSV แล้ว");
   }
 
   function exportDayGeo(kind: "gpx" | "kml") {
-    if (!plan || !selected || selected.d === 0) return;
-    const day = plan[selected.i]?.days[selected.d - 1];
-    if (!day) return;
-    const name = `${fileBase}-คนที่${selected.i + 1}-วันที่${selected.d}`;
-    if (kind === "gpx") downloadDayGpx(name, day.points, activeRoute);
-    else downloadDayKml(name, day.points, activeRoute);
+    if (!plan || selDays.length === 0) return;
+    for (const { i, d } of selDays) {
+      const day = plan[i]?.days[d - 1];
+      if (!day) continue;
+      const name = `${fileBase}-คนที่${i + 1}-วันที่${d}`;
+      const route = routes[keyFor(i, d)] ?? null;
+      if (kind === "gpx") downloadDayGpx(name, day.points, route);
+      else downloadDayKml(name, day.points, route);
+    }
     toast.success(`ดาวน์โหลด ${kind.toUpperCase()} แล้ว`);
   }
+
 
 
 

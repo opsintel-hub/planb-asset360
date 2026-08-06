@@ -582,6 +582,30 @@ function RouteMonitoringPage() {
     ? Math.max(0, ...plan.flatMap((p) => p.days.map((d) => d.hours)))
     : 0;
 
+  /** Dashboard aggregates: per-inspector totals and per-day totals. */
+  const maxTotalHours = plan
+    ? Math.max(0, ...plan.map((p) => p.days.reduce((n, d) => n + d.hours, 0)))
+    : 0;
+  const dayTotals = useMemo(() => {
+    if (!plan) return [] as Array<{ day: number; hours: number; assets: number; overDays: number }>;
+    const nDays = Math.max(0, ...plan.map((p) => p.days.length));
+    return Array.from({ length: nDays }, (_, k) => {
+      const day = k + 1;
+      let hours = 0;
+      let assets = 0;
+      let overDays = 0;
+      for (const p of plan) {
+        const d = p.days[k];
+        if (!d) continue;
+        hours += d.hours;
+        assets += d.points.length;
+        if (d.hours > dailyHours) overDays += 1;
+      }
+      return { day, hours, assets, overDays };
+    });
+  }, [plan, dailyHours]);
+  const maxDayTotal = Math.max(0, ...dayTotals.map((d) => d.hours));
+
 
 
   // ---------- Phase 3: real road routing (OSRM /trip + /route) ----------
@@ -1819,6 +1843,90 @@ function RouteMonitoringPage() {
 
 
           {plan && (
+            <div className="rounded-xl border bg-card p-4 space-y-4">
+              <div className="text-sm font-semibold flex flex-wrap items-center gap-2">
+                <BarChart3 className="size-4 text-primary" /> สรุปภาระงาน (คลิกเพื่อกรองบนแผนที่)
+                <span className="text-[11px] font-normal text-muted-foreground">
+                  เพดาน {dailyHours} ชม./วัน
+                </span>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* per inspector */}
+                <div className="space-y-1.5">
+                  <div className="text-xs font-medium text-muted-foreground">รายคน</div>
+                  {plan.map((p) => {
+                    const hours = p.days.reduce((n, d) => n + d.hours, 0);
+                    const cap = dailyHours * Math.max(1, p.days.length);
+                    const overPct = cap > 0 ? Math.max(0, (hours / cap - 1) * 100) : 0;
+                    const w = maxTotalHours > 0 ? (hours / maxTotalHours) * 100 : 0;
+                    return (
+                      <button
+                        key={p.index}
+                        onClick={() => selectAllDays(p.index)}
+                        className="w-full text-left group"
+                      >
+                        <div className="flex items-center gap-2 text-[11px]">
+                          <span className="w-16 shrink-0">คนที่ {p.index + 1}</span>
+                          <span className="flex-1 h-2.5 rounded-full bg-muted overflow-hidden">
+                            <span
+                              className="block h-full rounded-full transition-all group-hover:opacity-80"
+                              style={{ width: `${w}%`, background: p.color }}
+                            />
+                          </span>
+                          <span className="w-28 text-right tabular-nums shrink-0">
+                            {fmtHours(hours)}
+                            {overPct > 0 && (
+                              <span className="text-destructive"> · เกิน {overPct.toFixed(0)}%</span>
+                            )}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* per day */}
+                <div className="space-y-1.5">
+                  <div className="text-xs font-medium text-muted-foreground">รายวัน (ทุกคนรวม)</div>
+                  {dayTotals.map((t) => {
+                    const w = maxDayTotal > 0 ? (t.hours / maxDayTotal) * 100 : 0;
+                    const over = t.overDays;
+                    return (
+                      <button
+                        key={t.day}
+                        onClick={() =>
+                          setSel(
+                            plan
+                              .map((p) => ({ i: p.index, d: t.day }))
+                              .filter((x) => (plan[x.i]?.days[t.day - 1]?.points.length ?? 0) > 0)
+                              .slice(0, MAX_ROUTE_DAYS),
+                          )
+                        }
+                        className="w-full text-left group"
+                      >
+                        <div className="flex items-center gap-2 text-[11px]">
+                          <span className="w-16 shrink-0">วันที่ {t.day}</span>
+                          <span className="flex-1 h-2.5 rounded-full bg-muted overflow-hidden">
+                            <span
+                              className="block h-full rounded-full bg-primary transition-all group-hover:opacity-80"
+                              style={{ width: `${w}%` }}
+                            />
+                          </span>
+                          <span className="w-28 text-right tabular-nums shrink-0">
+                            {t.assets.toLocaleString()} ป้าย · {fmtHours(t.hours)}
+                            {over > 0 && <span className="text-destructive"> · เกิน {over} คน</span>}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {plan && (
             <div className="rounded-xl border bg-card overflow-hidden">
               <div className="px-4 py-2.5 border-b text-sm font-semibold flex flex-wrap items-center gap-2">
                 <RouteIcon className="size-4 text-primary" /> แผนงานต่อคน / ต่อวัน
@@ -1867,6 +1975,32 @@ function RouteMonitoringPage() {
                       >
                         ล้าง
                       </button>
+                      <div className="flex rounded-lg border overflow-hidden">
+                        {(
+                          [
+                            ["car", "รถ"],
+                            ["moto", "จยย."],
+                          ] as Array<[Vehicle, string]>
+                        ).map(([v, label]) => (
+                          <button
+                            key={v}
+                            onClick={() =>
+                              setVehicleBy((prev) => ({ ...prev, [p.index]: v }))
+                            }
+                            title={
+                              v === "moto"
+                                ? "มอเตอร์ไซค์ — เลี่ยงทางด่วน"
+                                : "รถยนต์ 4 ล้อ — ขึ้นทางด่วนได้"
+                            }
+                            className={cn(
+                              "h-7 px-2 text-[11px] hover:bg-accent",
+                              vehicleOf(p.index) === v && "bg-accent font-medium",
+                            )}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <div className="pl-6 mt-1 flex flex-wrap gap-1">
                       {provincesOf(p.points).slice(0, 6).map((pv) => (

@@ -2064,6 +2064,93 @@ function RouteMonitoringPage() {
 
         </div>
       </div>
+
+      {/* ---------- Mobile itinerary sheet ---------- */}
+      {itinerary.length > 0 && !mapFull && (
+        <>
+          <button
+            onClick={() => setSheetOpen(true)}
+            className="lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[900] h-10 px-4 rounded-full bg-primary text-primary-foreground text-sm font-semibold shadow-lg inline-flex items-center gap-2"
+          >
+            <ListOrdered className="size-4" /> ลำดับจุดแวะ ({itinerary.length})
+          </button>
+          {sheetOpen && (
+            <div className="lg:hidden fixed inset-0 z-[1000]" role="dialog" aria-modal="true">
+              <div className="absolute inset-0 bg-black/40" onClick={() => setSheetOpen(false)} />
+              <div className="absolute inset-x-0 bottom-0 max-h-[75vh] rounded-t-2xl border bg-card shadow-2xl flex flex-col">
+                <div className="px-4 py-3 border-b flex items-center gap-2">
+                  <ListOrdered className="size-4 text-primary" />
+                  <span className="text-sm font-semibold">ลำดับจุดแวะ</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {itinerary.length} จุด
+                  </span>
+                  <button
+                    onClick={() => setSheetOpen(false)}
+                    className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    ปิด
+                  </button>
+                </div>
+                <div className="overflow-auto divide-y">
+                  {itinerary.map((r) => (
+                    <button
+                      key={`${r.i}-${r.d}-${r.seq}-${r.id}`}
+                      onClick={() => {
+                        setFocus({ id: r.id, nonce: Date.now() });
+                        setSheetOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-accent/60"
+                    >
+                      <span
+                        className="size-6 shrink-0 rounded-full text-white text-[11px] font-bold grid place-items-center"
+                        style={{ background: r.color }}
+                      >
+                        {r.seq}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-medium truncate">{r.code}</span>
+                        <span className="block text-[11px] text-muted-foreground truncate">
+                          คนที่ {r.i + 1} · วันที่ {r.d}
+                          {r.media ? ` · ${r.media}` : ""}
+                        </span>
+                      </span>
+                      {r.legMeters > 0 && (
+                        <span className="text-[11px] text-muted-foreground tabular-nums text-right shrink-0">
+                          {fmtKm(r.legMeters)}
+                          <br />
+                          {fmtDuration(r.legSeconds)}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ---------- Routing-plan calculation backdrop ---------- */}
+      {calc && (
+        <div className="fixed inset-0 z-[1400] grid place-items-center bg-black/45 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-xl border bg-card shadow-2xl p-5">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Loader2 className="size-4 animate-spin text-primary" />
+              กำลังคำนวณเส้นทาง กรุณารอสักครู่…
+            </div>
+            <div className="mt-4 h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-200"
+                style={{ width: `${calc.pct}%` }}
+              />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground">{calc.label}</span>
+              <span className="tabular-nums font-medium">{calc.pct}%</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

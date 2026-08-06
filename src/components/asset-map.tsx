@@ -416,14 +416,43 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
           : [];
     for (const l of lines) {
       if (!l.points || l.points.length < 2) continue;
+      const opacity = l.opacity ?? 0.85;
       const pl = L.polyline(l.points, {
         color: l.color,
-        weight: 5,
-        opacity: 0.85,
+        weight: l.weight ?? 5,
+        opacity,
       }).addTo(layer);
       if (l.label) pl.bindTooltip(l.label, { sticky: true });
+      // Directional chevrons every ~Nth vertex so the driving direction is obvious.
+      if (l.arrows) {
+        const step = Math.max(6, Math.floor(l.points.length / 24));
+        for (let i = step; i < l.points.length - 1; i += step) {
+          const deg = bearing(l.points[i - 1], l.points[i + 1]);
+          L.marker(l.points[i], {
+            icon: arrowIcon(deg, l.color, Math.min(1, opacity + 0.15)),
+            interactive: false,
+          }).addTo(layer);
+        }
+      }
     }
   }, [roadPolyline, roadPolylines, ready]);
+
+  // Numbered stop markers (visit order)
+  useEffect(() => {
+    const layer = seqLayerRef.current;
+    if (!ready || !layer) return;
+    layer.clearLayers();
+    if (!seqMarkers || seqMarkers.length === 0) return;
+    for (const s of seqMarkers) {
+      const m = L.marker([s.lat, s.lng], {
+        icon: seqIcon(s.seq, s.color, assetOpacity),
+        zIndexOffset: 800,
+      });
+      if (s.label) m.bindTooltip(s.label, { direction: "top" });
+      m.addTo(layer);
+    }
+  }, [seqMarkers, assetOpacity, ready]);
+
 
 
   // Render origin marker

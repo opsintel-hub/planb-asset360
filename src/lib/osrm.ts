@@ -78,6 +78,7 @@ export async function osrmTrip(points: LatLng[], opts: {
   roundtrip?: boolean;
   fixedStart?: boolean;
   fixedEnd?: boolean;
+  exclude?: string | null;
 } = {}): Promise<OsrmTripResult> {
   if (points.length < 2) throw new Error("need at least 2 points");
   const coords = points.map(([lat, lng]) => `${lng},${lat}`).join(";");
@@ -88,6 +89,7 @@ export async function osrmTrip(points: LatLng[], opts: {
     source: opts.fixedStart ? "first" : "any",
     destination: opts.fixedEnd ? "last" : "any",
   });
+  if (opts.exclude) params.set("exclude", opts.exclude);
   const url = `${OSRM_BASE}/trip/v1/driving/${coords}?${params.toString()}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`OSRM trip failed: ${res.status}`);

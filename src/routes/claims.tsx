@@ -300,7 +300,34 @@ function ClaimsPage() {
                       <td className="px-4 py-3 whitespace-nowrap">{c.status ?? "—"}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">{ageDays != null ? `${ageDays} วัน` : "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap"><Badge tone={tone}>{c.sla_status ?? "—"}</Badge></td>
-                      <td className="px-4 py-3 align-middle w-[200px] max-w-[200px]">
+                      <td className="px-4 py-3 align-middle w-[220px] max-w-[220px]">
+                        {c.remark_ticket ? (
+                          <HoverCard openDelay={120} closeDelay={80}>
+                            <HoverCardTrigger asChild>
+                              <button
+                                type="button"
+                                className="flex w-full max-w-full items-start gap-1.5 rounded-md px-1.5 py-1 text-left text-[12px] leading-snug hover:bg-accent/50 transition"
+                                title="ดู Remark เต็ม"
+                              >
+                                <MessageSquareText className="size-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+                                <span className="line-clamp-2 min-w-0 flex-1">{c.remark_ticket}</span>
+                              </button>
+                            </HoverCardTrigger>
+                            <HoverCardContent side="left" align="start" className="w-96 max-h-80 overflow-y-auto">
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+                                <MessageSquareText className="size-3.5" />
+                                Remark Ticket
+                              </div>
+                              <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                                {c.remark_ticket}
+                              </div>
+                            </HoverCardContent>
+                          </HoverCard>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 align-middle w-[180px] max-w-[180px]">
                         {c.next_step ? (
                           <HoverCard openDelay={120} closeDelay={80}>
                             <HoverCardTrigger asChild>

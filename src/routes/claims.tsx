@@ -165,7 +165,20 @@ function ClaimsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Claim Aging" subtitle="Snapshot ตั๋วเคลมที่ยังเปิดอยู่ (1 Ticket = 1 แถว) Auto-Sync ทุก 15 นาที จาก /Ticket/RemainingClaimTickets" />
+      <PageHeader
+        title="Claim Aging"
+        subtitle="Snapshot ตั๋วเคลมที่ยังเปิดอยู่ (1 Ticket = 1 แถว) Auto-Sync ทุก 15 นาที จาก /Ticket/RemainingClaimTickets"
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => syncMut.mutate()}
+            disabled={syncMut.isPending || isFetching}
+          >
+            <RefreshCw className={"size-4 mr-2 " + (syncMut.isPending || isFetching ? "animate-spin" : "")} />
+            {syncMut.isPending ? "กำลัง Sync..." : "Sync / รีเฟรช"}
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard label="Claim ทั้งหมด" value={String(allClaims.length)} tone="warning" icon={<Wrench className="size-5" />} />

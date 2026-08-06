@@ -545,6 +545,7 @@ export const listClaims = createServerFn({ method: "POST" })
         status: c.status,
         asset_status: assetStatus,
         payload: c.payload,
+        remark_ticket: remarkTicket,
         next_step: ns?.note ?? null,
         next_step_by: ns?.updated_by_name ?? null,
         next_step_at: ns?.updated_at ?? null,

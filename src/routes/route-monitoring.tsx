@@ -1054,12 +1054,52 @@ function RouteMonitoringPage() {
               ค่าเริ่มต้น {minutesPerAsset} นาที/ป้าย · ความเร็วเฉลี่ย {speedKmh} กม./ชม. ·
               เพดาน {dailyHours} ชม./วัน
             </div>
+            <div className="space-y-2 pt-1 border-t">
+              <div className="text-xs font-medium">ตัวเลือกเส้นทาง (Routing Options)</div>
+              <div className="grid grid-cols-2 gap-1">
+                {([["car", "รถยนต์ 4 ล้อ"], ["moto", "มอเตอร์ไซค์"]] as Array<[Vehicle, string]>).map(
+                  ([v, label]) => (
+                    <button
+                      key={v}
+                      onClick={() => setDefaultVehicle(v)}
+                      className={cn(
+                        "h-8 rounded-lg border text-[11px] hover:bg-accent",
+                        defaultVehicle === v && "border-primary bg-accent font-medium",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ),
+                )}
+              </div>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={avoidTolls}
+                  onChange={(e) => setAvoidTolls(e.target.checked)}
+                  className="size-4"
+                />
+                <span>ไม่ขึ้นทางด่วน / เลี่ยงทางมีค่าผ่านทาง (Avoid Tolls)</span>
+              </label>
+              <div className="text-[11px] text-muted-foreground">
+                ทีมมอเตอร์ไซค์จะเลี่ยงทางด่วนอัตโนมัติ · ตั้งรายคนได้ที่การ์ด “แผนงานต่อคน”
+                ด้านล่าง
+              </div>
+            </div>
             <button
-              onClick={run}
-              disabled={filtered.length === 0}
+              onClick={() => void run()}
+              disabled={filtered.length === 0 || calc !== null}
               className="w-full h-10 rounded-lg bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90 transition"
             >
-              <Play className="size-4" /> Run Routing Plan
+              {calc ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> กำลังคำนวณเส้นทาง…
+                </>
+              ) : (
+                <>
+                  <Play className="size-4" /> Run Routing Plan
+                </>
+              )}
             </button>
           </div>
 
@@ -1444,6 +1484,13 @@ function RouteMonitoringPage() {
                 </button>
               )}
               <button
+                onClick={() => setStyleOpen((v) => !v)}
+                title="ปรับแต่งสี/เลเยอร์แผนที่"
+                className="inline-flex items-center gap-1 rounded-lg border bg-card/95 backdrop-blur px-2 py-1 text-[11px] shadow hover:bg-accent"
+              >
+                <SlidersHorizontal className="size-3.5" /> สไตล์/เลเยอร์
+              </button>
+              <button
                 onClick={() => setMapFull((v) => !v)}
                 title={mapFull ? "ออกจากเต็มหน้าจอ (Esc)" : "เต็มหน้าจอ"}
                 className="inline-flex items-center gap-1 rounded-lg border bg-card/95 backdrop-blur px-2 py-1 text-[11px] shadow hover:bg-accent"
@@ -1452,6 +1499,148 @@ function RouteMonitoringPage() {
                 {mapFull ? "ย่อลง" : "เต็มหน้าจอ"}
               </button>
             </div>
+
+            {styleOpen && (
+              <div className="absolute right-2 top-11 z-[650] w-72 max-h-[70%] overflow-auto rounded-xl border bg-card/98 backdrop-blur p-3 space-y-3 shadow-xl text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">ปรับแต่งแผนที่</span>
+                  <button
+                    onClick={() => setStyleOpen(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    ปิด
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="font-medium">เส้นทาง (Route)</div>
+                  <label className="flex items-center justify-between gap-2">
+                    <span>ความทึบแสง</span>
+                    <input
+                      type="range"
+                      min={0.2}
+                      max={1}
+                      step={0.05}
+                      value={routeOpacity}
+                      onChange={(e) => setRouteOpacity(Number(e.target.value))}
+                      className="w-32"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2">
+                    <span>ความหนาเส้น</span>
+                    <input
+                      type="range"
+                      min={2}
+                      max={10}
+                      step={1}
+                      value={routeWeight}
+                      onChange={(e) => setRouteWeight(Number(e.target.value))}
+                      className="w-32"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showArrows}
+                      onChange={(e) => setShowArrows(e.target.checked)}
+                      className="size-4"
+                    />
+                    <span>แสดงลูกศรทิศทาง</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showSeq}
+                      onChange={(e) => setShowSeq(e.target.checked)}
+                      className="size-4"
+                    />
+                    <span>แสดงตัวเลขลำดับจุดแวะ</span>
+                  </label>
+                </div>
+
+                <div className="space-y-1.5 pt-2 border-t">
+                  <div className="font-medium">หมุดป้าย (Pin)</div>
+                  <label className="flex items-center justify-between gap-2">
+                    <span>ความทึบแสง</span>
+                    <input
+                      type="range"
+                      min={0.2}
+                      max={1}
+                      step={0.05}
+                      value={pinOpacity}
+                      onChange={(e) => setPinOpacity(Number(e.target.value))}
+                      className="w-32"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2">
+                    <span>สีหมุด</span>
+                    <span className="flex items-center gap-1.5">
+                      <input
+                        type="color"
+                        value={pinColor ?? "#1d4ed8"}
+                        onChange={(e) => setPinColor(e.target.value)}
+                        className="h-6 w-10 rounded border bg-transparent"
+                      />
+                      <button
+                        onClick={() => setPinColor(null)}
+                        className="rounded border px-1.5 py-0.5 hover:bg-accent"
+                      >
+                        ตามโปรเจกต์
+                      </button>
+                    </span>
+                  </label>
+                </div>
+
+                {plan && selDays.length > 0 && (
+                  <div className="space-y-1.5 pt-2 border-t">
+                    <div className="font-medium">เลเยอร์ (ซ่อน/แสดง)</div>
+                    <div className="text-[11px] text-muted-foreground">รายคน</div>
+                    <div className="flex flex-wrap gap-1">
+                      {Array.from(new Set(selDays.map((x) => x.i))).sort((a, b) => a - b).map((i) => (
+                        <button
+                          key={i}
+                          onClick={() => setHiddenInspectors((prev) => toggleIn(prev, i))}
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[11px] hover:bg-accent",
+                            hiddenInspectors.includes(i)
+                              ? "opacity-40 line-through"
+                              : "border-primary",
+                          )}
+                        >
+                          คนที่ {i + 1}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">รายวัน</div>
+                    <div className="flex flex-wrap gap-1">
+                      {Array.from(new Set(selDays.map((x) => x.d))).sort((a, b) => a - b).map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setHiddenDays((prev) => toggleIn(prev, d))}
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[11px] hover:bg-accent",
+                            hiddenDays.includes(d) ? "opacity-40 line-through" : "border-primary",
+                          )}
+                        >
+                          วันที่ {d}
+                        </button>
+                      ))}
+                    </div>
+                    {(hiddenInspectors.length > 0 || hiddenDays.length > 0) && (
+                      <button
+                        onClick={() => {
+                          setHiddenInspectors([]);
+                          setHiddenDays([]);
+                        }}
+                        className="rounded border px-2 py-0.5 hover:bg-accent"
+                      >
+                        แสดงทั้งหมด
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <ClientOnly fallback={<Skeleton className="h-full w-full" />}>
               <Suspense fallback={<Skeleton className="h-full w-full" />}>
                 <AssetMap
@@ -1460,6 +1649,9 @@ function RouteMonitoringPage() {
                   claimedCodes={new Set<string>()}
                   showRadiusRings={false}
                   roadPolylines={roadPolylines}
+                  seqMarkers={seqMarkers}
+                  assetOpacity={pinOpacity}
+                  assetColor={pinColor}
                   origin={
                     startMode !== "centroid" && startPoint
                       ? startPoint

@@ -266,7 +266,8 @@ function ClaimsPage() {
                   <th className="text-left font-medium px-4 py-3 whitespace-nowrap">สถานะ Ticket</th>
                   <th className="text-right font-medium px-4 py-3 whitespace-nowrap">อายุงาน</th>
                   <th className="text-left font-medium px-4 py-3 whitespace-nowrap">SLA</th>
-                  <th className="text-left font-medium px-4 py-3 w-[200px]">Next Step</th>
+                  <th className="text-left font-medium px-4 py-3 w-[220px]">Remark Ticket</th>
+                  <th className="text-left font-medium px-4 py-3 w-[180px]">Next Step</th>
                 </tr>
               </thead>
               <tbody className="divide-y">

@@ -128,7 +128,28 @@ type Props = {
   // Phase 3 additions:
   roadPolyline?: LatLng[] | null; // actual road-following route (from OSRM)
   /** Multiple coloured routes drawn at once (Route Monitoring: many days/people). */
-  roadPolylines?: Array<{ points: LatLng[]; color: string; label?: string }> | null;
+  roadPolylines?: Array<{
+    points: LatLng[];
+    color: string;
+    label?: string;
+    opacity?: number;
+    weight?: number;
+    /** draw directional chevrons along the line */
+    arrows?: boolean;
+  }> | null;
+  /** Numbered stop markers (visit order) drawn above the routes. */
+  seqMarkers?: Array<{
+    id?: string;
+    lat: number;
+    lng: number;
+    seq: number;
+    color: string;
+    label?: string;
+  }> | null;
+  /** Opacity applied to every asset pin (map style settings). */
+  assetOpacity?: number;
+  /** Overrides the per-project pin colour when set. */
+  assetColor?: string | null;
   origin?: { lat: number; lng: number; name?: string } | null;
   onOriginPick?: (lat: number, lng: number) => void; // when originPickMode is on and user clicks map
   originPickMode?: boolean;

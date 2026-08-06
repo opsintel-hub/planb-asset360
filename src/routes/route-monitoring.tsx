@@ -200,12 +200,21 @@ function MultiSelect({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-56 p-2 max-h-72 overflow-auto">
+        <label className="flex items-center gap-2 text-xs px-2 py-1.5 rounded hover:bg-accent cursor-pointer font-medium">
+          <input
+            type="checkbox"
+            checked={value.length === 0 || value.length === options.length}
+            onChange={(e) => onChange(e.target.checked ? [] : options.slice(0, 1))}
+          />
+          <span>All (ทั้งหมด)</span>
+        </label>
         <button
-          className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-accent"
+          className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-accent text-muted-foreground"
           onClick={() => onChange([])}
         >
           ล้างตัวเลือก
         </button>
+
         {options.map((o) => {
           const on = value.includes(o);
           return (

@@ -74,6 +74,35 @@ function waypointIcon(index: number): L.DivIcon {
   return L.divIcon({ html, className: "wp-pin", iconSize: [26, 26], iconAnchor: [13, 13] });
 }
 
+/** Small numbered badge used for route stop order (1, 2, 3 …). */
+function seqIcon(seq: number, color: string, opacity: number): L.DivIcon {
+  const size = seq > 99 ? 26 : 22;
+  const html = `
+    <div style="width:${size}px;height:${size}px;border-radius:9999px;background:${color};color:#fff;
+      border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);opacity:${opacity};
+      display:grid;place-items:center;font-size:${seq > 99 ? 9 : 11}px;font-weight:800;line-height:1;">${seq}</div>`;
+  return L.divIcon({ html, className: "seq-pin", iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+}
+
+/** Rotated chevron marker used to show driving direction along a route. */
+function arrowIcon(deg: number, color: string, opacity: number): L.DivIcon {
+  const html = `
+    <div style="width:16px;height:16px;transform:rotate(${deg}deg);opacity:${opacity};">
+      <svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 1l5 12-5-3-5 3z" fill="${color}" stroke="#fff" stroke-width="1"/></svg>
+    </div>`;
+  return L.divIcon({ html, className: "arrow-pin", iconSize: [16, 16], iconAnchor: [8, 8] });
+}
+
+function bearing(a: LatLng, b: LatLng): number {
+  const toRad = Math.PI / 180;
+  const y = Math.sin((b[1] - a[1]) * toRad) * Math.cos(b[0] * toRad);
+  const x =
+    Math.cos(a[0] * toRad) * Math.sin(b[0] * toRad) -
+    Math.sin(a[0] * toRad) * Math.cos(b[0] * toRad) * Math.cos((b[1] - a[1]) * toRad);
+  return (Math.atan2(y, x) * 180) / Math.PI;
+}
+
+
 type LatLng = [number, number];
 
 export type PoiMarker = {

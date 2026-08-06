@@ -49,10 +49,13 @@ export type OsrmRouteResult = {
 };
 
 // Fetch a driving route through the given waypoints in the given order.
-export async function osrmRoute(points: LatLng[]): Promise<OsrmRouteResult> {
+// `exclude` maps to the OSRM car profile excludable classes: "motorway" | "toll" | "ferry".
+export async function osrmRoute(points: LatLng[], exclude?: string | null): Promise<OsrmRouteResult> {
   if (points.length < 2) throw new Error("need at least 2 points");
   const coords = points.map(([lat, lng]) => `${lng},${lat}`).join(";");
-  const url = `${OSRM_BASE}/route/v1/driving/${coords}?overview=full&geometries=polyline`;
+  const q = new URLSearchParams({ overview: "full", geometries: "polyline" });
+  if (exclude) q.set("exclude", exclude);
+  const url = `${OSRM_BASE}/route/v1/driving/${coords}?${q.toString()}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`OSRM route failed: ${res.status}`);
   const j = await res.json();

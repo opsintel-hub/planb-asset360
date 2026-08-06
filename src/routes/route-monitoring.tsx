@@ -316,11 +316,28 @@ function RouteMonitoringPage() {
     [allAssets],
   );
 
+  // Media list follows the Project filter: only media types present in those projects.
   const mediaOptions = useMemo(() => {
+    const projSet = new Set(fProjects);
     const s = new Set<string>();
-    for (const a of allAssets) if (a.media_type) s.add(a.media_type);
+    for (const a of allAssets) {
+      if (!a.media_type) continue;
+      if (projSet.size) {
+        const p = projectForDepartment(a.department);
+        if (!p || !projSet.has(p)) continue;
+      }
+      s.add(a.media_type);
+    }
     return Array.from(s).sort();
-  }, [allAssets]);
+  }, [allAssets, fProjects]);
+  // Drop media selections that no longer exist in the chosen projects.
+  useEffect(() => {
+    setFMedias((prev) => {
+      const next = prev.filter((m) => mediaOptions.includes(m));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [mediaOptions]);
+
   const projectOptions = useMemo(() => Object.keys(PROJECT_TO_DEPARTMENTS).sort(), []);
   const regionOptions = useMemo(() => REGION_ORDER.map((r) => REGION_LABELS[r]), []);
   // Province list is locked to the chosen regions and to provinces that have assets.

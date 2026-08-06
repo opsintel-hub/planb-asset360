@@ -193,6 +193,19 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
     },
   }), []);
 
+  // Keep Leaflet in sync when the container is resized (expand/collapse/fullscreen).
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      mapRef.current?.invalidateSize();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+
+
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current, {

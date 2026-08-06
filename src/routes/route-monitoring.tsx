@@ -97,7 +97,83 @@ const DEFAULT_DAILY_HOURS = 8;
 /** Hard cap on stops routed per day (keeps the free OSRM demo happy). */
 const MAX_ROUTE_STOPS = 200;
 /** Cap on how many day-routes may be drawn/computed at once. */
-const MAX_ROUTE_DAYS = 8;
+const MAX_ROUTE_DAYS = 30;
+
+/** Human-friendly hours: 1.5 -> "1 ชม. 30 นาที", 0.75 -> "45 นาที". */
+function fmtHours(hours: number): string {
+  const mins = Math.round((Number.isFinite(hours) ? hours : 0) * 60);
+  if (mins < 60) return `${mins} นาที`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h} ชม.` : `${h} ชม. ${m} นาที`;
+}
+
+/** Number field that allows free typing; clamps on blur/Enter only. */
+function NumField({
+  value,
+  min,
+  max,
+  step = 1,
+  onCommit,
+  className,
+  placeholder,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  onCommit: (v: number) => void;
+  className?: string;
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = useState<string>(String(value));
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setDraft(String(value));
+  }, [value, editing]);
+  const commit = () => {
+    setEditing(false);
+    const n = Number(draft);
+    if (!Number.isFinite(n) || draft.trim() === "") {
+      setDraft(String(value));
+      return;
+    }
+    const clamped = Math.min(max, Math.max(min, n));
+    setDraft(String(clamped));
+    if (clamped !== value) onCommit(clamped);
+  };
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={max}
+      step={step}
+      value={draft}
+      placeholder={placeholder}
+      onFocus={(e) => {
+        setEditing(true);
+        e.currentTarget.select();
+      }}
+      onChange={(e) => {
+        setEditing(true);
+        setDraft(e.target.value);
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+          e.currentTarget.blur();
+        }
+      }}
+      className={
+        className ?? "h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
+      }
+    />
+  );
+}
+
 
 type Depot = { lat: number; lng: number; name: string };
 type StartMode = "centroid" | "saved" | "pin";
@@ -124,12 +200,21 @@ function MultiSelect({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-56 p-2 max-h-72 overflow-auto">
+        <label className="flex items-center gap-2 text-xs px-2 py-1.5 rounded hover:bg-accent cursor-pointer font-medium">
+          <input
+            type="checkbox"
+            checked={value.length === 0 || value.length === options.length}
+            onChange={(e) => onChange(e.target.checked ? [] : options.slice(0, 1))}
+          />
+          <span>All (ทั้งหมด)</span>
+        </label>
         <button
-          className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-accent"
+          className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-accent text-muted-foreground"
           onClick={() => onChange([])}
         >
           ล้างตัวเลือก
         </button>
+
         {options.map((o) => {
           const on = value.includes(o);
           return (
@@ -231,11 +316,28 @@ function RouteMonitoringPage() {
     [allAssets],
   );
 
+  // Media list follows the Project filter: only media types present in those projects.
   const mediaOptions = useMemo(() => {
+    const projSet = new Set(fProjects);
     const s = new Set<string>();
-    for (const a of allAssets) if (a.media_type) s.add(a.media_type);
+    for (const a of allAssets) {
+      if (!a.media_type) continue;
+      if (projSet.size) {
+        const p = projectForDepartment(a.department);
+        if (!p || !projSet.has(p)) continue;
+      }
+      s.add(a.media_type);
+    }
     return Array.from(s).sort();
-  }, [allAssets]);
+  }, [allAssets, fProjects]);
+  // Drop media selections that no longer exist in the chosen projects.
+  useEffect(() => {
+    setFMedias((prev) => {
+      const next = prev.filter((m) => mediaOptions.includes(m));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [mediaOptions]);
+
   const projectOptions = useMemo(() => Object.keys(PROJECT_TO_DEPARTMENTS).sort(), []);
   const regionOptions = useMemo(() => REGION_ORDER.map((r) => REGION_LABELS[r]), []);
   // Province list is locked to the chosen regions and to provinces that have assets.
@@ -751,27 +853,13 @@ function RouteMonitoringPage() {
               <span className="flex items-center gap-2">
                 <Users className="size-4 text-muted-foreground" /> จำนวนพนักงาน
               </span>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={inspectors}
-                onChange={(e) => setInspectors(Math.max(1, Number(e.target.value) || 1))}
-                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
-              />
+              <NumField value={inspectors} min={1} max={50} onCommit={setInspectors} />
             </label>
             <label className="flex items-center justify-between gap-3 text-sm">
               <span className="flex items-center gap-2">
                 <CalendarDays className="size-4 text-muted-foreground" /> กรอบเวลา (วัน)
               </span>
-              <input
-                type="number"
-                min={1}
-                max={30}
-                value={days}
-                onChange={(e) => setDays(Math.max(1, Number(e.target.value) || 1))}
-                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
-              />
+              <NumField value={days} min={1} max={30} onCommit={setDays} />
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -786,13 +874,11 @@ function RouteMonitoringPage() {
             {emergency && (
               <label className="flex items-center justify-between gap-3 text-sm pl-6">
                 <span>จำนวนคนลา</span>
-                <input
-                  type="number"
+                <NumField
+                  value={absent}
                   min={1}
                   max={Math.max(1, inspectors - 1)}
-                  value={absent}
-                  onChange={(e) => setAbsent(Math.max(1, Number(e.target.value) || 1))}
-                  className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
+                  onCommit={setAbsent}
                 />
               </label>
             )}
@@ -949,36 +1035,15 @@ function RouteMonitoringPage() {
             </div>
             <label className="flex items-center justify-between gap-3 text-sm">
               <span>เวลาเฉลี่ย/ป้าย (นาที)</span>
-              <input
-                type="number"
-                min={1}
-                max={480}
-                value={minutesPerAsset}
-                onChange={(e) => setMinutesPerAsset(Math.max(1, Number(e.target.value) || 1))}
-                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
-              />
+              <NumField value={minutesPerAsset} min={1} max={480} onCommit={setMinutesPerAsset} />
             </label>
             <label className="flex items-center justify-between gap-3 text-sm">
               <span>ความเร็วเฉลี่ย (กม./ชม.)</span>
-              <input
-                type="number"
-                min={5}
-                max={120}
-                value={speedKmh}
-                onChange={(e) => setSpeedKmh(Math.max(5, Number(e.target.value) || 5))}
-                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
-              />
+              <NumField value={speedKmh} min={5} max={120} step={5} onCommit={setSpeedKmh} />
             </label>
             <label className="flex items-center justify-between gap-3 text-sm">
               <span>เพดานชั่วโมงงาน/วัน</span>
-              <input
-                type="number"
-                min={1}
-                max={24}
-                value={dailyHours}
-                onChange={(e) => setDailyHours(Math.max(1, Number(e.target.value) || 1))}
-                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
-              />
+              <NumField value={dailyHours} min={1} max={24} onCommit={setDailyHours} />
             </label>
             {activeMediaTypes.length > 0 && (
               <div className="space-y-1.5">
@@ -1035,7 +1100,7 @@ function RouteMonitoringPage() {
                   maxHours > dailyHours ? "text-destructive font-semibold" : "text-muted-foreground",
                 )}
               >
-                ชั่วโมงงานสูงสุด/วัน: {maxHours.toFixed(1)} ชม.
+                ชั่วโมงงานสูงสุด/วัน: {fmtHours(maxHours)}
                 {maxHours > dailyHours &&
                   ` (เกิน ${dailyHours} ชม. — พิจารณาเพิ่มคนหรือขยายวัน)`}
               </div>
@@ -1270,8 +1335,8 @@ function RouteMonitoringPage() {
                           )}
                         >
                           {route.stops.length} จุด · {fmtKm(route.totalMeters)} · ขับ{" "}
-                          {fmtDuration(route.totalSeconds)} · เวลาตรวจ {onSite.toFixed(1)} ชม. ·
-                          รวม {total.toFixed(1)}/{dailyHours} ชม.
+                          {fmtDuration(route.totalSeconds)} · เวลาตรวจ {fmtHours(onSite)} ·
+                          รวม {fmtHours(total)} / {dailyHours} ชม.
                           {route.returnMeters > 0 && ` · ขากลับ ${fmtKm(route.returnMeters)}`}
                           {route.approximate && " · (ประมาณการ)"}
                         </span>
@@ -1462,7 +1527,7 @@ function RouteMonitoringPage() {
                               )}
                             >
                               {d.points.length} ป้าย · ~{(d.meters / 1000).toFixed(1)} กม. ·{" "}
-                              {d.hours.toFixed(1)} ชม.
+                              {fmtHours(d.hours)}
                             </div>
                           </button>
                         );

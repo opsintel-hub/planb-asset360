@@ -103,6 +103,8 @@ const MAX_ROUTE_STOPS = 200;
 /** Cap on how many day-routes may be drawn/computed at once. */
 const MAX_ROUTE_DAYS = 30;
 
+type Vehicle = "car" | "moto";
+
 /** Human-friendly hours: 1.5 -> "1 ชม. 30 นาที", 0.75 -> "45 นาที". */
 function fmtHours(hours: number): string {
   const mins = Math.round((Number.isFinite(hours) ? hours : 0) * 60);
@@ -291,6 +293,42 @@ function RouteMonitoringPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [mapFull]);
 
+  // ---- routing options (vehicle / avoid tolls & expressways) ----
+  const [defaultVehicle, setDefaultVehicle] = useState<Vehicle>("car");
+  const [avoidTolls, setAvoidTolls] = useState(false);
+  const [vehicleBy, setVehicleBy] = useState<Record<number, Vehicle>>({});
+  const vehicleOf = (i: number): Vehicle => vehicleBy[i] ?? defaultVehicle;
+  /** OSRM exclude class for one inspector: มอเตอร์ไซค์ห้ามขึ้นทางด่วน. */
+  function excludeFor(i: number): string | null {
+    if (vehicleOf(i) === "moto") return "motorway";
+    return avoidTolls ? "toll" : null;
+  }
+  const vehicleSig = `${defaultVehicle}:${avoidTolls ? 1 : 0}:${Object.entries(vehicleBy)
+    .sort()
+    .map(([k, v]) => `${k}${v}`)
+    .join(",")}`;
+
+  // ---- map style + layer control ----
+  const [routeOpacity, setRouteOpacity] = useState(0.85);
+  const [routeWeight, setRouteWeight] = useState(5);
+  const [showArrows, setShowArrows] = useState(true);
+  const [showSeq, setShowSeq] = useState(true);
+  const [pinOpacity, setPinOpacity] = useState(1);
+  const [pinColor, setPinColor] = useState<string | null>(null);
+  const [styleOpen, setStyleOpen] = useState(false);
+  const [hiddenInspectors, setHiddenInspectors] = useState<number[]>([]);
+  const [hiddenDays, setHiddenDays] = useState<number[]>([]);
+  const isVisible = (i: number, d: number) =>
+    !hiddenInspectors.includes(i) && !hiddenDays.includes(d);
+  const toggleIn = (arr: number[], v: number) =>
+    arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
+
+  // ---- routing-plan calculation progress ----
+  const [calc, setCalc] = useState<{ pct: number; label: string } | null>(null);
+
+  // ---- mobile itinerary sheet ----
+  const [sheetOpen, setSheetOpen] = useState(false);
+
   // ---- depot (start / end of each day) ----
   const [startMode, setStartMode] = useState<StartMode>("centroid");
   const [startPoint, setStartPoint] = useState<Depot | null>(null);
@@ -383,7 +421,15 @@ function RouteMonitoringPage() {
 
   const activeInspectors = Math.max(1, inspectors - (emergency ? absent : 0));
 
-  function run() {
+  const tick = (pct: number, label: string) =>
+    new Promise<void>((resolve) => {
+      setCalc({ pct, label });
+      setTimeout(resolve, 30);
+    });
+
+  async function run() {
+    if (calc) return;
+    await tick(8, "รวบรวมป้ายตามตัวกรอง");
     const points: PlanPoint[] = filtered.map((a) => ({
       id: a.id,
       code: a.old_code ?? a.id,
@@ -400,6 +446,7 @@ function RouteMonitoringPage() {
 
     // Long-haul trips are the default: clustering may cross provinces freely.
     // "lockProvince" instead allocates staff per province so no zone straddles a border.
+    await tick(30, "แบ่งโซนตามภาระงาน (คน)");
     let clusters = [] as ReturnType<typeof clusterBalanced>;
     if (lockProvince) {
       const groups = new Map<string, PlanPoint[]>();
@@ -426,6 +473,7 @@ function RouteMonitoringPage() {
       clusters = clusterBalanced(points, activeInspectors, weight);
     }
 
+    await tick(65, "แบ่งงานเป็นรายวัน");
     const result: InspectorPlan[] = clusters.map((c) => {
       const dayBatches = splitIntoDaysBalanced(c.points, days, weight);
 
@@ -447,11 +495,16 @@ function RouteMonitoringPage() {
         }),
       };
     });
+    await tick(92, "จัดลำดับและสรุปผล");
     setPlan(result);
     setSel([]);
     setRoutes({});
     setFocus(null);
+    setHiddenInspectors([]);
+    setHiddenDays([]);
     setPlanNonce((n) => n + 1);
+    await tick(100, "เสร็จสิ้น");
+    setCalc(null);
   }
 
   function provincesOf(pts: PlanPoint[]) {
@@ -548,7 +601,7 @@ function RouteMonitoringPage() {
   // Depot + time settings are part of the cache key so changing them recomputes.
   const depotSig = `${startMode}:${startPoint?.lat ?? ""},${startPoint?.lng ?? ""}:${endMode}:${endPoint?.lat ?? ""},${endPoint?.lng ?? ""}`;
   function keyFor(i: number, d: number) {
-    return `${planNonce}:${i}:${d}:${depotSig}`;
+    return `${planNonce}:${i}:${d}:${depotSig}:${vehicleSig}`;
   }
 
   async function computeRoute(i: number, d: number, force = false) {
@@ -563,7 +616,7 @@ function RouteMonitoringPage() {
       // Cap requests to the public OSRM server: route the first MAX_ROUTE_STOPS
       // stops of the day so a huge day never floods it.
       const pts = day.points.slice(0, MAX_ROUTE_STOPS);
-      const r = await computeDayRoute(pts, startFor(i), endFor(i));
+      const r = await computeDayRoute(pts, startFor(i), endFor(i), excludeFor(i));
       setRoutes((prev) => ({ ...prev, [key]: r }));
     } finally {
       setRoutingKey((k) => (k === key ? null : k));
@@ -578,23 +631,119 @@ function RouteMonitoringPage() {
     const t = setTimeout(() => void computeRoute(nextPending.i, nextPending.d), 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextPending?.i, nextPending?.d, routingKey]);
+  }, [nextPending?.i, nextPending?.d, routingKey, vehicleSig]);
 
   /** One coloured polyline per selected day. */
   const roadPolylines = useMemo(() => {
-    const out: Array<{ points: LatLng[]; color: string; label: string }> = [];
+    const out: Array<{
+      points: LatLng[];
+      color: string;
+      label: string;
+      opacity: number;
+      weight: number;
+      arrows: boolean;
+    }> = [];
     for (const { i, d } of selDays) {
+      if (!isVisible(i, d)) continue;
       const r = routes[keyFor(i, d)];
       if (!r || r.geometry.length < 2) continue;
       out.push({
         points: r.geometry,
         color: colorOf(i, d) ?? "#1d4ed8",
         label: `คนที่ ${i + 1} · วันที่ ${d} · ${fmtKm(r.totalMeters)}`,
+        opacity: routeOpacity,
+        weight: routeWeight,
+        arrows: showArrows,
       });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selDays, routes, planNonce, depotSig, plan]);
+  }, [
+    selDays,
+    routes,
+    planNonce,
+    depotSig,
+    vehicleSig,
+    plan,
+    routeOpacity,
+    routeWeight,
+    showArrows,
+    hiddenInspectors,
+    hiddenDays,
+  ]);
+
+  /** Numbered stop markers for the visible selected days. */
+  const seqMarkers = useMemo(() => {
+    if (!showSeq) return [];
+    const out: Array<{ lat: number; lng: number; seq: number; color: string; label: string }> = [];
+    for (const { i, d } of selDays) {
+      if (!isVisible(i, d)) continue;
+      const r = routes[keyFor(i, d)];
+      if (!r) continue;
+      const color = colorOf(i, d) ?? "#1d4ed8";
+      for (const s2 of r.stops) {
+        out.push({
+          lat: s2.point.lat,
+          lng: s2.point.lng,
+          seq: s2.seq,
+          color,
+          label: `#${s2.seq} ${s2.point.code} · คนที่ ${i + 1} วันที่ ${d}`,
+        });
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selDays, routes, planNonce, depotSig, vehicleSig, plan, showSeq, hiddenInspectors, hiddenDays]);
+
+  /** Flat itinerary of the visible selected days — used by the mobile sheet. */
+  const itinerary = useMemo(() => {
+    const rows: Array<{
+      i: number;
+      d: number;
+      seq: number;
+      code: string;
+      media: string | null;
+      id: string;
+      legMeters: number;
+      legSeconds: number;
+      color: string;
+    }> = [];
+    for (const { i, d } of selDays) {
+      if (!isVisible(i, d)) continue;
+      const r = routes[keyFor(i, d)];
+      const color = colorOf(i, d) ?? "#1d4ed8";
+      if (r) {
+        for (const s2 of r.stops)
+          rows.push({
+            i,
+            d,
+            seq: s2.seq,
+            code: s2.point.code,
+            media: s2.point.mediaType,
+            id: s2.point.id,
+            legMeters: s2.legMeters,
+            legSeconds: s2.legSeconds,
+            color,
+          });
+      } else {
+        (plan?.[i]?.days[d - 1]?.points ?? []).forEach((pt, n) =>
+          rows.push({
+            i,
+            d,
+            seq: n + 1,
+            code: pt.code,
+            media: pt.mediaType,
+            id: pt.id,
+            legMeters: 0,
+            legSeconds: 0,
+            color,
+          }),
+        );
+      }
+    }
+    return rows;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selDays, routes, planNonce, depotSig, vehicleSig, plan, hiddenInspectors, hiddenDays]);
 
   function copyGoogleUrl(i: number, d: number) {
     const route = routes[keyFor(i, d)];

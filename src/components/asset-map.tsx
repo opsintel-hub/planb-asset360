@@ -524,8 +524,8 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
     for (const a of assets) {
       const warning = a.old_code ? claimedCodes.has(a.old_code) : false;
       const dim = nearbyIds ? !nearbyIds.has(a.id) : false;
-      const icon = pinIcon(projectColorFor(a.department), warning, dim);
-      const m = L.marker([a.lat, a.lng], { icon });
+      const icon = pinIcon(assetColor ?? projectColorFor(a.department), warning, dim);
+      const m = L.marker([a.lat, a.lng], { icon, opacity: dim ? 0.25 : assetOpacity });
       const html = `
         <div style="min-width:220px;font-size:12px;">
           <div style="font-weight:700;font-size:13px;">${escapeHtml(a.old_code ?? "—")}</div>

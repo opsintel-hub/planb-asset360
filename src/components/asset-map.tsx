@@ -200,6 +200,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
   const markerByIdRef = useRef<Map<string, L.Marker>>(new Map());
   const drawLayerRef = useRef<L.LayerGroup | null>(null);
   const roadLayerRef = useRef<L.LayerGroup | null>(null);
+  const seqLayerRef = useRef<L.LayerGroup | null>(null);
   const originLayerRef = useRef<L.LayerGroup | null>(null);
   const poiLayerRef = useRef<L.LayerGroup | null>(null);
   const poiMarkerByIdRef = useRef<Map<string, L.Marker>>(new Map());

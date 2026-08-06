@@ -97,7 +97,83 @@ const DEFAULT_DAILY_HOURS = 8;
 /** Hard cap on stops routed per day (keeps the free OSRM demo happy). */
 const MAX_ROUTE_STOPS = 200;
 /** Cap on how many day-routes may be drawn/computed at once. */
-const MAX_ROUTE_DAYS = 8;
+const MAX_ROUTE_DAYS = 30;
+
+/** Human-friendly hours: 1.5 -> "1 ชม. 30 นาที", 0.75 -> "45 นาที". */
+function fmtHours(hours: number): string {
+  const mins = Math.round((Number.isFinite(hours) ? hours : 0) * 60);
+  if (mins < 60) return `${mins} นาที`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h} ชม.` : `${h} ชม. ${m} นาที`;
+}
+
+/** Number field that allows free typing; clamps on blur/Enter only. */
+function NumField({
+  value,
+  min,
+  max,
+  step = 1,
+  onCommit,
+  className,
+  placeholder,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  onCommit: (v: number) => void;
+  className?: string;
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = useState<string>(String(value));
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setDraft(String(value));
+  }, [value, editing]);
+  const commit = () => {
+    setEditing(false);
+    const n = Number(draft);
+    if (!Number.isFinite(n) || draft.trim() === "") {
+      setDraft(String(value));
+      return;
+    }
+    const clamped = Math.min(max, Math.max(min, n));
+    setDraft(String(clamped));
+    if (clamped !== value) onCommit(clamped);
+  };
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={max}
+      step={step}
+      value={draft}
+      placeholder={placeholder}
+      onFocus={(e) => {
+        setEditing(true);
+        e.currentTarget.select();
+      }}
+      onChange={(e) => {
+        setEditing(true);
+        setDraft(e.target.value);
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+          e.currentTarget.blur();
+        }
+      }}
+      className={
+        className ?? "h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
+      }
+    />
+  );
+}
+
 
 type Depot = { lat: number; lng: number; name: string };
 type StartMode = "centroid" | "saved" | "pin";

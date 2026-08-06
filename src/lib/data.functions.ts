@@ -527,6 +527,10 @@ export const listClaims = createServerFn({ method: "POST" })
       const totalTimeRaw = (p.totalTime ?? p.TotalTime ?? null) as number | string | null;
       const totalTime = totalTimeRaw === null || totalTimeRaw === "" ? null : Number(totalTimeRaw);
       const ns = c.ref_number ? nextStepMap.get(c.ref_number) ?? null : null;
+      const remarkRaw = (p.remarkTicket ?? p.RemarkTicket ?? p.remark ?? p.Remark ?? null) as
+        | string
+        | null;
+      const remarkTicket = typeof remarkRaw === "string" && remarkRaw.trim() !== "" ? remarkRaw.trim() : null;
       return {
         id: c.ref_number,
         ticket_code: c.ref_number,
@@ -541,6 +545,7 @@ export const listClaims = createServerFn({ method: "POST" })
         status: c.status,
         asset_status: assetStatus,
         payload: c.payload,
+        remark_ticket: remarkTicket,
         next_step: ns?.note ?? null,
         next_step_by: ns?.updated_by_name ?? null,
         next_step_at: ns?.updated_at ?? null,

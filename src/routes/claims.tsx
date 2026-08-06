@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
-import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote } from "lucide-react";
+import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText } from "lucide-react";
 import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
+import { syncClaimsNow } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -48,14 +49,29 @@ export const Route = createFileRoute("/claims")({
 function ClaimsPage() {
   const fn = useServerFn(listClaims);
   const upsertFn = useServerFn(upsertClaimNextStep);
+  const syncFn = useServerFn(syncClaimsNow);
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["claims", "all"],
     queryFn: () => fn({ data: { sla: "all" as const } }),
   });
 
+  const syncMut = useMutation({
+    mutationFn: () => syncFn({}),
+    onSuccess: async () => {
+      toast.success("Sync ข้อมูล Claim สำเร็จ");
+      await qc.invalidateQueries({ queryKey: ["claims"] });
+    },
+    onError: async () => {
+      // Not an admin (or sync unavailable) — refresh from database instead.
+      await refetch();
+      toast.info("รีเฟรชข้อมูลจากฐานข้อมูลแล้ว (Sync ต้องใช้สิทธิ์ผู้ดูแลระบบ)");
+    },
+  });
+
   const [editing, setEditing] = useState<{ ticket_code: string; note: string } | null>(null);
   const [draft, setDraft] = useState("");
+
   const saveMut = useMutation({
     mutationFn: (v: { ticket_code: string; note: string }) => upsertFn({ data: v }),
     onSuccess: () => {
@@ -149,7 +165,20 @@ function ClaimsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Claim Aging" subtitle="Snapshot ตั๋วเคลมที่ยังเปิดอยู่ (1 Ticket = 1 แถว) Auto-Sync ทุก 15 นาที จาก /Ticket/RemainingClaimTickets" />
+      <PageHeader
+        title="Claim Aging"
+        subtitle="Snapshot ตั๋วเคลมที่ยังเปิดอยู่ (1 Ticket = 1 แถว) Auto-Sync ทุก 15 นาที จาก /Ticket/RemainingClaimTickets"
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => syncMut.mutate()}
+            disabled={syncMut.isPending || isFetching}
+          >
+            <RefreshCw className={"size-4 mr-2 " + (syncMut.isPending || isFetching ? "animate-spin" : "")} />
+            {syncMut.isPending ? "กำลัง Sync..." : "Sync / รีเฟรช"}
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard label="Claim ทั้งหมด" value={String(allClaims.length)} tone="warning" icon={<Wrench className="size-5" />} />
@@ -237,7 +266,8 @@ function ClaimsPage() {
                   <th className="text-left font-medium px-4 py-3 whitespace-nowrap">สถานะ Ticket</th>
                   <th className="text-right font-medium px-4 py-3 whitespace-nowrap">อายุงาน</th>
                   <th className="text-left font-medium px-4 py-3 whitespace-nowrap">SLA</th>
-                  <th className="text-left font-medium px-4 py-3 w-[200px]">Next Step</th>
+                  <th className="text-left font-medium px-4 py-3 w-[220px]">Remark Ticket</th>
+                  <th className="text-left font-medium px-4 py-3 w-[180px]">Next Step</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -270,7 +300,34 @@ function ClaimsPage() {
                       <td className="px-4 py-3 whitespace-nowrap">{c.status ?? "—"}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">{ageDays != null ? `${ageDays} วัน` : "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap"><Badge tone={tone}>{c.sla_status ?? "—"}</Badge></td>
-                      <td className="px-4 py-3 align-middle w-[200px] max-w-[200px]">
+                      <td className="px-4 py-3 align-middle w-[220px] max-w-[220px]">
+                        {c.remark_ticket ? (
+                          <HoverCard openDelay={120} closeDelay={80}>
+                            <HoverCardTrigger asChild>
+                              <button
+                                type="button"
+                                className="flex w-full max-w-full items-start gap-1.5 rounded-md px-1.5 py-1 text-left text-[12px] leading-snug hover:bg-accent/50 transition"
+                                title="ดู Remark เต็ม"
+                              >
+                                <MessageSquareText className="size-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+                                <span className="line-clamp-2 min-w-0 flex-1">{c.remark_ticket}</span>
+                              </button>
+                            </HoverCardTrigger>
+                            <HoverCardContent side="left" align="start" className="w-96 max-h-80 overflow-y-auto">
+                              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+                                <MessageSquareText className="size-3.5" />
+                                Remark Ticket
+                              </div>
+                              <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                                {c.remark_ticket}
+                              </div>
+                            </HoverCardContent>
+                          </HoverCard>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 align-middle w-[180px] max-w-[180px]">
                         {c.next_step ? (
                           <HoverCard openDelay={120} closeDelay={80}>
                             <HoverCardTrigger asChild>

@@ -21,6 +21,10 @@ import {
   Download,
   Trash2,
   FolderOpen,
+  Maximize2,
+  Minimize2,
+  ChevronsUpDown,
+  ChevronsDownUp,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui-bits";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -272,6 +276,20 @@ function RouteMonitoringPage() {
   const [planNonce, setPlanNonce] = useState(0);
   const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null);
   const mapRef = useRef<AssetMapHandle | null>(null);
+
+  // ---- map viewport size ----
+  const MAP_H_COMPACT = 460;
+  const MAP_H_TALL = 690; // +50%
+  const [mapTall, setMapTall] = useState(true);
+  const [mapFull, setMapFull] = useState(false);
+  useEffect(() => {
+    if (!mapFull) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMapFull(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mapFull]);
 
   // ---- depot (start / end of each day) ----
   const [startMode, setStartMode] = useState<StartMode>("centroid");
@@ -1254,7 +1272,37 @@ function RouteMonitoringPage() {
 
         {/* ---------- Map + result ---------- */}
         <div className="space-y-3">
-          <div className="rounded-xl border overflow-hidden bg-card relative" style={{ height: 460 }}>
+          <div
+            className={cn(
+              "border overflow-hidden bg-card relative",
+              mapFull ? "fixed inset-0 z-[1200] rounded-none" : "rounded-xl",
+            )}
+            style={mapFull ? undefined : { height: mapTall ? MAP_H_TALL : MAP_H_COMPACT }}
+          >
+            <div className="absolute right-2 top-2 z-[600] flex items-center gap-1.5">
+              {!mapFull && (
+                <button
+                  onClick={() => setMapTall((v) => !v)}
+                  title={mapTall ? "หุบแผนที่" : "ขยายความสูงแผนที่"}
+                  className="inline-flex items-center gap-1 rounded-lg border bg-card/95 backdrop-blur px-2 py-1 text-[11px] shadow hover:bg-accent"
+                >
+                  {mapTall ? (
+                    <ChevronsDownUp className="size-3.5" />
+                  ) : (
+                    <ChevronsUpDown className="size-3.5" />
+                  )}
+                  {mapTall ? "หุบแผนที่" : "ขยายแผนที่"}
+                </button>
+              )}
+              <button
+                onClick={() => setMapFull((v) => !v)}
+                title={mapFull ? "ออกจากเต็มหน้าจอ (Esc)" : "เต็มหน้าจอ"}
+                className="inline-flex items-center gap-1 rounded-lg border bg-card/95 backdrop-blur px-2 py-1 text-[11px] shadow hover:bg-accent"
+              >
+                {mapFull ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+                {mapFull ? "ย่อลง" : "เต็มหน้าจอ"}
+              </button>
+            </div>
             <ClientOnly fallback={<Skeleton className="h-full w-full" />}>
               <Suspense fallback={<Skeleton className="h-full w-full" />}>
                 <AssetMap

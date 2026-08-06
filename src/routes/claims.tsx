@@ -49,14 +49,29 @@ export const Route = createFileRoute("/claims")({
 function ClaimsPage() {
   const fn = useServerFn(listClaims);
   const upsertFn = useServerFn(upsertClaimNextStep);
+  const syncFn = useServerFn(syncClaimsNow);
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["claims", "all"],
     queryFn: () => fn({ data: { sla: "all" as const } }),
   });
 
+  const syncMut = useMutation({
+    mutationFn: () => syncFn({}),
+    onSuccess: async () => {
+      toast.success("Sync ข้อมูล Claim สำเร็จ");
+      await qc.invalidateQueries({ queryKey: ["claims"] });
+    },
+    onError: async () => {
+      // Not an admin (or sync unavailable) — refresh from database instead.
+      await refetch();
+      toast.info("รีเฟรชข้อมูลจากฐานข้อมูลแล้ว (Sync ต้องใช้สิทธิ์ผู้ดูแลระบบ)");
+    },
+  });
+
   const [editing, setEditing] = useState<{ ticket_code: string; note: string } | null>(null);
   const [draft, setDraft] = useState("");
+
   const saveMut = useMutation({
     mutationFn: (v: { ticket_code: string; note: string }) => upsertFn({ data: v }),
     onSuccess: () => {

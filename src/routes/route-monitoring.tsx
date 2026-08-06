@@ -25,6 +25,9 @@ import {
   Minimize2,
   ChevronsUpDown,
   ChevronsDownUp,
+  SlidersHorizontal,
+  BarChart3,
+  ListOrdered,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui-bits";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -102,6 +105,8 @@ const DEFAULT_DAILY_HOURS = 8;
 const MAX_ROUTE_STOPS = 200;
 /** Cap on how many day-routes may be drawn/computed at once. */
 const MAX_ROUTE_DAYS = 30;
+
+type Vehicle = "car" | "moto";
 
 /** Human-friendly hours: 1.5 -> "1 ชม. 30 นาที", 0.75 -> "45 นาที". */
 function fmtHours(hours: number): string {
@@ -291,6 +296,42 @@ function RouteMonitoringPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [mapFull]);
 
+  // ---- routing options (vehicle / avoid tolls & expressways) ----
+  const [defaultVehicle, setDefaultVehicle] = useState<Vehicle>("car");
+  const [avoidTolls, setAvoidTolls] = useState(false);
+  const [vehicleBy, setVehicleBy] = useState<Record<number, Vehicle>>({});
+  const vehicleOf = (i: number): Vehicle => vehicleBy[i] ?? defaultVehicle;
+  /** OSRM exclude class for one inspector: มอเตอร์ไซค์ห้ามขึ้นทางด่วน. */
+  function excludeFor(i: number): string | null {
+    if (vehicleOf(i) === "moto") return "motorway";
+    return avoidTolls ? "toll" : null;
+  }
+  const vehicleSig = `${defaultVehicle}:${avoidTolls ? 1 : 0}:${Object.entries(vehicleBy)
+    .sort()
+    .map(([k, v]) => `${k}${v}`)
+    .join(",")}`;
+
+  // ---- map style + layer control ----
+  const [routeOpacity, setRouteOpacity] = useState(0.85);
+  const [routeWeight, setRouteWeight] = useState(5);
+  const [showArrows, setShowArrows] = useState(true);
+  const [showSeq, setShowSeq] = useState(true);
+  const [pinOpacity, setPinOpacity] = useState(1);
+  const [pinColor, setPinColor] = useState<string | null>(null);
+  const [styleOpen, setStyleOpen] = useState(false);
+  const [hiddenInspectors, setHiddenInspectors] = useState<number[]>([]);
+  const [hiddenDays, setHiddenDays] = useState<number[]>([]);
+  const isVisible = (i: number, d: number) =>
+    !hiddenInspectors.includes(i) && !hiddenDays.includes(d);
+  const toggleIn = (arr: number[], v: number) =>
+    arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
+
+  // ---- routing-plan calculation progress ----
+  const [calc, setCalc] = useState<{ pct: number; label: string } | null>(null);
+
+  // ---- mobile itinerary sheet ----
+  const [sheetOpen, setSheetOpen] = useState(false);
+
   // ---- depot (start / end of each day) ----
   const [startMode, setStartMode] = useState<StartMode>("centroid");
   const [startPoint, setStartPoint] = useState<Depot | null>(null);
@@ -383,7 +424,15 @@ function RouteMonitoringPage() {
 
   const activeInspectors = Math.max(1, inspectors - (emergency ? absent : 0));
 
-  function run() {
+  const tick = (pct: number, label: string) =>
+    new Promise<void>((resolve) => {
+      setCalc({ pct, label });
+      setTimeout(resolve, 30);
+    });
+
+  async function run() {
+    if (calc) return;
+    await tick(8, "รวบรวมป้ายตามตัวกรอง");
     const points: PlanPoint[] = filtered.map((a) => ({
       id: a.id,
       code: a.old_code ?? a.id,
@@ -400,6 +449,7 @@ function RouteMonitoringPage() {
 
     // Long-haul trips are the default: clustering may cross provinces freely.
     // "lockProvince" instead allocates staff per province so no zone straddles a border.
+    await tick(30, "แบ่งโซนตามภาระงาน (คน)");
     let clusters = [] as ReturnType<typeof clusterBalanced>;
     if (lockProvince) {
       const groups = new Map<string, PlanPoint[]>();
@@ -426,6 +476,7 @@ function RouteMonitoringPage() {
       clusters = clusterBalanced(points, activeInspectors, weight);
     }
 
+    await tick(65, "แบ่งงานเป็นรายวัน");
     const result: InspectorPlan[] = clusters.map((c) => {
       const dayBatches = splitIntoDaysBalanced(c.points, days, weight);
 
@@ -447,11 +498,16 @@ function RouteMonitoringPage() {
         }),
       };
     });
+    await tick(92, "จัดลำดับและสรุปผล");
     setPlan(result);
     setSel([]);
     setRoutes({});
     setFocus(null);
+    setHiddenInspectors([]);
+    setHiddenDays([]);
     setPlanNonce((n) => n + 1);
+    await tick(100, "เสร็จสิ้น");
+    setCalc(null);
   }
 
   function provincesOf(pts: PlanPoint[]) {
@@ -529,6 +585,30 @@ function RouteMonitoringPage() {
     ? Math.max(0, ...plan.flatMap((p) => p.days.map((d) => d.hours)))
     : 0;
 
+  /** Dashboard aggregates: per-inspector totals and per-day totals. */
+  const maxTotalHours = plan
+    ? Math.max(0, ...plan.map((p) => p.days.reduce((n, d) => n + d.hours, 0)))
+    : 0;
+  const dayTotals = useMemo(() => {
+    if (!plan) return [] as Array<{ day: number; hours: number; assets: number; overDays: number }>;
+    const nDays = Math.max(0, ...plan.map((p) => p.days.length));
+    return Array.from({ length: nDays }, (_, k) => {
+      const day = k + 1;
+      let hours = 0;
+      let assets = 0;
+      let overDays = 0;
+      for (const p of plan) {
+        const d = p.days[k];
+        if (!d) continue;
+        hours += d.hours;
+        assets += d.points.length;
+        if (d.hours > dailyHours) overDays += 1;
+      }
+      return { day, hours, assets, overDays };
+    });
+  }, [plan, dailyHours]);
+  const maxDayTotal = Math.max(0, ...dayTotals.map((d) => d.hours));
+
 
 
   // ---------- Phase 3: real road routing (OSRM /trip + /route) ----------
@@ -548,7 +628,7 @@ function RouteMonitoringPage() {
   // Depot + time settings are part of the cache key so changing them recomputes.
   const depotSig = `${startMode}:${startPoint?.lat ?? ""},${startPoint?.lng ?? ""}:${endMode}:${endPoint?.lat ?? ""},${endPoint?.lng ?? ""}`;
   function keyFor(i: number, d: number) {
-    return `${planNonce}:${i}:${d}:${depotSig}`;
+    return `${planNonce}:${i}:${d}:${depotSig}:${vehicleSig}`;
   }
 
   async function computeRoute(i: number, d: number, force = false) {
@@ -563,7 +643,7 @@ function RouteMonitoringPage() {
       // Cap requests to the public OSRM server: route the first MAX_ROUTE_STOPS
       // stops of the day so a huge day never floods it.
       const pts = day.points.slice(0, MAX_ROUTE_STOPS);
-      const r = await computeDayRoute(pts, startFor(i), endFor(i));
+      const r = await computeDayRoute(pts, startFor(i), endFor(i), excludeFor(i));
       setRoutes((prev) => ({ ...prev, [key]: r }));
     } finally {
       setRoutingKey((k) => (k === key ? null : k));
@@ -578,23 +658,119 @@ function RouteMonitoringPage() {
     const t = setTimeout(() => void computeRoute(nextPending.i, nextPending.d), 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextPending?.i, nextPending?.d, routingKey]);
+  }, [nextPending?.i, nextPending?.d, routingKey, vehicleSig]);
 
   /** One coloured polyline per selected day. */
   const roadPolylines = useMemo(() => {
-    const out: Array<{ points: LatLng[]; color: string; label: string }> = [];
+    const out: Array<{
+      points: LatLng[];
+      color: string;
+      label: string;
+      opacity: number;
+      weight: number;
+      arrows: boolean;
+    }> = [];
     for (const { i, d } of selDays) {
+      if (!isVisible(i, d)) continue;
       const r = routes[keyFor(i, d)];
       if (!r || r.geometry.length < 2) continue;
       out.push({
         points: r.geometry,
         color: colorOf(i, d) ?? "#1d4ed8",
         label: `คนที่ ${i + 1} · วันที่ ${d} · ${fmtKm(r.totalMeters)}`,
+        opacity: routeOpacity,
+        weight: routeWeight,
+        arrows: showArrows,
       });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selDays, routes, planNonce, depotSig, plan]);
+  }, [
+    selDays,
+    routes,
+    planNonce,
+    depotSig,
+    vehicleSig,
+    plan,
+    routeOpacity,
+    routeWeight,
+    showArrows,
+    hiddenInspectors,
+    hiddenDays,
+  ]);
+
+  /** Numbered stop markers for the visible selected days. */
+  const seqMarkers = useMemo(() => {
+    if (!showSeq) return [];
+    const out: Array<{ lat: number; lng: number; seq: number; color: string; label: string }> = [];
+    for (const { i, d } of selDays) {
+      if (!isVisible(i, d)) continue;
+      const r = routes[keyFor(i, d)];
+      if (!r) continue;
+      const color = colorOf(i, d) ?? "#1d4ed8";
+      for (const s2 of r.stops) {
+        out.push({
+          lat: s2.point.lat,
+          lng: s2.point.lng,
+          seq: s2.seq,
+          color,
+          label: `#${s2.seq} ${s2.point.code} · คนที่ ${i + 1} วันที่ ${d}`,
+        });
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selDays, routes, planNonce, depotSig, vehicleSig, plan, showSeq, hiddenInspectors, hiddenDays]);
+
+  /** Flat itinerary of the visible selected days — used by the mobile sheet. */
+  const itinerary = useMemo(() => {
+    const rows: Array<{
+      i: number;
+      d: number;
+      seq: number;
+      code: string;
+      media: string | null;
+      id: string;
+      legMeters: number;
+      legSeconds: number;
+      color: string;
+    }> = [];
+    for (const { i, d } of selDays) {
+      if (!isVisible(i, d)) continue;
+      const r = routes[keyFor(i, d)];
+      const color = colorOf(i, d) ?? "#1d4ed8";
+      if (r) {
+        for (const s2 of r.stops)
+          rows.push({
+            i,
+            d,
+            seq: s2.seq,
+            code: s2.point.code,
+            media: s2.point.mediaType,
+            id: s2.point.id,
+            legMeters: s2.legMeters,
+            legSeconds: s2.legSeconds,
+            color,
+          });
+      } else {
+        (plan?.[i]?.days[d - 1]?.points ?? []).forEach((pt, n) =>
+          rows.push({
+            i,
+            d,
+            seq: n + 1,
+            code: pt.code,
+            media: pt.mediaType,
+            id: pt.id,
+            legMeters: 0,
+            legSeconds: 0,
+            color,
+          }),
+        );
+      }
+    }
+    return rows;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selDays, routes, planNonce, depotSig, vehicleSig, plan, hiddenInspectors, hiddenDays]);
 
   function copyGoogleUrl(i: number, d: number) {
     const route = routes[keyFor(i, d)];
@@ -905,12 +1081,52 @@ function RouteMonitoringPage() {
               ค่าเริ่มต้น {minutesPerAsset} นาที/ป้าย · ความเร็วเฉลี่ย {speedKmh} กม./ชม. ·
               เพดาน {dailyHours} ชม./วัน
             </div>
+            <div className="space-y-2 pt-1 border-t">
+              <div className="text-xs font-medium">ตัวเลือกเส้นทาง (Routing Options)</div>
+              <div className="grid grid-cols-2 gap-1">
+                {([["car", "รถยนต์ 4 ล้อ"], ["moto", "มอเตอร์ไซค์"]] as Array<[Vehicle, string]>).map(
+                  ([v, label]) => (
+                    <button
+                      key={v}
+                      onClick={() => setDefaultVehicle(v)}
+                      className={cn(
+                        "h-8 rounded-lg border text-[11px] hover:bg-accent",
+                        defaultVehicle === v && "border-primary bg-accent font-medium",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ),
+                )}
+              </div>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={avoidTolls}
+                  onChange={(e) => setAvoidTolls(e.target.checked)}
+                  className="size-4"
+                />
+                <span>ไม่ขึ้นทางด่วน / เลี่ยงทางมีค่าผ่านทาง (Avoid Tolls)</span>
+              </label>
+              <div className="text-[11px] text-muted-foreground">
+                ทีมมอเตอร์ไซค์จะเลี่ยงทางด่วนอัตโนมัติ · ตั้งรายคนได้ที่การ์ด “แผนงานต่อคน”
+                ด้านล่าง
+              </div>
+            </div>
             <button
-              onClick={run}
-              disabled={filtered.length === 0}
+              onClick={() => void run()}
+              disabled={filtered.length === 0 || calc !== null}
               className="w-full h-10 rounded-lg bg-primary text-primary-foreground text-sm font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90 transition"
             >
-              <Play className="size-4" /> Run Routing Plan
+              {calc ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> กำลังคำนวณเส้นทาง…
+                </>
+              ) : (
+                <>
+                  <Play className="size-4" /> Run Routing Plan
+                </>
+              )}
             </button>
           </div>
 
@@ -1295,6 +1511,13 @@ function RouteMonitoringPage() {
                 </button>
               )}
               <button
+                onClick={() => setStyleOpen((v) => !v)}
+                title="ปรับแต่งสี/เลเยอร์แผนที่"
+                className="inline-flex items-center gap-1 rounded-lg border bg-card/95 backdrop-blur px-2 py-1 text-[11px] shadow hover:bg-accent"
+              >
+                <SlidersHorizontal className="size-3.5" /> สไตล์/เลเยอร์
+              </button>
+              <button
                 onClick={() => setMapFull((v) => !v)}
                 title={mapFull ? "ออกจากเต็มหน้าจอ (Esc)" : "เต็มหน้าจอ"}
                 className="inline-flex items-center gap-1 rounded-lg border bg-card/95 backdrop-blur px-2 py-1 text-[11px] shadow hover:bg-accent"
@@ -1303,6 +1526,148 @@ function RouteMonitoringPage() {
                 {mapFull ? "ย่อลง" : "เต็มหน้าจอ"}
               </button>
             </div>
+
+            {styleOpen && (
+              <div className="absolute right-2 top-11 z-[650] w-72 max-h-[70%] overflow-auto rounded-xl border bg-card/98 backdrop-blur p-3 space-y-3 shadow-xl text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">ปรับแต่งแผนที่</span>
+                  <button
+                    onClick={() => setStyleOpen(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    ปิด
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="font-medium">เส้นทาง (Route)</div>
+                  <label className="flex items-center justify-between gap-2">
+                    <span>ความทึบแสง</span>
+                    <input
+                      type="range"
+                      min={0.2}
+                      max={1}
+                      step={0.05}
+                      value={routeOpacity}
+                      onChange={(e) => setRouteOpacity(Number(e.target.value))}
+                      className="w-32"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2">
+                    <span>ความหนาเส้น</span>
+                    <input
+                      type="range"
+                      min={2}
+                      max={10}
+                      step={1}
+                      value={routeWeight}
+                      onChange={(e) => setRouteWeight(Number(e.target.value))}
+                      className="w-32"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showArrows}
+                      onChange={(e) => setShowArrows(e.target.checked)}
+                      className="size-4"
+                    />
+                    <span>แสดงลูกศรทิศทาง</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showSeq}
+                      onChange={(e) => setShowSeq(e.target.checked)}
+                      className="size-4"
+                    />
+                    <span>แสดงตัวเลขลำดับจุดแวะ</span>
+                  </label>
+                </div>
+
+                <div className="space-y-1.5 pt-2 border-t">
+                  <div className="font-medium">หมุดป้าย (Pin)</div>
+                  <label className="flex items-center justify-between gap-2">
+                    <span>ความทึบแสง</span>
+                    <input
+                      type="range"
+                      min={0.2}
+                      max={1}
+                      step={0.05}
+                      value={pinOpacity}
+                      onChange={(e) => setPinOpacity(Number(e.target.value))}
+                      className="w-32"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2">
+                    <span>สีหมุด</span>
+                    <span className="flex items-center gap-1.5">
+                      <input
+                        type="color"
+                        value={pinColor ?? "#1d4ed8"}
+                        onChange={(e) => setPinColor(e.target.value)}
+                        className="h-6 w-10 rounded border bg-transparent"
+                      />
+                      <button
+                        onClick={() => setPinColor(null)}
+                        className="rounded border px-1.5 py-0.5 hover:bg-accent"
+                      >
+                        ตามโปรเจกต์
+                      </button>
+                    </span>
+                  </label>
+                </div>
+
+                {plan && selDays.length > 0 && (
+                  <div className="space-y-1.5 pt-2 border-t">
+                    <div className="font-medium">เลเยอร์ (ซ่อน/แสดง)</div>
+                    <div className="text-[11px] text-muted-foreground">รายคน</div>
+                    <div className="flex flex-wrap gap-1">
+                      {Array.from(new Set(selDays.map((x) => x.i))).sort((a, b) => a - b).map((i) => (
+                        <button
+                          key={i}
+                          onClick={() => setHiddenInspectors((prev) => toggleIn(prev, i))}
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[11px] hover:bg-accent",
+                            hiddenInspectors.includes(i)
+                              ? "opacity-40 line-through"
+                              : "border-primary",
+                          )}
+                        >
+                          คนที่ {i + 1}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">รายวัน</div>
+                    <div className="flex flex-wrap gap-1">
+                      {Array.from(new Set(selDays.map((x) => x.d))).sort((a, b) => a - b).map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setHiddenDays((prev) => toggleIn(prev, d))}
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[11px] hover:bg-accent",
+                            hiddenDays.includes(d) ? "opacity-40 line-through" : "border-primary",
+                          )}
+                        >
+                          วันที่ {d}
+                        </button>
+                      ))}
+                    </div>
+                    {(hiddenInspectors.length > 0 || hiddenDays.length > 0) && (
+                      <button
+                        onClick={() => {
+                          setHiddenInspectors([]);
+                          setHiddenDays([]);
+                        }}
+                        className="rounded border px-2 py-0.5 hover:bg-accent"
+                      >
+                        แสดงทั้งหมด
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <ClientOnly fallback={<Skeleton className="h-full w-full" />}>
               <Suspense fallback={<Skeleton className="h-full w-full" />}>
                 <AssetMap
@@ -1311,6 +1676,9 @@ function RouteMonitoringPage() {
                   claimedCodes={new Set<string>()}
                   showRadiusRings={false}
                   roadPolylines={roadPolylines}
+                  seqMarkers={seqMarkers}
+                  assetOpacity={pinOpacity}
+                  assetColor={pinColor}
                   origin={
                     startMode !== "centroid" && startPoint
                       ? startPoint
@@ -1478,6 +1846,90 @@ function RouteMonitoringPage() {
 
 
           {plan && (
+            <div className="rounded-xl border bg-card p-4 space-y-4">
+              <div className="text-sm font-semibold flex flex-wrap items-center gap-2">
+                <BarChart3 className="size-4 text-primary" /> สรุปภาระงาน (คลิกเพื่อกรองบนแผนที่)
+                <span className="text-[11px] font-normal text-muted-foreground">
+                  เพดาน {dailyHours} ชม./วัน
+                </span>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* per inspector */}
+                <div className="space-y-1.5">
+                  <div className="text-xs font-medium text-muted-foreground">รายคน</div>
+                  {plan.map((p) => {
+                    const hours = p.days.reduce((n, d) => n + d.hours, 0);
+                    const cap = dailyHours * Math.max(1, p.days.length);
+                    const overPct = cap > 0 ? Math.max(0, (hours / cap - 1) * 100) : 0;
+                    const w = maxTotalHours > 0 ? (hours / maxTotalHours) * 100 : 0;
+                    return (
+                      <button
+                        key={p.index}
+                        onClick={() => selectAllDays(p.index)}
+                        className="w-full text-left group"
+                      >
+                        <div className="flex items-center gap-2 text-[11px]">
+                          <span className="w-16 shrink-0">คนที่ {p.index + 1}</span>
+                          <span className="flex-1 h-2.5 rounded-full bg-muted overflow-hidden">
+                            <span
+                              className="block h-full rounded-full transition-all group-hover:opacity-80"
+                              style={{ width: `${w}%`, background: p.color }}
+                            />
+                          </span>
+                          <span className="w-28 text-right tabular-nums shrink-0">
+                            {fmtHours(hours)}
+                            {overPct > 0 && (
+                              <span className="text-destructive"> · เกิน {overPct.toFixed(0)}%</span>
+                            )}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* per day */}
+                <div className="space-y-1.5">
+                  <div className="text-xs font-medium text-muted-foreground">รายวัน (ทุกคนรวม)</div>
+                  {dayTotals.map((t) => {
+                    const w = maxDayTotal > 0 ? (t.hours / maxDayTotal) * 100 : 0;
+                    const over = t.overDays;
+                    return (
+                      <button
+                        key={t.day}
+                        onClick={() =>
+                          setSel(
+                            plan
+                              .map((p) => ({ i: p.index, d: t.day }))
+                              .filter((x) => (plan[x.i]?.days[t.day - 1]?.points.length ?? 0) > 0)
+                              .slice(0, MAX_ROUTE_DAYS),
+                          )
+                        }
+                        className="w-full text-left group"
+                      >
+                        <div className="flex items-center gap-2 text-[11px]">
+                          <span className="w-16 shrink-0">วันที่ {t.day}</span>
+                          <span className="flex-1 h-2.5 rounded-full bg-muted overflow-hidden">
+                            <span
+                              className="block h-full rounded-full bg-primary transition-all group-hover:opacity-80"
+                              style={{ width: `${w}%` }}
+                            />
+                          </span>
+                          <span className="w-28 text-right tabular-nums shrink-0">
+                            {t.assets.toLocaleString()} ป้าย · {fmtHours(t.hours)}
+                            {over > 0 && <span className="text-destructive"> · เกิน {over} คน</span>}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {plan && (
             <div className="rounded-xl border bg-card overflow-hidden">
               <div className="px-4 py-2.5 border-b text-sm font-semibold flex flex-wrap items-center gap-2">
                 <RouteIcon className="size-4 text-primary" /> แผนงานต่อคน / ต่อวัน
@@ -1526,6 +1978,32 @@ function RouteMonitoringPage() {
                       >
                         ล้าง
                       </button>
+                      <div className="flex rounded-lg border overflow-hidden">
+                        {(
+                          [
+                            ["car", "รถ"],
+                            ["moto", "จยย."],
+                          ] as Array<[Vehicle, string]>
+                        ).map(([v, label]) => (
+                          <button
+                            key={v}
+                            onClick={() =>
+                              setVehicleBy((prev) => ({ ...prev, [p.index]: v }))
+                            }
+                            title={
+                              v === "moto"
+                                ? "มอเตอร์ไซค์ — เลี่ยงทางด่วน"
+                                : "รถยนต์ 4 ล้อ — ขึ้นทางด่วนได้"
+                            }
+                            className={cn(
+                              "h-7 px-2 text-[11px] hover:bg-accent",
+                              vehicleOf(p.index) === v && "bg-accent font-medium",
+                            )}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <div className="pl-6 mt-1 flex flex-wrap gap-1">
                       {provincesOf(p.points).slice(0, 6).map((pv) => (
@@ -1589,6 +2067,93 @@ function RouteMonitoringPage() {
 
         </div>
       </div>
+
+      {/* ---------- Mobile itinerary sheet ---------- */}
+      {itinerary.length > 0 && !mapFull && (
+        <>
+          <button
+            onClick={() => setSheetOpen(true)}
+            className="lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[900] h-10 px-4 rounded-full bg-primary text-primary-foreground text-sm font-semibold shadow-lg inline-flex items-center gap-2"
+          >
+            <ListOrdered className="size-4" /> ลำดับจุดแวะ ({itinerary.length})
+          </button>
+          {sheetOpen && (
+            <div className="lg:hidden fixed inset-0 z-[1000]" role="dialog" aria-modal="true">
+              <div className="absolute inset-0 bg-black/40" onClick={() => setSheetOpen(false)} />
+              <div className="absolute inset-x-0 bottom-0 max-h-[75vh] rounded-t-2xl border bg-card shadow-2xl flex flex-col">
+                <div className="px-4 py-3 border-b flex items-center gap-2">
+                  <ListOrdered className="size-4 text-primary" />
+                  <span className="text-sm font-semibold">ลำดับจุดแวะ</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {itinerary.length} จุด
+                  </span>
+                  <button
+                    onClick={() => setSheetOpen(false)}
+                    className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    ปิด
+                  </button>
+                </div>
+                <div className="overflow-auto divide-y">
+                  {itinerary.map((r) => (
+                    <button
+                      key={`${r.i}-${r.d}-${r.seq}-${r.id}`}
+                      onClick={() => {
+                        setFocus({ id: r.id, nonce: Date.now() });
+                        setSheetOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-accent/60"
+                    >
+                      <span
+                        className="size-6 shrink-0 rounded-full text-white text-[11px] font-bold grid place-items-center"
+                        style={{ background: r.color }}
+                      >
+                        {r.seq}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-medium truncate">{r.code}</span>
+                        <span className="block text-[11px] text-muted-foreground truncate">
+                          คนที่ {r.i + 1} · วันที่ {r.d}
+                          {r.media ? ` · ${r.media}` : ""}
+                        </span>
+                      </span>
+                      {r.legMeters > 0 && (
+                        <span className="text-[11px] text-muted-foreground tabular-nums text-right shrink-0">
+                          {fmtKm(r.legMeters)}
+                          <br />
+                          {fmtDuration(r.legSeconds)}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ---------- Routing-plan calculation backdrop ---------- */}
+      {calc && (
+        <div className="fixed inset-0 z-[1400] grid place-items-center bg-black/45 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-xl border bg-card shadow-2xl p-5">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Loader2 className="size-4 animate-spin text-primary" />
+              กำลังคำนวณเส้นทาง กรุณารอสักครู่…
+            </div>
+            <div className="mt-4 h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-200"
+                style={{ width: `${calc.pct}%` }}
+              />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground">{calc.label}</span>
+              <span className="tabular-nums font-medium">{calc.pct}%</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

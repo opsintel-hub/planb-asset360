@@ -74,6 +74,35 @@ function waypointIcon(index: number): L.DivIcon {
   return L.divIcon({ html, className: "wp-pin", iconSize: [26, 26], iconAnchor: [13, 13] });
 }
 
+/** Small numbered badge used for route stop order (1, 2, 3 …). */
+function seqIcon(seq: number, color: string, opacity: number): L.DivIcon {
+  const size = seq > 99 ? 26 : 22;
+  const html = `
+    <div style="width:${size}px;height:${size}px;border-radius:9999px;background:${color};color:#fff;
+      border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);opacity:${opacity};
+      display:grid;place-items:center;font-size:${seq > 99 ? 9 : 11}px;font-weight:800;line-height:1;">${seq}</div>`;
+  return L.divIcon({ html, className: "seq-pin", iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+}
+
+/** Rotated chevron marker used to show driving direction along a route. */
+function arrowIcon(deg: number, color: string, opacity: number): L.DivIcon {
+  const html = `
+    <div style="width:16px;height:16px;transform:rotate(${deg}deg);opacity:${opacity};">
+      <svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 1l5 12-5-3-5 3z" fill="${color}" stroke="#fff" stroke-width="1"/></svg>
+    </div>`;
+  return L.divIcon({ html, className: "arrow-pin", iconSize: [16, 16], iconAnchor: [8, 8] });
+}
+
+function bearing(a: LatLng, b: LatLng): number {
+  const toRad = Math.PI / 180;
+  const y = Math.sin((b[1] - a[1]) * toRad) * Math.cos(b[0] * toRad);
+  const x =
+    Math.cos(a[0] * toRad) * Math.sin(b[0] * toRad) -
+    Math.sin(a[0] * toRad) * Math.cos(b[0] * toRad) * Math.cos((b[1] - a[1]) * toRad);
+  return (Math.atan2(y, x) * 180) / Math.PI;
+}
+
+
 type LatLng = [number, number];
 
 export type PoiMarker = {
@@ -99,7 +128,28 @@ type Props = {
   // Phase 3 additions:
   roadPolyline?: LatLng[] | null; // actual road-following route (from OSRM)
   /** Multiple coloured routes drawn at once (Route Monitoring: many days/people). */
-  roadPolylines?: Array<{ points: LatLng[]; color: string; label?: string }> | null;
+  roadPolylines?: Array<{
+    points: LatLng[];
+    color: string;
+    label?: string;
+    opacity?: number;
+    weight?: number;
+    /** draw directional chevrons along the line */
+    arrows?: boolean;
+  }> | null;
+  /** Numbered stop markers (visit order) drawn above the routes. */
+  seqMarkers?: Array<{
+    id?: string;
+    lat: number;
+    lng: number;
+    seq: number;
+    color: string;
+    label?: string;
+  }> | null;
+  /** Opacity applied to every asset pin (map style settings). */
+  assetOpacity?: number;
+  /** Overrides the per-project pin colour when set. */
+  assetColor?: string | null;
   origin?: { lat: number; lng: number; name?: string } | null;
   onOriginPick?: (lat: number, lng: number) => void; // when originPickMode is on and user clicks map
   originPickMode?: boolean;
@@ -128,6 +178,9 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
   nearbyIds = null,
   roadPolyline = null,
   roadPolylines = null,
+  seqMarkers = null,
+  assetOpacity = 1,
+  assetColor = null,
   origin = null,
   onOriginPick,
   originPickMode = false,
@@ -147,6 +200,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
   const markerByIdRef = useRef<Map<string, L.Marker>>(new Map());
   const drawLayerRef = useRef<L.LayerGroup | null>(null);
   const roadLayerRef = useRef<L.LayerGroup | null>(null);
+  const seqLayerRef = useRef<L.LayerGroup | null>(null);
   const originLayerRef = useRef<L.LayerGroup | null>(null);
   const poiLayerRef = useRef<L.LayerGroup | null>(null);
   const poiMarkerByIdRef = useRef<Map<string, L.Marker>>(new Map());
@@ -229,6 +283,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
     mapRef.current = map;
     clusterRef.current = cluster;
     roadLayerRef.current = L.layerGroup().addTo(map);
+    seqLayerRef.current = L.layerGroup().addTo(map);
     drawLayerRef.current = L.layerGroup().addTo(map);
     originLayerRef.current = L.layerGroup().addTo(map);
     poiLayerRef.current = L.layerGroup().addTo(map);
@@ -241,6 +296,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
       clusterRef.current = null;
       drawLayerRef.current = null;
       roadLayerRef.current = null;
+      seqLayerRef.current = null;
       originLayerRef.current = null;
       poiLayerRef.current = null;
       tempPinLayerRef.current = null;
@@ -360,14 +416,43 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
           : [];
     for (const l of lines) {
       if (!l.points || l.points.length < 2) continue;
+      const opacity = l.opacity ?? 0.85;
       const pl = L.polyline(l.points, {
         color: l.color,
-        weight: 5,
-        opacity: 0.85,
+        weight: l.weight ?? 5,
+        opacity,
       }).addTo(layer);
       if (l.label) pl.bindTooltip(l.label, { sticky: true });
+      // Directional chevrons every ~Nth vertex so the driving direction is obvious.
+      if (l.arrows) {
+        const step = Math.max(6, Math.floor(l.points.length / 24));
+        for (let i = step; i < l.points.length - 1; i += step) {
+          const deg = bearing(l.points[i - 1], l.points[i + 1]);
+          L.marker(l.points[i], {
+            icon: arrowIcon(deg, l.color, Math.min(1, opacity + 0.15)),
+            interactive: false,
+          }).addTo(layer);
+        }
+      }
     }
   }, [roadPolyline, roadPolylines, ready]);
+
+  // Numbered stop markers (visit order)
+  useEffect(() => {
+    const layer = seqLayerRef.current;
+    if (!ready || !layer) return;
+    layer.clearLayers();
+    if (!seqMarkers || seqMarkers.length === 0) return;
+    for (const s of seqMarkers) {
+      const m = L.marker([s.lat, s.lng], {
+        icon: seqIcon(s.seq, s.color, assetOpacity),
+        zIndexOffset: 800,
+      });
+      if (s.label) m.bindTooltip(s.label, { direction: "top" });
+      m.addTo(layer);
+    }
+  }, [seqMarkers, assetOpacity, ready]);
+
 
 
   // Render origin marker
@@ -439,8 +524,8 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
     for (const a of assets) {
       const warning = a.old_code ? claimedCodes.has(a.old_code) : false;
       const dim = nearbyIds ? !nearbyIds.has(a.id) : false;
-      const icon = pinIcon(projectColorFor(a.department), warning, dim);
-      const m = L.marker([a.lat, a.lng], { icon });
+      const icon = pinIcon(assetColor ?? projectColorFor(a.department), warning, dim);
+      const m = L.marker([a.lat, a.lng], { icon, opacity: dim ? 0.25 : assetOpacity });
       const html = `
         <div style="min-width:220px;font-size:12px;">
           <div style="font-weight:700;font-size:13px;">${escapeHtml(a.old_code ?? "—")}</div>
@@ -472,7 +557,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
         map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
       }
     }
-  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline, onSelectAsset]);
+  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline, onSelectAsset, assetOpacity, assetColor]);
 
 
   // Focus a specific asset when requested

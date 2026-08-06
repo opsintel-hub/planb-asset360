@@ -853,27 +853,13 @@ function RouteMonitoringPage() {
               <span className="flex items-center gap-2">
                 <Users className="size-4 text-muted-foreground" /> จำนวนพนักงาน
               </span>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={inspectors}
-                onChange={(e) => setInspectors(Math.max(1, Number(e.target.value) || 1))}
-                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
-              />
+              <NumField value={inspectors} min={1} max={50} onCommit={setInspectors} />
             </label>
             <label className="flex items-center justify-between gap-3 text-sm">
               <span className="flex items-center gap-2">
                 <CalendarDays className="size-4 text-muted-foreground" /> กรอบเวลา (วัน)
               </span>
-              <input
-                type="number"
-                min={1}
-                max={30}
-                value={days}
-                onChange={(e) => setDays(Math.max(1, Number(e.target.value) || 1))}
-                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
-              />
+              <NumField value={days} min={1} max={30} onCommit={setDays} />
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -888,13 +874,11 @@ function RouteMonitoringPage() {
             {emergency && (
               <label className="flex items-center justify-between gap-3 text-sm pl-6">
                 <span>จำนวนคนลา</span>
-                <input
-                  type="number"
+                <NumField
+                  value={absent}
                   min={1}
                   max={Math.max(1, inspectors - 1)}
-                  value={absent}
-                  onChange={(e) => setAbsent(Math.max(1, Number(e.target.value) || 1))}
-                  className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
+                  onCommit={setAbsent}
                 />
               </label>
             )}
@@ -1051,36 +1035,15 @@ function RouteMonitoringPage() {
             </div>
             <label className="flex items-center justify-between gap-3 text-sm">
               <span>เวลาเฉลี่ย/ป้าย (นาที)</span>
-              <input
-                type="number"
-                min={1}
-                max={480}
-                value={minutesPerAsset}
-                onChange={(e) => setMinutesPerAsset(Math.max(1, Number(e.target.value) || 1))}
-                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
-              />
+              <NumField value={minutesPerAsset} min={1} max={480} onCommit={setMinutesPerAsset} />
             </label>
             <label className="flex items-center justify-between gap-3 text-sm">
               <span>ความเร็วเฉลี่ย (กม./ชม.)</span>
-              <input
-                type="number"
-                min={5}
-                max={120}
-                value={speedKmh}
-                onChange={(e) => setSpeedKmh(Math.max(5, Number(e.target.value) || 5))}
-                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
-              />
+              <NumField value={speedKmh} min={5} max={120} step={5} onCommit={setSpeedKmh} />
             </label>
             <label className="flex items-center justify-between gap-3 text-sm">
               <span>เพดานชั่วโมงงาน/วัน</span>
-              <input
-                type="number"
-                min={1}
-                max={24}
-                value={dailyHours}
-                onChange={(e) => setDailyHours(Math.max(1, Number(e.target.value) || 1))}
-                className="h-9 w-20 rounded-lg border bg-background px-2 text-right tabular-nums"
-              />
+              <NumField value={dailyHours} min={1} max={24} onCommit={setDailyHours} />
             </label>
             {activeMediaTypes.length > 0 && (
               <div className="space-y-1.5">
@@ -1137,7 +1100,7 @@ function RouteMonitoringPage() {
                   maxHours > dailyHours ? "text-destructive font-semibold" : "text-muted-foreground",
                 )}
               >
-                ชั่วโมงงานสูงสุด/วัน: {maxHours.toFixed(1)} ชม.
+                ชั่วโมงงานสูงสุด/วัน: {fmtHours(maxHours)}
                 {maxHours > dailyHours &&
                   ` (เกิน ${dailyHours} ชม. — พิจารณาเพิ่มคนหรือขยายวัน)`}
               </div>
@@ -1372,8 +1335,8 @@ function RouteMonitoringPage() {
                           )}
                         >
                           {route.stops.length} จุด · {fmtKm(route.totalMeters)} · ขับ{" "}
-                          {fmtDuration(route.totalSeconds)} · เวลาตรวจ {onSite.toFixed(1)} ชม. ·
-                          รวม {total.toFixed(1)}/{dailyHours} ชม.
+                          {fmtDuration(route.totalSeconds)} · เวลาตรวจ {fmtHours(onSite)} ·
+                          รวม {fmtHours(total)} / {dailyHours} ชม.
                           {route.returnMeters > 0 && ` · ขากลับ ${fmtKm(route.returnMeters)}`}
                           {route.approximate && " · (ประมาณการ)"}
                         </span>
@@ -1564,7 +1527,7 @@ function RouteMonitoringPage() {
                               )}
                             >
                               {d.points.length} ป้าย · ~{(d.meters / 1000).toFixed(1)} กม. ·{" "}
-                              {d.hours.toFixed(1)} ชม.
+                              {fmtHours(d.hours)}
                             </div>
                           </button>
                         );

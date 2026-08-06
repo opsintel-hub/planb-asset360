@@ -71,6 +71,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
 async function optimiseOrder(
   points: PlanPoint[],
   origin: { lat: number; lng: number },
+  exclude?: string | null,
 ): Promise<{ ordered: PlanPoint[]; usedOsrm: boolean }> {
   const pre = nearestNeighbourOrder(points, origin);
   if (pre.length < 3) return { ordered: pre, usedOsrm: false };
@@ -90,7 +91,13 @@ async function optimiseOrder(
         [anchor.lat, anchor.lng],
         ...group.map((p) => [p.lat, p.lng] as LatLng),
       ];
-      const trip = await osrmTrip(coords, { roundtrip: false, fixedStart: true });
+      let trip;
+      try {
+        trip = await osrmTrip(coords, { roundtrip: false, fixedStart: true, exclude });
+      } catch {
+        // Some OSRM servers reject an exclude class — retry without it.
+        trip = await osrmTrip(coords, { roundtrip: false, fixedStart: true });
+      }
       // waypointOrder[i] = visiting position of input i (0 = the anchor)
       const seq = group
         .map((p, i) => ({ p, order: trip.waypointOrder[i + 1] ?? i + 1 }))
@@ -112,6 +119,7 @@ async function legsFor(
   ordered: PlanPoint[],
   origin: { lat: number; lng: number },
   end?: { lat: number; lng: number } | null,
+  exclude?: string | null,
 ): Promise<{ legs: OsrmLeg[]; geometry: LatLng[]; ok: boolean }> {
   const path: LatLng[] = [[origin.lat, origin.lng], ...ordered.map((p) => [p.lat, p.lng] as LatLng)];
   if (end) path.push([end.lat, end.lng]);
@@ -126,7 +134,12 @@ async function legsFor(
     const slice = path.slice(start, start + ROUTE_CHUNK);
     if (slice.length < 2) break;
     try {
-      const r = await osrmRoute(slice);
+      let r;
+      try {
+        r = await osrmRoute(slice, exclude);
+      } catch {
+        r = await osrmRoute(slice);
+      }
       legs.push(...r.legs);
       geometry.push(...r.geometry);
     } catch {
@@ -149,6 +162,8 @@ export async function computeDayRoute(
   points: PlanPoint[],
   origin: { lat: number; lng: number },
   end?: { lat: number; lng: number } | null,
+  /** OSRM car-profile class to avoid: "motorway" (ทางด่วน) | "toll" (ทางมีค่าผ่านทาง). */
+  exclude?: string | null,
 ): Promise<DayRoute> {
   if (points.length === 0) {
     return {
@@ -161,8 +176,8 @@ export async function computeDayRoute(
       approximate: false,
     };
   }
-  const { ordered, usedOsrm } = await optimiseOrder(points, origin);
-  const { legs, geometry, ok } = await legsFor(ordered, origin, end);
+  const { ordered, usedOsrm } = await optimiseOrder(points, origin, exclude);
+  const { legs, geometry, ok } = await legsFor(ordered, origin, end, exclude);
 
   let cumM = 0;
   let cumS = 0;

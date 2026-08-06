@@ -25,6 +25,9 @@ import {
   Minimize2,
   ChevronsUpDown,
   ChevronsDownUp,
+  SlidersHorizontal,
+  BarChart3,
+  ListOrdered,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui-bits";
 import { Skeleton } from "@/components/ui/skeleton";

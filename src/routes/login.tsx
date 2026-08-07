@@ -17,10 +17,33 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [needConfirm, setNeedConfirm] = useState(false);
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     if (!loading && user) nav({ to: "/" });
   }, [user, loading, nav]);
+
+  const resendConfirm = async () => {
+    if (!email) {
+      toast.error("กรอกอีเมลก่อนกดส่งลิงก์ยืนยัน");
+      return;
+    }
+    setResending(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: `${window.location.origin}/` },
+      });
+      if (error) throw error;
+      toast.success("ส่งลิงก์ยืนยันใหม่แล้ว กรุณาตรวจอีเมล (ลิงก์ใช้ได้ครั้งเดียว และมีอายุจำกัด)");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setResending(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +52,7 @@ function LoginPage() {
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        setNeedConfirm(false);
         toast.success("เข้าสู่ระบบสำเร็จ");
       } else {
         const { error } = await supabase.auth.signUp({
@@ -40,10 +64,18 @@ function LoginPage() {
           },
         });
         if (error) throw error;
-        toast.success("สมัครสำเร็จ กรุณายืนยันอีเมล");
+        setNeedConfirm(true);
+        toast.success("สมัครสำเร็จ กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ");
       }
     } catch (err) {
-      toast.error((err as Error).message);
+      const msg = (err as Error).message || "";
+      const unconfirmed = /not confirmed|confirm(ed)?\s*email|email.*confirm/i.test(msg);
+      if (unconfirmed) {
+        setNeedConfirm(true);
+        toast.error("อีเมลนี้ยังไม่ได้ยืนยัน — กดปุ่ม “ส่งลิงก์ยืนยันใหม่” ด้านล่างได้เลย");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -108,6 +140,38 @@ function LoginPage() {
             {busy ? "กำลังดำเนินการ..." : mode === "signin" ? "เข้าสู่ระบบ" : "สมัครสมาชิก"}
           </button>
         </form>
+
+        {needConfirm && (
+          <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+            <div className="font-medium mb-1">ต้องยืนยันอีเมลก่อนเข้าสู่ระบบ</div>
+            <p className="mb-2 leading-relaxed">
+              ลิงก์ยืนยันใช้ได้เพียงครั้งเดียวและมีอายุจำกัด หากกดซ้ำหรือเปิดช้าเกินไป ลิงก์จะใช้ไม่ได้ —
+              กดปุ่มด้านล่างเพื่อขอลิงก์ใหม่
+            </p>
+            <button
+              type="button"
+              onClick={resendConfirm}
+              disabled={resending}
+              className="h-9 px-3 rounded-md bg-primary text-primary-foreground font-medium disabled:opacity-50"
+            >
+              {resending ? "กำลังส่ง..." : "ส่งลิงก์ยืนยันใหม่"}
+            </button>
+          </div>
+        )}
+
+        {mode === "signin" && !needConfirm && (
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => setNeedConfirm(true)}
+              className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              ไม่ได้รับอีเมลยืนยัน / ลิงก์หมดอายุ?
+            </button>
+          </div>
+        )}
+
+
 
         <div className="mt-4 text-center text-sm">
           {mode === "signin" ? (

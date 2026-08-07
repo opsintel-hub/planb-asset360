@@ -477,16 +477,23 @@ function RouteMonitoringPage() {
   async function run() {
     if (calc) return;
     await tick(8, "รวบรวมป้ายตามตัวกรอง");
-    const points: PlanPoint[] = filtered.map((a) => ({
-      id: a.id,
-      code: a.old_code ?? a.id,
-      name: a.name,
-      department: a.department,
-      mediaType: a.media_type,
-      province: a.province,
-      lat: a.lat,
-      lng: a.lng,
-    }));
+    const points: PlanPoint[] = filtered.map((a) => {
+      const code = a.old_code ?? a.id;
+      const r = riskMap.get(code);
+      return {
+        id: a.id,
+        code,
+        name: a.name,
+        department: a.department,
+        mediaType: a.media_type,
+        province: a.province,
+        lat: a.lat,
+        lng: a.lng,
+        risk: r?.level ?? "low",
+        riskScore: r?.score ?? 0,
+      };
+    });
+
 
     // Workload (service minutes), not raw asset count, is what we balance on.
     const weight = (p: PlanPoint) => minutesFor(p);

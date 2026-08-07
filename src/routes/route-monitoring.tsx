@@ -58,9 +58,13 @@ import {
   estimateTourMeters,
   haversineM,
   splitIntoDaysBalanced,
+  sortDaysByRisk,
   CLUSTER_COLORS,
   type PlanPoint,
+  type PlanRisk,
 } from "@/lib/route-planner";
+import { listAssetRiskScores } from "@/lib/route-risk.functions";
+
 import { computeDayRoute, fmtDuration, fmtKm, type DayRoute } from "@/lib/route-osrm";
 import { googleMapsDirectionsUrl, type LatLng } from "@/lib/osrm";
 import {

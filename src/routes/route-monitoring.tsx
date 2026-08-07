@@ -1985,12 +1985,17 @@ function RouteMonitoringPage() {
                                 </td>
                                 <td className="px-3 py-1.5 font-medium">
                                   {s.point.code}
+                                  <RiskChip
+                                    level={s.point.risk}
+                                    score={s.point.riskScore}
+                                  />
                                   {s.point.name && (
                                     <span className="ml-1 text-muted-foreground font-normal">
                                       {s.point.name}
                                     </span>
                                   )}
                                 </td>
+
                                 <td className="px-3 py-1.5 text-muted-foreground">
                                   {s.point.mediaType ?? "-"}
                                 </td>

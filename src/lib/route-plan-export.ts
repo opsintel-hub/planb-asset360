@@ -76,6 +76,8 @@ const CSV_HEADER = [
   "ประเภทสื่อ",
   "แผนก",
   "จังหวัด",
+  "ความเสี่ยง",
+  "คะแนนความเสี่ยง",
   "Latitude",
   "Longitude",
   "ระยะจากจุดก่อน (กม.)",
@@ -83,6 +85,13 @@ const CSV_HEADER = [
   "เวลาตรวจ (นาที)",
   "ระยะสะสม (กม.)",
 ];
+
+const RISK_TH: Record<string, string> = {
+  high: "สูง",
+  medium: "กลาง",
+  low: "ต่ำ",
+};
+
 
 export type CsvDaySource = {
   inspector: number;

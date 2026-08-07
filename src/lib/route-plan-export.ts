@@ -137,8 +137,8 @@ export function buildPlanCsv(
           s.point.riskScore ?? 0,
           s.point.lat,
           s.point.lng,
-
           s.legKm == null ? "" : s.legKm.toFixed(2),
+
           s.driveMin == null ? "" : Math.round(s.driveMin),
           Math.round(minutesFor(s.point)),
           s.cumKm == null ? "" : s.cumKm.toFixed(2),

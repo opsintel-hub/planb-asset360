@@ -17,10 +17,33 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [needConfirm, setNeedConfirm] = useState(false);
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     if (!loading && user) nav({ to: "/" });
   }, [user, loading, nav]);
+
+  const resendConfirm = async () => {
+    if (!email) {
+      toast.error("กรอกอีเมลก่อนกดส่งลิงก์ยืนยัน");
+      return;
+    }
+    setResending(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: `${window.location.origin}/` },
+      });
+      if (error) throw error;
+      toast.success("ส่งลิงก์ยืนยันใหม่แล้ว กรุณาตรวจอีเมล (ลิงก์ใช้ได้ครั้งเดียว และมีอายุจำกัด)");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setResending(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +52,7 @@ function LoginPage() {
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        setNeedConfirm(false);
         toast.success("เข้าสู่ระบบสำเร็จ");
       } else {
         const { error } = await supabase.auth.signUp({
@@ -40,10 +64,18 @@ function LoginPage() {
           },
         });
         if (error) throw error;
-        toast.success("สมัครสำเร็จ กรุณายืนยันอีเมล");
+        setNeedConfirm(true);
+        toast.success("สมัครสำเร็จ กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ");
       }
     } catch (err) {
-      toast.error((err as Error).message);
+      const msg = (err as Error).message || "";
+      const unconfirmed = /not confirmed|confirm(ed)?\s*email|email.*confirm/i.test(msg);
+      if (unconfirmed) {
+        setNeedConfirm(true);
+        toast.error("อีเมลนี้ยังไม่ได้ยืนยัน — กดปุ่ม “ส่งลิงก์ยืนยันใหม่” ด้านล่างได้เลย");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setBusy(false);
     }

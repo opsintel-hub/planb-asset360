@@ -131,7 +131,7 @@ function RiskChip({ level, score }: { level?: PlanRisk | null; score?: number | 
     <span
       title={`คะแนนความเสี่ยง ${score ?? 0}/100`}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-medium align-middle",
+        "ml-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-medium align-middle",
         level === "high"
           ? "border-destructive/40 bg-destructive/10 text-destructive"
           : "border-warning/40 bg-warning/10 text-warning",

@@ -1182,11 +1182,80 @@ function RouteMonitoringPage() {
                 />
               </label>
             )}
+            {impact && (
+              <div className="rounded-lg border border-warning/40 bg-warning/5 p-2.5 space-y-1.5 text-[11px]">
+                <div className="text-xs font-semibold flex items-center gap-1.5">
+                  <AlertTriangle className="size-3.5 text-warning" /> ผลกระทบเมื่อมีคนลา
+                </div>
+                <div className="grid grid-cols-[1fr_auto_auto] gap-x-2 gap-y-1 tabular-nums">
+                  <span className="text-muted-foreground">พนักงานที่ทำงาน</span>
+                  <span>{impact.before} คน</span>
+                  <span className="font-medium text-warning">→ {impact.after} คน</span>
+                  <span className="text-muted-foreground">ป้าย/คน/วัน</span>
+                  <span>{Math.ceil(impact.perDayBefore).toLocaleString()}</span>
+                  <span className="font-medium text-warning">
+                    → {Math.ceil(impact.perDayAfter).toLocaleString()}
+                  </span>
+                  <span className="text-muted-foreground">ชั่วโมง/คน/วัน</span>
+                  <span>{fmtHours(impact.hoursBefore)}</span>
+                  <span
+                    className={cn(
+                      "font-medium",
+                      impact.hoursAfter > dailyHours ? "text-destructive" : "text-warning",
+                    )}
+                  >
+                    → {fmtHours(impact.hoursAfter)}
+                  </span>
+                  <span className="text-muted-foreground">คน-วันที่เกิน {dailyHours} ชม.</span>
+                  <span>{impact.overBefore}</span>
+                  <span className="font-medium text-warning">→ {impact.overAfter}</span>
+                </div>
+                {impact.hoursAfter > dailyHours ? (
+                  <div className="text-muted-foreground">
+                    เกินเพดานเวลา — เลื่อนป้าย <b>เสี่ยงต่ำ</b> ได้ประมาณ{" "}
+                    <b className="tabular-nums">{impact.deferrable.toLocaleString()}</b> ป้าย
+                    หรือเพิ่มกรอบเวลาเป็น{" "}
+                    <b className="tabular-nums">
+                      {Math.ceil((impact.hoursAfter / Math.max(1, dailyHours)) * days)}
+                    </b>{" "}
+                    วัน
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground">
+                    ยังอยู่ในเพดานเวลา {dailyHours} ชม./วัน — ไม่ต้องเลื่อนงาน
+                  </div>
+                )}
+              </div>
+            )}
+            <label className="flex items-start gap-2 text-xs pt-1 border-t">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={riskFirst}
+                onChange={(e) => setRiskFirst(e.target.checked)}
+              />
+              <span>
+                <b>จัดลำดับตามความเสี่ยง</b> — ให้วันแรก ๆ ของแต่ละคนได้ป้ายเสี่ยงสูงก่อน
+                (โซนและภาระงานไม่เปลี่ยน)
+              </span>
+            </label>
+            <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-2">
+              <span className="inline-flex items-center gap-1">
+                <ShieldAlert className="size-3 text-destructive" /> เสี่ยงสูง{" "}
+                <b className="tabular-nums">{riskMix.high.toLocaleString()}</b>
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <ShieldAlert className="size-3 text-warning" /> กลาง{" "}
+                <b className="tabular-nums">{riskMix.medium.toLocaleString()}</b>
+              </span>
+              <span>· ต่ำ {riskMix.low.toLocaleString()}</span>
+            </div>
             <div className="text-xs text-muted-foreground">
               พนักงานที่ใช้วางแผนจริง: <b className="tabular-nums">{activeInspectors}</b> คน ·
               ค่าเริ่มต้น {minutesPerAsset} นาที/ป้าย · ความเร็วเฉลี่ย {speedKmh} กม./ชม. ·
               เพดาน {dailyHours} ชม./วัน
             </div>
+
             <div className="space-y-2 pt-1 border-t">
               <div className="text-xs font-medium">ตัวเลือกเส้นทาง (Routing Options)</div>
               <div className="grid grid-cols-2 gap-1">

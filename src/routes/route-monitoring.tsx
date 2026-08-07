@@ -2298,7 +2298,11 @@ function RouteMonitoringPage() {
                         {r.seq}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-xs font-medium truncate">{r.code}</span>
+                        <span className="block text-xs font-medium truncate">
+                          {r.code}
+                          <RiskChip level={r.risk} score={r.riskScore} />
+                        </span>
+
                         <span className="block text-[11px] text-muted-foreground truncate">
                           คนที่ {r.i + 1} · วันที่ {r.d}
                           {r.media ? ` · ${r.media}` : ""}

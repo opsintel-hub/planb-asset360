@@ -76,6 +76,8 @@ const CSV_HEADER = [
   "ประเภทสื่อ",
   "แผนก",
   "จังหวัด",
+  "ความเสี่ยง",
+  "คะแนนความเสี่ยง",
   "Latitude",
   "Longitude",
   "ระยะจากจุดก่อน (กม.)",
@@ -83,6 +85,13 @@ const CSV_HEADER = [
   "เวลาตรวจ (นาที)",
   "ระยะสะสม (กม.)",
 ];
+
+const RISK_TH: Record<string, string> = {
+  high: "สูง",
+  medium: "กลาง",
+  low: "ต่ำ",
+};
+
 
 export type CsvDaySource = {
   inspector: number;
@@ -124,9 +133,12 @@ export function buildPlanCsv(
           s.point.mediaType ?? "",
           s.point.department ?? "",
           s.point.province ?? "",
+          RISK_TH[s.point.risk ?? "low"] ?? "",
+          s.point.riskScore ?? 0,
           s.point.lat,
           s.point.lng,
           s.legKm == null ? "" : s.legKm.toFixed(2),
+
           s.driveMin == null ? "" : Math.round(s.driveMin),
           Math.round(minutesFor(s.point)),
           s.cumKm == null ? "" : s.cumKm.toFixed(2),

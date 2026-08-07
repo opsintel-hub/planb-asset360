@@ -1,5 +1,7 @@
 // Pure geospatial planning helpers — no AI, no network, no credits.
 
+export type PlanRisk = "high" | "medium" | "low";
+
 export type PlanPoint = {
   id: string;
   code: string;
@@ -9,7 +11,31 @@ export type PlanPoint = {
   province?: string | null;
   lat: number;
   lng: number;
+  /** Phase 5 — pre-computed risk level from `asset_risk_scores`. */
+  risk?: PlanRisk | null;
+  riskScore?: number | null;
 };
+
+export const RISK_WEIGHT: Record<PlanRisk, number> = { high: 3, medium: 1, low: 0 };
+
+/** Risk pressure of a batch: high-risk assets count most. */
+export function riskPressure(points: PlanPoint[]): number {
+  let s = 0;
+  for (const p of points) s += RISK_WEIGHT[p.risk ?? "low"] ?? 0;
+  return s;
+}
+
+/**
+ * Front-load risk: keep each day's geography and workload exactly as clustered,
+ * but visit the day-batches that contain the most high-risk assets first.
+ */
+export function sortDaysByRisk(batches: PlanPoint[][]): PlanPoint[][] {
+  return batches
+    .map((pts, i) => ({ pts, i, pressure: riskPressure(pts) }))
+    .sort((a, b) => b.pressure - a.pressure || a.i - b.i)
+    .map((x) => x.pts);
+}
+
 
 
 export function haversineM(

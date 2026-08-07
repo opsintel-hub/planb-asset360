@@ -104,6 +104,63 @@ export type Database = {
         }
         Relationships: []
       }
+      asset_risk_scores: {
+        Row: {
+          asset_old_code: string
+          claims_30d: number
+          claims_365d: number
+          claims_90d: number
+          computed_at: string
+          days_since_pm: number | null
+          department: string | null
+          district: string | null
+          last_claim_at: string | null
+          last_pm_at: string | null
+          media_type: string | null
+          open_claims: number
+          risk_level: string
+          score: number
+          top_problem: string | null
+          updated_at: string
+        }
+        Insert: {
+          asset_old_code: string
+          claims_30d?: number
+          claims_365d?: number
+          claims_90d?: number
+          computed_at?: string
+          days_since_pm?: number | null
+          department?: string | null
+          district?: string | null
+          last_claim_at?: string | null
+          last_pm_at?: string | null
+          media_type?: string | null
+          open_claims?: number
+          risk_level?: string
+          score?: number
+          top_problem?: string | null
+          updated_at?: string
+        }
+        Update: {
+          asset_old_code?: string
+          claims_30d?: number
+          claims_365d?: number
+          claims_90d?: number
+          computed_at?: string
+          days_since_pm?: number | null
+          department?: string | null
+          district?: string | null
+          last_claim_at?: string | null
+          last_pm_at?: string | null
+          media_type?: string | null
+          open_claims?: number
+          risk_level?: string
+          score?: number
+          top_problem?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       assets: {
         Row: {
           area: string | null
@@ -873,6 +930,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      recompute_asset_risk_scores: { Args: never; Returns: number }
       refresh_pm_views: { Args: never; Returns: undefined }
       set_mssql_cron_schedule: {
         Args: { p_hour_utc: number; p_job: string; p_minute_utc: number }

@@ -28,7 +28,9 @@ import {
   SlidersHorizontal,
   BarChart3,
   ListOrdered,
+  ShieldAlert,
 } from "lucide-react";
+
 import { PageHeader } from "@/components/ui-bits";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -56,9 +58,13 @@ import {
   estimateTourMeters,
   haversineM,
   splitIntoDaysBalanced,
+  sortDaysByRisk,
   CLUSTER_COLORS,
   type PlanPoint,
+  type PlanRisk,
 } from "@/lib/route-planner";
+import { listAssetRiskScores } from "@/lib/route-risk.functions";
+
 import { computeDayRoute, fmtDuration, fmtKm, type DayRoute } from "@/lib/route-osrm";
 import { googleMapsDirectionsUrl, type LatLng } from "@/lib/osrm";
 import {
@@ -116,6 +122,28 @@ function fmtHours(hours: number): string {
   const m = mins % 60;
   return m === 0 ? `${h} ชม.` : `${h} ชม. ${m} นาที`;
 }
+
+/** Phase 5 — compact risk chip (สูง / กลาง). Low risk renders nothing. */
+function RiskChip({ level, score }: { level?: PlanRisk | null; score?: number | null }) {
+  if (level !== "high" && level !== "medium") return null;
+  const label = level === "high" ? "เสี่ยงสูง" : "เสี่ยงกลาง";
+  return (
+    <span
+      title={`คะแนนความเสี่ยง ${score ?? 0}/100`}
+      className={cn(
+        "ml-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-medium align-middle",
+        level === "high"
+          ? "border-destructive/40 bg-destructive/10 text-destructive"
+          : "border-warning/40 bg-warning/10 text-warning",
+      )}
+    >
+      <ShieldAlert className="size-3" />
+      {label}
+    </span>
+  );
+}
+
+
 
 /** Number field that allows free typing; clamps on blur/Enter only. */
 function NumField({
@@ -264,6 +292,22 @@ function RouteMonitoringPage() {
     staleTime: 5 * 60_000,
   });
   const allAssets: MapAsset[] = useMemo(() => data?.assets ?? [], [data]);
+
+  // ---- Phase 5: risk scores (pre-computed nightly, read once, cached) ----
+  const riskFn = useServerFn(listAssetRiskScores);
+  const { data: riskData } = useQuery({
+    queryKey: ["asset-risk-scores"],
+    queryFn: () => riskFn({ data: { minScore: 1 } }),
+    staleTime: 10 * 60_000,
+  });
+  const riskMap = useMemo(() => {
+    const m = new Map<string, { level: PlanRisk; score: number }>();
+    for (const r of riskData?.rows ?? []) m.set(r.code, { level: r.level, score: r.score });
+    return m;
+  }, [riskData]);
+  const [riskFirst, setRiskFirst] = useState(true);
+
+
 
   const [fProjects, setFProjects] = useState<string[]>([]);
   const [fMedias, setFMedias] = useState<string[]>([]);
@@ -424,6 +468,57 @@ function RouteMonitoringPage() {
 
   const activeInspectors = Math.max(1, inspectors - (emergency ? absent : 0));
 
+  /** Risk mix of the current filter — read straight from the cached table. */
+  const riskMix = useMemo(() => {
+    let high = 0;
+    let medium = 0;
+    for (const a of filtered) {
+      const r = riskMap.get(a.old_code ?? a.id);
+      if (r?.level === "high") high += 1;
+      else if (r?.level === "medium") medium += 1;
+    }
+    return { high, medium, low: Math.max(0, filtered.length - high - medium) };
+  }, [filtered, riskMap]);
+
+  /**
+   * Emergency impact: compares the same total workload spread over the full team
+   * vs the reduced team. Pure arithmetic on numbers already on the page — no OSRM.
+   */
+  const impact = useMemo(() => {
+    if (!emergency) return null;
+    const totalWork = plan
+      ? plan.reduce((s, p) => s + p.days.reduce((t, d) => t + d.hours, 0), 0)
+      : serviceHours(filtered.map((a) => ({ mediaType: a.media_type })));
+    const d = Math.max(1, days);
+    const before = inspectors;
+    const after = Math.max(1, inspectors - absent);
+    const hoursBefore = totalWork / (before * d);
+    const hoursAfter = totalWork / (after * d);
+    const perDayBefore = filtered.length / before / d;
+    const perDayAfter = filtered.length / after / d;
+    const overBefore = hoursBefore > dailyHours ? before * d : 0;
+    const overAfter = hoursAfter > dailyHours ? after * d : 0;
+    const deferrable = Math.max(
+      0,
+      Math.round(
+        riskMix.low * Math.min(1, Math.max(0, (hoursAfter - dailyHours) / Math.max(1, hoursAfter))),
+      ),
+    );
+    return {
+      before,
+      after,
+      hoursBefore,
+      hoursAfter,
+      perDayBefore,
+      perDayAfter,
+      overBefore,
+      overAfter,
+      deferrable,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emergency, plan, filtered, inspectors, absent, days, dailyHours, riskMix.low, mediaMinutes, minutesPerAsset]);
+
+
   const tick = (pct: number, label: string) =>
     new Promise<void>((resolve) => {
       setCalc({ pct, label });
@@ -433,16 +528,23 @@ function RouteMonitoringPage() {
   async function run() {
     if (calc) return;
     await tick(8, "รวบรวมป้ายตามตัวกรอง");
-    const points: PlanPoint[] = filtered.map((a) => ({
-      id: a.id,
-      code: a.old_code ?? a.id,
-      name: a.name,
-      department: a.department,
-      mediaType: a.media_type,
-      province: a.province,
-      lat: a.lat,
-      lng: a.lng,
-    }));
+    const points: PlanPoint[] = filtered.map((a) => {
+      const code = a.old_code ?? a.id;
+      const r = riskMap.get(code);
+      return {
+        id: a.id,
+        code,
+        name: a.name,
+        department: a.department,
+        mediaType: a.media_type,
+        province: a.province,
+        lat: a.lat,
+        lng: a.lng,
+        risk: r?.level ?? "low",
+        riskScore: r?.score ?? 0,
+      };
+    });
+
 
     // Workload (service minutes), not raw asset count, is what we balance on.
     const weight = (p: PlanPoint) => minutesFor(p);
@@ -478,7 +580,11 @@ function RouteMonitoringPage() {
 
     await tick(65, "แบ่งงานเป็นรายวัน");
     const result: InspectorPlan[] = clusters.map((c) => {
-      const dayBatches = splitIntoDaysBalanced(c.points, days, weight);
+      const batches = splitIntoDaysBalanced(c.points, days, weight);
+      // Phase 5 — same zones/workload, but risky day-batches go first.
+      const dayBatches = riskFirst ? sortDaysByRisk(batches) : batches;
+
+
 
       return {
         index: c.index,
@@ -734,6 +840,8 @@ function RouteMonitoringPage() {
       legMeters: number;
       legSeconds: number;
       color: string;
+      risk?: PlanRisk | null;
+      riskScore?: number | null;
     }> = [];
     for (const { i, d } of selDays) {
       if (!isVisible(i, d)) continue;
@@ -751,6 +859,8 @@ function RouteMonitoringPage() {
             legMeters: s2.legMeters,
             legSeconds: s2.legSeconds,
             color,
+            risk: s2.point.risk,
+            riskScore: s2.point.riskScore,
           });
       } else {
         (plan?.[i]?.days[d - 1]?.points ?? []).forEach((pt, n) =>
@@ -764,10 +874,13 @@ function RouteMonitoringPage() {
             legMeters: 0,
             legSeconds: 0,
             color,
+            risk: pt.risk,
+            riskScore: pt.riskScore,
           }),
         );
       }
     }
+
     return rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selDays, routes, planNonce, depotSig, vehicleSig, plan, hiddenInspectors, hiddenDays]);
@@ -1076,11 +1189,80 @@ function RouteMonitoringPage() {
                 />
               </label>
             )}
+            {impact && (
+              <div className="rounded-lg border border-warning/40 bg-warning/5 p-2.5 space-y-1.5 text-[11px]">
+                <div className="text-xs font-semibold flex items-center gap-1.5">
+                  <AlertTriangle className="size-3.5 text-warning" /> ผลกระทบเมื่อมีคนลา
+                </div>
+                <div className="grid grid-cols-[1fr_auto_auto] gap-x-2 gap-y-1 tabular-nums">
+                  <span className="text-muted-foreground">พนักงานที่ทำงาน</span>
+                  <span>{impact.before} คน</span>
+                  <span className="font-medium text-warning">→ {impact.after} คน</span>
+                  <span className="text-muted-foreground">ป้าย/คน/วัน</span>
+                  <span>{Math.ceil(impact.perDayBefore).toLocaleString()}</span>
+                  <span className="font-medium text-warning">
+                    → {Math.ceil(impact.perDayAfter).toLocaleString()}
+                  </span>
+                  <span className="text-muted-foreground">ชั่วโมง/คน/วัน</span>
+                  <span>{fmtHours(impact.hoursBefore)}</span>
+                  <span
+                    className={cn(
+                      "font-medium",
+                      impact.hoursAfter > dailyHours ? "text-destructive" : "text-warning",
+                    )}
+                  >
+                    → {fmtHours(impact.hoursAfter)}
+                  </span>
+                  <span className="text-muted-foreground">คน-วันที่เกิน {dailyHours} ชม.</span>
+                  <span>{impact.overBefore}</span>
+                  <span className="font-medium text-warning">→ {impact.overAfter}</span>
+                </div>
+                {impact.hoursAfter > dailyHours ? (
+                  <div className="text-muted-foreground">
+                    เกินเพดานเวลา — เลื่อนป้าย <b>เสี่ยงต่ำ</b> ได้ประมาณ{" "}
+                    <b className="tabular-nums">{impact.deferrable.toLocaleString()}</b> ป้าย
+                    หรือเพิ่มกรอบเวลาเป็น{" "}
+                    <b className="tabular-nums">
+                      {Math.ceil((impact.hoursAfter / Math.max(1, dailyHours)) * days)}
+                    </b>{" "}
+                    วัน
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground">
+                    ยังอยู่ในเพดานเวลา {dailyHours} ชม./วัน — ไม่ต้องเลื่อนงาน
+                  </div>
+                )}
+              </div>
+            )}
+            <label className="flex items-start gap-2 text-xs pt-1 border-t">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={riskFirst}
+                onChange={(e) => setRiskFirst(e.target.checked)}
+              />
+              <span>
+                <b>จัดลำดับตามความเสี่ยง</b> — ให้วันแรก ๆ ของแต่ละคนได้ป้ายเสี่ยงสูงก่อน
+                (โซนและภาระงานไม่เปลี่ยน)
+              </span>
+            </label>
+            <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-2">
+              <span className="inline-flex items-center gap-1">
+                <ShieldAlert className="size-3 text-destructive" /> เสี่ยงสูง{" "}
+                <b className="tabular-nums">{riskMix.high.toLocaleString()}</b>
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <ShieldAlert className="size-3 text-warning" /> กลาง{" "}
+                <b className="tabular-nums">{riskMix.medium.toLocaleString()}</b>
+              </span>
+              <span>· ต่ำ {riskMix.low.toLocaleString()}</span>
+            </div>
             <div className="text-xs text-muted-foreground">
               พนักงานที่ใช้วางแผนจริง: <b className="tabular-nums">{activeInspectors}</b> คน ·
               ค่าเริ่มต้น {minutesPerAsset} นาที/ป้าย · ความเร็วเฉลี่ย {speedKmh} กม./ชม. ·
               เพดาน {dailyHours} ชม./วัน
             </div>
+
             <div className="space-y-2 pt-1 border-t">
               <div className="text-xs font-medium">ตัวเลือกเส้นทาง (Routing Options)</div>
               <div className="grid grid-cols-2 gap-1">
@@ -1810,12 +1992,17 @@ function RouteMonitoringPage() {
                                 </td>
                                 <td className="px-3 py-1.5 font-medium">
                                   {s.point.code}
+                                  <RiskChip
+                                    level={s.point.risk}
+                                    score={s.point.riskScore}
+                                  />
                                   {s.point.name && (
                                     <span className="ml-1 text-muted-foreground font-normal">
                                       {s.point.name}
                                     </span>
                                   )}
                                 </td>
+
                                 <td className="px-3 py-1.5 text-muted-foreground">
                                   {s.point.mediaType ?? "-"}
                                 </td>
@@ -2111,7 +2298,11 @@ function RouteMonitoringPage() {
                         {r.seq}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-xs font-medium truncate">{r.code}</span>
+                        <span className="block text-xs font-medium truncate">
+                          {r.code}
+                          <RiskChip level={r.risk} score={r.riskScore} />
+                        </span>
+
                         <span className="block text-[11px] text-muted-foreground truncate">
                           คนที่ {r.i + 1} · วันที่ {r.d}
                           {r.media ? ` · ${r.media}` : ""}

@@ -141,6 +141,38 @@ function LoginPage() {
           </button>
         </form>
 
+        {needConfirm && (
+          <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+            <div className="font-medium mb-1">ต้องยืนยันอีเมลก่อนเข้าสู่ระบบ</div>
+            <p className="mb-2 leading-relaxed">
+              ลิงก์ยืนยันใช้ได้เพียงครั้งเดียวและมีอายุจำกัด หากกดซ้ำหรือเปิดช้าเกินไป ลิงก์จะใช้ไม่ได้ —
+              กดปุ่มด้านล่างเพื่อขอลิงก์ใหม่
+            </p>
+            <button
+              type="button"
+              onClick={resendConfirm}
+              disabled={resending}
+              className="h-9 px-3 rounded-md bg-primary text-primary-foreground font-medium disabled:opacity-50"
+            >
+              {resending ? "กำลังส่ง..." : "ส่งลิงก์ยืนยันใหม่"}
+            </button>
+          </div>
+        )}
+
+        {mode === "signin" && !needConfirm && (
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => setNeedConfirm(true)}
+              className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              ไม่ได้รับอีเมลยืนยัน / ลิงก์หมดอายุ?
+            </button>
+          </div>
+        )}
+
+
+
         <div className="mt-4 text-center text-sm">
           {mode === "signin" ? (
             <button onClick={() => setMode("signup")} className="text-primary hover:underline">

@@ -529,7 +529,11 @@ function RouteMonitoringPage() {
 
     await tick(65, "แบ่งงานเป็นรายวัน");
     const result: InspectorPlan[] = clusters.map((c) => {
-      const dayBatches = splitIntoDaysBalanced(c.points, days, weight);
+      const batches = splitIntoDaysBalanced(c.points, days, weight);
+      // Phase 5 — same zones/workload, but risky day-batches go first.
+      const dayBatches = riskFirst ? sortDaysByRisk(batches) : batches;
+
+
 
       return {
         index: c.index,

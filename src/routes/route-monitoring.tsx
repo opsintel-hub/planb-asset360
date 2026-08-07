@@ -879,9 +879,8 @@ function RouteMonitoringPage() {
           }),
         );
       }
-
-      }
     }
+
     return rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selDays, routes, planNonce, depotSig, vehicleSig, plan, hiddenInspectors, hiddenDays]);

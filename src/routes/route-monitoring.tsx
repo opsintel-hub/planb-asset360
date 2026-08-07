@@ -468,6 +468,57 @@ function RouteMonitoringPage() {
 
   const activeInspectors = Math.max(1, inspectors - (emergency ? absent : 0));
 
+  /** Risk mix of the current filter — read straight from the cached table. */
+  const riskMix = useMemo(() => {
+    let high = 0;
+    let medium = 0;
+    for (const a of filtered) {
+      const r = riskMap.get(a.old_code ?? a.id);
+      if (r?.level === "high") high += 1;
+      else if (r?.level === "medium") medium += 1;
+    }
+    return { high, medium, low: Math.max(0, filtered.length - high - medium) };
+  }, [filtered, riskMap]);
+
+  /**
+   * Emergency impact: compares the same total workload spread over the full team
+   * vs the reduced team. Pure arithmetic on numbers already on the page — no OSRM.
+   */
+  const impact = useMemo(() => {
+    if (!emergency) return null;
+    const totalWork = plan
+      ? plan.reduce((s, p) => s + p.days.reduce((t, d) => t + d.hours, 0), 0)
+      : serviceHours(filtered.map((a) => ({ mediaType: a.media_type })));
+    const d = Math.max(1, days);
+    const before = inspectors;
+    const after = Math.max(1, inspectors - absent);
+    const hoursBefore = totalWork / (before * d);
+    const hoursAfter = totalWork / (after * d);
+    const perDayBefore = filtered.length / before / d;
+    const perDayAfter = filtered.length / after / d;
+    const overBefore = hoursBefore > dailyHours ? before * d : 0;
+    const overAfter = hoursAfter > dailyHours ? after * d : 0;
+    const deferrable = Math.max(
+      0,
+      Math.round(
+        riskMix.low * Math.min(1, Math.max(0, (hoursAfter - dailyHours) / Math.max(1, hoursAfter))),
+      ),
+    );
+    return {
+      before,
+      after,
+      hoursBefore,
+      hoursAfter,
+      perDayBefore,
+      perDayAfter,
+      overBefore,
+      overAfter,
+      deferrable,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emergency, plan, filtered, inspectors, absent, days, dailyHours, riskMix.low, mediaMinutes, minutesPerAsset]);
+
+
   const tick = (pct: number, label: string) =>
     new Promise<void>((resolve) => {
       setCalc({ pct, label });

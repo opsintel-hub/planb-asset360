@@ -293,6 +293,22 @@ function RouteMonitoringPage() {
   });
   const allAssets: MapAsset[] = useMemo(() => data?.assets ?? [], [data]);
 
+  // ---- Phase 5: risk scores (pre-computed nightly, read once, cached) ----
+  const riskFn = useServerFn(listAssetRiskScores);
+  const { data: riskData } = useQuery({
+    queryKey: ["asset-risk-scores"],
+    queryFn: () => riskFn({ data: { minScore: 1 } }),
+    staleTime: 10 * 60_000,
+  });
+  const riskMap = useMemo(() => {
+    const m = new Map<string, { level: PlanRisk; score: number }>();
+    for (const r of riskData?.rows ?? []) m.set(r.code, { level: r.level, score: r.score });
+    return m;
+  }, [riskData]);
+  const [riskFirst, setRiskFirst] = useState(true);
+
+
+
   const [fProjects, setFProjects] = useState<string[]>([]);
   const [fMedias, setFMedias] = useState<string[]>([]);
   const [fRegions, setFRegions] = useState<RegionKey[]>([]);

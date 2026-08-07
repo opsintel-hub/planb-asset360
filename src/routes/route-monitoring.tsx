@@ -840,6 +840,8 @@ function RouteMonitoringPage() {
       legMeters: number;
       legSeconds: number;
       color: string;
+      risk?: PlanRisk | null;
+      riskScore?: number | null;
     }> = [];
     for (const { i, d } of selDays) {
       if (!isVisible(i, d)) continue;
@@ -857,6 +859,8 @@ function RouteMonitoringPage() {
             legMeters: s2.legMeters,
             legSeconds: s2.legSeconds,
             color,
+            risk: s2.point.risk,
+            riskScore: s2.point.riskScore,
           });
       } else {
         (plan?.[i]?.days[d - 1]?.points ?? []).forEach((pt, n) =>
@@ -870,8 +874,12 @@ function RouteMonitoringPage() {
             legMeters: 0,
             legSeconds: 0,
             color,
+            risk: pt.risk,
+            riskScore: pt.riskScore,
           }),
         );
+      }
+
       }
     }
     return rows;

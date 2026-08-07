@@ -28,7 +28,9 @@ import {
   SlidersHorizontal,
   BarChart3,
   ListOrdered,
+  ShieldAlert,
 } from "lucide-react";
+
 import { PageHeader } from "@/components/ui-bits";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";

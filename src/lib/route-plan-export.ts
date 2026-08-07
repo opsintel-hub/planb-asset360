@@ -133,8 +133,11 @@ export function buildPlanCsv(
           s.point.mediaType ?? "",
           s.point.department ?? "",
           s.point.province ?? "",
+          RISK_TH[s.point.risk ?? "low"] ?? "",
+          s.point.riskScore ?? 0,
           s.point.lat,
           s.point.lng,
+
           s.legKm == null ? "" : s.legKm.toFixed(2),
           s.driveMin == null ? "" : Math.round(s.driveMin),
           Math.round(minutesFor(s.point)),

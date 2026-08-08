@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
-import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText } from "lucide-react";
+import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert } from "lucide-react";
 import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
 import { syncClaimsNow } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +28,7 @@ import {
   departmentsForProjects,
   projectForDepartment,
 } from "@/lib/project-department-map";
+import { RiskChip, useAssetRiskMap } from "@/components/asset-risk";
 import {
   Select,
   SelectContent,
@@ -87,6 +88,8 @@ function ClaimsPage() {
   const [fSla, setFSla] = useState<string>("all");
   const [fOldCode, setFOldCode] = useState<string>("all");
   const [qTicket, setQTicket] = useState<string>("");
+  const [fRisk, setFRisk] = useState<boolean>(false);
+  const { map: riskMap, counts: riskCounts } = useAssetRiskMap();
 
   const allClaims = data?.claims ?? [];
   const rawDepartments = data?.departments ?? [];
@@ -127,6 +130,7 @@ function ClaimsPage() {
       if (fSla !== "all" && (c.sla_status ?? "") !== fSla) return false;
       if (fOldCode !== "all" && (c.asset_old_code ?? "") !== fOldCode) return false;
       if (q && !(c.ticket_code ?? "").toLowerCase().includes(q)) return false;
+      if (fRisk && riskMap.get(c.asset_old_code ?? "")?.level !== "high") return false;
       return true;
     });
     // Count by asset_old_code to detect duplicate tickets on the same asset
@@ -158,7 +162,7 @@ function ClaimsPage() {
         return ageOf(b) - ageOf(a);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allClaims, fProject, fDept, fSla, fOldCode, qTicket]);
+  }, [allClaims, fProject, fDept, fSla, fOldCode, qTicket, fRisk, riskMap]);
 
   const breached = claims.filter((c) => c.sla_status === "breached").length;
   const onTrack = claims.filter((c) => c.sla_status === "ontrack").length;
@@ -238,9 +242,24 @@ function ClaimsPage() {
           options={["ontrack", "atrisk", "breached"]}
         />
         <FilterSelect label="Old Code" value={fOldCode} onChange={setFOldCode} options={oldCodes} />
-        {(fProject !== "all" || fDept !== "all" || fSla !== "all" || fOldCode !== "all" || qTicket !== "") && (
+        <button
+          type="button"
+          onClick={() => setFRisk((v) => !v)}
+          className={
+            "h-9 inline-flex items-center gap-1.5 rounded-md border px-3 text-xs transition " +
+            (fRisk
+              ? "border-destructive bg-destructive/10 text-destructive"
+              : "hover:bg-accent text-muted-foreground")
+          }
+          title="แสดงเฉพาะตั๋วของป้ายที่มีความเสี่ยงสูง"
+        >
+          <ShieldAlert className="size-3.5" />
+          เฉพาะป้ายเสี่ยงสูง
+          {riskCounts?.high ? <span className="tabular-nums">({riskCounts.high})</span> : null}
+        </button>
+        {(fRisk || fProject !== "all" || fDept !== "all" || fSla !== "all" || fOldCode !== "all" || qTicket !== "") && (
           <button
-            onClick={() => { setFProject("all"); setFDept("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); }}
+            onClick={() => { setFProject("all"); setFDept("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); setFRisk(false); }}
             className="text-xs px-3 py-2 rounded-md border hover:bg-accent"
           >
             ล้างตัวกรอง
@@ -291,7 +310,15 @@ function ClaimsPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">{c.asset_old_code ?? "—"}</td>
+                      <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span>{c.asset_old_code ?? "—"}</span>
+                          {(() => {
+                            const r = riskMap.get(c.asset_old_code ?? "");
+                            return <RiskChip level={r?.level} score={r?.score} />;
+                          })()}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap">{c.department ?? "—"}</td>
                       <td className="px-4 py-3 max-w-[220px]">
                         <span className="line-clamp-2 leading-snug">{c.title ?? "—"}</span>

@@ -26,6 +26,7 @@ import {
 import { BreakdownTab } from "@/components/breakdown-tab";
 import { AnalyticsTab } from "@/components/analytics-tab";
 import { AssetStreetView } from "@/components/asset-street-view";
+import { AssetHealthCard } from "@/components/asset-risk";
 import {
   LineChart,
   Line,
@@ -2853,6 +2854,9 @@ function ProfileCard({ p }: { p: ProfileItem }) {
         ))}
         {fields.length === 0 && <div className="text-sm text-muted-foreground col-span-full">ไม่มีข้อมูลเพิ่มเติม</div>}
       </div>
+
+      {/* Asset health (risk score) */}
+      <AssetHealthCard code={p.asset.old_code} />
 
       {/* Unified 12-month timeline (PM / Claim / Monitor) */}
       <div className="p-5 border-b">

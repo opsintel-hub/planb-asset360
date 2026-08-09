@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ShieldAlert, ShieldCheck, Activity, CalendarClock, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMyRoles } from "@/hooks/use-my-roles";
+export { RISK_PIN_COLORS } from "@/lib/risk-colors";
 import { listAssetRiskScores, getAssetRisk, type AssetRisk, type RiskLevel } from "@/lib/route-risk.functions";
 
 export type { AssetRisk, RiskLevel };
@@ -84,6 +86,7 @@ function Metric({
 
 /** Asset health summary card for Asset History. */
 export function AssetHealthCard({ code }: { code: string }) {
+  const { canSeeMaintenance } = useMyRoles();
   const fn = useServerFn(getAssetRisk);
   const { data, isLoading } = useQuery({
     queryKey: ["asset-risk", code],
@@ -93,6 +96,7 @@ export function AssetHealthCard({ code }: { code: string }) {
   });
 
   const risk = data?.risk ?? null;
+  if (!canSeeMaintenance) return null;
   const level: RiskLevel = risk?.level ?? "low";
   const score = risk?.score ?? 0;
 
@@ -158,6 +162,101 @@ export function AssetHealthCard({ code }: { code: string }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Compact "ป้ายเสี่ยงสูง" summary card (Dashboard / Asset History header).
+ * Renders nothing while loading or when there is no signal.
+ */
+export function RiskSummaryCard({ onOpen }: { onOpen?: () => void }) {
+  const { canSeeMaintenance } = useMyRoles();
+  const { counts, isLoading } = useAssetRiskMap(canSeeMaintenance);
+  if (!canSeeMaintenance || isLoading || !counts || (!counts.high && !counts.medium)) return null;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full text-left rounded-xl border border-destructive/30 bg-destructive/5 p-4 transition hover:border-destructive/60"
+    >
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <ShieldAlert className="size-3.5 text-destructive" />
+        ป้ายที่ต้องเฝ้าระวัง
+      </div>
+      <div className="mt-1 flex items-end gap-3">
+        <div className="text-2xl font-semibold tabular-nums text-destructive">{counts.high}</div>
+        <div className="text-xs text-muted-foreground pb-1">
+          เสี่ยงสูง • เสี่ยงกลาง {counts.medium} ป้าย
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/**
+ * PM queue ordered by risk — high score + long time since last PM first.
+ * Uses the nightly-computed table only (no extra queries per asset).
+ */
+export function RiskPmQueue({ limit = 12 }: { limit?: number }) {
+  const { canSeeMaintenance } = useMyRoles();
+  const { map, isLoading } = useAssetRiskMap(canSeeMaintenance);
+  const rows = useMemo(() => {
+    const list = Array.from(map.values()).filter((r) => r.level !== "low");
+    return list
+      .sort(
+        (a, b) =>
+          b.score - a.score || (b.daysSincePm ?? 0) - (a.daysSincePm ?? 0),
+      )
+      .slice(0, limit);
+  }, [map, limit]);
+
+  if (!canSeeMaintenance) return null;
+  if (isLoading) return <div className="h-24 rounded-xl border bg-muted/30 animate-pulse" />;
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden">
+      <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <ShieldAlert className="size-4 text-destructive" />
+          คิว PM ตามความเสี่ยง
+        </div>
+        <div className="text-[11px] text-muted-foreground">เรียงตามคะแนน + วันตั้งแต่ PM ล่าสุด</div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th className="px-4 py-2 text-left font-medium">Old Code</th>
+              <th className="px-4 py-2 text-right font-medium">คะแนน</th>
+              <th className="px-4 py-2 text-right font-medium">ตั้งแต่ PM</th>
+              <th className="px-4 py-2 text-right font-medium">เคลม 90 วัน</th>
+              <th className="px-4 py-2 text-left font-medium">ปัญหาที่พบบ่อย</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {rows.map((r) => (
+              <tr key={r.code} className="hover:bg-accent/30">
+                <td className="px-4 py-2 font-mono text-[12px] whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1.5">
+                    <a href={`/search?q=${encodeURIComponent(r.code)}`} className="hover:underline">
+                      {r.code}
+                    </a>
+                    <RiskChip level={r.level} score={r.score} />
+                  </span>
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums">{r.score}</td>
+                <td className="px-4 py-2 text-right tabular-nums">
+                  {r.daysSincePm != null ? `${r.daysSincePm} วัน` : "—"}
+                </td>
+                <td className="px-4 py-2 text-right tabular-nums">{r.claims90d}</td>
+                <td className="px-4 py-2">{r.topProblem ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

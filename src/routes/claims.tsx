@@ -29,6 +29,7 @@ import {
   projectForDepartment,
 } from "@/lib/project-department-map";
 import { RiskChip, useAssetRiskMap } from "@/components/asset-risk";
+import { useMyRoles } from "@/hooks/use-my-roles";
 import {
   Select,
   SelectContent,
@@ -89,7 +90,8 @@ function ClaimsPage() {
   const [fOldCode, setFOldCode] = useState<string>("all");
   const [qTicket, setQTicket] = useState<string>("");
   const [fRisk, setFRisk] = useState<boolean>(false);
-  const { map: riskMap, counts: riskCounts } = useAssetRiskMap();
+  const { canSeeMaintenance } = useMyRoles();
+  const { map: riskMap, counts: riskCounts } = useAssetRiskMap(canSeeMaintenance);
 
   const allClaims = data?.claims ?? [];
   const rawDepartments = data?.departments ?? [];
@@ -242,6 +244,7 @@ function ClaimsPage() {
           options={["ontrack", "atrisk", "breached"]}
         />
         <FilterSelect label="Old Code" value={fOldCode} onChange={setFOldCode} options={oldCodes} />
+        {canSeeMaintenance && (
         <button
           type="button"
           onClick={() => setFRisk((v) => !v)}
@@ -257,6 +260,7 @@ function ClaimsPage() {
           เฉพาะป้ายเสี่ยงสูง
           {riskCounts?.high ? <span className="tabular-nums">({riskCounts.high})</span> : null}
         </button>
+        )}
         {(fRisk || fProject !== "all" || fDept !== "all" || fSla !== "all" || fOldCode !== "all" || qTicket !== "") && (
           <button
             onClick={() => { setFProject("all"); setFDept("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); setFRisk(false); }}
@@ -313,7 +317,7 @@ function ClaimsPage() {
                       <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">
                         <span className="inline-flex items-center gap-1.5">
                           <span>{c.asset_old_code ?? "—"}</span>
-                          {(() => {
+                          {canSeeMaintenance && (() => {
                             const r = riskMap.get(c.asset_old_code ?? "");
                             return <RiskChip level={r?.level} score={r?.score} />;
                           })()}

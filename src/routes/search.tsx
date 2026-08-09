@@ -26,7 +26,7 @@ import {
 import { BreakdownTab } from "@/components/breakdown-tab";
 import { AnalyticsTab } from "@/components/analytics-tab";
 import { AssetStreetView } from "@/components/asset-street-view";
-import { AssetHealthCard } from "@/components/asset-risk";
+import { AssetHealthCard, RiskSummaryCard } from "@/components/asset-risk";
 import {
   LineChart,
   Line,
@@ -488,7 +488,10 @@ function SearchPage() {
         }
       />
 
-
+      {/* Phase 5 — risk overview (hidden for sale/CRM roles) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <RiskSummaryCard onOpen={() => { window.location.href = "/claims"; }} />
+      </div>
 
       {/* Filters (กรองก่อนค้น) */}
       <div className="rounded-xl border bg-card p-4 shadow-[var(--shadow-card)] space-y-2">

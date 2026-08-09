@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ShieldAlert, ShieldCheck, Activity, CalendarClock, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
+export { RISK_PIN_COLORS } from "@/lib/risk-colors";
 import { listAssetRiskScores, getAssetRisk, type AssetRisk, type RiskLevel } from "@/lib/route-risk.functions";
 
 export type { AssetRisk, RiskLevel };
@@ -161,13 +162,6 @@ export function AssetHealthCard({ code }: { code: string }) {
     </div>
   );
 }
-
-/** Pin colour for risk-coloured map mode. */
-export const RISK_PIN_COLORS: Record<RiskLevel, string> = {
-  high: "#dc2626",
-  medium: "#f59e0b",
-  low: "#16a34a",
-};
 
 /**
  * Compact "ป้ายเสี่ยงสูง" summary card (Dashboard / Asset History header).

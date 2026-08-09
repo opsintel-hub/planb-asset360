@@ -5,7 +5,7 @@ import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import type { MapAsset } from "@/lib/map.functions";
-import { RISK_PIN_COLORS } from "@/components/asset-risk";
+import { RISK_PIN_COLORS } from "@/lib/risk-colors";
 import { projectForDepartment } from "@/lib/project-department-map";
 
 export type AssetMapHandle = {

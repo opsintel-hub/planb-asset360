@@ -1,3 +1,4 @@
+import { RiskPmQueue } from "@/components/asset-risk";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -416,6 +417,9 @@ function PmInsightsPage() {
           รีเฟรช
         </Button>
       </div>
+
+      {/* Phase 5 — PM queue ordered by risk (hidden for sale/CRM roles) */}
+      <RiskPmQueue limit={12} />
 
       {/* Filters */}
       <Card>

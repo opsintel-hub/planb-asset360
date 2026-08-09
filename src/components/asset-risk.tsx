@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ShieldAlert, ShieldCheck, Activity, CalendarClock, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMyRoles } from "@/hooks/use-my-roles";
 export { RISK_PIN_COLORS } from "@/lib/risk-colors";
 import { listAssetRiskScores, getAssetRisk, type AssetRisk, type RiskLevel } from "@/lib/route-risk.functions";
 
@@ -85,6 +86,7 @@ function Metric({
 
 /** Asset health summary card for Asset History. */
 export function AssetHealthCard({ code }: { code: string }) {
+  const { canSeeMaintenance } = useMyRoles();
   const fn = useServerFn(getAssetRisk);
   const { data, isLoading } = useQuery({
     queryKey: ["asset-risk", code],
@@ -94,6 +96,7 @@ export function AssetHealthCard({ code }: { code: string }) {
   });
 
   const risk = data?.risk ?? null;
+  if (!canSeeMaintenance) return null;
   const level: RiskLevel = risk?.level ?? "low";
   const score = risk?.score ?? 0;
 
@@ -168,8 +171,9 @@ export function AssetHealthCard({ code }: { code: string }) {
  * Renders nothing while loading or when there is no signal.
  */
 export function RiskSummaryCard({ onOpen }: { onOpen?: () => void }) {
-  const { counts, isLoading } = useAssetRiskMap();
-  if (isLoading || !counts || (!counts.high && !counts.medium)) return null;
+  const { canSeeMaintenance } = useMyRoles();
+  const { counts, isLoading } = useAssetRiskMap(canSeeMaintenance);
+  if (!canSeeMaintenance || isLoading || !counts || (!counts.high && !counts.medium)) return null;
   return (
     <button
       type="button"
@@ -195,7 +199,8 @@ export function RiskSummaryCard({ onOpen }: { onOpen?: () => void }) {
  * Uses the nightly-computed table only (no extra queries per asset).
  */
 export function RiskPmQueue({ limit = 12 }: { limit?: number }) {
-  const { map, isLoading } = useAssetRiskMap();
+  const { canSeeMaintenance } = useMyRoles();
+  const { map, isLoading } = useAssetRiskMap(canSeeMaintenance);
   const rows = useMemo(() => {
     const list = Array.from(map.values()).filter((r) => r.level !== "low");
     return list
@@ -206,6 +211,7 @@ export function RiskPmQueue({ limit = 12 }: { limit?: number }) {
       .slice(0, limit);
   }, [map, limit]);
 
+  if (!canSeeMaintenance) return null;
   if (isLoading) return <div className="h-24 rounded-xl border bg-muted/30 animate-pulse" />;
   if (rows.length === 0) return null;
 

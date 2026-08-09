@@ -490,7 +490,7 @@ function SearchPage() {
 
       {/* Phase 5 — risk overview (hidden for sale/CRM roles) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <RiskSummaryCard onOpen={() => navigate({ to: "/claims" })} />
+        <RiskSummaryCard onOpen={() => { window.location.href = "/claims"; }} />
       </div>
 
       {/* Filters (กรองก่อนค้น) */}

@@ -82,6 +82,9 @@ import type { POI, POIMatch } from "@/lib/poi-search.functions";
 import { PRESET_BY_KEY } from "@/lib/overpass";
 import type { AssetMapHandle } from "@/components/asset-map";
 import PlaceSearchBox from "@/components/place-search-box";
+import { useMyRoles } from "@/hooks/use-my-roles";
+import { useAssetRiskMap } from "@/components/asset-risk";
+import { ShieldAlert } from "lucide-react";
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
 const PoiProximityPanel = lazy(() => import("@/components/poi-proximity-panel"));
@@ -330,6 +333,12 @@ function MapPage() {
   };
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [onlyClaimed, setOnlyClaimed] = useState(false);
+  // Phase 5 — risk colouring is opt-in and hidden from sale/CRM accounts.
+  const { canSeeMaintenance } = useMyRoles();
+  const [riskMode, setRiskMode] = useState(false);
+  const [onlyHighRisk, setOnlyHighRisk] = useState(false);
+  const riskEnabled = canSeeMaintenance && riskMode;
+  const { map: riskMap, counts: riskCounts } = useAssetRiskMap(riskEnabled);
   const [fullscreen, setFullscreen] = useState(false);
   const searchWrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -449,10 +458,11 @@ function MapPage() {
     return allAssets.filter((a) => {
       if (projectDepts && (!a.department || !projectDepts.has(a.department))) return false;
       if (mediaSet && (!a.media_type || !mediaSet.has(a.media_type))) return false;
-      if (onlyClaimed && (!a.old_code || !claimedCodes.has(a.old_code))) return false;
+      if (canSeeMaintenance && onlyClaimed && (!a.old_code || !claimedCodes.has(a.old_code))) return false;
+      if (riskEnabled && onlyHighRisk && riskMap.get(a.old_code ?? "")?.level !== "high") return false;
       return true;
     });
-  }, [allAssets, fProjects, fMedias, onlyClaimed, claimedCodes]);
+  }, [allAssets, fProjects, fMedias, onlyClaimed, claimedCodes, canSeeMaintenance, riskEnabled, onlyHighRisk, riskMap]);
 
   // Corridor: nearby along drawn polyline
   const nearby = useMemo(() => {
@@ -535,7 +545,7 @@ function MapPage() {
   }, [fullscreen]);
 
   const projects = Object.keys(PROJECT_TO_DEPARTMENTS);
-  const hasFilter = fProjects.length > 0 || fMedias.length > 0 || q || onlyClaimed;
+  const hasFilter = fProjects.length > 0 || fMedias.length > 0 || q || onlyClaimed || onlyHighRisk;
 
   // ---------- Inspection actions ----------
   const addStop = (a: MapAsset) => {
@@ -1018,10 +1028,39 @@ function MapPage() {
       <MultiCompactSelect placeholder="Project" values={fProjects} onChange={setFProjects} options={projects} />
       <MultiCompactSelect placeholder="Media Type" values={fMedias} onChange={setFMedias} options={filteredMediaTypes} />
 
-      <label className="flex items-center gap-2 h-9 px-3 rounded-md border cursor-pointer hover:bg-accent text-xs">
-        <input type="checkbox" checked={onlyClaimed} onChange={(e) => setOnlyClaimed(e.target.checked)} />
-        <span>เฉพาะที่กำลังซ่อม</span>
-      </label>
+      {canSeeMaintenance && (
+        <label className="flex items-center gap-2 h-9 px-3 rounded-md border cursor-pointer hover:bg-accent text-xs">
+          <input type="checkbox" checked={onlyClaimed} onChange={(e) => setOnlyClaimed(e.target.checked)} />
+          <span>เฉพาะที่กำลังซ่อม</span>
+        </label>
+      )}
+
+      {canSeeMaintenance && (
+        <button
+          type="button"
+          onClick={() => {
+            setRiskMode((v) => {
+              if (v) setOnlyHighRisk(false);
+              return !v;
+            });
+          }}
+          className={
+            "h-9 px-2.5 rounded-md border inline-flex items-center gap-1.5 text-xs transition " +
+            (riskMode ? "border-destructive bg-destructive/10 text-destructive" : "hover:bg-accent")
+          }
+          title="เปิด/ปิดการระบายสีหมุดตามความเสี่ยง"
+        >
+          <ShieldAlert className="size-3.5" />
+          <span>โหมดความเสี่ยง{riskMode ? " : เปิด" : " : ปิด"}</span>
+        </button>
+      )}
+
+      {riskEnabled && (
+        <label className="flex items-center gap-2 h-9 px-3 rounded-md border cursor-pointer hover:bg-accent text-xs">
+          <input type="checkbox" checked={onlyHighRisk} onChange={(e) => setOnlyHighRisk(e.target.checked)} />
+          <span>เฉพาะเสี่ยงสูง{riskCounts?.high ? ` (${riskCounts.high})` : ""}</span>
+        </label>
+      )}
 
       {hasFilter && (
         <button
@@ -1030,6 +1069,7 @@ function MapPage() {
             setFMedias([]);
             setQ("");
             setOnlyClaimed(false);
+            setOnlyHighRisk(false);
             setFocusId(null);
           }}
           className="text-xs px-2.5 h-9 rounded-md border hover:bg-accent inline-flex items-center gap-1"
@@ -1519,6 +1559,9 @@ function MapPage() {
                 ref={mapHandleRef}
                 assets={filtered}
                 claimedCodes={claimedCodes}
+                showClaimStatus={canSeeMaintenance}
+                riskMode={riskEnabled}
+                riskByCode={riskEnabled ? riskMap : null}
                 focusId={focusId}
                 focusNonce={focusNonce}
                 drawMode={mode === "corridor" && drawMode}

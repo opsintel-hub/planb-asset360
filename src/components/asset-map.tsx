@@ -5,6 +5,7 @@ import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import type { MapAsset } from "@/lib/map.functions";
+import { RISK_PIN_COLORS } from "@/components/asset-risk";
 import { projectForDepartment } from "@/lib/project-department-map";
 
 export type AssetMapHandle = {
@@ -163,6 +164,12 @@ type Props = {
   onBboxChange?: (bbox: [south: number, west: number, north: number, east: number]) => void;
   // Phase 3 — Billboard Analytics: fires when user clicks a billboard marker.
   onSelectAsset?: (asset: MapAsset) => void;
+  // Phase 5 — risk colouring (opt-in; hidden for commercial roles):
+  /** Colour pins by risk level instead of project colour. */
+  riskMode?: boolean;
+  riskByCode?: Map<string, { level: "high" | "medium" | "low"; score: number }> | null;
+  /** Show the "กำลังซ่อม" warning badge + legend. Off for sale/CRM. */
+  showClaimStatus?: boolean;
 };
 
 
@@ -192,6 +199,9 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
   focusPoiId = null,
   onBboxChange,
   onSelectAsset,
+  riskMode = false,
+  riskByCode = null,
+  showClaimStatus = true,
 }: Props, ref) {
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -522,9 +532,13 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
 
     const markers: L.Marker[] = [];
     for (const a of assets) {
-      const warning = a.old_code ? claimedCodes.has(a.old_code) : false;
+      const warning = showClaimStatus && a.old_code ? claimedCodes.has(a.old_code) : false;
       const dim = nearbyIds ? !nearbyIds.has(a.id) : false;
-      const icon = pinIcon(assetColor ?? projectColorFor(a.department), warning, dim);
+      const riskLevel = riskMode ? (riskByCode?.get(a.old_code ?? "")?.level ?? "low") : null;
+      const pinColor = riskLevel
+        ? RISK_PIN_COLORS[riskLevel]
+        : (assetColor ?? projectColorFor(a.department));
+      const icon = pinIcon(pinColor, warning, dim);
       const m = L.marker([a.lat, a.lng], { icon, opacity: dim ? 0.25 : assetOpacity });
       const html = `
         <div style="min-width:220px;font-size:12px;">
@@ -557,7 +571,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
         map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
       }
     }
-  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline, onSelectAsset, assetOpacity, assetColor]);
+  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline, onSelectAsset, assetOpacity, assetColor, riskMode, riskByCode, showClaimStatus]);
 
 
   // Focus a specific asset when requested
@@ -604,10 +618,22 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
       <div ref={containerRef} className="w-full h-full rounded-lg overflow-hidden" />
       <div className="absolute bottom-3 right-3 z-[400] bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-slate-100 border rounded-lg shadow-md p-3 text-xs max-w-[240px]">
         <div className="font-semibold mb-2">คำอธิบายสัญลักษณ์</div>
-        <div className="flex items-center gap-2 mb-1.5">
-          <span className="inline-flex w-4 h-4 rounded-full bg-yellow-400 text-slate-900 text-[11px] font-bold leading-none items-center justify-center border shrink-0">!</span>
-          <span>กำลังซ่อม</span>
-        </div>
+        {showClaimStatus && (
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="inline-flex w-4 h-4 rounded-full bg-yellow-400 text-slate-900 text-[11px] font-bold leading-none items-center justify-center border shrink-0">!</span>
+            <span>กำลังซ่อม</span>
+          </div>
+        )}
+        {riskMode && (
+          <div className="mb-1.5 space-y-1">
+            {(["high", "medium", "low"] as const).map((lv) => (
+              <div key={lv} className="flex items-center gap-2">
+                <span className="inline-block w-3 h-3 rounded-full" style={{ background: RISK_PIN_COLORS[lv] }} />
+                <span>{lv === "high" ? "เสี่ยงสูง" : lv === "medium" ? "เสี่ยงกลาง" : "เสี่ยงต่ำ"}</span>
+              </div>
+            ))}
+          </div>
+        )}
         {origin && (
           <div className="flex items-center gap-2 mb-1.5">
             <span className="inline-block w-4 h-4 rounded-full bg-green-500 border" />

@@ -1035,6 +1035,8 @@ function RouteMonitoringPage() {
     setFRegions((p.filters.regions ?? []) as RegionKey[]);
     setFProvinces(p.filters.provinces ?? []);
     setLockProvince(!!p.filters.lockProvince);
+    setBalanceMode(p.filters.balanceMode === "assets" ? "assets" : "fair");
+
     setInspectors(p.resources.inspectors);
     setDays(p.resources.days);
     setEmergency(p.resources.emergency);

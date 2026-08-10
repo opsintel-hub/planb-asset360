@@ -27,6 +27,9 @@ export type SavedPlanPayload = {
     regions: string[];
     provinces: string[];
     lockProvince: boolean;
+    /** "fair" = balance hours incl. travel, "assets" = balance asset count. */
+    balanceMode?: "fair" | "assets";
+
   };
   resources: { inspectors: number; days: number; emergency: boolean; absent: number };
   work: {

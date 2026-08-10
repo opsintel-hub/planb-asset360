@@ -341,7 +341,48 @@ export function clusterBalanced(
   });
 }
 
+/**
+ * Travel-aware balancing: equalise *total working hours* (inspection time plus
+ * estimated driving time) rather than inspection time alone, so a zone that is
+ * spread out gets fewer assets than a dense one. Works by re-weighting each
+ * zone's points by its own travel overhead and re-clustering a few rounds.
+ */
+export function clusterFairHours(
+  points: PlanPoint[],
+  k: number,
+  serviceMinutes: (p: PlanPoint) => number,
+  speedKmh: number,
+  rounds = 3,
+): Cluster[] {
+  const kk = Math.max(1, Math.min(k, Math.max(1, points.length)));
+  if (points.length === 0 || kk === 1) return clusterBalanced(points, kk, serviceMinutes);
+
+  const speed = Math.max(5, speedKmh);
+  let factors = new Map<string, number>(); // point id -> overhead multiplier
+  let clusters = clusterBalanced(points, kk, serviceMinutes);
+
+  for (let r = 0; r < Math.max(1, rounds); r++) {
+    const next = new Map<string, number>();
+    for (const c of clusters) {
+      if (c.points.length === 0) continue;
+      const svcMin = c.points.reduce((s, p) => s + Math.max(0.1, serviceMinutes(p)), 0);
+      const driveMin = (estimateTourMeters(c.points, c.center) / 1000 / speed) * 60;
+      const f = (svcMin + driveMin) / svcMin; // >= 1
+      for (const p of c.points) next.set(p.id, f);
+    }
+    factors = next;
+    if (r === rounds - 1) break;
+    clusters = clusterBalanced(
+      points,
+      kk,
+      (p) => Math.max(0.1, serviceMinutes(p)) * (factors.get(p.id) ?? 1),
+    );
+  }
+  return clusters;
+}
+
 /** Split one inspector's assets into `days` batches with balanced workload. */
+
 export function splitIntoDaysBalanced(
   points: PlanPoint[],
   days: number,
@@ -360,6 +401,25 @@ export function splitIntoDaysBalanced(
   while (sorted.length < d) sorted.push([]);
   return sorted;
 }
+
+/** Day split that equalises inspection + driving hours (travel-fair mode). */
+export function splitIntoDaysFair(
+  points: PlanPoint[],
+  days: number,
+  serviceMinutes: (p: PlanPoint) => number,
+  speedKmh: number,
+): PlanPoint[][] {
+  const d = Math.max(1, days);
+  if (points.length === 0) return Array.from({ length: d }, () => []);
+  if (d === 1) return [[...points]];
+  const sorted = clusterFairHours(points, d, serviceMinutes, speedKmh)
+    .slice()
+    .sort((a, b) => a.center.lng - b.center.lng || a.center.lat - b.center.lat)
+    .map((c) => c.points);
+  while (sorted.length < d) sorted.push([]);
+  return sorted;
+}
+
 
 /**
  * Allocate `total` staff across groups proportionally to workload using the

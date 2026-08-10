@@ -55,10 +55,13 @@ import {
 import {
   allocateProportional,
   clusterBalanced,
+  clusterFairHours,
   estimateTourMeters,
   haversineM,
   splitIntoDaysBalanced,
+  splitIntoDaysFair,
   sortDaysByRisk,
+
   CLUSTER_COLORS,
   type PlanPoint,
   type PlanRisk,
@@ -306,6 +309,13 @@ function RouteMonitoringPage() {
     return m;
   }, [riskData]);
   const [riskFirst, setRiskFirst] = useState(true);
+  /**
+   * How work is split between people:
+   *  - "fair"   : equalise total hours = inspection time + estimated driving time (default)
+   *  - "assets" : equalise the number of assets per person
+   */
+  const [balanceMode, setBalanceMode] = useState<"fair" | "assets">("fair");
+
 
 
 
@@ -546,12 +556,24 @@ function RouteMonitoringPage() {
     });
 
 
-    // Workload (service minutes), not raw asset count, is what we balance on.
-    const weight = (p: PlanPoint) => minutesFor(p);
+    // What "equal work" means:
+    //  - "assets": one asset = one unit → everyone gets the same number of signs.
+    //  - "fair"  : inspection minutes + estimated driving time → everyone gets the
+    //              same total hours, so remote/spread-out zones carry fewer signs.
+    const fair = balanceMode === "fair";
+    const weight = (p: PlanPoint) => (fair ? minutesFor(p) : 1);
+    const splitDays = (pts: PlanPoint[]) =>
+      fair
+        ? splitIntoDaysFair(pts, days, (p) => minutesFor(p), speedKmh)
+        : splitIntoDaysBalanced(pts, days, weight);
+    const splitPeople = (pts: PlanPoint[], k: number) =>
+      fair
+        ? clusterFairHours(pts, k, (p) => minutesFor(p), speedKmh)
+        : clusterBalanced(pts, k, weight);
 
     // Long-haul trips are the default: clustering may cross provinces freely.
     // "lockProvince" instead allocates staff per province so no zone straddles a border.
-    await tick(30, "แบ่งโซนตามภาระงาน (คน)");
+    await tick(30, fair ? "แบ่งโซนให้ชั่วโมงงาน+เดินทางเท่ากัน" : "แบ่งโซนให้จำนวนป้ายเท่ากัน");
     let clusters = [] as ReturnType<typeof clusterBalanced>;
     if (lockProvince) {
       const groups = new Map<string, PlanPoint[]>();
@@ -571,18 +593,19 @@ function RouteMonitoringPage() {
       );
       entries.forEach((g, i) => {
         if (alloc[i] <= 0) return;
-        clusters.push(...clusterBalanced(g, alloc[i], weight));
+        clusters.push(...splitPeople(g, alloc[i]));
       });
       clusters = clusters.filter((c) => c.points.length > 0).map((c, i) => ({ ...c, index: i }));
     } else {
-      clusters = clusterBalanced(points, activeInspectors, weight);
+      clusters = splitPeople(points, activeInspectors);
     }
 
     await tick(65, "แบ่งงานเป็นรายวัน");
     const result: InspectorPlan[] = clusters.map((c) => {
-      const batches = splitIntoDaysBalanced(c.points, days, weight);
+      const batches = splitDays(c.points);
       // Phase 5 — same zones/workload, but risky day-batches go first.
       const dayBatches = riskFirst ? sortDaysByRisk(batches) : batches;
+
 
 
 
@@ -970,6 +993,8 @@ function RouteMonitoringPage() {
         regions: fRegions,
         provinces: fProvinces,
         lockProvince,
+        balanceMode,
+
       },
       resources: { inspectors, days, emergency, absent },
       work: { minutesPerAsset, speedKmh, dailyHours, mediaMinutes },
@@ -1010,6 +1035,8 @@ function RouteMonitoringPage() {
     setFRegions((p.filters.regions ?? []) as RegionKey[]);
     setFProvinces(p.filters.provinces ?? []);
     setLockProvince(!!p.filters.lockProvince);
+    setBalanceMode(p.filters.balanceMode === "assets" ? "assets" : "fair");
+
     setInspectors(p.resources.inspectors);
     setDays(p.resources.days);
     setEmergency(p.resources.emergency);
@@ -1168,6 +1195,48 @@ function RouteMonitoringPage() {
               </span>
               <NumField value={days} min={1} max={30} onCommit={setDays} />
             </label>
+
+            {/* --- how the work is shared between people --- */}
+            <div className="space-y-2 pt-2 border-t">
+              <div className="text-xs font-medium">เกณฑ์การแบ่งงาน</div>
+              <div className="grid grid-cols-2 gap-1 rounded-lg border p-1">
+                {(
+                  [
+                    ["fair", "ยุติธรรม (ชม.+เดินทาง)"],
+                    ["assets", "จำนวนป้ายเท่ากัน"],
+                  ] as Array<["fair" | "assets", string]>
+                ).map(([m, label]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setBalanceMode(m)}
+                    className={cn(
+                      "h-8 rounded-md text-[11px] font-medium transition",
+                      balanceMode === m
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-accent text-muted-foreground",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                {balanceMode === "fair" ? (
+                  <>
+                    <b>ค่าเริ่มต้น</b> — เฉลี่ยให้ <b>ชั่วโมงงานรวมเท่ากัน</b> (เวลาตรวจป้าย +
+                    เวลาขับรถโดยประมาณ) คนที่ต้องวิ่งไกลจะได้จำนวนป้ายน้อยลง เพื่อไม่ให้ใครแบก
+                    ค่าน้ำมัน/เวลาเดินทางมากกว่าคนอื่น
+                  </>
+                ) : (
+                  <>
+                    เฉลี่ยให้ <b>จำนวนป้ายเท่ากัน</b> ทุกคน — วัดผลง่าย แต่คนที่โซนกระจายจะเดินทาง
+                    ไกลกว่าและเสียค่าน้ำมันมากกว่า ทั้งที่ตรวจป้ายเท่ากัน
+                  </>
+                )}
+              </p>
+            </div>
+
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -1246,6 +1315,30 @@ function RouteMonitoringPage() {
                 (โซนและภาระงานไม่เปลี่ยน)
               </span>
             </label>
+            <details className="text-[11px] text-muted-foreground rounded-lg border bg-muted/30 p-2">
+              <summary className="cursor-pointer font-medium text-foreground">
+                คะแนนความเสี่ยงคิดจากอะไร / มีประโยชน์อย่างไร
+              </summary>
+              <div className="mt-1.5 space-y-1.5 leading-relaxed">
+                <p>
+                  คะแนน 0–100 คำนวณอัตโนมัติทุกคืนจากประวัติเคลมจริงของป้ายแต่ละตัว
+                  (ตาราง <code>asset_risk_scores</code>) โดยดู 4 สัญญาณ:
+                </p>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  <li>เคลมถี่ล่าสุด — 30 วัน (น้ำหนักมากสุด), 90 วัน, 365 วัน</li>
+                  <li>เคลมที่ยังเปิดค้างอยู่ (ยังซ่อมไม่จบ)</li>
+                  <li>จำนวนวันตั้งแต่ทำ PM ครั้งล่าสุด — ยิ่งนานยิ่งเสี่ยง</li>
+                  <li>ปัญหาที่พบซ้ำบ่อย (problem ที่เจอมากที่สุดของป้ายนั้น)</li>
+                </ul>
+                <p>
+                  แบ่งเป็น <b className="text-destructive">เสี่ยงสูง</b> /{" "}
+                  <b className="text-warning">กลาง</b> / ต่ำ ประโยชน์คือ ป้ายที่มีแนวโน้มเสียซ้ำ
+                  จะได้ถูกตรวจในวันแรก ๆ ของรอบ ถ้าพบปัญหาจะยังมีเวลาแก้ในรอบเดียวกัน
+                  และถ้ามีคนลา/เวลาไม่พอ ระบบจะแนะนำให้เลื่อนเฉพาะ <b>ป้ายเสี่ยงต่ำ</b> ออกไปก่อน
+                </p>
+              </div>
+            </details>
+
             <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-2">
               <span className="inline-flex items-center gap-1">
                 <ShieldAlert className="size-3 text-destructive" /> เสี่ยงสูง{" "}

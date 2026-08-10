@@ -402,6 +402,25 @@ export function splitIntoDaysBalanced(
   return sorted;
 }
 
+/** Day split that equalises inspection + driving hours (travel-fair mode). */
+export function splitIntoDaysFair(
+  points: PlanPoint[],
+  days: number,
+  serviceMinutes: (p: PlanPoint) => number,
+  speedKmh: number,
+): PlanPoint[][] {
+  const d = Math.max(1, days);
+  if (points.length === 0) return Array.from({ length: d }, () => []);
+  if (d === 1) return [[...points]];
+  const sorted = clusterFairHours(points, d, serviceMinutes, speedKmh)
+    .slice()
+    .sort((a, b) => a.center.lng - b.center.lng || a.center.lat - b.center.lat)
+    .map((c) => c.points);
+  while (sorted.length < d) sorted.push([]);
+  return sorted;
+}
+
+
 /**
  * Allocate `total` staff across groups proportionally to workload using the
  * largest-remainder method, so a 1,200-asset province never gets the same

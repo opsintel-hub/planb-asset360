@@ -309,6 +309,13 @@ function RouteMonitoringPage() {
     return m;
   }, [riskData]);
   const [riskFirst, setRiskFirst] = useState(true);
+  /**
+   * How work is split between people:
+   *  - "fair"   : equalise total hours = inspection time + estimated driving time (default)
+   *  - "assets" : equalise the number of assets per person
+   */
+  const [balanceMode, setBalanceMode] = useState<"fair" | "assets">("fair");
+
 
 
 

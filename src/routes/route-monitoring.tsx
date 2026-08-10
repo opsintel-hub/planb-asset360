@@ -993,6 +993,8 @@ function RouteMonitoringPage() {
         regions: fRegions,
         provinces: fProvinces,
         lockProvince,
+        balanceMode,
+
       },
       resources: { inspectors, days, emergency, absent },
       work: { minutesPerAsset, speedKmh, dailyHours, mediaMinutes },

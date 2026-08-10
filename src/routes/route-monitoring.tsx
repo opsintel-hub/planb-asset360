@@ -1315,6 +1315,30 @@ function RouteMonitoringPage() {
                 (โซนและภาระงานไม่เปลี่ยน)
               </span>
             </label>
+            <details className="text-[11px] text-muted-foreground rounded-lg border bg-muted/30 p-2">
+              <summary className="cursor-pointer font-medium text-foreground">
+                คะแนนความเสี่ยงคิดจากอะไร / มีประโยชน์อย่างไร
+              </summary>
+              <div className="mt-1.5 space-y-1.5 leading-relaxed">
+                <p>
+                  คะแนน 0–100 คำนวณอัตโนมัติทุกคืนจากประวัติเคลมจริงของป้ายแต่ละตัว
+                  (ตาราง <code>asset_risk_scores</code>) โดยดู 4 สัญญาณ:
+                </p>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  <li>เคลมถี่ล่าสุด — 30 วัน (น้ำหนักมากสุด), 90 วัน, 365 วัน</li>
+                  <li>เคลมที่ยังเปิดค้างอยู่ (ยังซ่อมไม่จบ)</li>
+                  <li>จำนวนวันตั้งแต่ทำ PM ครั้งล่าสุด — ยิ่งนานยิ่งเสี่ยง</li>
+                  <li>ปัญหาที่พบซ้ำบ่อย (problem ที่เจอมากที่สุดของป้ายนั้น)</li>
+                </ul>
+                <p>
+                  แบ่งเป็น <b className="text-destructive">เสี่ยงสูง</b> /{" "}
+                  <b className="text-warning">กลาง</b> / ต่ำ ประโยชน์คือ ป้ายที่มีแนวโน้มเสียซ้ำ
+                  จะได้ถูกตรวจในวันแรก ๆ ของรอบ ถ้าพบปัญหาจะยังมีเวลาแก้ในรอบเดียวกัน
+                  และถ้ามีคนลา/เวลาไม่พอ ระบบจะแนะนำให้เลื่อนเฉพาะ <b>ป้ายเสี่ยงต่ำ</b> ออกไปก่อน
+                </p>
+              </div>
+            </details>
+
             <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-2">
               <span className="inline-flex items-center gap-1">
                 <ShieldAlert className="size-3 text-destructive" /> เสี่ยงสูง{" "}

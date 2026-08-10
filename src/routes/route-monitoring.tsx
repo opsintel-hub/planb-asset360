@@ -556,12 +556,24 @@ function RouteMonitoringPage() {
     });
 
 
-    // Workload (service minutes), not raw asset count, is what we balance on.
-    const weight = (p: PlanPoint) => minutesFor(p);
+    // What "equal work" means:
+    //  - "assets": one asset = one unit → everyone gets the same number of signs.
+    //  - "fair"  : inspection minutes + estimated driving time → everyone gets the
+    //              same total hours, so remote/spread-out zones carry fewer signs.
+    const fair = balanceMode === "fair";
+    const weight = (p: PlanPoint) => (fair ? minutesFor(p) : 1);
+    const splitDays = (pts: PlanPoint[]) =>
+      fair
+        ? splitIntoDaysFair(pts, days, (p) => minutesFor(p), speedKmh)
+        : splitIntoDaysBalanced(pts, days, weight);
+    const splitPeople = (pts: PlanPoint[], k: number) =>
+      fair
+        ? clusterFairHours(pts, k, (p) => minutesFor(p), speedKmh)
+        : clusterBalanced(pts, k, weight);
 
     // Long-haul trips are the default: clustering may cross provinces freely.
     // "lockProvince" instead allocates staff per province so no zone straddles a border.
-    await tick(30, "แบ่งโซนตามภาระงาน (คน)");
+    await tick(30, fair ? "แบ่งโซนให้ชั่วโมงงาน+เดินทางเท่ากัน" : "แบ่งโซนให้จำนวนป้ายเท่ากัน");
     let clusters = [] as ReturnType<typeof clusterBalanced>;
     if (lockProvince) {
       const groups = new Map<string, PlanPoint[]>();
@@ -581,18 +593,19 @@ function RouteMonitoringPage() {
       );
       entries.forEach((g, i) => {
         if (alloc[i] <= 0) return;
-        clusters.push(...clusterBalanced(g, alloc[i], weight));
+        clusters.push(...splitPeople(g, alloc[i]));
       });
       clusters = clusters.filter((c) => c.points.length > 0).map((c, i) => ({ ...c, index: i }));
     } else {
-      clusters = clusterBalanced(points, activeInspectors, weight);
+      clusters = splitPeople(points, activeInspectors);
     }
 
     await tick(65, "แบ่งงานเป็นรายวัน");
     const result: InspectorPlan[] = clusters.map((c) => {
-      const batches = splitIntoDaysBalanced(c.points, days, weight);
+      const batches = splitDays(c.points);
       // Phase 5 — same zones/workload, but risky day-batches go first.
       const dayBatches = riskFirst ? sortDaysByRisk(batches) : batches;
+
 
 
 

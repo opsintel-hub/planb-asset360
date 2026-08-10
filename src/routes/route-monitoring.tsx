@@ -55,10 +55,13 @@ import {
 import {
   allocateProportional,
   clusterBalanced,
+  clusterFairHours,
   estimateTourMeters,
   haversineM,
   splitIntoDaysBalanced,
+  splitIntoDaysFair,
   sortDaysByRisk,
+
   CLUSTER_COLORS,
   type PlanPoint,
   type PlanRisk,

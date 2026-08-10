@@ -1195,6 +1195,48 @@ function RouteMonitoringPage() {
               </span>
               <NumField value={days} min={1} max={30} onCommit={setDays} />
             </label>
+
+            {/* --- how the work is shared between people --- */}
+            <div className="space-y-2 pt-2 border-t">
+              <div className="text-xs font-medium">เกณฑ์การแบ่งงาน</div>
+              <div className="grid grid-cols-2 gap-1 rounded-lg border p-1">
+                {(
+                  [
+                    ["fair", "ยุติธรรม (ชม.+เดินทาง)"],
+                    ["assets", "จำนวนป้ายเท่ากัน"],
+                  ] as Array<["fair" | "assets", string]>
+                ).map(([m, label]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setBalanceMode(m)}
+                    className={cn(
+                      "h-8 rounded-md text-[11px] font-medium transition",
+                      balanceMode === m
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-accent text-muted-foreground",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                {balanceMode === "fair" ? (
+                  <>
+                    <b>ค่าเริ่มต้น</b> — เฉลี่ยให้ <b>ชั่วโมงงานรวมเท่ากัน</b> (เวลาตรวจป้าย +
+                    เวลาขับรถโดยประมาณ) คนที่ต้องวิ่งไกลจะได้จำนวนป้ายน้อยลง เพื่อไม่ให้ใครแบก
+                    ค่าน้ำมัน/เวลาเดินทางมากกว่าคนอื่น
+                  </>
+                ) : (
+                  <>
+                    เฉลี่ยให้ <b>จำนวนป้ายเท่ากัน</b> ทุกคน — วัดผลง่าย แต่คนที่โซนกระจายจะเดินทาง
+                    ไกลกว่าและเสียค่าน้ำมันมากกว่า ทั้งที่ตรวจป้ายเท่ากัน
+                  </>
+                )}
+              </p>
+
+            </label>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"

@@ -95,6 +95,42 @@ function fmtDate(v: string | null) {
   return new Date(v).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
 }
 
+/** Inspection guidance derived from the same signals as the score. */
+function advice(r: AssetRisk) {
+  const focus: string[] = [];
+  if (r.topProblem) focus.push(`ตรวจหมวด "${r.topProblem}" เป็นอย่างแรก (ปัญหาที่พบซ้ำบ่อยที่สุด)`);
+  if (r.openClaims > 0)
+    focus.push(`มีเคลมค้างเปิด ${r.openClaims} ตั๋ว — เช็คว่างานซ่อมเดิมปิดจริงหรือยัง`);
+  if (r.claims30d >= 2)
+    focus.push("เคลมซ้ำภายใน 30 วัน — สงสัยการซ่อมไม่จบ ให้ตรวจต้นเหตุ (อุปกรณ์/ระบบไฟ) ไม่ใช่แค่อาการ");
+  else if (r.claims90d >= 2) focus.push("เคลมซ้ำในรอบ 90 วัน — ตรวจอุปกรณ์ที่เคยเสียซ้ำและอะไหล่สำรอง");
+  if ((r.daysSincePm ?? 0) >= 120)
+    focus.push(`ไม่ได้ PM มา ${r.daysSincePm} วัน — ทำ PM เต็มชุด (ทำความสะอาด/ขันแน่น/วัดค่าไฟ)`);
+  if (focus.length === 0) focus.push("ไม่มีสัญญาณเฉพาะจุด — ตรวจตามเช็กลิสต์ PM ปกติ");
+
+  const queue =
+    r.level === "high"
+      ? {
+          tone: "high" as const,
+          title: "จัดคิวตรวจ: ด่วน — ภายใน 7 วัน",
+          text: "ใส่ไว้ในวันแรก ๆ ของรอบตรวจ (เปิดโหมด “จัดลำดับตามความเสี่ยง” ในหน้า Route Monitoring) เตรียมอะไหล่ตามหมวดปัญหาที่พบซ้ำไปด้วย และถ้าเคลมยังค้าง ให้ประสานทีมซ่อมก่อนออกตรวจ",
+        }
+      : r.level === "medium"
+        ? {
+            tone: "medium" as const,
+            title: "จัดคิวตรวจ: เฝ้าระวัง — ภายใน 30 วัน",
+            text: "รวมเข้ากับรอบตรวจปกติของโซนนั้น แต่อย่าเลื่อนออกไปอีกรอบ ถ้าพบอาการเดิมซ้ำให้ยกระดับเป็นด่วนทันที",
+          }
+        : {
+            tone: "low" as const,
+            title: "จัดคิวตรวจ: ตามรอบปกติ",
+            text: "ตรวจตามรอบ PM ที่วางไว้ ไม่ต้องแทรกคิว",
+          };
+
+  return { focus, queue };
+}
+
+
 function RiskDetail({ code }: { code: string }) {
   const fn = useServerFn(getAssetRisk);
   const { data, isLoading } = useQuery({

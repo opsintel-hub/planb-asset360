@@ -233,6 +233,45 @@ function RiskDetail({ code }: { code: string }) {
             </div>
           </div>
 
+          {(() => {
+            const { focus, queue } = advice(risk);
+            return (
+              <div
+                className={cn(
+                  "rounded-xl border p-4",
+                  queue.tone === "high"
+                    ? "border-destructive/40 bg-destructive/5"
+                    : queue.tone === "medium"
+                      ? "border-warning/40 bg-warning/5"
+                      : "border-emerald-300/50 bg-emerald-50/60 dark:bg-emerald-950/20",
+                )}
+              >
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <ClipboardList className="size-4" />
+                  คำแนะนำการตรวจ
+                </div>
+
+                <div className="mt-3">
+                  <div className="text-xs font-medium text-muted-foreground">ควรโฟกัสอะไร</div>
+                  <ul className="mt-1 grid gap-1 text-[13px]">
+                    {focus.map((f, i) => (
+                      <li key={i} className="flex gap-2">
+                        <span className="mt-1 size-1.5 shrink-0 rounded-full bg-current opacity-60" />
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="mt-3 rounded-lg border bg-background/60 p-3">
+                  <div className="text-[13px] font-semibold">{queue.title}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{queue.text}</div>
+                </div>
+              </div>
+            );
+          })()}
+
+
           <div className="flex items-start gap-2 rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
             <Info className="mt-0.5 size-3.5 shrink-0" />
             <span>

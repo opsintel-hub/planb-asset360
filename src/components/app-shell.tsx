@@ -14,6 +14,7 @@ import {
   MapPin,
   Sparkles,
   Navigation,
+  ShieldAlert,
 } from "lucide-react";
 
 import { useState, useEffect } from "react";
@@ -27,6 +28,7 @@ const NAV_ALL = [
   { to: "/claims", label: "Claim Aging", icon: Wrench },
   { to: "/pm-insights", label: "PM Insights", icon: BarChart3 },
   { to: "/monitoring", label: "Monitoring", icon: Activity },
+  { to: "/risk-score", label: "คะแนนความเสี่ยง", icon: ShieldAlert },
   { to: "/rca", label: "Root Cause Analysis", icon: Microscope },
   { to: "/map", label: "Asset Map", icon: MapPin },
   { to: "/route-monitoring", label: "Route Monitoring", icon: Navigation },

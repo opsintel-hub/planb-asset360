@@ -495,3 +495,64 @@ export const CLUSTER_COLORS = [
   "#4f46e5",
   "#059669",
 ];
+
+// ---------------------------------------------------------------------------
+// Phase A — real daily hour cap + automatic low-risk trimming
+// ---------------------------------------------------------------------------
+
+export type TrimResult = {
+  /** points that stay in the day (ordered as given) */
+  kept: PlanPoint[];
+  /** points pushed out of the day because the cap was exceeded */
+  dropped: PlanPoint[];
+};
+
+/**
+ * Trim a day-batch until its estimated working hours fit `capHours`.
+ * Only Low (then Medium) risk assets are removed, lowest risk score first,
+ * so high-risk inspections are never sacrificed. `hoursOf` recomputes the
+ * day's hours for a candidate subset (service + driving estimate).
+ * Points whose code is in `pinned` are never dropped (catch-up queue).
+ */
+export function trimToHourCap(
+  points: PlanPoint[],
+  capHours: number,
+  hoursOf: (pts: PlanPoint[]) => number,
+  pinned: Set<string> = new Set(),
+): TrimResult {
+  const cap = Math.max(0.5, capHours);
+  let kept = [...points];
+  const dropped: PlanPoint[] = [];
+  if (hoursOf(kept) <= cap) return { kept, dropped };
+
+  const droppableOrder = (p: PlanPoint) => {
+    if (pinned.has(p.code)) return -1; // never drop
+    const lvl = p.risk ?? "low";
+    if (lvl === "high") return -1;
+    return lvl === "low" ? 0 : 1; // low first, then medium
+  };
+
+  const candidates = kept
+    .map((p, i) => ({ p, i, tier: droppableOrder(p) }))
+    .filter((c) => c.tier >= 0)
+    .sort((a, b) => a.tier - b.tier || (a.p.riskScore ?? 0) - (b.p.riskScore ?? 0));
+
+  for (const c of candidates) {
+    if (hoursOf(kept) <= cap) break;
+    kept = kept.filter((p) => p.id !== c.p.id);
+    dropped.push(c.p);
+  }
+  return { kept, dropped };
+}
+
+/**
+ * Put previously deferred assets (catch-up queue) at the front of the list so
+ * the next plan visits them first. Order inside each group is preserved.
+ */
+export function prioritizeFirst(points: PlanPoint[], pinnedCodes: Set<string>): PlanPoint[] {
+  if (pinnedCodes.size === 0) return points;
+  const first: PlanPoint[] = [];
+  const rest: PlanPoint[] = [];
+  for (const p of points) (pinnedCodes.has(p.code) ? first : rest).push(p);
+  return [...first, ...rest];
+}

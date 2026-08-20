@@ -851,6 +851,48 @@ export type Database = {
         }
         Relationships: []
       }
+      route_deferred_assets: {
+        Row: {
+          asset_old_code: string
+          cleared_at: string | null
+          created_by: string
+          day_index: number | null
+          deferred_at: string
+          id: string
+          inspector_index: number | null
+          inspector_name: string | null
+          plan_name: string | null
+          reason: string | null
+          risk_level: string | null
+        }
+        Insert: {
+          asset_old_code: string
+          cleared_at?: string | null
+          created_by?: string
+          day_index?: number | null
+          deferred_at?: string
+          id?: string
+          inspector_index?: number | null
+          inspector_name?: string | null
+          plan_name?: string | null
+          reason?: string | null
+          risk_level?: string | null
+        }
+        Update: {
+          asset_old_code?: string
+          cleared_at?: string | null
+          created_by?: string
+          day_index?: number | null
+          deferred_at?: string
+          id?: string
+          inspector_index?: number | null
+          inspector_name?: string | null
+          plan_name?: string | null
+          reason?: string | null
+          risk_level?: string | null
+        }
+        Relationships: []
+      }
       sync_logs: {
         Row: {
           finished_at: string | null

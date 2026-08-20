@@ -22,6 +22,7 @@ import { Route as RouteMonitoringRouteImport } from './routes/route-monitoring'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SharedPoiTokenRouteImport } from './routes/shared/poi.$token'
+import { Route as SharedRouteTokenRouteImport } from './routes/shared/route.$token'
 import { Route as ApiPublicHooksSyncAssetHistoryRouteImport } from './routes/api/public/hooks/sync-asset-history'
 import { Route as ApiPublicHooksSyncClaimsRouteImport } from './routes/api/public/hooks/sync-claims'
 import { Route as ApiPublicPoiShareTokenRouteImport } from './routes/api/public/poi-share/$token'
@@ -91,6 +92,11 @@ const SharedPoiTokenRoute = SharedPoiTokenRouteImport.update({
   path: '/shared/poi/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SharedRouteTokenRoute = SharedRouteTokenRouteImport.update({
+  id: '/shared/route/$token',
+  path: '/shared/route/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksSyncAssetHistoryRoute =
   ApiPublicHooksSyncAssetHistoryRouteImport.update({
     id: '/api/public/hooks/sync-asset-history',
@@ -122,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/route-monitoring': typeof RouteMonitoringRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/shared/route/$token': typeof SharedRouteTokenRoute
   '/shared/poi/$token': typeof SharedPoiTokenRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
   '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
@@ -140,6 +147,7 @@ export interface FileRoutesByTo {
   '/route-monitoring': typeof RouteMonitoringRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/shared/route/$token': typeof SharedRouteTokenRoute
   '/shared/poi/$token': typeof SharedPoiTokenRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
   '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
@@ -159,6 +167,7 @@ export interface FileRoutesById {
   '/route-monitoring': typeof RouteMonitoringRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/shared/route/$token': typeof SharedRouteTokenRoute
   '/shared/poi/$token': typeof SharedPoiTokenRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
   '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
@@ -179,6 +188,7 @@ export interface FileRouteTypes {
     | '/route-monitoring'
     | '/search'
     | '/settings'
+    | '/shared/route/$token'
     | '/shared/poi/$token'
     | '/api/public/hooks/sync-asset-history'
     | '/api/public/hooks/sync-claims'
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/route-monitoring'
     | '/search'
     | '/settings'
+    | '/shared/route/$token'
     | '/shared/poi/$token'
     | '/api/public/hooks/sync-asset-history'
     | '/api/public/hooks/sync-claims'
@@ -215,6 +226,7 @@ export interface FileRouteTypes {
     | '/route-monitoring'
     | '/search'
     | '/settings'
+    | '/shared/route/$token'
     | '/shared/poi/$token'
     | '/api/public/hooks/sync-asset-history'
     | '/api/public/hooks/sync-claims'
@@ -234,6 +246,7 @@ export interface RootRouteChildren {
   RouteMonitoringRoute: typeof RouteMonitoringRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
+  SharedRouteTokenRoute: typeof SharedRouteTokenRoute
   SharedPoiTokenRoute: typeof SharedPoiTokenRoute
   ApiPublicHooksSyncAssetHistoryRoute: typeof ApiPublicHooksSyncAssetHistoryRoute
   ApiPublicHooksSyncClaimsRoute: typeof ApiPublicHooksSyncClaimsRoute
@@ -333,6 +346,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SharedPoiTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shared/route/$token': {
+      id: '/shared/route/$token'
+      path: '/shared/route/$token'
+      fullPath: '/shared/route/$token'
+      preLoaderRoute: typeof SharedRouteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/sync-asset-history': {
       id: '/api/public/hooks/sync-asset-history'
       path: '/api/public/hooks/sync-asset-history'
@@ -370,6 +390,7 @@ const rootRouteChildren: RootRouteChildren = {
   RouteMonitoringRoute: RouteMonitoringRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
+  SharedRouteTokenRoute: SharedRouteTokenRoute,
   SharedPoiTokenRoute: SharedPoiTokenRoute,
   ApiPublicHooksSyncAssetHistoryRoute: ApiPublicHooksSyncAssetHistoryRoute,
   ApiPublicHooksSyncClaimsRoute: ApiPublicHooksSyncClaimsRoute,

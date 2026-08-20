@@ -17,10 +17,15 @@ export type SavedPlanInspector = {
   color: string;
   center: { lat: number; lng: number };
   days: SavedPlanDay[];
+  /** Phase B — technician name typed by the planner. */
+  technician?: string | null;
+  /** Phase B — this team's real start point (depot), when set. */
+  depot?: { lat: number; lng: number; name: string } | null;
 };
 
 export type SavedPlanPayload = {
-  v: 1;
+  /** v1 = original, v2 = adds technicians / per-team depots / deferred queue. */
+  v: 1 | 2;
   filters: {
     projects: string[];
     medias: string[];
@@ -37,13 +42,19 @@ export type SavedPlanPayload = {
     speedKmh: number;
     dailyHours: number;
     mediaMinutes: Record<string, number>;
+    /** Phase A — enforce the daily hour cap by trimming low-risk assets. */
+    autoTrim?: boolean;
   };
   depot: {
     startMode: string;
     startPoint: { lat: number; lng: number; name: string } | null;
     endMode: string;
     endPoint: { lat: number; lng: number; name: string } | null;
+    /** Phase B — per-inspector depots, keyed by inspector index. */
+    perTeam?: Record<number, { lat: number; lng: number; name: string }>;
   };
+  /** Phase A — asset codes trimmed out of this plan (catch-up next round). */
+  deferred?: string[];
   plan: SavedPlanInspector[];
 };
 
@@ -56,7 +67,7 @@ export function decodePlan(notes: string | null): SavedPlanPayload | null {
   if (!notes) return null;
   try {
     const p = JSON.parse(notes) as SavedPlanPayload;
-    if (!p || p.v !== 1 || !Array.isArray(p.plan)) return null;
+    if (!p || (p.v !== 1 && p.v !== 2) || !Array.isArray(p.plan)) return null;
     return p;
   } catch {
     return null;

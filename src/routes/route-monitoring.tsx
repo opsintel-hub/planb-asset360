@@ -29,6 +29,11 @@ import {
   BarChart3,
   ListOrdered,
   ShieldAlert,
+  Share2,
+  Smartphone,
+  UserRound,
+  Link2,
+  CheckCircle2,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui-bits";
@@ -61,6 +66,8 @@ import {
   splitIntoDaysBalanced,
   splitIntoDaysFair,
   sortDaysByRisk,
+  trimToHourCap,
+  prioritizeFirst,
 
   CLUSTER_COLORS,
   type PlanPoint,
@@ -80,6 +87,14 @@ import {
   type CsvDaySource,
   type SavedPlanPayload,
 } from "@/lib/route-plan-export";
+import {
+  listDeferredAssets,
+  saveDeferredAssets,
+  clearDeferredAssets,
+  type DeferredInput,
+} from "@/lib/route-deferred.functions";
+import { createRouteShare, type RouteSharePayload } from "@/lib/route-share.functions";
+import { googleMapsLinks, planTextForDay, shareOrCopy, lineShareUrl } from "@/lib/route-mobile";
 import type { AssetMapHandle } from "@/components/asset-map";
 
 
@@ -216,7 +231,9 @@ function NumField({
 
 
 type Depot = { lat: number; lng: number; name: string };
-type StartMode = "centroid" | "saved" | "pin";
+type StartMode = "centroid" | "saved" | "pin" | "team";
+/** Phase B — per-team technician name + real depot (start point). */
+type TeamConfig = { name: string; depot: Depot | null };
 type EndMode = "roundtrip" | "last" | "custom";
 
 
@@ -309,6 +326,33 @@ function RouteMonitoringPage() {
     return m;
   }, [riskData]);
   const [riskFirst, setRiskFirst] = useState(true);
+
+  // ---- Phase A: catch-up queue (assets trimmed by the daily hour cap) ----
+  const deferredFn = useServerFn(listDeferredAssets);
+  const { data: deferredData } = useQuery({
+    queryKey: ["route-deferred"],
+    queryFn: () => deferredFn({}),
+    staleTime: 60_000,
+  });
+  const deferredRows = useMemo(() => deferredData?.rows ?? [], [deferredData]);
+  const pinnedCodes = useMemo(
+    () => new Set(deferredRows.map((r) => r.code)),
+    [deferredRows],
+  );
+  const saveDeferredFn = useServerFn(saveDeferredAssets);
+  const clearDeferredFn = useServerFn(clearDeferredAssets);
+  const saveDeferred = useMutation({
+    mutationFn: (vars: { items: DeferredInput[] }) => saveDeferredFn({ data: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["route-deferred"] }),
+  });
+  const clearDeferred = useMutation({
+    mutationFn: (codes?: string[]) => clearDeferredFn({ data: { codes } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["route-deferred"] });
+      toast.success("เคลียร์คิวป้ายที่เลื่อนแล้ว");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   /**
    * How work is split between people:
    *  - "fair"   : equalise total hours = inspection time + estimated driving time (default)
@@ -392,6 +436,22 @@ function RouteMonitoringPage() {
   const [endMode, setEndMode] = useState<EndMode>("roundtrip");
   const [endPoint, setEndPoint] = useState<Depot | null>(null);
   const [pinTarget, setPinTarget] = useState<"start" | "end" | null>(null);
+  /** Phase B — technician name + depot per inspector index. */
+  const [teams, setTeams] = useState<Record<number, TeamConfig>>({});
+  const [teamPinTarget, setTeamPinTarget] = useState<number | null>(null);
+  const technicianOf = (i: number) => teams[i]?.name?.trim() || "";
+  const labelOf = (i: number) => technicianOf(i) || `คนที่ ${i + 1}`;
+  const teamDepotOf = (i: number): Depot | null => teams[i]?.depot ?? null;
+  function setTeam(i: number, patch: Partial<TeamConfig>) {
+    setTeams((prev) => ({
+      ...prev,
+      [i]: { name: prev[i]?.name ?? "", depot: prev[i]?.depot ?? null, ...patch },
+    }));
+  }
+
+  /** Phase A — enforce the daily hour cap by deferring low-risk assets. */
+  const [autoTrim, setAutoTrim] = useState(true);
+  const [trimmedNow, setTrimmedNow] = useState<PlanPoint[]>([]);
 
   // ---- work-time model ----
   const [minutesPerAsset, setMinutesPerAsset] = useState(DEFAULT_MINUTES_PER_ASSET);
@@ -601,32 +661,72 @@ function RouteMonitoringPage() {
     }
 
     await tick(65, "แบ่งงานเป็นรายวัน");
+    /** Straight-line hours estimate for a candidate day-batch. */
+    const hoursFor = (pts: PlanPoint[], startAt: { lat: number; lng: number }) => {
+      let meters = estimateTourMeters(pts, startAt);
+      if (endMode === "roundtrip" && pts.length) {
+        meters += haversineM(pts[pts.length - 1], startAt);
+      } else if (endMode === "custom" && endPoint && pts.length) {
+        meters += haversineM(pts[pts.length - 1], endPoint);
+      }
+      return { meters, hours: serviceHours(pts) + meters / 1000 / Math.max(1, speedKmh) };
+    };
+
+    const trimmedAll: PlanPoint[] = [];
+    const trimmedMeta: Array<{ point: PlanPoint; i: number; day: number }> = [];
+
     const result: InspectorPlan[] = clusters.map((c) => {
       const batches = splitDays(c.points);
       // Phase 5 — same zones/workload, but risky day-batches go first.
       const dayBatches = riskFirst ? sortDaysByRisk(batches) : batches;
+      // Phase B — this team's own depot when set, else the zone centre.
+      const teamDepot = teamDepotOf(c.index);
+      const startAt: { lat: number; lng: number } =
+        teamDepot ?? (startMode === "centroid" ? c.center : startPoint ?? c.center);
 
-
-
+      const days: DayPlan[] = dayBatches.map((raw, di) => {
+        // Phase A — deferred assets from the last round go first, then cap hours.
+        let pts = prioritizeFirst(raw, pinnedCodes);
+        if (autoTrim) {
+          const { kept, dropped } = trimToHourCap(
+            pts,
+            dailyHours,
+            (cand) => hoursFor(cand, startAt).hours,
+            pinnedCodes,
+          );
+          pts = kept;
+          for (const p of dropped) {
+            trimmedAll.push(p);
+            trimmedMeta.push({ point: p, i: c.index, day: di + 1 });
+          }
+        }
+        const { meters, hours } = hoursFor(pts, startAt);
+        return { day: di + 1, points: pts, meters, hours };
+      });
 
       return {
         index: c.index,
         color: CLUSTER_COLORS[c.index % CLUSTER_COLORS.length],
         center: c.center,
-        points: c.points,
-        days: dayBatches.map((pts, di) => {
-          const startAt = startMode === "centroid" ? c.center : startPoint ?? c.center;
-          let meters = estimateTourMeters(pts, startAt);
-          if (endMode === "roundtrip" && pts.length) {
-            meters += haversineM(pts[pts.length - 1], startAt);
-          } else if (endMode === "custom" && endPoint && pts.length) {
-            meters += haversineM(pts[pts.length - 1], endPoint);
-          }
-          const hours = serviceHours(pts) + meters / 1000 / Math.max(1, speedKmh);
-          return { day: di + 1, points: pts, meters, hours };
-        }),
+        points: days.flatMap((d) => d.points),
+        days,
       };
     });
+
+    setTrimmedNow(trimmedAll);
+    if (trimmedAll.length > 0) {
+      void saveDeferred.mutateAsync({
+        items: trimmedMeta.map((t) => ({
+          code: t.point.code,
+          planName: planName.trim() || null,
+          inspectorIndex: t.i,
+          inspectorName: technicianOf(t.i) || null,
+          dayIndex: t.day,
+          reason: `เกินเพดาน ${dailyHours} ชม./วัน`,
+          riskLevel: t.point.risk ?? "low",
+        })),
+      });
+    }
     await tick(92, "จัดลำดับและสรุปผล");
     setPlan(result);
     setSel([]);
@@ -743,9 +843,12 @@ function RouteMonitoringPage() {
   // ---------- Phase 3: real road routing (OSRM /trip + /route) ----------
   /** Start/end of a given inspector-day, honouring the depot settings. */
   function startFor(i: number): Depot {
+    // Phase B — a team's own depot always wins over the global setting.
+    const own = teamDepotOf(i);
+    if (own) return own;
     const c = plan?.[i]?.center ?? { lat: 0, lng: 0 };
     if (startMode === "centroid" || !startPoint)
-      return { ...c, name: `ศูนย์กลางโซน คนที่ ${i + 1}` };
+      return { ...c, name: `ศูนย์กลางโซน ${labelOf(i)}` };
     return startPoint;
   }
   function endFor(i: number): Depot | null {
@@ -755,7 +858,106 @@ function RouteMonitoringPage() {
   }
 
   // Depot + time settings are part of the cache key so changing them recomputes.
-  const depotSig = `${startMode}:${startPoint?.lat ?? ""},${startPoint?.lng ?? ""}:${endMode}:${endPoint?.lat ?? ""},${endPoint?.lng ?? ""}`;
+  const teamSig = Object.entries(teams)
+    .map(([i, t]) => `${i}@${t.depot ? `${t.depot.lat},${t.depot.lng}` : "-"}`)
+    .join("|");
+  const depotSig = `${startMode}:${startPoint?.lat ?? ""},${startPoint?.lng ?? ""}:${endMode}:${endPoint?.lat ?? ""},${endPoint?.lng ?? ""}:${teamSig}`;
+
+  // ---------- Phase C: hand the plan to a technician's phone ----------
+  function mobileDayFor(i: number, d: number) {
+    const day = plan?.[i]?.days[d - 1];
+    if (!day) return null;
+    const route = routes[keyFor(i, d)];
+    const points = route ? route.stops.map((s) => s.point) : day.points;
+    const s = startFor(i);
+    const e = endFor(i);
+    return { inspectorLabel: labelOf(i), day: d, points, start: s, end: e };
+  }
+
+  async function shareDayToPhone(i: number, d: number) {
+    const md = mobileDayFor(i, d);
+    if (!md || md.points.length === 0) return;
+    const links = googleMapsLinks(md, vehicleOf(i) === "moto" ? "two-wheeler" : "driving");
+    const r = await shareOrCopy(planTextForDay(md, links));
+    toast.success(r === "shared" ? "ส่งแผนให้ช่างแล้ว" : "คัดลอกแผนแล้ว วางในแชตได้เลย");
+  }
+
+  function openDayInGoogleMaps(i: number, d: number) {
+    const md = mobileDayFor(i, d);
+    if (!md || md.points.length === 0) return;
+    const links = googleMapsLinks(md, vehicleOf(i) === "moto" ? "two-wheeler" : "driving");
+    links.forEach((u) => window.open(u, "_blank", "noopener"));
+    if (links.length > 1) toast.info(`เส้นทางยาว แบ่งเป็น ${links.length} ช่วงใน Google Maps`);
+  }
+
+  function openDayInLine(i: number, d: number) {
+    const md = mobileDayFor(i, d);
+    if (!md || md.points.length === 0) return;
+    const links = googleMapsLinks(md, vehicleOf(i) === "moto" ? "two-wheeler" : "driving");
+    window.open(lineShareUrl(planTextForDay(md, links)), "_blank", "noopener");
+  }
+
+  const shareFn = useServerFn(createRouteShare);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const makeShare = useMutation({
+    mutationFn: (payload: RouteSharePayload) => shareFn({ data: { payload } }),
+    onSuccess: async (res) => {
+      const url = `${window.location.origin}/shared/route/${(res as { token: string }).token}`;
+      setShareUrl(url);
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("สร้างลิงก์สำหรับช่างแล้ว (คัดลอกให้เรียบร้อย, อายุ 7 วัน)");
+      } catch {
+        toast.success("สร้างลิงก์สำหรับช่างแล้ว (อายุ 7 วัน)");
+      }
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  /** Share the selected days — or the whole plan when nothing is selected. */
+  function shareLinkForSelection() {
+    if (!plan) return;
+    const targets =
+      selDays.length > 0
+        ? selDays
+        : plan.flatMap((p) =>
+            p.days.filter((d) => d.points.length > 0).map((d) => ({ i: p.index, d: d.day })),
+          );
+    const days = targets
+      .map(({ i, d }) => {
+        const md = mobileDayFor(i, d);
+        const dayPlan = plan[i]?.days[d - 1];
+        if (!md || !dayPlan) return null;
+        return {
+          inspectorLabel: `คนที่ ${i + 1}`,
+          technician: technicianOf(i) || null,
+          day: d,
+          meters: routes[keyFor(i, d)]?.totalMeters ?? dayPlan.meters,
+          hours: dayPlan.hours,
+          start: md.start,
+          end: md.end,
+          stops: md.points.map((p) => ({
+            code: p.code,
+            name: p.name,
+            mediaType: p.mediaType,
+            department: p.department,
+            lat: p.lat,
+            lng: p.lng,
+            risk: p.risk ?? null,
+          })),
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+    if (days.length === 0) {
+      toast.error("ยังไม่มีวันที่จะแชร์");
+      return;
+    }
+    makeShare.mutate({
+      kind: "route-plan",
+      title: planName.trim() || "แผนตรวจป้าย",
+      days,
+    });
+  }
   function keyFor(i: number, d: number) {
     return `${planNonce}:${i}:${d}:${depotSig}:${vehicleSig}`;
   }

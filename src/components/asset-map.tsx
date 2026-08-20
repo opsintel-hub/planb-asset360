@@ -552,6 +552,14 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
             <span style="color:#6b7280;">Media Type:</span><span>${escapeHtml(a.media_type ?? "—")}</span>
             <span style="color:#6b7280;">Location:</span><span>${escapeHtml(a.location ?? "—")}</span>
             <span style="color:#6b7280;">Status:</span><span>${escapeHtml(a.status ?? "—")}</span>
+            ${(() => {
+              const ad = adByCode?.get(a.old_code ?? "");
+              if (!ad) return adByCode ? '<span style="color:#6b7280;">โฆษณา:</span><span style="color:#6b7280;">ว่าง (ไม่มีโฆษณาขึ้น)</span>' : "";
+              const d = ad.daysToEnd;
+              const tone = d != null && d <= 30 ? "#b91c1c" : "#15803d";
+              return `<span style="color:#6b7280;">โฆษณา:</span><span style="font-weight:600;">${escapeHtml(ad.product ?? "—")}</span>
+                <span style="color:#6b7280;">สิ้นสุดสัญญา:</span><span style="color:${tone};">${escapeHtml(ad.end ?? "—")}${d != null ? ` (${d} วัน)` : ""}</span>`;
+            })()}
             ${warning ? '<span style="color:#b45309;grid-column:1/-1;margin-top:4px;font-weight:600;">⚠ กำลังซ่อม (มีเคลมเปิดอยู่)</span>' : ""}
           </div>
           ${a.old_code ? `<a href="/search?q=${encodeURIComponent(a.old_code)}" style="display:inline-block;margin-top:8px;color:#2563eb;text-decoration:underline;">ดูประวัติป้าย →</a>` : ""}

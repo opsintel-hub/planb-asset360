@@ -346,3 +346,34 @@ export const getVacantAssets = createServerFn({ method: "GET" })
     const districts = Array.from(new Set(rows.map((r) => r.district).filter(Boolean) as string[])).sort();
     return { vacant, totalAssets: rows.length, departments, mediaTypes, districts };
   });
+
+/** Whole-table map of the CURRENT ad per asset code — used to colour the Asset Map. */
+export const getAllCurrentAds = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const out: Record<string, { product: string | null; end: string | null; daysToEnd: number | null }> = {};
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await context.supabase
+        .from("ad_current_by_asset")
+        .select("asset_old_code, product_name, end_date_contract, days_to_end")
+        .range(from, from + pageSize - 1);
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) break;
+      for (const r of data as Array<{
+        asset_old_code: string | null;
+        product_name: string | null;
+        end_date_contract: string | null;
+        days_to_end: number | null;
+      }>) {
+        if (r.asset_old_code)
+          out[r.asset_old_code] = {
+            product: r.product_name,
+            end: r.end_date_contract,
+            daysToEnd: r.days_to_end,
+          };
+      }
+      if (data.length < pageSize) break;
+    }
+    return out;
+  });

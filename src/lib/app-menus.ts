@@ -24,6 +24,7 @@ export const APP_MENUS: AppMenu[] = [
   { to: "/rca", label: "Root Cause Analysis", hint: "วิเคราะห์สาเหตุ" },
   { to: "/map", label: "Asset Map", hint: "แผนที่ป้าย/POI" },
   { to: "/route-monitoring", label: "Route Monitoring", hint: "วางแผนเส้นทางตรวจ" },
+  { to: "/campaigns", label: "Ad Campaigns", hint: "ชื่อโฆษณา/สัญญาป้าย" },
   { to: "/settings", label: "ตั้งค่าระบบ", hint: "ตั้งค่า/ซิงก์ข้อมูล" },
   { to: "/permissions", label: "จัดการสิทธิ์", adminOnly: true, hint: "admin เท่านั้น" },
 ];

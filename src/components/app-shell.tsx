@@ -46,7 +46,7 @@ const NAV_ALL = APP_MENUS.map((m) => ({
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const fn = useServerFn(getMyMenuAccess);
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["my-menu-access"],
     queryFn: () => fn({}),
     staleTime: 60_000,

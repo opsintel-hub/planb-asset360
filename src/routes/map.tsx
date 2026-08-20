@@ -1644,6 +1644,7 @@ function MapPage() {
                 showClaimStatus={canSeeMaintenance}
                 riskMode={riskEnabled}
                 riskByCode={riskEnabled ? riskMap : null}
+                adByCode={adEnabled ? adMap : null}
                 focusId={focusId}
                 focusNonce={focusNonce}
                 drawMode={mode === "corridor" && drawMode}

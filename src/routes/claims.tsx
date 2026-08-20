@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert } from "lucide-react";
 import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
+import { getCurrentAdsByCodes } from "@/lib/ad-contracts.functions";
 import { syncClaimsNow } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -96,6 +97,20 @@ function ClaimsPage() {
   const allClaims = data?.claims ?? [];
   const rawDepartments = data?.departments ?? [];
   const oldCodes = data?.oldCodes ?? [];
+
+  // Current ad (from CRM) per claimed asset — so the team knows a repair sits
+  // under a live campaign and how many days are left on the contract.
+  const adsFn = useServerFn(getCurrentAdsByCodes);
+  const claimCodes = useMemo(
+    () => Array.from(new Set(allClaims.map((c) => c.asset_old_code).filter(Boolean) as string[])).slice(0, 3000),
+    [allClaims],
+  );
+  const { data: adByCode } = useQuery({
+    queryKey: ["claims-current-ads", claimCodes.length],
+    queryFn: () => adsFn({ data: { codes: claimCodes } }),
+    enabled: claimCodes.length > 0,
+    staleTime: 5 * 60_000,
+  });
 
   // Cascade: department options depend on selected project
   const departments = useMemo(() => {

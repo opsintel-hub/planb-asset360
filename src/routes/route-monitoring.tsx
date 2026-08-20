@@ -2442,7 +2442,7 @@ function RouteMonitoringPage() {
                     <div className="px-4 py-2.5 border-b text-sm font-semibold flex flex-wrap items-center gap-2">
                       <span className="size-3 rounded-full shrink-0" style={{ background: col }} />
                       <Navigation className="size-4" style={{ color: col }} />
-                      เส้นทางจริง — คนที่ {i + 1} · วันที่ {d}
+                      เส้นทางจริง — {labelOf(i)} · วันที่ {d}
                       {routingKey === key ? (
                         <span className="text-xs font-normal text-muted-foreground inline-flex items-center gap-1">
                           <Loader2 className="size-3.5 animate-spin" /> กำลังคำนวณเส้นทางบนถนน…
@@ -2581,7 +2581,7 @@ function RouteMonitoringPage() {
                         className="w-full text-left group"
                       >
                         <div className="flex items-center gap-2 text-[11px]">
-                          <span className="w-16 shrink-0">คนที่ {p.index + 1}</span>
+                          <span className="w-16 shrink-0 truncate" title={labelOf(p.index)}>{labelOf(p.index)}</span>
                           <span className="flex-1 h-2.5 rounded-full bg-muted overflow-hidden">
                             <span
                               className="block h-full rounded-full transition-all group-hover:opacity-80"
@@ -2672,7 +2672,7 @@ function RouteMonitoringPage() {
                           className="size-3 rounded-full shrink-0"
                           style={{ background: p.color }}
                         />
-                        <span className="font-medium">พนักงานคนที่ {p.index + 1}</span>
+                        <span className="font-medium">{technicianOf(p.index) ? `ช่าง ${technicianOf(p.index)}` : `พนักงานคนที่ ${p.index + 1}`}</span>
                         <span className="ml-auto text-muted-foreground tabular-nums">
                           {p.points.length.toLocaleString()} ป้าย
                         </span>
@@ -2828,7 +2828,7 @@ function RouteMonitoringPage() {
                         </span>
 
                         <span className="block text-[11px] text-muted-foreground truncate">
-                          คนที่ {r.i + 1} · วันที่ {r.d}
+                          {labelOf(r.i)} · วันที่ {r.d}
                           {r.media ? ` · ${r.media}` : ""}
                         </span>
                       </span>

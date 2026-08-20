@@ -105,6 +105,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {nav.length === 0 && !isLoading ? (
+          <div className="rounded-lg border border-sidebar-border/60 bg-sidebar-accent/30 p-3 text-xs leading-relaxed text-sidebar-foreground/80">
+            บัญชีนี้ยังไม่ได้รับสิทธิ์เข้าเมนูใด ๆ
+            <div className="mt-1 text-sidebar-foreground/60">
+              โปรดติดต่อผู้ดูแลระบบเพื่อกำหนดบทบาท
+            </div>
+            <Link
+              to="/permissions"
+              className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-sidebar-primary px-2.5 py-1.5 font-medium text-sidebar-primary-foreground"
+            >
+              <Users className="size-3.5" /> จัดการสิทธิ์
+            </Link>
+          </div>
+        ) : null}
         {nav.map((item) => {
           const Icon = item.icon;
           const active = pathname.startsWith(item.to);
@@ -125,6 +139,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           );
         })}
       </nav>
+
 
       <div className="p-4 border-t border-sidebar-border">
         <div className="flex items-center gap-3">

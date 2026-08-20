@@ -357,6 +357,7 @@ const MSSQL_CRON_JOBS = [
   "mssql-sync-assets-daily",
   "mssql-sync-pm-schedules-daily",
   "mssql-sync-asset-history-daily",
+  "crm-sync-ad-contracts-daily",
 ] as const;
 
 function parseDailyCron(schedule: string): { hour: number; minute: number } | null {

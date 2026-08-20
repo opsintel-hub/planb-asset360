@@ -1763,6 +1763,84 @@ function RouteMonitoringPage() {
             </div>
           </div>
 
+          {/* ---------- Phase B: technicians + per-team depots ---------- */}
+          <div className="rounded-xl border bg-card p-4 space-y-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+              <UserRound className="size-3.5" /> ช่างและคลังต้นทางของแต่ละรูท
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              ใส่ชื่อช่างและจุดตั้งต้นจริง (คลัง/บ้าน/ออฟฟิศ) ได้รายคน — ถ้าตั้งไว้ ระบบจะใช้จุดนี้
+              แทนจุดกึ่งกลางโซนทั้งการคิดชั่วโมงและการนำทาง
+            </div>
+            <div className="max-h-72 overflow-auto space-y-2 pr-1">
+              {Array.from({ length: Math.max(1, plan?.length ?? inspectors) }, (_, i) => {
+                const t = teams[i];
+                return (
+                  <div key={i} className="rounded-lg border p-2 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="size-2.5 shrink-0 rounded-full"
+                        style={{
+                          background: CLUSTER_COLORS[i % CLUSTER_COLORS.length],
+                        }}
+                      />
+                      <span className="text-[11px] text-muted-foreground shrink-0">
+                        คนที่ {i + 1}
+                      </span>
+                      <input
+                        value={t?.name ?? ""}
+                        onChange={(e) => setTeam(i, { name: e.target.value })}
+                        placeholder="ชื่อช่าง"
+                        className="h-8 flex-1 min-w-0 rounded-lg border bg-background px-2 text-xs"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={t?.depot?.name ?? ""}
+                        onChange={(e) => {
+                          const loc = savedList.find((l) => l.name === e.target.value);
+                          setTeam(i, {
+                            depot: loc ? { lat: loc.lat, lng: loc.lng, name: loc.name } : null,
+                          });
+                        }}
+                        className="h-8 flex-1 min-w-0 rounded-lg border bg-background px-2 text-xs"
+                      >
+                        <option value="">— ใช้จุดกึ่งกลางโซน —</option>
+                        {savedList.map((l) => (
+                          <option key={l.id} value={l.name}>
+                            {l.name}
+                          </option>
+                        ))}
+                        {t?.depot && !savedList.some((l) => l.name === t.depot?.name) && (
+                          <option value={t.depot.name}>{t.depot.name}</option>
+                        )}
+                      </select>
+                      <button
+                        onClick={() => {
+                          setPinTarget(null);
+                          setTeamPinTarget(teamPinTarget === i ? null : i);
+                        }}
+                        title="ปักหมุดคลังบนแผนที่"
+                        className={cn(
+                          "h-8 px-2 rounded-lg border text-[11px] hover:bg-accent inline-flex items-center gap-1",
+                          teamPinTarget === i && "bg-accent border-primary",
+                        )}
+                      >
+                        <Crosshair className="size-3.5" />
+                        {teamPinTarget === i ? "คลิกบนแผนที่…" : "ปักหมุด"}
+                      </button>
+                    </div>
+                    {t?.depot && (
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {t.depot.name} · {t.depot.lat.toFixed(5)}, {t.depot.lng.toFixed(5)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* ---------- Work-time model ---------- */}
           <div className="rounded-xl border bg-card p-4 space-y-3">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">

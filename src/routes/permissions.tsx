@@ -172,7 +172,11 @@ function PermissionsPage() {
                       <tr key={menu} className="hover:bg-accent/30">
                         <td className="px-4 py-3 font-medium sticky left-0 bg-card z-10">
                           {MENU_LABEL[menu] ?? menu}
-                          <div className="text-[11px] text-muted-foreground font-normal mt-0.5">{menu}</div>
+                          <div className="text-[11px] text-muted-foreground font-normal mt-0.5">
+                            {APP_MENUS.find((m) => m.to === menu)?.hint
+                              ? `${APP_MENUS.find((m) => m.to === menu)!.hint} · ${menu}`
+                              : menu}
+                          </div>
                         </td>
                         <td className="px-3 py-3 text-center text-xs text-muted-foreground">✓</td>
                         {(["manager", "technician", "sale", "crm", "production"] as const).map((role) => {

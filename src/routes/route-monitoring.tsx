@@ -2117,6 +2117,68 @@ function RouteMonitoringPage() {
                   (ไม่มีระยะทาง/เวลาต่อช่วง) · เลือกหลายวันจะได้หลายไฟล์
                 </div>
 
+                {/* Phase C — hand the plan to the technician's phone */}
+                <div className="pt-2 border-t space-y-1.5">
+                  <div className="text-xs font-medium flex items-center gap-1.5">
+                    <Smartphone className="size-3.5" /> ส่งแผนเข้ามือถือช่าง
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      onClick={() => primary && openDayInGoogleMaps(primary.i, primary.d)}
+                      disabled={!primary || primary.d === 0}
+                      className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50 inline-flex items-center gap-1"
+                    >
+                      <Navigation className="size-3.5" /> เปิดใน Google Maps
+                    </button>
+                    <button
+                      onClick={() => primary && void shareDayToPhone(primary.i, primary.d)}
+                      disabled={!primary || primary.d === 0}
+                      className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50 inline-flex items-center gap-1"
+                    >
+                      <Share2 className="size-3.5" /> แชร์/คัดลอกแผนวันนี้
+                    </button>
+                    <button
+                      onClick={() => primary && openDayInLine(primary.i, primary.d)}
+                      disabled={!primary || primary.d === 0}
+                      className="h-8 px-2 rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50"
+                    >
+                      ส่งเข้า LINE
+                    </button>
+                    <button
+                      onClick={shareLinkForSelection}
+                      disabled={makeShare.isPending}
+                      className="h-8 px-2 rounded-lg bg-primary text-primary-foreground text-[11px] hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1"
+                    >
+                      {makeShare.isPending ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Link2 className="size-3.5" />
+                      )}
+                      สร้างลิงก์ให้ช่าง
+                    </button>
+                  </div>
+                  {shareUrl && (
+                    <div className="rounded-lg border bg-muted/40 p-2 space-y-1">
+                      <div className="text-[10px] text-muted-foreground">
+                        ลิงก์อ่านอย่างเดียว อายุ 7 วัน — เปิดจากมือถือได้เลย
+                      </div>
+                      <a
+                        href={shareUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block truncate text-[11px] text-primary hover:underline"
+                      >
+                        {shareUrl}
+                      </a>
+                    </div>
+                  )}
+                  <div className="text-[11px] text-muted-foreground">
+                    “เปิดใน Google Maps” ใช้วันที่เลือกไว้ (Google Maps รับได้ 10 จุดต่อลิงก์
+                    เส้นทางยาวจะถูกแบ่งเป็นหลายช่วงอัตโนมัติ)
+                  </div>
+                </div>
+
+
               </div>
             )}
           </div>

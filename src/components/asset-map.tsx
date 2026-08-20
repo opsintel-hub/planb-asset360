@@ -168,6 +168,8 @@ type Props = {
   /** Colour pins by risk level instead of project colour. */
   riskMode?: boolean;
   riskByCode?: Map<string, { level: "high" | "medium" | "low"; score: number }> | null;
+  /** Current ad (CRM) per asset code — shown inside the pin popup. */
+  adByCode?: Map<string, { product: string | null; end: string | null; daysToEnd: number | null }> | null;
   /** Show the "กำลังซ่อม" warning badge + legend. Off for sale/CRM. */
   showClaimStatus?: boolean;
 };
@@ -201,6 +203,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
   onSelectAsset,
   riskMode = false,
   riskByCode = null,
+  adByCode = null,
   showClaimStatus = true,
 }: Props, ref) {
 

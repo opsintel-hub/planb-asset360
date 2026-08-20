@@ -144,16 +144,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="p-4 border-t border-sidebar-border">
         <div className="flex items-center gap-3">
           <div className="size-9 shrink-0 rounded-full bg-sidebar-primary grid place-items-center text-sm font-semibold text-sidebar-primary-foreground">
-            A
+            {initial}
           </div>
           <div className="leading-tight flex-1 min-w-0">
-            <div className="text-sm font-medium truncate">Admin User</div>
+            <div className="text-sm font-medium truncate">{displayName}</div>
             <div className="text-[11px] text-sidebar-foreground/60 truncate">
-              admin@planb.co.th
+              {roleLabel}
             </div>
           </div>
         </div>
       </div>
+
     </>
   );
 

@@ -1188,7 +1188,7 @@ function RouteMonitoringPage() {
   function currentPayload(): SavedPlanPayload | null {
     if (!plan) return null;
     return {
-      v: 1,
+      v: 2,
       filters: {
         projects: fProjects,
         medias: fMedias,
@@ -1199,12 +1199,25 @@ function RouteMonitoringPage() {
 
       },
       resources: { inspectors, days, emergency, absent },
-      work: { minutesPerAsset, speedKmh, dailyHours, mediaMinutes },
-      depot: { startMode, startPoint, endMode, endPoint },
+      work: { minutesPerAsset, speedKmh, dailyHours, mediaMinutes, autoTrim },
+      depot: {
+        startMode,
+        startPoint,
+        endMode,
+        endPoint,
+        perTeam: Object.fromEntries(
+          Object.entries(teams)
+            .filter(([, t]) => !!t.depot)
+            .map(([i, t]) => [Number(i), t.depot!]),
+        ),
+      },
+      deferred: trimmedNow.map((p) => p.code),
       plan: plan.map((p) => ({
         index: p.index,
         color: p.color,
         center: p.center,
+        technician: technicianOf(p.index) || null,
+        depot: teamDepotOf(p.index),
         days: p.days.map((d) => ({
           day: d.day,
           meters: d.meters,

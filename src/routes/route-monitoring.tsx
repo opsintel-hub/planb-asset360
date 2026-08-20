@@ -1780,6 +1780,64 @@ function RouteMonitoringPage() {
               <span>เพดานชั่วโมงงาน/วัน</span>
               <NumField value={dailyHours} min={1} max={24} onCommit={setDailyHours} />
             </label>
+            {/* Phase A — real hour cap: trim low-risk assets when a day overflows */}
+            <label className="flex items-start gap-2 text-xs rounded-lg border bg-muted/40 p-2 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={autoTrim}
+                onChange={(e) => setAutoTrim(e.target.checked)}
+              />
+              <span>
+                <span className="font-medium">บังคับเพดานชั่วโมงจริง</span> — ถ้าวันไหนงานเกิน{" "}
+                {dailyHours} ชม. ระบบจะตัดป้าย “เสี่ยงต่ำ” ออกก่อน (ป้ายเสี่ยงสูงไม่ถูกตัด)
+                แล้วดันเป็นคิวแรกของแผนรอบถัดไปอัตโนมัติ
+              </span>
+            </label>
+            {(trimmedNow.length > 0 || deferredRows.length > 0) && (
+              <div className="rounded-lg border border-warning/50 bg-warning/5 p-2 space-y-1.5">
+                <div className="text-xs font-medium flex items-center gap-1.5">
+                  <ShieldAlert className="size-3.5 text-warning" />
+                  คิวป้ายที่เลื่อนไว้ (ตรวจรอบหน้าเป็นลำดับแรก)
+                </div>
+                {trimmedNow.length > 0 && (
+                  <div className="text-[11px] text-muted-foreground">
+                    รอบนี้เลื่อนออก {trimmedNow.length} ป้าย เพราะเกินเพดาน {dailyHours} ชม./วัน
+                  </div>
+                )}
+                {deferredRows.length > 0 && (
+                  <>
+                    <div className="max-h-32 overflow-auto space-y-0.5 pr-1">
+                      {deferredRows.slice(0, 60).map((r) => (
+                        <div
+                          key={r.id}
+                          className="flex items-center justify-between gap-2 text-[11px]"
+                        >
+                          <span className="truncate font-medium">{r.code}</span>
+                          <span className="shrink-0 text-muted-foreground">
+                            {r.inspectorName || `คนที่ ${(r.inspectorIndex ?? 0) + 1}`} · วันที่{" "}
+                            {r.dayIndex ?? "-"}
+                          </span>
+                        </div>
+                      ))}
+                      {deferredRows.length > 60 && (
+                        <div className="text-[11px] text-muted-foreground">
+                          …และอีก {deferredRows.length - 60} ป้าย
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => clearDeferred.mutate(undefined)}
+                      disabled={clearDeferred.isPending}
+                      className="h-7 w-full rounded-lg border text-[11px] hover:bg-accent disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle2 className="size-3.5" /> ตรวจครบแล้ว — เคลียร์คิว (
+                      {deferredRows.length})
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             {activeMediaTypes.length > 0 && (
               <div className="space-y-1.5">
                 <div className="text-xs font-medium">

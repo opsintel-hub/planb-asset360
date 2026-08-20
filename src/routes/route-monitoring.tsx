@@ -1260,10 +1260,21 @@ function RouteMonitoringPage() {
     setSpeedKmh(p.work.speedKmh);
     setDailyHours(p.work.dailyHours);
     setMediaMinutes(p.work.mediaMinutes ?? {});
+    setAutoTrim(p.work.autoTrim !== false);
     setStartMode(p.depot.startMode as StartMode);
     setStartPoint(p.depot.startPoint);
     setEndMode(p.depot.endMode as EndMode);
     setEndPoint(p.depot.endPoint);
+    // Phase B — restore technician names + per-team depots.
+    const nextTeams: Record<number, TeamConfig> = {};
+    for (const ip of p.plan) {
+      const name = ip.technician?.trim() ?? "";
+      const depot = ip.depot ?? p.depot.perTeam?.[ip.index] ?? null;
+      if (name || depot) nextTeams[ip.index] = { name, depot };
+    }
+    setTeams(nextTeams);
+    setTrimmedNow([]);
+    setShareUrl(null);
     setPlan(
       p.plan.map((ip) => ({
         index: ip.index,

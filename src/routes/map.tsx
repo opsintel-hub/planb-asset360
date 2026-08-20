@@ -492,9 +492,16 @@ function MapPage() {
       if (mediaSet && (!a.media_type || !mediaSet.has(a.media_type))) return false;
       if (canSeeMaintenance && onlyClaimed && (!a.old_code || !claimedCodes.has(a.old_code))) return false;
       if (riskEnabled && onlyHighRisk && riskMap.get(a.old_code ?? "")?.level !== "high") return false;
+      if (adFocus && (!a.old_code || !adFocus.codes.has(a.old_code))) return false;
+      if (adMode && adFilter !== "all") {
+        const ad = adMap.get(a.old_code ?? "");
+        if (adFilter === "occupied" && !ad) return false;
+        if (adFilter === "vacant" && ad) return false;
+        if (adFilter === "expiring" && !(ad && ad.daysToEnd != null && ad.daysToEnd <= 30)) return false;
+      }
       return true;
     });
-  }, [allAssets, fProjects, fMedias, onlyClaimed, claimedCodes, canSeeMaintenance, riskEnabled, onlyHighRisk, riskMap]);
+  }, [allAssets, fProjects, fMedias, onlyClaimed, claimedCodes, canSeeMaintenance, riskEnabled, onlyHighRisk, riskMap, adFocus, adMode, adFilter, adMap]);
 
   // Corridor: nearby along drawn polyline
   const nearby = useMemo(() => {

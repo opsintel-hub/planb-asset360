@@ -341,6 +341,37 @@ function MapPage() {
   const riskEnabled = canSeeMaintenance && riskMode;
   const { map: riskMap, counts: riskCounts } = useAssetRiskMap(riskEnabled);
   const [fullscreen, setFullscreen] = useState(false);
+
+  // ---------- CRM ad overlay (ชื่อโฆษณา / วันสิ้นสุดสัญญา) ----------
+  const adsFn = useServerFn(getAllCurrentAds);
+  const [adMode, setAdMode] = useState(false);
+  const [adFilter, setAdFilter] = useState<"all" | "occupied" | "vacant" | "expiring">("all");
+  // Handoff from the Ad Campaigns page: focus only that campaign's assets.
+  const [adFocus, setAdFocus] = useState<{ product: string; codes: Set<string> } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.sessionStorage.getItem("ad_campaign_focus");
+      if (!raw) return null;
+      window.sessionStorage.removeItem("ad_campaign_focus");
+      const p = JSON.parse(raw) as { product?: string; codes?: string[] };
+      if (!p?.codes?.length) return null;
+      return { product: p.product ?? "", codes: new Set(p.codes) };
+    } catch {
+      return null;
+    }
+  });
+  const adEnabled = adMode || !!adFocus;
+  const { data: adData } = useQuery({
+    queryKey: ["map-current-ads"],
+    queryFn: () => adsFn(),
+    enabled: !!user && adEnabled,
+    staleTime: 5 * 60_000,
+  });
+  const adMap = useMemo(() => {
+    const m = new Map<string, { product: string | null; end: string | null; daysToEnd: number | null }>();
+    for (const [k, v] of Object.entries(adData ?? {})) m.set(k, v);
+    return m;
+  }, [adData]);
   const searchWrapRef = useRef<HTMLDivElement | null>(null);
 
   // ---------- Corridor state (with undo/redo) ----------

@@ -22,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
 import { getMyMenuAccess } from "@/lib/admin.functions";
+import { useAuth } from "@/lib/auth-context";
 import { APP_MENUS } from "@/lib/app-menus";
 
 const MENU_ICONS: Record<string, typeof Search> = {
@@ -51,6 +52,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     queryFn: () => fn({}),
     staleTime: 60_000,
   });
+  const { user } = useAuth();
+  const email = user?.email ?? "";
+  const displayName =
+    (user?.user_metadata?.display_name as string | undefined) ||
+    (email ? email.split("@")[0] : "ผู้ใช้งาน");
+  const initial = (displayName[0] ?? "?").toUpperCase();
+  const roleLabel = data
+    ? (data.roles.length ? data.roles.join(" · ") : "ยังไม่มีบทบาท") + (email ? ` · ${email}` : "")
+    : email;
+
   const allowed = data?.allowed ?? null;
   const isAdmin = data?.isAdmin ?? false;
   const nav = NAV_ALL.filter(
@@ -225,9 +236,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
             <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent transition">
               <div className="size-7 rounded-full bg-primary text-primary-foreground grid place-items-center text-xs font-semibold">
-                A
+                {initial}
               </div>
-              <span className="hidden sm:inline text-sm font-medium">Admin</span>
+              <span className="hidden sm:inline text-sm font-medium">
+                {displayName}
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  {data?.roles.length ? data.roles.join(", ") : ""}
+                </span>
+              </span>
               <ChevronDown className="hidden sm:inline size-4 text-muted-foreground" />
             </button>
           </div>

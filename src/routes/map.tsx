@@ -1101,6 +1101,49 @@ function MapPage() {
         </label>
       )}
 
+      <button
+        type="button"
+        onClick={() => {
+          setAdMode((v) => {
+            if (v) setAdFilter("all");
+            return !v;
+          });
+        }}
+        className={
+          "h-9 px-2.5 rounded-md border inline-flex items-center gap-1.5 text-xs transition " +
+          (adMode ? "border-primary bg-primary/10 text-primary" : "hover:bg-accent")
+        }
+        title="แสดงชื่อโฆษณา/วันสิ้นสุดสัญญาใน popup และกรองตามสถานะโฆษณา"
+      >
+        <Megaphone className="size-3.5" />
+        <span>โหมดโฆษณา{adMode ? " : เปิด" : " : ปิด"}</span>
+      </button>
+
+      {adMode && (
+        <select
+          value={adFilter}
+          onChange={(e) => setAdFilter(e.target.value as typeof adFilter)}
+          className="h-9 rounded-md border bg-background px-2 text-xs"
+        >
+          <option value="all">โฆษณา: ทั้งหมด</option>
+          <option value="occupied">มีโฆษณาขึ้นอยู่</option>
+          <option value="vacant">ป้ายว่าง</option>
+          <option value="expiring">สัญญาหมดใน 30 วัน</option>
+        </select>
+      )}
+
+      {adFocus && (
+        <span className="h-9 px-2.5 rounded-md border border-primary bg-primary/10 text-primary inline-flex items-center gap-2 text-xs">
+          <Megaphone className="size-3.5" />
+          โฆษณา: {adFocus.product || "(ไม่ระบุ)"} · {adFocus.codes.size} ป้าย
+          <button type="button" onClick={() => setAdFocus(null)} title="ล้างตัวกรองโฆษณา">
+            <XIcon className="size-3.5" />
+          </button>
+        </span>
+      )}
+
+
+
       {hasFilter && (
         <button
           onClick={() => {

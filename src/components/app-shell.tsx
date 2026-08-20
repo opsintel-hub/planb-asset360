@@ -22,19 +22,26 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
 import { getMyMenuAccess } from "@/lib/admin.functions";
+import { APP_MENUS } from "@/lib/app-menus";
 
-const NAV_ALL = [
-  { to: "/search", label: "Asset history", icon: Search },
-  { to: "/claims", label: "Claim Aging", icon: Wrench },
-  { to: "/pm-insights", label: "PM Insights", icon: BarChart3 },
-  { to: "/monitoring", label: "Monitoring", icon: Activity },
-  { to: "/risk-score", label: "คะแนนความเสี่ยง", icon: ShieldAlert },
-  { to: "/rca", label: "Root Cause Analysis", icon: Microscope },
-  { to: "/map", label: "Asset Map", icon: MapPin },
-  { to: "/route-monitoring", label: "Route Monitoring", icon: Navigation },
-  { to: "/settings", label: "ตั้งค่าระบบ", icon: Settings },
-  { to: "/permissions", label: "จัดการสิทธิ์", icon: Users },
-] as const;
+const MENU_ICONS: Record<string, typeof Search> = {
+  "/search": Search,
+  "/claims": Wrench,
+  "/pm-insights": BarChart3,
+  "/monitoring": Activity,
+  "/risk-score": ShieldAlert,
+  "/rca": Microscope,
+  "/map": MapPin,
+  "/route-monitoring": Navigation,
+  "/settings": Settings,
+  "/permissions": Users,
+};
+
+const NAV_ALL = APP_MENUS.map((m) => ({
+  to: m.to,
+  label: m.label,
+  icon: MENU_ICONS[m.to] ?? Sparkles,
+}));
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();

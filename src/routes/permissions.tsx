@@ -13,6 +13,7 @@ import {
   setRoleMenuPermissions,
   adminResetUserPassword,
 } from "@/lib/admin.functions";
+import { MENU_LABEL, APP_MENUS } from "@/lib/app-menus";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
@@ -29,12 +30,6 @@ export const Route = createFileRoute("/permissions")({
 const ROLES = ["admin", "manager", "technician", "sale", "crm", "production"] as const;
 type Role = (typeof ROLES)[number];
 
-const MENU_LABELS: Record<string, string> = {
-  "/search": "Asset history",
-  "/claims": "Claim Aging",
-  "/settings": "ตั้งค่าระบบ",
-  "/permissions": "จัดการสิทธิ์ (admin เท่านั้น)",
-};
 
 function PermissionsPage() {
   const myRolesFn = useServerFn(getMyRoles);
@@ -97,7 +92,10 @@ function PermissionsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const menus = permsQ.data?.menus.filter((m) => m !== "/permissions") ?? [];
+  // Menus come from the server (single source of truth) so future menus appear
+  // here automatically; admin-only menus are not grantable.
+  const adminOnly = new Set(APP_MENUS.filter((m) => m.adminOnly).map((m) => m.to));
+  const menus = (permsQ.data?.menus ?? []).filter((m) => !adminOnly.has(m));
   const perms = permsQ.data?.permissions ?? {};
 
   const togglePerm = (role: string, menu: string) => {
@@ -173,8 +171,12 @@ function PermissionsPage() {
                     {menus.map((menu) => (
                       <tr key={menu} className="hover:bg-accent/30">
                         <td className="px-4 py-3 font-medium sticky left-0 bg-card z-10">
-                          {MENU_LABELS[menu] ?? menu}
-                          <div className="text-[11px] text-muted-foreground font-normal mt-0.5">{menu}</div>
+                          {MENU_LABEL[menu] ?? menu}
+                          <div className="text-[11px] text-muted-foreground font-normal mt-0.5">
+                            {APP_MENUS.find((m) => m.to === menu)?.hint
+                              ? `${APP_MENUS.find((m) => m.to === menu)!.hint} · ${menu}`
+                              : menu}
+                          </div>
                         </td>
                         <td className="px-3 py-3 text-center text-xs text-muted-foreground">✓</td>
                         {(["manager", "technician", "sale", "crm", "production"] as const).map((role) => {
@@ -188,7 +190,7 @@ function PermissionsPage() {
                                   disabled={setPermsMutation.isPending}
                                   onChange={() => togglePerm(role, menu)}
                                   className="size-4"
-                                  aria-label={`${role} เห็น ${MENU_LABELS[menu] ?? menu}`}
+                                  aria-label={`${role} เห็น ${MENU_LABEL[menu] ?? menu}`}
                                 />
                               </label>
                             </td>

@@ -22,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
 import { getMyMenuAccess } from "@/lib/admin.functions";
+import { useAuth } from "@/lib/auth-context";
 import { APP_MENUS } from "@/lib/app-menus";
 
 const MENU_ICONS: Record<string, typeof Search> = {
@@ -46,11 +47,21 @@ const NAV_ALL = APP_MENUS.map((m) => ({
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const fn = useServerFn(getMyMenuAccess);
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["my-menu-access"],
     queryFn: () => fn({}),
     staleTime: 60_000,
   });
+  const { user } = useAuth();
+  const email = user?.email ?? "";
+  const displayName =
+    (user?.user_metadata?.display_name as string | undefined) ||
+    (email ? email.split("@")[0] : "ผู้ใช้งาน");
+  const initial = (displayName[0] ?? "?").toUpperCase();
+  const roleLabel = data
+    ? (data.roles.length ? data.roles.join(" · ") : "ยังไม่มีบทบาท") + (email ? ` · ${email}` : "")
+    : email;
+
   const allowed = data?.allowed ?? null;
   const isAdmin = data?.isAdmin ?? false;
   const nav = NAV_ALL.filter(
@@ -105,6 +116,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {nav.length === 0 && !isLoading ? (
+          <div className="rounded-lg border border-sidebar-border/60 bg-sidebar-accent/30 p-3 text-xs leading-relaxed text-sidebar-foreground/80">
+            บัญชีนี้ยังไม่ได้รับสิทธิ์เข้าเมนูใด ๆ
+            <div className="mt-1 text-sidebar-foreground/60">
+              โปรดติดต่อผู้ดูแลระบบเพื่อกำหนดบทบาท
+            </div>
+            <Link
+              to="/permissions"
+              className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-sidebar-primary px-2.5 py-1.5 font-medium text-sidebar-primary-foreground"
+            >
+              <Users className="size-3.5" /> จัดการสิทธิ์
+            </Link>
+          </div>
+        ) : null}
         {nav.map((item) => {
           const Icon = item.icon;
           const active = pathname.startsWith(item.to);
@@ -126,19 +151,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         })}
       </nav>
 
+
       <div className="p-4 border-t border-sidebar-border">
         <div className="flex items-center gap-3">
           <div className="size-9 shrink-0 rounded-full bg-sidebar-primary grid place-items-center text-sm font-semibold text-sidebar-primary-foreground">
-            A
+            {initial}
           </div>
           <div className="leading-tight flex-1 min-w-0">
-            <div className="text-sm font-medium truncate">Admin User</div>
+            <div className="text-sm font-medium truncate">{displayName}</div>
             <div className="text-[11px] text-sidebar-foreground/60 truncate">
-              admin@planb.co.th
+              {roleLabel}
             </div>
           </div>
         </div>
       </div>
+
     </>
   );
 
@@ -209,9 +236,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
             <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent transition">
               <div className="size-7 rounded-full bg-primary text-primary-foreground grid place-items-center text-xs font-semibold">
-                A
+                {initial}
               </div>
-              <span className="hidden sm:inline text-sm font-medium">Admin</span>
+              <span className="hidden sm:inline text-sm font-medium">
+                {displayName}
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  {data?.roles.length ? data.roles.join(", ") : ""}
+                </span>
+              </span>
               <ChevronDown className="hidden sm:inline size-4 text-muted-foreground" />
             </button>
           </div>

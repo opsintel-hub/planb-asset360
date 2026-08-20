@@ -142,19 +142,33 @@ const ALL_MENUS = ALL_MENU_PATHS;
 export const getMyMenuAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: rolesData } = await supabaseAdmin
+    // อ่านบทบาทของตัวเองผ่าน client ของผู้ใช้ (RLS อนุญาต select ตัวเอง)
+    // ถ้าล้มเหลว จึงค่อย fallback ไปใช้ admin client — กัน sidebar หายเพราะ
+    // การอ่านบทบาทพลาดแล้วถูกตีความว่า "ไม่มีบทบาท"
+    let roles: string[] | null = null;
+    const own = await context.supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId);
-    const roles = (rolesData ?? []).map((r) => r.role as string);
+    if (!own.error && own.data) roles = own.data.map((r) => r.role as string);
+    if (roles === null) {
+      const fb = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", context.userId);
+      if (fb.error) throw new Error(fb.error.message);
+      roles = (fb.data ?? []).map((r) => r.role as string);
+    }
+
     const isAdmin = roles.includes("admin");
     if (isAdmin) return { isAdmin: true, roles, allowed: ALL_MENUS };
 
-    const { data: setting } = await supabaseAdmin
+    const { data: setting, error: settingErr } = await supabaseAdmin
       .from("app_settings")
       .select("value")
       .eq("key", "role_menu_permissions")
       .maybeSingle();
+    if (settingErr) throw new Error(settingErr.message);
     const perms = (setting?.value ?? {}) as Record<string, string[]>;
     const allowed = new Set<string>();
     for (const r of roles) for (const m of perms[r] ?? []) allowed.add(m);
@@ -162,6 +176,7 @@ export const getMyMenuAccess = createServerFn({ method: "GET" })
     for (const m of ADMIN_ONLY_MENUS) allowed.delete(m);
     return { isAdmin: false, roles, allowed: Array.from(allowed) };
   });
+
 
 export const getRoleMenuPermissions = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

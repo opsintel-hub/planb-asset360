@@ -582,7 +582,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
         map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
       }
     }
-  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline, onSelectAsset, assetOpacity, assetColor, riskMode, riskByCode, showClaimStatus]);
+  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline, onSelectAsset, assetOpacity, assetColor, riskMode, riskByCode, adByCode, showClaimStatus]);
 
 
   // Focus a specific asset when requested

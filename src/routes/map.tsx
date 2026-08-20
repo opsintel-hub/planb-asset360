@@ -84,7 +84,8 @@ import type { AssetMapHandle } from "@/components/asset-map";
 import PlaceSearchBox from "@/components/place-search-box";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useAssetRiskMap } from "@/components/asset-risk";
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert, Megaphone } from "lucide-react";
+import { getAllCurrentAds } from "@/lib/ad-contracts.functions";
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
 const PoiProximityPanel = lazy(() => import("@/components/poi-proximity-panel"));

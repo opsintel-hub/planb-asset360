@@ -23,6 +23,7 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SharedPoiTokenRouteImport } from './routes/shared/poi.$token'
 import { Route as SharedRouteTokenRouteImport } from './routes/shared/route.$token'
+import { Route as ApiPublicHooksSyncAdContractsRouteImport } from './routes/api/public/hooks/sync-ad-contracts'
 import { Route as ApiPublicHooksSyncAssetHistoryRouteImport } from './routes/api/public/hooks/sync-asset-history'
 import { Route as ApiPublicHooksSyncClaimsRouteImport } from './routes/api/public/hooks/sync-claims'
 import { Route as ApiPublicPoiShareTokenRouteImport } from './routes/api/public/poi-share/$token'
@@ -97,6 +98,12 @@ const SharedRouteTokenRoute = SharedRouteTokenRouteImport.update({
   path: '/shared/route/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksSyncAdContractsRoute =
+  ApiPublicHooksSyncAdContractsRouteImport.update({
+    id: '/api/public/hooks/sync-ad-contracts',
+    path: '/api/public/hooks/sync-ad-contracts',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicHooksSyncAssetHistoryRoute =
   ApiPublicHooksSyncAssetHistoryRouteImport.update({
     id: '/api/public/hooks/sync-asset-history',
@@ -130,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/shared/route/$token': typeof SharedRouteTokenRoute
   '/shared/poi/$token': typeof SharedPoiTokenRoute
+  '/api/public/hooks/sync-ad-contracts': typeof ApiPublicHooksSyncAdContractsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
   '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
   '/api/public/poi-share/$token': typeof ApiPublicPoiShareTokenRoute
@@ -149,6 +157,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/shared/route/$token': typeof SharedRouteTokenRoute
   '/shared/poi/$token': typeof SharedPoiTokenRoute
+  '/api/public/hooks/sync-ad-contracts': typeof ApiPublicHooksSyncAdContractsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
   '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
   '/api/public/poi-share/$token': typeof ApiPublicPoiShareTokenRoute
@@ -169,6 +178,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/shared/route/$token': typeof SharedRouteTokenRoute
   '/shared/poi/$token': typeof SharedPoiTokenRoute
+  '/api/public/hooks/sync-ad-contracts': typeof ApiPublicHooksSyncAdContractsRoute
   '/api/public/hooks/sync-asset-history': typeof ApiPublicHooksSyncAssetHistoryRoute
   '/api/public/hooks/sync-claims': typeof ApiPublicHooksSyncClaimsRoute
   '/api/public/poi-share/$token': typeof ApiPublicPoiShareTokenRoute
@@ -190,6 +200,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shared/route/$token'
     | '/shared/poi/$token'
+    | '/api/public/hooks/sync-ad-contracts'
     | '/api/public/hooks/sync-asset-history'
     | '/api/public/hooks/sync-claims'
     | '/api/public/poi-share/$token'
@@ -209,6 +220,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shared/route/$token'
     | '/shared/poi/$token'
+    | '/api/public/hooks/sync-ad-contracts'
     | '/api/public/hooks/sync-asset-history'
     | '/api/public/hooks/sync-claims'
     | '/api/public/poi-share/$token'
@@ -228,6 +240,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shared/route/$token'
     | '/shared/poi/$token'
+    | '/api/public/hooks/sync-ad-contracts'
     | '/api/public/hooks/sync-asset-history'
     | '/api/public/hooks/sync-claims'
     | '/api/public/poi-share/$token'
@@ -248,6 +261,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SharedRouteTokenRoute: typeof SharedRouteTokenRoute
   SharedPoiTokenRoute: typeof SharedPoiTokenRoute
+  ApiPublicHooksSyncAdContractsRoute: typeof ApiPublicHooksSyncAdContractsRoute
   ApiPublicHooksSyncAssetHistoryRoute: typeof ApiPublicHooksSyncAssetHistoryRoute
   ApiPublicHooksSyncClaimsRoute: typeof ApiPublicHooksSyncClaimsRoute
   ApiPublicPoiShareTokenRoute: typeof ApiPublicPoiShareTokenRoute
@@ -353,6 +367,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SharedRouteTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/sync-ad-contracts': {
+      id: '/api/public/hooks/sync-ad-contracts'
+      path: '/api/public/hooks/sync-ad-contracts'
+      fullPath: '/api/public/hooks/sync-ad-contracts'
+      preLoaderRoute: typeof ApiPublicHooksSyncAdContractsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/sync-asset-history': {
       id: '/api/public/hooks/sync-asset-history'
       path: '/api/public/hooks/sync-asset-history'
@@ -392,6 +413,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SharedRouteTokenRoute: SharedRouteTokenRoute,
   SharedPoiTokenRoute: SharedPoiTokenRoute,
+  ApiPublicHooksSyncAdContractsRoute: ApiPublicHooksSyncAdContractsRoute,
   ApiPublicHooksSyncAssetHistoryRoute: ApiPublicHooksSyncAssetHistoryRoute,
   ApiPublicHooksSyncClaimsRoute: ApiPublicHooksSyncClaimsRoute,
   ApiPublicPoiShareTokenRoute: ApiPublicPoiShareTokenRoute,

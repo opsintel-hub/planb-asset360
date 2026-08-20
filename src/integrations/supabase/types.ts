@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_contracts: {
+        Row: {
+          ad_contract: string | null
+          asset_old_code: string | null
+          created_at: string
+          end_date_contract: string | null
+          equipment_id: string | null
+          favor_end_date_contract: string | null
+          favor_start_date_contract: string | null
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          payload: Json
+          product_name: string | null
+          source: string
+          start_date_contract: string | null
+          status: string | null
+          synced_at: string
+          updated_at: string
+        }
+        Insert: {
+          ad_contract?: string | null
+          asset_old_code?: string | null
+          created_at?: string
+          end_date_contract?: string | null
+          equipment_id?: string | null
+          favor_end_date_contract?: string | null
+          favor_start_date_contract?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          payload?: Json
+          product_name?: string | null
+          source?: string
+          start_date_contract?: string | null
+          status?: string | null
+          synced_at?: string
+          updated_at?: string
+        }
+        Update: {
+          ad_contract?: string | null
+          asset_old_code?: string | null
+          created_at?: string
+          end_date_contract?: string | null
+          equipment_id?: string | null
+          favor_end_date_contract?: string | null
+          favor_start_date_contract?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          payload?: Json
+          product_name?: string | null
+          source?: string
+          start_date_contract?: string | null
+          status?: string | null
+          synced_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       airtable_connections: {
         Row: {
           base_id: string | null
@@ -946,7 +1006,21 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      ad_current_by_asset: {
+        Row: {
+          ad_contract: string | null
+          asset_old_code: string | null
+          days_to_end: number | null
+          end_date_contract: string | null
+          equipment_id: string | null
+          favor_end_date_contract: string | null
+          favor_start_date_contract: string | null
+          product_name: string | null
+          start_date_contract: string | null
+          status: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_mssql_cron_schedules: {

@@ -27,6 +27,7 @@ import { BreakdownTab } from "@/components/breakdown-tab";
 import { AnalyticsTab } from "@/components/analytics-tab";
 import { AssetStreetView } from "@/components/asset-street-view";
 import { AssetHealthCard, RiskSummaryCard } from "@/components/asset-risk";
+import { AssetAdCard } from "@/components/asset-ad-card";
 import {
   LineChart,
   Line,
@@ -2860,6 +2861,9 @@ function ProfileCard({ p }: { p: ProfileItem }) {
 
       {/* Asset health (risk score) */}
       <AssetHealthCard code={p.asset.old_code} />
+
+      {/* Current ad + contract history (CRM) */}
+      <AssetAdCard code={p.asset.old_code} />
 
       {/* Unified 12-month timeline (PM / Claim / Monitor) */}
       <div className="p-5 border-b">

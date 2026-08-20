@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { ADMIN_ONLY_MENUS, ALL_MENU_PATHS } from "@/lib/app-menus";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -136,7 +137,7 @@ export const getMyRoles = createServerFn({ method: "GET" })
   });
 
 // ---------- Menu access ----------
-const ALL_MENUS = ["/search", "/claims", "/pm-insights", "/risk-score", "/monitoring", "/rca", "/map", "/settings", "/permissions"];
+const ALL_MENUS = ALL_MENU_PATHS;
 
 export const getMyMenuAccess = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -157,8 +158,8 @@ export const getMyMenuAccess = createServerFn({ method: "GET" })
     const perms = (setting?.value ?? {}) as Record<string, string[]>;
     const allowed = new Set<string>();
     for (const r of roles) for (const m of perms[r] ?? []) allowed.add(m);
-    // จัดการสิทธิ์ เห็นเฉพาะ admin เท่านั้น
-    allowed.delete("/permissions");
+    // เมนู admin-only ไม่ให้บทบาทอื่นเห็นเสมอ
+    for (const m of ADMIN_ONLY_MENUS) allowed.delete(m);
     return { isAdmin: false, roles, allowed: Array.from(allowed) };
   });
 

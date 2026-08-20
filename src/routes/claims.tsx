@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert } from "lucide-react";
 import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
+import { getCurrentAdsByCodes } from "@/lib/ad-contracts.functions";
 import { syncClaimsNow } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -96,6 +97,20 @@ function ClaimsPage() {
   const allClaims = data?.claims ?? [];
   const rawDepartments = data?.departments ?? [];
   const oldCodes = data?.oldCodes ?? [];
+
+  // Current ad (from CRM) per claimed asset — so the team knows a repair sits
+  // under a live campaign and how many days are left on the contract.
+  const adsFn = useServerFn(getCurrentAdsByCodes);
+  const claimCodes = useMemo(
+    () => Array.from(new Set(allClaims.map((c) => c.asset_old_code).filter(Boolean) as string[])).slice(0, 3000),
+    [allClaims],
+  );
+  const { data: adByCode } = useQuery({
+    queryKey: ["claims-current-ads", claimCodes.length],
+    queryFn: () => adsFn({ data: { codes: claimCodes } }),
+    enabled: claimCodes.length > 0,
+    staleTime: 5 * 60_000,
+  });
 
   // Cascade: department options depend on selected project
   const departments = useMemo(() => {
@@ -284,6 +299,7 @@ function ClaimsPage() {
                   <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Ticket</th>
                   <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Old Code</th>
                   <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Department</th>
+                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">โฆษณาปัจจุบัน</th>
                   <th className="text-left font-medium px-4 py-3">อาการ</th>
                   <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Asset Status</th>
                   <th className="text-left font-medium px-4 py-3 whitespace-nowrap">สถานะ Ticket</th>
@@ -324,6 +340,28 @@ function ClaimsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">{c.department ?? "—"}</td>
+                      <td className="px-4 py-3 max-w-[200px]">
+                        {(() => {
+                          const ad = adByCode?.[c.asset_old_code ?? ""];
+                          if (!ad?.product_name)
+                            return <span className="text-muted-foreground text-[12px]">ไม่มีโฆษณาขึ้น</span>;
+                          const d = ad.days_to_end;
+                          return (
+                            <span className="inline-flex flex-col leading-tight">
+                              <span className="truncate max-w-[180px]">{ad.product_name}</span>
+                              <span
+                                className={
+                                  "text-[11px] " +
+                                  (d != null && d <= 30 ? "text-destructive font-medium" : "text-muted-foreground")
+                                }
+                              >
+                                หมด {ad.end_date_contract ?? "—"}
+                                {d != null ? ` (${d} วัน)` : ""}
+                              </span>
+                            </span>
+                          );
+                        })()}
+                      </td>
                       <td className="px-4 py-3 max-w-[220px]">
                         <span className="line-clamp-2 leading-snug">{c.title ?? "—"}</span>
                       </td>

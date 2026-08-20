@@ -168,6 +168,8 @@ type Props = {
   /** Colour pins by risk level instead of project colour. */
   riskMode?: boolean;
   riskByCode?: Map<string, { level: "high" | "medium" | "low"; score: number }> | null;
+  /** Current ad (CRM) per asset code — shown inside the pin popup. */
+  adByCode?: Map<string, { product: string | null; end: string | null; daysToEnd: number | null }> | null;
   /** Show the "กำลังซ่อม" warning badge + legend. Off for sale/CRM. */
   showClaimStatus?: boolean;
 };
@@ -201,6 +203,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
   onSelectAsset,
   riskMode = false,
   riskByCode = null,
+  adByCode = null,
   showClaimStatus = true,
 }: Props, ref) {
 
@@ -549,6 +552,14 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
             <span style="color:#6b7280;">Media Type:</span><span>${escapeHtml(a.media_type ?? "—")}</span>
             <span style="color:#6b7280;">Location:</span><span>${escapeHtml(a.location ?? "—")}</span>
             <span style="color:#6b7280;">Status:</span><span>${escapeHtml(a.status ?? "—")}</span>
+            ${(() => {
+              const ad = adByCode?.get(a.old_code ?? "");
+              if (!ad) return adByCode ? '<span style="color:#6b7280;">โฆษณา:</span><span style="color:#6b7280;">ว่าง (ไม่มีโฆษณาขึ้น)</span>' : "";
+              const d = ad.daysToEnd;
+              const tone = d != null && d <= 30 ? "#b91c1c" : "#15803d";
+              return `<span style="color:#6b7280;">โฆษณา:</span><span style="font-weight:600;">${escapeHtml(ad.product ?? "—")}</span>
+                <span style="color:#6b7280;">สิ้นสุดสัญญา:</span><span style="color:${tone};">${escapeHtml(ad.end ?? "—")}${d != null ? ` (${d} วัน)` : ""}</span>`;
+            })()}
             ${warning ? '<span style="color:#b45309;grid-column:1/-1;margin-top:4px;font-weight:600;">⚠ กำลังซ่อม (มีเคลมเปิดอยู่)</span>' : ""}
           </div>
           ${a.old_code ? `<a href="/search?q=${encodeURIComponent(a.old_code)}" style="display:inline-block;margin-top:8px;color:#2563eb;text-decoration:underline;">ดูประวัติป้าย →</a>` : ""}
@@ -571,7 +582,7 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
         map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
       }
     }
-  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline, onSelectAsset, assetOpacity, assetColor, riskMode, riskByCode, showClaimStatus]);
+  }, [assets, claimedCodes, ready, focusId, nearbyIds, polyline.length, roadPolyline, onSelectAsset, assetOpacity, assetColor, riskMode, riskByCode, adByCode, showClaimStatus]);
 
 
   // Focus a specific asset when requested

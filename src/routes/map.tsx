@@ -84,7 +84,8 @@ import type { AssetMapHandle } from "@/components/asset-map";
 import PlaceSearchBox from "@/components/place-search-box";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { useAssetRiskMap } from "@/components/asset-risk";
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert, Megaphone } from "lucide-react";
+import { getAllCurrentAds } from "@/lib/ad-contracts.functions";
 
 const AssetMap = lazy(() => import("@/components/asset-map"));
 const PoiProximityPanel = lazy(() => import("@/components/poi-proximity-panel"));
@@ -340,6 +341,37 @@ function MapPage() {
   const riskEnabled = canSeeMaintenance && riskMode;
   const { map: riskMap, counts: riskCounts } = useAssetRiskMap(riskEnabled);
   const [fullscreen, setFullscreen] = useState(false);
+
+  // ---------- CRM ad overlay (ชื่อโฆษณา / วันสิ้นสุดสัญญา) ----------
+  const adsFn = useServerFn(getAllCurrentAds);
+  const [adMode, setAdMode] = useState(false);
+  const [adFilter, setAdFilter] = useState<"all" | "occupied" | "vacant" | "expiring">("all");
+  // Handoff from the Ad Campaigns page: focus only that campaign's assets.
+  const [adFocus, setAdFocus] = useState<{ product: string; codes: Set<string> } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.sessionStorage.getItem("ad_campaign_focus");
+      if (!raw) return null;
+      window.sessionStorage.removeItem("ad_campaign_focus");
+      const p = JSON.parse(raw) as { product?: string; codes?: string[] };
+      if (!p?.codes?.length) return null;
+      return { product: p.product ?? "", codes: new Set(p.codes) };
+    } catch {
+      return null;
+    }
+  });
+  const adEnabled = adMode || !!adFocus;
+  const { data: adData } = useQuery({
+    queryKey: ["map-current-ads"],
+    queryFn: () => adsFn(),
+    enabled: !!user && adEnabled,
+    staleTime: 5 * 60_000,
+  });
+  const adMap = useMemo(() => {
+    const m = new Map<string, { product: string | null; end: string | null; daysToEnd: number | null }>();
+    for (const [k, v] of Object.entries(adData ?? {})) m.set(k, v);
+    return m;
+  }, [adData]);
   const searchWrapRef = useRef<HTMLDivElement | null>(null);
 
   // ---------- Corridor state (with undo/redo) ----------
@@ -460,9 +492,16 @@ function MapPage() {
       if (mediaSet && (!a.media_type || !mediaSet.has(a.media_type))) return false;
       if (canSeeMaintenance && onlyClaimed && (!a.old_code || !claimedCodes.has(a.old_code))) return false;
       if (riskEnabled && onlyHighRisk && riskMap.get(a.old_code ?? "")?.level !== "high") return false;
+      if (adFocus && (!a.old_code || !adFocus.codes.has(a.old_code))) return false;
+      if (adMode && adFilter !== "all") {
+        const ad = adMap.get(a.old_code ?? "");
+        if (adFilter === "occupied" && !ad) return false;
+        if (adFilter === "vacant" && ad) return false;
+        if (adFilter === "expiring" && !(ad && ad.daysToEnd != null && ad.daysToEnd <= 30)) return false;
+      }
       return true;
     });
-  }, [allAssets, fProjects, fMedias, onlyClaimed, claimedCodes, canSeeMaintenance, riskEnabled, onlyHighRisk, riskMap]);
+  }, [allAssets, fProjects, fMedias, onlyClaimed, claimedCodes, canSeeMaintenance, riskEnabled, onlyHighRisk, riskMap, adFocus, adMode, adFilter, adMap]);
 
   // Corridor: nearby along drawn polyline
   const nearby = useMemo(() => {
@@ -1062,6 +1101,49 @@ function MapPage() {
         </label>
       )}
 
+      <button
+        type="button"
+        onClick={() => {
+          setAdMode((v) => {
+            if (v) setAdFilter("all");
+            return !v;
+          });
+        }}
+        className={
+          "h-9 px-2.5 rounded-md border inline-flex items-center gap-1.5 text-xs transition " +
+          (adMode ? "border-primary bg-primary/10 text-primary" : "hover:bg-accent")
+        }
+        title="แสดงชื่อโฆษณา/วันสิ้นสุดสัญญาใน popup และกรองตามสถานะโฆษณา"
+      >
+        <Megaphone className="size-3.5" />
+        <span>โหมดโฆษณา{adMode ? " : เปิด" : " : ปิด"}</span>
+      </button>
+
+      {adMode && (
+        <select
+          value={adFilter}
+          onChange={(e) => setAdFilter(e.target.value as typeof adFilter)}
+          className="h-9 rounded-md border bg-background px-2 text-xs"
+        >
+          <option value="all">โฆษณา: ทั้งหมด</option>
+          <option value="occupied">มีโฆษณาขึ้นอยู่</option>
+          <option value="vacant">ป้ายว่าง</option>
+          <option value="expiring">สัญญาหมดใน 30 วัน</option>
+        </select>
+      )}
+
+      {adFocus && (
+        <span className="h-9 px-2.5 rounded-md border border-primary bg-primary/10 text-primary inline-flex items-center gap-2 text-xs">
+          <Megaphone className="size-3.5" />
+          โฆษณา: {adFocus.product || "(ไม่ระบุ)"} · {adFocus.codes.size} ป้าย
+          <button type="button" onClick={() => setAdFocus(null)} title="ล้างตัวกรองโฆษณา">
+            <XIcon className="size-3.5" />
+          </button>
+        </span>
+      )}
+
+
+
       {hasFilter && (
         <button
           onClick={() => {
@@ -1562,6 +1644,7 @@ function MapPage() {
                 showClaimStatus={canSeeMaintenance}
                 riskMode={riskEnabled}
                 riskByCode={riskEnabled ? riskMap : null}
+                adByCode={adEnabled ? adMap : null}
                 focusId={focusId}
                 focusNonce={focusNonce}
                 drawMode={mode === "corridor" && drawMode}

@@ -27,6 +27,7 @@ import { MssqlTableControls, type TablesEnabled } from "@/components/mssql-table
 import { ExternalApisSection } from "@/components/external-apis-section";
 import { AiPromptSettings } from "@/components/ai-prompt-settings";
 import { AnalyticsWeightsSettings } from "@/components/analytics-weights-settings";
+import { CrmDbSection } from "@/components/crm-db-section";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -246,6 +247,10 @@ function MainSettings() {
         />
 
       </Section>
+
+      <CrmDbSection />
+
+
 
 
       <SchemaAlertSection />
@@ -897,6 +902,10 @@ const MSSQL_JOB_LABELS: Record<string, { title: string; desc: string }> = {
     title: "Asset History (Incremental)",
     desc: "Sync ส่วนที่ใหม่กว่า cursor ครั้งล่าสุด + auto-chain batches",
   },
+  "crm-sync-ad-contracts-daily": {
+    title: "Ad Contract (CRM)",
+    desc: "ดึงชื่อโฆษณา + วันสัญญา จาก view_productstatus ของ CRM ทุกวัน",
+  },
 };
 
 function utcToThai(hUtc: number, mUtc: number): { h: number; m: number } {
@@ -929,7 +938,8 @@ function MssqlCronScheduleEditor() {
           job: vars.job as
             | "mssql-sync-assets-daily"
             | "mssql-sync-pm-schedules-daily"
-            | "mssql-sync-asset-history-daily",
+            | "mssql-sync-asset-history-daily"
+            | "crm-sync-ad-contracts-daily",
           hourUtc: vars.hourUtc,
           minuteUtc: vars.minuteUtc,
         },

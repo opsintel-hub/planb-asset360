@@ -59,6 +59,7 @@
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "lucide-react": "^0.575.0",
+    "mysql2": "^3.23.3",
     "nitro": "3.0.260603-beta",
     "pptxgenjs": "^4.0.1",
     "qrcode": "^1.5.4",

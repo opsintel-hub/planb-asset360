@@ -938,7 +938,8 @@ function MssqlCronScheduleEditor() {
           job: vars.job as
             | "mssql-sync-assets-daily"
             | "mssql-sync-pm-schedules-daily"
-            | "mssql-sync-asset-history-daily",
+            | "mssql-sync-asset-history-daily"
+            | "crm-sync-ad-contracts-daily",
           hourUtc: vars.hourUtc,
           minuteUtc: vars.minuteUtc,
         },

@@ -2191,8 +2191,15 @@ function RouteMonitoringPage() {
                           }
                         : null
                   }
-                  originPickMode={pinTarget !== null}
+                  originPickMode={pinTarget !== null || teamPinTarget !== null}
                   onOriginPick={(lat, lng) => {
+                    if (teamPinTarget !== null) {
+                      setTeam(teamPinTarget, {
+                        depot: { lat, lng, name: `คลังของ ${labelOf(teamPinTarget)} (ปักหมุด)` },
+                      });
+                      setTeamPinTarget(null);
+                      return;
+                    }
                     if (pinTarget === "start")
                       setStartPoint({ lat, lng, name: "จุดเริ่มต้น (ปักหมุด)" });
                     else if (pinTarget === "end")

@@ -148,7 +148,7 @@ function CampaignsPage() {
         <Kpi label="สัญญาที่กำลังขึ้น" value={summary?.activeContracts ?? summary?.activeProducts} icon={<Megaphone className="h-4 w-4" />} />
         <Kpi label="แบรนด์ที่กำลังขึ้น" value={summary?.activeBrands} icon={<Megaphone className="h-4 w-4" />} />
         <Kpi
-          label={`ขึ้นใหม่ ${NEW_AD_WINDOW_DAYS} วัน (รอถ่ายรูป)`}
+          label={`ป้ายขึ้นใหม่ ${NEW_AD_WINDOW_DAYS} วัน (รอถ่ายรูป)`}
           value={newAds?.assetCount}
           icon={<Camera className="h-4 w-4" />}
           highlight

@@ -12,6 +12,10 @@ export type AdContractRow = {
   asset_old_code: string | null;
   equipment_id: string | null;
   product_name: string | null;
+  brand: string | null;
+  brand_eng: string | null;
+  package_name: string | null;
+  package_code: string | null;
   ad_contract: string | null;
   status: string;
   start_date_contract: string | null;

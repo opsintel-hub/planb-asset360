@@ -171,7 +171,15 @@ type Props = {
   /** Current ad (CRM) per asset code — shown inside the pin popup. */
   adByCode?: Map<
     string,
-    { product: string | null; brand?: string | null; brandEng?: string | null; end: string | null; daysToEnd: number | null }
+    {
+      product: string | null;
+      contract?: string | null;
+      packageName?: string | null;
+      brand?: string | null;
+      brandEng?: string | null;
+      end: string | null;
+      daysToEnd: number | null;
+    }
   > | null;
   /** Show the "กำลังซ่อม" warning badge + legend. Off for sale/CRM. */
   showClaimStatus?: boolean;

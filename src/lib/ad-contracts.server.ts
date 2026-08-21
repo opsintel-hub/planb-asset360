@@ -1,4 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { normalizeAssetCode } from "@/lib/asset-code";
+
 
 export type CrmDbConn = {
   host?: string;

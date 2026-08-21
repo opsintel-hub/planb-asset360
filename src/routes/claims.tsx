@@ -169,7 +169,7 @@ function ClaimsPage() {
         return ageOf(b) - ageOf(a);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allClaims, fProject, fDept, fSla, fOldCode, qTicket, fRisk, riskMap, fBrand, adByCode]);
+  }, [allClaims, fProject, fSla, fOldCode, qTicket, fRisk, riskMap, fBrand, adByCode]);
 
   // Brand options come from the CRM ads currently live on the claimed assets.
   const brandOptions = useMemo(() => {

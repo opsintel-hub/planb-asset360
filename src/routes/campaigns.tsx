@@ -196,29 +196,35 @@ function CampaignsPage() {
     </div>
   );
 }
-    </div>
-  );
-}
 
 function Kpi({
   label,
   value,
   icon,
   alert,
+  highlight,
 }: {
   label: string;
   value: number | undefined;
   icon: React.ReactNode;
   alert?: boolean;
+  highlight?: boolean;
 }) {
   return (
-    <Card>
+    <Card className={cn(highlight && (value ?? 0) > 0 && "ring-1 ring-primary/40")}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between text-muted-foreground text-xs mb-1">
           <span className="truncate">{label}</span>
           {icon}
         </div>
-        <div className={cn("text-2xl font-bold", alert && (value ?? 0) > 0 && "text-destructive")}>
+        <div
+          className={cn(
+            "text-2xl font-bold",
+            alert && (value ?? 0) > 0 && "text-destructive",
+            highlight && (value ?? 0) > 0 && "text-primary",
+          )}
+        >
+
           {value == null ? <Skeleton className="h-7 w-16" /> : value.toLocaleString("th-TH")}
         </div>
       </CardContent>

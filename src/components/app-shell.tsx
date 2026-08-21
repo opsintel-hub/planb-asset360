@@ -22,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
 import { getMyMenuAccess } from "@/lib/admin.functions";
+import { countNewlyLaunchedAds } from "@/lib/ad-contracts.functions";
 import { useAuth } from "@/lib/auth-context";
 import { APP_MENUS } from "@/lib/app-menus";
 
@@ -51,6 +52,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     queryKey: ["my-menu-access"],
     queryFn: () => fn({}),
     staleTime: 60_000,
+  });
+  // Badge on "Ad Campaigns": ads launched in the last 7 days waiting for photos.
+  const newAdsFn = useServerFn(countNewlyLaunchedAds);
+  const { data: newAds } = useQuery({
+    queryKey: ["new-ads-count", 7],
+    queryFn: () => newAdsFn({ data: { days: 7 } }),
+    staleTime: 5 * 60_000,
   });
   const { user } = useAuth();
   const email = user?.email ?? "";
@@ -146,6 +154,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Icon className="size-4 shrink-0" />
               <span className="truncate">{item.label}</span>
+              {item.to === "/campaigns" && (newAds?.count ?? 0) > 0 && (
+                <span
+                  title={`มีโฆษณาขึ้นใหม่ ${newAds?.count} รายการใน 7 วัน (รอทีมถ่ายรูป)`}
+                  className="ml-auto shrink-0 rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold text-destructive-foreground"
+                >
+                  {newAds?.count}
+                </span>
+              )}
             </Link>
           );
         })}

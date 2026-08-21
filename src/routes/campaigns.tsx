@@ -16,6 +16,8 @@ import {
   Share2,
   Loader2,
   Building2,
+  Camera,
+  Navigation,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui-bits";
 import { Input } from "@/components/ui/input";
@@ -32,10 +34,12 @@ import {
   getAdsInPeriod,
   getVacantAssets,
   listAdBrands,
+  listNewlyLaunchedAds,
   type AdAsset,
   type AdRow,
 } from "@/lib/ad-contracts.functions";
 import { createPoiShare } from "@/lib/poi-share.functions";
+
 
 export const Route = createFileRoute("/campaigns")({
   head: () => ({
@@ -60,6 +64,10 @@ export const Route = createFileRoute("/campaigns")({
 
 /** sessionStorage handoff read by /map to focus a campaign's assets. */
 export const AD_FOCUS_KEY = "ad_campaign_focus";
+/** sessionStorage handoff read by /route-monitoring to build a "photo" plan. */
+export const PHOTO_ROUTE_KEY = "ad_photo_route";
+/** Default lookback window (days) for "โฆษณาขึ้นใหม่". */
+export const NEW_AD_WINDOW_DAYS = 7;
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "-";
@@ -119,6 +127,13 @@ function CampaignsPage() {
     staleTime: 5 * 60_000,
   });
 
+  const newFn = useServerFn(listNewlyLaunchedAds);
+  const { data: newAds } = useQuery({
+    queryKey: ["new-ads", NEW_AD_WINDOW_DAYS],
+    queryFn: () => newFn({ data: { days: NEW_AD_WINDOW_DAYS } }),
+    staleTime: 5 * 60_000,
+  });
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
@@ -126,12 +141,18 @@ function CampaignsPage() {
         subtitle="แบรนด์ เลขที่สัญญา และป้ายที่ขึ้นโฆษณา (ซิงก์จากฐานข้อมูล CRM)"
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-7 gap-3 mb-5">
         <Kpi label="ป้ายทั้งหมด" value={summary?.totalAssets} icon={<Building2 className="h-4 w-4" />} />
         <Kpi label="ป้ายมีโฆษณาอยู่" value={summary?.occupiedAssets} icon={<Megaphone className="h-4 w-4" />} />
         <Kpi label="ป้ายว่าง" value={summary?.vacantAssets} icon={<MapPin className="h-4 w-4" />} />
         <Kpi label="สัญญาที่กำลังขึ้น" value={summary?.activeContracts ?? summary?.activeProducts} icon={<Megaphone className="h-4 w-4" />} />
         <Kpi label="แบรนด์ที่กำลังขึ้น" value={summary?.activeBrands} icon={<Megaphone className="h-4 w-4" />} />
+        <Kpi
+          label={`ขึ้นใหม่ ${NEW_AD_WINDOW_DAYS} วัน (รอถ่ายรูป)`}
+          value={newAds?.assetCount}
+          icon={<Camera className="h-4 w-4" />}
+          highlight
+        />
         <Kpi
           label="สัญญาหมดใน 30 วัน"
           value={summary?.expiring30}
@@ -143,6 +164,14 @@ function CampaignsPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="current">โฆษณาปัจจุบัน</TabsTrigger>
+          <TabsTrigger value="new" className="gap-1.5">
+            <Camera className="h-3.5 w-3.5" /> ขึ้นใหม่ / รอถ่ายรูป
+            {(newAds?.assetCount ?? 0) > 0 && (
+              <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                {newAds?.assetCount}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="history">ประวัติย้อนหลัง</TabsTrigger>
           <TabsTrigger value="period">ตามช่วงเวลา</TabsTrigger>
           <TabsTrigger value="vacant">ป้ายว่าง</TabsTrigger>
@@ -150,6 +179,9 @@ function CampaignsPage() {
 
         <TabsContent value="current" className="mt-4">
           <ProductBrowser scope="current" />
+        </TabsContent>
+        <TabsContent value="new" className="mt-4">
+          <NewLaunchTab />
         </TabsContent>
         <TabsContent value="history" className="mt-4">
           <ProductBrowser scope="all" />
@@ -170,20 +202,29 @@ function Kpi({
   value,
   icon,
   alert,
+  highlight,
 }: {
   label: string;
   value: number | undefined;
   icon: React.ReactNode;
   alert?: boolean;
+  highlight?: boolean;
 }) {
   return (
-    <Card>
+    <Card className={cn(highlight && (value ?? 0) > 0 && "ring-1 ring-primary/40")}>
       <CardContent className="p-4">
         <div className="flex items-center justify-between text-muted-foreground text-xs mb-1">
           <span className="truncate">{label}</span>
           {icon}
         </div>
-        <div className={cn("text-2xl font-bold", alert && (value ?? 0) > 0 && "text-destructive")}>
+        <div
+          className={cn(
+            "text-2xl font-bold",
+            alert && (value ?? 0) > 0 && "text-destructive",
+            highlight && (value ?? 0) > 0 && "text-primary",
+          )}
+        >
+
           {value == null ? <Skeleton className="h-7 w-16" /> : value.toLocaleString("th-TH")}
         </div>
       </CardContent>
@@ -730,6 +771,259 @@ function VacantTab() {
                 แสดง 500 รายการแรก — ใช้ปุ่ม CSV เพื่อดูทั้งหมด
               </p>
             )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------- Newly launched / photo queue tab ----------------
+
+const WINDOW_OPTIONS = [3, 7, 14, 30];
+
+function NewLaunchTab() {
+  const [days, setDays] = useState(NEW_AD_WINDOW_DAYS);
+  const [brand, setBrand] = useState("");
+  const [sharing, setSharing] = useState(false);
+
+  const fn = useServerFn(listNewlyLaunchedAds);
+  const { data, isLoading } = useQuery({
+    queryKey: ["new-ads-tab", days, brand],
+    queryFn: () => fn({ data: { days, brand: brand || undefined } }),
+    staleTime: 60_000,
+  });
+
+  const rows = data?.rows ?? [];
+  const brandOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) if (r.brand) s.add(r.brand);
+    return Array.from(s).sort((a, b) => a.localeCompare(b, "th"));
+  }, [rows]);
+
+  const codes = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.asset_old_code).filter(Boolean) as string[])),
+    [rows],
+  );
+  const geoRows = useMemo(
+    () => rows.filter((r) => r.asset?.lat != null && r.asset?.lng != null),
+    [rows],
+  );
+
+  const sendToRoute = () => {
+    if (!codes.length) return toast.error("ไม่มีป้ายให้ส่งเข้าแผนถ่ายรูป");
+    sessionStorage.setItem(
+      PHOTO_ROUTE_KEY,
+      JSON.stringify({
+        codes,
+        label: `ถ่ายรูปโฆษณาขึ้นใหม่ ${days} วัน${brand ? ` · ${brand}` : ""}`,
+        at: Date.now(),
+      }),
+    );
+    window.location.href = "/route-monitoring";
+  };
+
+  const focusOnMap = () => {
+    if (!geoRows.length) return toast.error("ไม่พบพิกัดป้ายของรายการนี้");
+    sessionStorage.setItem(
+      AD_FOCUS_KEY,
+      JSON.stringify({ product: `ขึ้นใหม่ ${days} วัน`, codes, at: Date.now() }),
+    );
+    window.location.href = "/map";
+  };
+
+  const exportCsv = () => {
+    const out: (string | number | null)[][] = [
+      ["Brand", "Brand (EN)", "เลขที่สัญญา", "Package", "รหัสป้าย", "ชื่อป้าย", "Media Type", "แผนก", "เขต", "ทำเล", "วันติดตั้งจริง", "ขึ้นมาแล้ว (วัน)", "สิ้นสุดสัญญา", "Lat", "Lng"],
+    ];
+    for (const r of rows)
+      out.push([
+        r.brand,
+        r.brand_eng,
+        r.ad_contract,
+        r.package_name,
+        r.asset_old_code,
+        r.asset?.name ?? null,
+        r.asset?.media_type ?? null,
+        r.asset?.department ?? null,
+        r.asset?.district ?? null,
+        r.asset?.location ?? null,
+        r.favor_start,
+        r.days_since_launch,
+        r.end_date_contract,
+        r.asset?.lat ?? null,
+        r.asset?.lng ?? null,
+      ]);
+    downloadCsv(`new-ads-${days}d.csv`, out);
+  };
+
+  const shareFn = useServerFn(createPoiShare);
+  const share = async () => {
+    if (!geoRows.length) return toast.error("ไม่มีป้ายที่มีพิกัดสำหรับแชร์");
+    setSharing(true);
+    try {
+      const lats = geoRows.map((r) => r.asset!.lat as number);
+      const lngs = geoRows.map((r) => r.asset!.lng as number);
+      const res = await shareFn({
+        data: {
+          payload: {
+            pois: [],
+            matches: [],
+            radiusM: 200,
+            matchMode: "any",
+            bbox: [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)],
+            presetKeys: [],
+            freeText: `งานถ่ายรูปโฆษณาขึ้นใหม่ ${days} วัน`,
+            chipProjects: [],
+            chipMedia: [],
+            project: "all",
+            media: "all",
+            assets: geoRows.map((r) => ({
+              id: r.asset_old_code ?? r.id,
+              old_code: r.asset_old_code ?? "",
+              name: r.brand ? `${r.brand} · ${r.asset?.name ?? ""}` : (r.asset?.name ?? null),
+              department: r.asset?.department ?? null,
+              media_type: r.asset?.media_type ?? null,
+              location: r.asset?.location ?? null,
+              lat: r.asset!.lat as number,
+              lng: r.asset!.lng as number,
+            })),
+          },
+        },
+      });
+      const url = `${window.location.origin}/shared/poi/${res.token}`;
+      await navigator.clipboard.writeText(url).catch(() => null);
+      toast.success("คัดลอกลิงก์งานถ่ายรูปแล้ว (อายุ 72 ชม.)", { description: url });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Camera className="h-4 w-4" /> โฆษณาที่ขึ้นใหม่ (รอทีมถ่ายรูป)
+            </CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              เกณฑ์: วันติดตั้งจริง (favor start) อยู่ในช่วง {days} วันล่าสุด — ป้าย {data?.assetCount ?? 0} ป้าย ·
+              สัญญา {data?.contractCount ?? 0} · แบรนด์ {data?.brandCount ?? 0} · มีพิกัด {data?.withGeo ?? 0}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+              className="h-9 rounded-md border bg-background px-2 text-sm"
+              title="ช่วงเวลาที่ถือว่า 'ขึ้นใหม่'"
+            >
+              {WINDOW_OPTIONS.map((d) => (
+                <option key={d} value={d}>
+                  ย้อนหลัง {d} วัน
+                </option>
+              ))}
+            </select>
+            <select
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+              className="h-9 rounded-md border bg-background px-2 text-sm"
+              title="กรองตามแบรนด์"
+            >
+              <option value="">แบรนด์ทั้งหมด</option>
+              {brandOptions.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+            <Button size="sm" onClick={sendToRoute} disabled={!codes.length}>
+              <Navigation className="h-4 w-4 mr-1" /> สร้างแผนถ่ายรูป
+            </Button>
+            <Button size="sm" variant="secondary" onClick={focusOnMap} disabled={!geoRows.length}>
+              <MapPin className="h-4 w-4 mr-1" /> ดูบนแผนที่
+            </Button>
+            <Button size="sm" variant="secondary" onClick={exportCsv} disabled={!rows.length}>
+              <Download className="h-4 w-4 mr-1" /> CSV
+            </Button>
+            <Button size="sm" variant="secondary" onClick={share} disabled={sharing || !geoRows.length}>
+              {sharing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Share2 className="h-4 w-4 mr-1" />}
+              แชร์ให้ทีมถ่ายรูป
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-full" />
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            ไม่มีโฆษณาที่ขึ้นใหม่ในช่วง {days} วันล่าสุด
+          </p>
+        ) : (
+          <div className="overflow-auto max-h-[560px]">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-card">
+                <tr className="text-left text-xs text-muted-foreground border-b">
+                  <th className="py-2 pr-3">รหัสป้าย</th>
+                  <th className="py-2 pr-3">แบรนด์</th>
+                  <th className="py-2 pr-3">เลขที่สัญญา</th>
+                  <th className="py-2 pr-3">ทำเล</th>
+                  <th className="py-2 pr-3">Media</th>
+                  <th className="py-2 pr-3">ติดตั้งจริง</th>
+                  <th className="py-2 pr-3">ขึ้นมาแล้ว</th>
+                  <th className="py-2 pr-3">สิ้นสุดสัญญา</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className="border-b last:border-0 hover:bg-muted/40">
+                    <td className="py-2 pr-3 font-medium">
+                      {r.asset_old_code ?? "-"}
+                      {!r.asset && (
+                        <span className="ml-1 text-[10px] text-muted-foreground">(ยังจับคู่ป้ายไม่ได้)</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 max-w-[180px]">
+                      <span className="block truncate font-medium">{r.brand ?? "-"}</span>
+                      {r.brand_eng && (
+                        <span className="block truncate text-[11px] text-muted-foreground">{r.brand_eng}</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <span className="block truncate">{r.ad_contract ?? "-"}</span>
+                      {r.package_name && (
+                        <span className="block truncate text-[11px] text-muted-foreground">{r.package_name}</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 max-w-[260px] truncate">
+                      {r.asset?.location ?? r.asset?.name ?? "-"}
+                    </td>
+                    <td className="py-2 pr-3">{r.asset?.media_type ?? "-"}</td>
+                    <td className="py-2 pr-3">{fmtDate(r.favor_start)}</td>
+                    <td className="py-2 pr-3">
+                      <Badge variant={(r.days_since_launch ?? 99) <= 2 ? "default" : "secondary"}>
+                        {r.days_since_launch == null
+                          ? "-"
+                          : r.days_since_launch === 0
+                            ? "วันนี้"
+                            : `${r.days_since_launch} วัน`}
+                      </Badge>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <EndBadge end={r.end_date_contract} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </CardContent>

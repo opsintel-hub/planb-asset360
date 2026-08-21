@@ -513,3 +513,125 @@ export const listAdBrands = createServerFn({ method: "GET" })
       .map((v) => ({ brand: v.brand, brandEng: v.brandEng, assetCount: v.assets.size, adCount: v.products.size }))
       .sort((a, b) => b.assetCount - a.assetCount || a.brand.localeCompare(b.brand, "th"));
   });
+
+// ---------------------------------------------------------------------------
+// Newly launched ads (photo team queue)
+// "ขึ้นใหม่" = favor_start_date_contract (วันติดตั้งจริง) อยู่ในช่วง N วันล่าสุด
+// ---------------------------------------------------------------------------
+
+export type NewAdRow = {
+  id: string;
+  asset_old_code: string | null;
+  brand: string | null;
+  brand_eng: string | null;
+  ad_contract: string | null;
+  product_name: string | null;
+  package_name: string | null;
+  favor_start: string | null;
+  end_date_contract: string | null;
+  days_since_launch: number | null;
+  asset: AdAsset | null;
+};
+
+function windowStart(days: number): string {
+  return new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10);
+}
+
+/** Rows whose real install date (favor_start) falls in the last N days. */
+export const listNewlyLaunchedAds = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z
+      .object({
+        days: z.number().int().min(1).max(120).optional(),
+        brand: z.string().max(200).optional(),
+      })
+      .parse(i ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const days = data.days ?? 7;
+    const from = windowStart(days);
+    const today = new Date().toISOString().slice(0, 10);
+
+    const rows = await fetchAllPaged<AdRow>((a, b) => {
+      let q = context.supabase
+        .from("ad_contracts")
+        .select(
+          "id, asset_old_code, product_name, brand, brand_eng, package_name, package_code, ad_contract, equipment_id, status, start_date_contract, end_date_contract, favor_start_date_contract, favor_end_date_contract",
+        )
+        .not("favor_start_date_contract", "is", null)
+        .gte("favor_start_date_contract", from)
+        .lte("favor_start_date_contract", today)
+        .range(a, b);
+      if (data.brand && data.brand.trim()) q = q.eq("brand", data.brand.trim());
+      return q;
+    });
+
+    const codes = Array.from(
+      new Set(rows.map((r) => r.asset_old_code).filter(Boolean) as string[]),
+    );
+    const assetByCode = new Map<string, AdAsset>();
+    const chunk = 300;
+    for (let i = 0; i < codes.length; i += chunk) {
+      const { data: page } = await context.supabase
+        .from("assets")
+        .select(ASSET_COLS)
+        .in("old_code", codes.slice(i, i + chunk));
+      for (const r of (page ?? []) as AssetRow[]) {
+        const a = toAdAsset(r);
+        if (a.old_code) assetByCode.set(a.old_code, a);
+      }
+    }
+
+    const out: NewAdRow[] = rows.map((r) => {
+      const favor = r.favor_start_date_contract;
+      const since = favor
+        ? Math.max(0, Math.floor((Date.now() - new Date(favor).getTime()) / 86400_000))
+        : null;
+      return {
+        id: r.id,
+        asset_old_code: r.asset_old_code,
+        brand: r.brand,
+        brand_eng: r.brand_eng,
+        ad_contract: r.ad_contract,
+        product_name: r.product_name,
+        package_name: r.package_name,
+        favor_start: favor,
+        end_date_contract: r.end_date_contract,
+        days_since_launch: since,
+        asset: (r.asset_old_code && assetByCode.get(r.asset_old_code)) || null,
+      };
+    });
+    out.sort((x, y) => (y.favor_start ?? "").localeCompare(x.favor_start ?? ""));
+
+    const brands = new Set<string>();
+    const contracts = new Set<string>();
+    for (const r of out) {
+      if (r.brand) brands.add(r.brand);
+      if (r.ad_contract) contracts.add(r.ad_contract);
+    }
+    return {
+      days,
+      rows: out,
+      totalRows: out.length,
+      assetCount: new Set(out.map((r) => r.asset_old_code).filter(Boolean)).size,
+      brandCount: brands.size,
+      contractCount: contracts.size,
+      withGeo: out.filter((r) => r.asset?.lat != null && r.asset?.lng != null).length,
+    };
+  });
+
+/** Cheap counter for the sidebar badge ("มีโฆษณาขึ้นใหม่ N รายการ"). */
+export const countNewlyLaunchedAds = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ days: z.number().int().min(1).max(120).optional() }).parse(i ?? {}))
+  .handler(async ({ data, context }) => {
+    const days = data.days ?? 7;
+    const { count } = await context.supabase
+      .from("ad_contracts")
+      .select("id", { count: "exact", head: true })
+      .not("favor_start_date_contract", "is", null)
+      .gte("favor_start_date_contract", windowStart(days))
+      .lte("favor_start_date_contract", new Date().toISOString().slice(0, 10));
+    return { days, count: count ?? 0 };
+  });

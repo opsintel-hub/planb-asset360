@@ -363,6 +363,14 @@ function RouteMonitoringPage() {
 
 
 
+  /**
+   * Photo mode — a set of asset codes handed over from Ad Campaigns
+   * ("โฆษณาขึ้นใหม่ → สร้างแผนถ่ายรูป"). While active, planning is limited
+   * to those assets so the photo team gets its own route plan.
+   */
+  const [photoJob, setPhotoJob] = useState<{ codes: string[]; label: string } | null>(null);
+  const photoCodes = useMemo(() => new Set(photoJob?.codes ?? []), [photoJob]);
+
   const [fProjects, setFProjects] = useState<string[]>([]);
   const [fMedias, setFMedias] = useState<string[]>([]);
   const [fRegions, setFRegions] = useState<RegionKey[]>([]);
@@ -525,6 +533,7 @@ function RouteMonitoringPage() {
     const regSet = new Set(fRegions);
     const provSet = new Set(fProvinces.filter((p) => provinceOptions.includes(p)));
     return geoAssets.filter((a) => {
+      if (photoCodes.size && !photoCodes.has(a.old_code ?? a.id)) return false;
       if (projSet.size) {
         const p = projectForDepartment(a.department);
         if (!p || !projSet.has(p)) return false;
@@ -534,7 +543,7 @@ function RouteMonitoringPage() {
       if (provSet.size && !provSet.has(a.province)) return false;
       return true;
     });
-  }, [geoAssets, fProjects, fMedias, fRegions, fProvinces, provinceOptions]);
+  }, [geoAssets, fProjects, fMedias, fRegions, fProvinces, provinceOptions, photoCodes]);
 
   const activeInspectors = Math.max(1, inspectors - (emergency ? absent : 0));
 
@@ -1132,6 +1141,26 @@ function RouteMonitoringPage() {
   const [planShared, setPlanShared] = useState(false);
   const [loadedId, setLoadedId] = useState<string | null>(null);
 
+  /** Pick up a photo job handed over from Ad Campaigns (once, on mount). */
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem("ad_photo_route");
+      if (!raw) return;
+      window.sessionStorage.removeItem("ad_photo_route");
+      const job = JSON.parse(raw) as { codes?: string[]; label?: string };
+      const codes = (job.codes ?? []).filter(Boolean);
+      if (!codes.length) return;
+      const label = job.label?.trim() || "แผนถ่ายรูปโฆษณาขึ้นใหม่";
+      setPhotoJob({ codes, label });
+      setPlanName(label);
+      toast.success(`โหมดถ่ายรูป: จำกัดการวางแผนไว้ ${codes.length} ป้าย`, {
+        description: "ส่งมาจากเมนู Ad Campaigns → ขึ้นใหม่ / รอถ่ายรูป",
+      });
+    } catch {
+      /* ignore malformed handoff */
+    }
+  }, []);
+
   const listRoutesFn = useServerFn(listSavedRoutes);
   const { data: savedRoutesData } = useQuery({
     queryKey: ["route-monitoring-plans"],
@@ -1354,6 +1383,28 @@ function RouteMonitoringPage() {
         title="Route Monitoring"
         subtitle="วางแผนเส้นทางตรวจสื่อ: กรองป้าย → ระบุจำนวนคนและกรอบเวลา → ระบบแบ่งโซนและงานต่อวันให้อัตโนมัติ"
       />
+
+      {photoJob && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/40 bg-primary/5 p-3">
+          <div className="text-sm">
+            <span className="font-semibold text-primary">โหมดถ่ายรูปโฆษณาขึ้นใหม่</span>
+            <span className="ml-2 text-muted-foreground">
+              {photoJob.label} · จำกัดเฉพาะ {photoJob.codes.length} ป้าย (จับคู่พิกัดได้ {filtered.length} ป้าย)
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setPhotoJob(null);
+              setPlan(null);
+            }}
+            className="rounded-md border px-2.5 py-1 text-xs hover:bg-accent"
+          >
+            ออกจากโหมดถ่ายรูป (วางแผนตรวจปกติ)
+          </button>
+        </div>
+      )}
+
 
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
         {/* ---------- Inputs ---------- */}

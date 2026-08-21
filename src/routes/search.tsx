@@ -323,7 +323,8 @@ function SlotCombobox({
 
 // ---------- Page ----------
 function SearchPage() {
-  const [slots, setSlots] = useState<(string | null)[]>([null]);
+  const { q: initialCode } = Route.useSearch();
+  const [slots, setSlots] = useState<(string | null)[]>(() => [initialCode ?? null]);
   const [tab, setTab] = useState<TabId>("Profile");
   const [from, setFrom] = useState(() => {
     const d = new Date();

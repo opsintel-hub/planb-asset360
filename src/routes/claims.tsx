@@ -241,7 +241,6 @@ function ClaimsPage() {
           onChange={setFProject}
           options={Object.keys(PROJECT_TO_DEPARTMENTS)}
         />
-        <FilterSelect label="Department" value={fDept} onChange={setFDept} options={departments} />
         <FilterSelect
           label="SLA Status"
           value={fSla}
@@ -269,9 +268,9 @@ function ClaimsPage() {
           {riskCounts?.high ? <span className="tabular-nums">({riskCounts.high})</span> : null}
         </button>
         )}
-        {(fRisk || fProject !== "all" || fDept !== "all" || fSla !== "all" || fOldCode !== "all" || fBrand !== "all" || qTicket !== "") && (
+        {(fRisk || fProject !== "all" || fSla !== "all" || fOldCode !== "all" || fBrand !== "all" || qTicket !== "") && (
           <button
-            onClick={() => { setFProject("all"); setFDept("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); setFRisk(false); setFBrand("all"); }}
+            onClick={() => { setFProject("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); setFRisk(false); setFBrand("all"); }}
             className="text-xs px-3 py-2 rounded-md border hover:bg-accent"
           >
             ล้างตัวกรอง

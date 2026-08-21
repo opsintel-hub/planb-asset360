@@ -96,7 +96,9 @@ export function AssetAdCard({ code }: { code: string | null | undefined }) {
           <ul className="text-sm space-y-1">
             {history.map((h) => (
               <li key={h.id} className="flex flex-wrap gap-x-2 text-muted-foreground">
-                <span className="text-foreground">{h.product_name ?? "—"}</span>
+                <span className="text-foreground">{h.brand ?? h.product_name ?? "—"}</span>
+                {h.brand_eng && <span className="text-xs">({h.brand_eng})</span>}
+                {h.brand && h.product_name && <span className="text-xs">· {h.product_name}</span>}
                 <span>
                   {fmt(h.start_date_contract)} → {fmt(h.end_date_contract)}
                 </span>

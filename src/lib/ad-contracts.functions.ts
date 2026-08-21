@@ -119,15 +119,14 @@ export const getAdSummary = createServerFn({ method: "GET" })
     ]);
 
     // CRM holds codes that do not exist in our asset table, so only count
-    // matched codes as "occupied" — otherwise occupied can exceed totalAssets.
-    const assetCodes = new Set(
+    // matched codes as "occupied". Match on the normalized code so spelling
+    // differences ("MTP-A23" vs "MTP A23") still resolve to the same asset.
+    const assetIndex = buildAssetCodeIndex(
       (
         await fetchAllPaged<{ old_code: string | null }>((from, to) =>
           context.supabase.from("assets").select("old_code").range(from, to),
         )
-      )
-        .map((r) => r.old_code)
-        .filter(Boolean) as string[],
+      ).map((r) => r.old_code),
     );
 
     const occupied = new Set<string>();
@@ -136,12 +135,14 @@ export const getAdSummary = createServerFn({ method: "GET" })
     let unmatched = 0;
     for (const r of distinctRows) {
       if (r.asset_old_code) {
-        if (assetCodes.has(r.asset_old_code)) occupied.add(r.asset_old_code);
+        const canonical = assetIndex.get(normalizeAssetCode(r.asset_old_code));
+        if (canonical) occupied.add(canonical);
         else unmatched += 1;
       }
       if (r.ad_contract) products.add(r.ad_contract);
       if (r.brand) brands.add(r.brand);
     }
+
 
     return {
       totalAssets: totalAssets ?? 0,

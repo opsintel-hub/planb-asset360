@@ -170,6 +170,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   {newAds?.count}
                 </span>
               )}
+              {item.to === "/claims" && (openClaims?.count ?? 0) > 0 && (
+                <span
+                  title={`มีเคลมค้างอยู่ ${openClaims?.count} รายการ — รอเคลียร์`}
+                  className="ml-auto shrink-0 rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold text-destructive-foreground"
+                >
+                  {openClaims?.count}
+                </span>
+              )}
+
 
             </Link>
           );

@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { fetchAllPaged } from "@/lib/ad-paging";
+import { buildAssetCodeIndex, normalizeAssetCode } from "@/lib/asset-code";
+
 
 export type AdRow = {
   id: string;

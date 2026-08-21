@@ -126,11 +126,12 @@ function CampaignsPage() {
         subtitle="ชื่อโฆษณา สัญญา และป้ายที่ขึ้นโฆษณา (ซิงก์จากฐานข้อมูล CRM)"
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
         <Kpi label="ป้ายทั้งหมด" value={summary?.totalAssets} icon={<Building2 className="h-4 w-4" />} />
         <Kpi label="ป้ายมีโฆษณาอยู่" value={summary?.occupiedAssets} icon={<Megaphone className="h-4 w-4" />} />
         <Kpi label="ป้ายว่าง" value={summary?.vacantAssets} icon={<MapPin className="h-4 w-4" />} />
         <Kpi label="โฆษณาที่กำลังขึ้น" value={summary?.activeProducts} icon={<Megaphone className="h-4 w-4" />} />
+        <Kpi label="แบรนด์ที่กำลังขึ้น" value={summary?.activeBrands} icon={<Megaphone className="h-4 w-4" />} />
         <Kpi
           label="สัญญาหมดใน 30 วัน"
           value={summary?.expiring30}
@@ -197,6 +198,7 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
   const [brand, setBrand] = useState<string>("");
   const [selected, setSelected] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [showSug, setShowSug] = useState(false);
 
   const brandsFn = useServerFn(listAdBrands);
   const { data: brands } = useQuery({
@@ -211,6 +213,23 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
     queryFn: () => listFn({ data: { q: q || undefined, brand: brand || undefined, scope } }),
     staleTime: 60_000,
   });
+
+  // Type-ahead: closest matches from brand / brand_eng / ad name
+  const suggestions = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (t.length < 1) return [] as Array<{ kind: "brand" | "product"; label: string; sub: string | null; count: number }>;
+    const out: Array<{ kind: "brand" | "product"; label: string; sub: string | null; count: number }> = [];
+    for (const b of brands ?? []) {
+      if (b.brand.toLowerCase().includes(t) || (b.brandEng ?? "").toLowerCase().includes(t))
+        out.push({ kind: "brand", label: b.brand, sub: b.brandEng, count: b.assetCount });
+      if (out.length >= 6) break;
+    }
+    for (const p of products ?? []) {
+      if (out.length >= 10) break;
+      if (p.product.toLowerCase().includes(t)) out.push({ kind: "product", label: p.product, sub: p.brand, count: p.assetCount });
+    }
+    return out;
+  }, [q, brands, products]);
 
   const placementsFn = useServerFn(getAdPlacements);
   const { data: placements, isLoading: loadingPlacements } = useQuery({
@@ -324,10 +343,50 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="เช่น Coca-Cola, AIS..."
+              onChange={(e) => {
+                setQ(e.target.value);
+                setShowSug(true);
+              }}
+              onFocus={() => setShowSug(true)}
+              onBlur={() => window.setTimeout(() => setShowSug(false), 150)}
+              placeholder="ค้นหาแบรนด์ / ชื่อโฆษณา เช่น PROMISE, พรอมิส, AIS..."
               className="pl-9"
             />
+            {showSug && suggestions.length > 0 && (
+              <ul className="absolute z-30 mt-1 w-full max-h-72 overflow-auto rounded-md border bg-popover shadow-lg">
+                {suggestions.map((sg) => (
+                  <li key={`${sg.kind}-${sg.label}`}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        if (sg.kind === "brand") {
+                          setBrand(sg.label);
+                          setQ("");
+                          setSelected(null);
+                        } else {
+                          setQ(sg.label);
+                          setSelected(sg.label);
+                        }
+                        setShowSug(false);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-muted/70 transition"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm">
+                          <span className="mr-1 rounded bg-muted px-1 text-[10px] uppercase text-muted-foreground">
+                            {sg.kind === "brand" ? "brand" : "ad"}
+                          </span>
+                          {sg.label}
+                        </span>
+                        <span className="shrink-0 text-[11px] text-muted-foreground">{sg.count} ป้าย</span>
+                      </div>
+                      {sg.sub && <div className="truncate text-[11px] text-muted-foreground">{sg.sub}</div>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <select
             value={brand}

@@ -23,6 +23,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
 import { getMyMenuAccess } from "@/lib/admin.functions";
 import { countNewlyLaunchedAds } from "@/lib/ad-contracts.functions";
+import { countOpenClaims } from "@/lib/data.functions";
 import { useAuth } from "@/lib/auth-context";
 import { APP_MENUS } from "@/lib/app-menus";
 
@@ -58,6 +59,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { data: newAds } = useQuery({
     queryKey: ["new-ads-count", 7],
     queryFn: () => newAdsFn({ data: { days: 7 } }),
+    staleTime: 5 * 60_000,
+  });
+  // Badge on "Claim Aging": total open claim tickets waiting to be cleared.
+  const claimCountFn = useServerFn(countOpenClaims);
+  const { data: openClaims } = useQuery({
+    queryKey: ["open-claims-count"],
+    queryFn: () => claimCountFn({}),
     staleTime: 5 * 60_000,
   });
   const { user } = useAuth();
@@ -162,6 +170,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   {newAds?.count}
                 </span>
               )}
+              {item.to === "/claims" && (openClaims?.count ?? 0) > 0 && (
+                <span
+                  title={`มีเคลมค้างอยู่ ${openClaims?.count} รายการ — รอเคลียร์`}
+                  className="ml-auto shrink-0 rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold text-destructive-foreground"
+                >
+                  {openClaims?.count}
+                </span>
+              )}
+
 
             </Link>
           );

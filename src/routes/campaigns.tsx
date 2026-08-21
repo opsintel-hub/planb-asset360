@@ -64,6 +64,10 @@ export const Route = createFileRoute("/campaigns")({
 
 /** sessionStorage handoff read by /map to focus a campaign's assets. */
 export const AD_FOCUS_KEY = "ad_campaign_focus";
+/** sessionStorage handoff read by /route-monitoring to build a "photo" plan. */
+export const PHOTO_ROUTE_KEY = "ad_photo_route";
+/** Default lookback window (days) for "โฆษณาขึ้นใหม่". */
+export const NEW_AD_WINDOW_DAYS = 7;
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "-";

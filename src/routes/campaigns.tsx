@@ -16,6 +16,8 @@ import {
   Share2,
   Loader2,
   Building2,
+  Camera,
+  Navigation,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui-bits";
 import { Input } from "@/components/ui/input";
@@ -32,10 +34,12 @@ import {
   getAdsInPeriod,
   getVacantAssets,
   listAdBrands,
+  listNewlyLaunchedAds,
   type AdAsset,
   type AdRow,
 } from "@/lib/ad-contracts.functions";
 import { createPoiShare } from "@/lib/poi-share.functions";
+
 
 export const Route = createFileRoute("/campaigns")({
   head: () => ({

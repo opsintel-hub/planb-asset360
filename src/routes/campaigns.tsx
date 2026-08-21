@@ -127,6 +127,13 @@ function CampaignsPage() {
     staleTime: 5 * 60_000,
   });
 
+  const newFn = useServerFn(listNewlyLaunchedAds);
+  const { data: newAds } = useQuery({
+    queryKey: ["new-ads", NEW_AD_WINDOW_DAYS],
+    queryFn: () => newFn({ data: { days: NEW_AD_WINDOW_DAYS } }),
+    staleTime: 5 * 60_000,
+  });
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
@@ -134,12 +141,18 @@ function CampaignsPage() {
         subtitle="แบรนด์ เลขที่สัญญา และป้ายที่ขึ้นโฆษณา (ซิงก์จากฐานข้อมูล CRM)"
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-7 gap-3 mb-5">
         <Kpi label="ป้ายทั้งหมด" value={summary?.totalAssets} icon={<Building2 className="h-4 w-4" />} />
         <Kpi label="ป้ายมีโฆษณาอยู่" value={summary?.occupiedAssets} icon={<Megaphone className="h-4 w-4" />} />
         <Kpi label="ป้ายว่าง" value={summary?.vacantAssets} icon={<MapPin className="h-4 w-4" />} />
         <Kpi label="สัญญาที่กำลังขึ้น" value={summary?.activeContracts ?? summary?.activeProducts} icon={<Megaphone className="h-4 w-4" />} />
         <Kpi label="แบรนด์ที่กำลังขึ้น" value={summary?.activeBrands} icon={<Megaphone className="h-4 w-4" />} />
+        <Kpi
+          label={`ขึ้นใหม่ ${NEW_AD_WINDOW_DAYS} วัน (รอถ่ายรูป)`}
+          value={newAds?.assetCount}
+          icon={<Camera className="h-4 w-4" />}
+          highlight
+        />
         <Kpi
           label="สัญญาหมดใน 30 วัน"
           value={summary?.expiring30}
@@ -151,6 +164,14 @@ function CampaignsPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="current">โฆษณาปัจจุบัน</TabsTrigger>
+          <TabsTrigger value="new" className="gap-1.5">
+            <Camera className="h-3.5 w-3.5" /> ขึ้นใหม่ / รอถ่ายรูป
+            {(newAds?.assetCount ?? 0) > 0 && (
+              <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                {newAds?.assetCount}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="history">ประวัติย้อนหลัง</TabsTrigger>
           <TabsTrigger value="period">ตามช่วงเวลา</TabsTrigger>
           <TabsTrigger value="vacant">ป้ายว่าง</TabsTrigger>
@@ -158,6 +179,9 @@ function CampaignsPage() {
 
         <TabsContent value="current" className="mt-4">
           <ProductBrowser scope="current" />
+        </TabsContent>
+        <TabsContent value="new" className="mt-4">
+          <NewLaunchTab />
         </TabsContent>
         <TabsContent value="history" className="mt-4">
           <ProductBrowser scope="all" />
@@ -169,6 +193,9 @@ function CampaignsPage() {
           <VacantTab />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
     </div>
   );
 }

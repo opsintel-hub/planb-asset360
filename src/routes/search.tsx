@@ -358,6 +358,12 @@ function SearchPage() {
     }
   }, []);
 
+  // Deep link: /search?q=CODE loads that asset automatically (also on later navigations)
+  useEffect(() => {
+    if (!initialCode) return;
+    setSlots((prev) => (prev.includes(initialCode) ? prev : [initialCode, ...prev.filter(Boolean).slice(0, 4)]));
+  }, [initialCode]);
+
   const codes = slots.filter((s): s is string => !!s);
   const fromIso = from ? new Date(from + "T00:00:00").toISOString() : undefined;
   const toIso = to ? new Date(to + "T23:59:59").toISOString() : undefined;

@@ -358,18 +358,18 @@ function ClaimsPage() {
                       <td className="px-4 py-3 max-w-[200px]">
                         {(() => {
                           const ad = adByCode?.[c.asset_old_code ?? ""];
-                          if (!ad?.product_name)
+                          if (!ad?.brand && !ad?.ad_contract)
                             return <span className="text-muted-foreground text-[12px]">ไม่มีโฆษณาขึ้น</span>;
                           const d = ad.days_to_end;
                           return (
                             <span className="inline-flex flex-col leading-tight">
                               <span className="truncate max-w-[180px] font-medium">
-                                {ad.brand ?? ad.product_name}
+                                {ad.brand ?? ad.ad_contract}
                                 {ad.brand_eng ? ` (${ad.brand_eng})` : ""}
                               </span>
-                              {ad.brand && ad.product_name && (
+                              {ad.brand && ad.ad_contract && (
                                 <span className="truncate max-w-[180px] text-[11px] text-muted-foreground">
-                                  {ad.product_name}
+                                  {ad.ad_contract}
                                 </span>
                               )}
                               <span

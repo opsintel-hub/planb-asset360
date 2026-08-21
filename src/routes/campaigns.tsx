@@ -123,14 +123,14 @@ function CampaignsPage() {
     <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Ad Campaigns"
-        subtitle="ชื่อโฆษณา สัญญา และป้ายที่ขึ้นโฆษณา (ซิงก์จากฐานข้อมูล CRM)"
+        subtitle="แบรนด์ เลขที่สัญญา และป้ายที่ขึ้นโฆษณา (ซิงก์จากฐานข้อมูล CRM)"
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
         <Kpi label="ป้ายทั้งหมด" value={summary?.totalAssets} icon={<Building2 className="h-4 w-4" />} />
         <Kpi label="ป้ายมีโฆษณาอยู่" value={summary?.occupiedAssets} icon={<Megaphone className="h-4 w-4" />} />
         <Kpi label="ป้ายว่าง" value={summary?.vacantAssets} icon={<MapPin className="h-4 w-4" />} />
-        <Kpi label="โฆษณาที่กำลังขึ้น" value={summary?.activeProducts} icon={<Megaphone className="h-4 w-4" />} />
+        <Kpi label="สัญญาที่กำลังขึ้น" value={summary?.activeContracts ?? summary?.activeProducts} icon={<Megaphone className="h-4 w-4" />} />
         <Kpi label="แบรนด์ที่กำลังขึ้น" value={summary?.activeBrands} icon={<Megaphone className="h-4 w-4" />} />
         <Kpi
           label="สัญญาหมดใน 30 วัน"
@@ -260,7 +260,7 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
   const exportCsv = () => {
     if (!selected) return;
     const rows: (string | number | null)[][] = [
-      ["Brand", "Brand (EN)", "Package", "Product", "Asset Code", "ชื่อป้าย", "Media Type", "แผนก", "เขต", "ทำเล", "สถานะสัญญา", "เริ่มสัญญา", "สิ้นสุดสัญญา", "ติดตั้งจริง", "Lat", "Lng"],
+      ["Brand", "Brand (EN)", "Package", "Ad Contract", "Asset Code", "ชื่อป้าย", "Media Type", "แผนก", "เขต", "ทำเล", "สถานะสัญญา", "เริ่มสัญญา", "สิ้นสุดสัญญา", "ติดตั้งจริง", "Lat", "Lng"],
     ];
     for (const a of assets) {
       const c = rowsByCode.get(a.old_code);
@@ -304,7 +304,7 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
             matchMode: "any",
             bbox: [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)],
             presetKeys: [],
-            freeText: `โฆษณา: ${selected}`,
+            freeText: `สัญญา: ${selected}`,
             chipProjects: [],
             chipMedia: [],
             project: "all",
@@ -336,7 +336,7 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
     <div className="grid lg:grid-cols-[340px_1fr] gap-4">
       <Card className="h-fit">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">ค้นหาชื่อโฆษณา</CardTitle>
+          <CardTitle className="text-base">ค้นหาแบรนด์ / เลขที่สัญญา</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="relative">
@@ -349,7 +349,7 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
               }}
               onFocus={() => setShowSug(true)}
               onBlur={() => window.setTimeout(() => setShowSug(false), 150)}
-              placeholder="ค้นหาแบรนด์ / ชื่อโฆษณา เช่น PROMISE, พรอมิส, AIS..."
+              placeholder="ค้นหาแบรนด์ / เลขที่สัญญา เช่น พรอมิส, PROMISE, PB26010558"
               className="pl-9"
             />
             {showSug && suggestions.length > 0 && (
@@ -375,7 +375,7 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate text-sm">
                           <span className="mr-1 rounded bg-muted px-1 text-[10px] uppercase text-muted-foreground">
-                            {sg.kind === "brand" ? "brand" : "ad"}
+                            {sg.kind === "brand" ? "แบรนด์" : "สัญญา"}
                           </span>
                           {sg.label}
                         </span>
@@ -423,7 +423,7 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
               </div>
             ) : (products ?? []).length === 0 ? (
               <p className="px-3 py-6 text-sm text-muted-foreground text-center">
-                ไม่พบข้อมูลโฆษณา — ตรวจการซิงก์ CRM ที่ “ตั้งค่าระบบ”
+                ไม่พบสัญญาโฆษณา — ตรวจการซิงก์ CRM ที่ “ตั้งค่าระบบ”
               </p>
             ) : (
               <ul className="px-2">
@@ -437,15 +437,18 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
                       )}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium">{p.product}</span>
-                        <Badge variant="secondary" className="shrink-0">{p.assetCount}</Badge>
-                      </div>
-                      {p.brand && (
-                        <div className="text-[11px] font-medium text-primary truncate">
-                          {p.brand}
+                        <span className="truncate text-sm font-medium">
+                          {p.brand ?? "(ไม่ระบุแบรนด์)"}
                           {p.brandEng ? ` (${p.brandEng})` : ""}
-                        </div>
-                      )}
+                        </span>
+                        <Badge variant="secondary" className="shrink-0" title="จำนวนป้ายในสัญญานี้">
+                          {p.assetCount} ป้าย
+                        </Badge>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        สัญญา {p.product}
+                        {p.packageName ? ` · ${p.packageName}` : ""}
+                      </div>
                       <div className="text-[11px] text-muted-foreground">
                         {fmtDate(p.firstStart)} → {fmtDate(p.lastEnd)}
                       </div>
@@ -463,13 +466,22 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-base flex items-center gap-2">
               <Megaphone className="h-4 w-4" />
-              {selected ?? "เลือกชื่อโฆษณาด้านซ้าย"}
-              {selected && <Badge variant="outline">{assets.length} ป้าย</Badge>}
-              {selected && placements?.contracts?.[0]?.brand && (
-                <Badge variant="secondary">
-                  {placements.contracts[0].brand}
-                  {placements.contracts[0].brand_eng ? ` (${placements.contracts[0].brand_eng})` : ""}
-                </Badge>
+              {selected ? (
+                <span className="flex flex-wrap items-center gap-2">
+                  <span>
+                    {placements?.contracts?.[0]?.brand ?? "(ไม่ระบุแบรนด์)"}
+                    {placements?.contracts?.[0]?.brand_eng ? ` (${placements.contracts[0].brand_eng})` : ""}
+                  </span>
+                  <Badge variant="outline" title="เลขที่สัญญาจาก CRM">สัญญา {selected}</Badge>
+                  {placements?.contracts?.[0]?.package_name && (
+                    <Badge variant="secondary">{placements.contracts[0].package_name}</Badge>
+                  )}
+                  <Badge variant="secondary">
+                    {assets.length} / {placements?.contracts?.length ?? 0} ป้ายที่จับคู่ได้
+                  </Badge>
+                </span>
+              ) : (
+                "เลือกสัญญาด้านซ้าย"
               )}
             </CardTitle>
             {selected && (
@@ -491,7 +503,7 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
         <CardContent>
           {!selected ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
-              เลือกชื่อโฆษณาเพื่อดูรายการป้าย วันเริ่ม/สิ้นสุดสัญญา และวันติดตั้งจริง
+              เลือกสัญญาด้านซ้ายเพื่อดูรายการป้าย วันเริ่ม/สิ้นสุดสัญญา และวันติดตั้งจริง
             </p>
           ) : loadingPlacements ? (
             <div className="space-y-2">
@@ -542,7 +554,7 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
                   {assets.length === 0 && (
                     <tr>
                       <td colSpan={8} className="py-8 text-center text-muted-foreground">
-                        ไม่พบป้ายที่จับคู่รหัส (asset_old_code) กับข้อมูล CRM
+                        ป้ายในสัญญานี้ยังจับคู่กับฐานข้อมูลป้ายของเราไม่ได้ (รหัสจาก CRM ไม่ตรงกับตารางป้าย)
                       </td>
                     </tr>
                   )}
@@ -602,14 +614,14 @@ function PeriodTab() {
         ) : (
           <>
             <p className="text-sm text-muted-foreground">
-              พบสัญญา {data?.total.toLocaleString("th-TH")} รายการ / {data?.products.length} ชื่อโฆษณา
+              พบรายการสัญญา-ป้าย {data?.total.toLocaleString("th-TH")} แถว / {data?.products.length} เลขที่สัญญา
             </p>
             <div className="overflow-auto max-h-[520px]">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-card">
                   <tr className="text-left text-xs text-muted-foreground border-b">
                     <th className="py-2 pr-3">แบรนด์</th>
-                    <th className="py-2 pr-3">ชื่อโฆษณา</th>
+                    <th className="py-2 pr-3">เลขที่สัญญา</th>
                     <th className="py-2 pr-3">จำนวนป้าย</th>
                     <th className="py-2 pr-3">สัญญา</th>
                   </tr>

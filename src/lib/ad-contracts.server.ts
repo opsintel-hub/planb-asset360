@@ -124,14 +124,16 @@ export async function readCrmConn(): Promise<Required<CrmDbConn>> {
 }
 
 /**
- * CRM `old_code` only matches ~13% of our assets, but `equipment_id` matches a
- * much larger share. Fill in / correct `asset_old_code` from the asset whose
- * payload EquipmentID equals the CRM equipment_id so every menu can join on
- * `asset_old_code` as designed.
+ * CRM asset codes are spelled loosely ("MTP-A23" vs "MTP A23"), and some rows
+ * only carry an equipment id. Resolve every row to the canonical
+ * `assets.old_code` by trying, in order: exact code, normalized code
+ * (separators/case ignored), then payload EquipmentID — exact and normalized.
  */
 async function resolveAssetCodes(rows: AdContractRow[]): Promise<void> {
   const byEquipment = new Map<string, string>();
+  const byEquipmentNorm = new Map<string, string>();
   const knownCodes = new Set<string>();
+  const byNormCode = new Map<string, string>();
   const page = 1000;
   for (let from = 0; ; from += page) {
     const { data, error } = await supabaseAdmin
@@ -143,19 +145,33 @@ async function resolveAssetCodes(rows: AdContractRow[]): Promise<void> {
     for (const a of list) {
       if (!a.old_code) continue;
       knownCodes.add(a.old_code);
+      const n = normalizeAssetCode(a.old_code);
+      if (n && !byNormCode.has(n)) byNormCode.set(n, a.old_code);
       const eq = a.payload?.["EquipmentID"];
-      if (typeof eq === "string" && eq.trim()) byEquipment.set(eq.trim(), a.old_code);
+      if (typeof eq === "string" && eq.trim()) {
+        byEquipment.set(eq.trim(), a.old_code);
+        const en = normalizeAssetCode(eq);
+        if (en && !byEquipmentNorm.has(en)) byEquipmentNorm.set(en, a.old_code);
+      }
     }
     if (list.length < page) break;
   }
 
   for (const r of rows) {
-    const matched = r.asset_old_code && knownCodes.has(r.asset_old_code);
-    if (matched) continue;
-    const viaEq = r.equipment_id ? byEquipment.get(r.equipment_id.trim()) : undefined;
+    if (r.asset_old_code && knownCodes.has(r.asset_old_code)) continue;
+
+    const viaNorm = r.asset_old_code ? byNormCode.get(normalizeAssetCode(r.asset_old_code)) : undefined;
+    if (viaNorm) {
+      r.asset_old_code = viaNorm;
+      continue;
+    }
+
+    const eq = r.equipment_id?.trim();
+    const viaEq = eq ? (byEquipment.get(eq) ?? byEquipmentNorm.get(normalizeAssetCode(eq))) : undefined;
     if (viaEq) r.asset_old_code = viaEq;
   }
 }
+
 
 /** Upsert a batch of mapped rows, then archive rows that vanished upstream. */
 export async function persistAdContracts(

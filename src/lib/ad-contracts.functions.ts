@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { fetchAllPaged } from "@/lib/ad-paging";
 
 export type AdRow = {
   id: string;
@@ -99,24 +100,27 @@ export const getAdSummary = createServerFn({ method: "GET" })
     const today = new Date().toISOString().slice(0, 10);
     const in30 = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
 
-    const [{ count: totalAssets }, { count: currentRows }, { count: expiring }, { data: distinctRows }] =
-      await Promise.all([
-        context.supabase.from("assets").select("old_code", { count: "exact", head: true }),
-        context.supabase.from("ad_contracts").select("id", { count: "exact", head: true }).eq("status", "current"),
-        context.supabase
-          .from("ad_contracts")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "current")
-          .gte("end_date_contract", today)
-          .lte("end_date_contract", in30),
-        context.supabase.from("ad_current_by_asset").select("asset_old_code, product_name").limit(20000),
-      ]);
+    const [{ count: totalAssets }, { count: currentRows }, { count: expiring }, distinctRows] = await Promise.all([
+      context.supabase.from("assets").select("old_code", { count: "exact", head: true }),
+      context.supabase.from("ad_contracts").select("id", { count: "exact", head: true }).eq("status", "current"),
+      context.supabase
+        .from("ad_contracts")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "current")
+        .gte("end_date_contract", today)
+        .lte("end_date_contract", in30),
+      fetchAllPaged<{ asset_old_code: string | null; product_name: string | null; brand: string | null }>((from, to) =>
+        context.supabase.from("ad_current_by_asset").select("asset_old_code, product_name, brand").range(from, to),
+      ),
+    ]);
 
     const occupied = new Set<string>();
     const products = new Set<string>();
-    for (const r of (distinctRows ?? []) as Array<{ asset_old_code: string | null; product_name: string | null }>) {
+    const brands = new Set<string>();
+    for (const r of distinctRows) {
       if (r.asset_old_code) occupied.add(r.asset_old_code);
       if (r.product_name) products.add(r.product_name);
+      if (r.brand) brands.add(r.brand);
     }
 
     return {
@@ -126,6 +130,7 @@ export const getAdSummary = createServerFn({ method: "GET" })
       occupiedAssets: occupied.size,
       vacantAssets: Math.max(0, (totalAssets ?? 0) - occupied.size),
       activeProducts: products.size,
+      activeBrands: brands.size,
       lastSyncedAt: null as string | null,
     };
   });
@@ -143,32 +148,33 @@ export const listAdProducts = createServerFn({ method: "GET" })
       .parse(i ?? {}),
   )
   .handler(async ({ data, context }) => {
-    let query = context.supabase
-      .from("ad_contracts")
-      .select("product_name, brand, brand_eng, asset_old_code, status, start_date_contract, end_date_contract")
-      .not("product_name", "is", null)
-      .limit(20000);
-    if ((data.scope ?? "current") === "current") query = query.eq("status", "current");
-    if (data.brand && data.brand.trim()) query = query.eq("brand", data.brand.trim());
-    if (data.q && data.q.trim()) {
-      const t = data.q.trim().replace(/[,()]/g, " ");
-      query = query.or(`product_name.ilike.%${t}%,brand.ilike.%${t}%,brand_eng.ilike.%${t}%`);
-    }
-    const { data: rows, error } = await query;
-    if (error) throw new Error(error.message);
-
-    const map = new Map<
-      string,
-      { product: string; brand: string | null; brandEng: string | null; assets: Set<string>; start: string | null; end: string | null }
-    >();
-    for (const r of (rows ?? []) as Array<{
+    const rows = await fetchAllPaged<{
       product_name: string | null;
       brand: string | null;
       brand_eng: string | null;
       asset_old_code: string | null;
       start_date_contract: string | null;
       end_date_contract: string | null;
-    }>) {
+    }>((from, to) => {
+      let query = context.supabase
+        .from("ad_contracts")
+        .select("product_name, brand, brand_eng, asset_old_code, status, start_date_contract, end_date_contract")
+        .not("product_name", "is", null)
+        .range(from, to);
+      if ((data.scope ?? "current") === "current") query = query.eq("status", "current");
+      if (data.brand && data.brand.trim()) query = query.eq("brand", data.brand.trim());
+      if (data.q && data.q.trim()) {
+        const t = data.q.trim().replace(/[,()]/g, " ");
+        query = query.or(`product_name.ilike.%${t}%,brand.ilike.%${t}%,brand_eng.ilike.%${t}%`);
+      }
+      return query;
+    });
+
+    const map = new Map<
+      string,
+      { product: string; brand: string | null; brandEng: string | null; assets: Set<string>; start: string | null; end: string | null }
+    >();
+    for (const r of rows) {
       const key = r.product_name ?? "";
       if (!key) continue;
       const cur =
@@ -204,22 +210,21 @@ export const getAdPlacements = createServerFn({ method: "GET" })
       .parse(i),
   )
   .handler(async ({ data, context }) => {
-    let q = context.supabase
-      .from("ad_contracts")
-      .select(
-        "id, asset_old_code, product_name, brand, brand_eng, package_name, package_code, ad_contract, equipment_id, status, start_date_contract, end_date_contract, favor_start_date_contract, favor_end_date_contract",
-      )
-      .eq("product_name", data.product)
-      .limit(5000);
     const scope = data.scope ?? "current";
-    if (scope === "current") q = q.eq("status", "current");
-    if (scope === "history") q = q.neq("status", "current");
-    const { data: contracts, error } = await q;
-    if (error) throw new Error(error.message);
+    const contracts = await fetchAllPaged<AdRow>((from, to) => {
+      let q = context.supabase
+        .from("ad_contracts")
+        .select(
+          "id, asset_old_code, product_name, brand, brand_eng, package_name, package_code, ad_contract, equipment_id, status, start_date_contract, end_date_contract, favor_start_date_contract, favor_end_date_contract",
+        )
+        .eq("product_name", data.product)
+        .range(from, to);
+      if (scope === "current") q = q.eq("status", "current");
+      if (scope === "history") q = q.neq("status", "current");
+      return q;
+    });
 
-    const codes = Array.from(
-      new Set(((contracts ?? []) as AdRow[]).map((c) => c.asset_old_code).filter(Boolean) as string[]),
-    );
+    const codes = Array.from(new Set(contracts.map((c) => c.asset_old_code).filter(Boolean) as string[]));
     const assets: AdAsset[] = [];
     const chunk = 300;
     for (let i = 0; i < codes.length; i += chunk) {
@@ -229,7 +234,7 @@ export const getAdPlacements = createServerFn({ method: "GET" })
         .in("old_code", codes.slice(i, i + chunk));
       for (const r of (rows ?? []) as AssetRow[]) assets.push(toAdAsset(r));
     }
-    return { contracts: (contracts ?? []) as AdRow[], assets };
+    return { contracts, assets };
   });
 
 /** Full ad history for one asset (timeline on the Asset History page). */
@@ -314,16 +319,16 @@ export const getAdsInPeriod = createServerFn({ method: "GET" })
   )
   .handler(async ({ data, context }) => {
     // overlap test: start <= to AND (end is null OR end >= from)
-    const { data: rows, error } = await context.supabase
-      .from("ad_contracts")
-      .select(
-        "id, asset_old_code, product_name, brand, brand_eng, package_name, package_code, ad_contract, equipment_id, status, start_date_contract, end_date_contract, favor_start_date_contract, favor_end_date_contract",
-      )
-      .lte("start_date_contract", data.to)
-      .or(`end_date_contract.is.null,end_date_contract.gte.${data.from}`)
-      .limit(20000);
-    if (error) throw new Error(error.message);
-    const list = (rows ?? []) as AdRow[];
+    const list = await fetchAllPaged<AdRow>((from, to) =>
+      context.supabase
+        .from("ad_contracts")
+        .select(
+          "id, asset_old_code, product_name, brand, brand_eng, package_name, package_code, ad_contract, equipment_id, status, start_date_contract, end_date_contract, favor_start_date_contract, favor_end_date_contract",
+        )
+        .lte("start_date_contract", data.to)
+        .or(`end_date_contract.is.null,end_date_contract.gte.${data.from}`)
+        .range(from, to),
+    );
     const byProduct = new Map<string, { product: string; assets: Set<string>; rows: AdRow[] }>();
     for (const r of list) {
       const key = r.product_name ?? "(ไม่ระบุชื่อโฆษณา)";
@@ -353,15 +358,10 @@ export const getVacantAssets = createServerFn({ method: "GET" })
       .parse(i ?? {}),
   )
   .handler(async ({ data, context }) => {
-    const { data: occupiedRows } = await context.supabase
-      .from("ad_current_by_asset")
-      .select("asset_old_code")
-      .limit(20000);
-    const occupied = new Set(
-      ((occupiedRows ?? []) as Array<{ asset_old_code: string | null }>)
-        .map((r) => r.asset_old_code)
-        .filter(Boolean) as string[],
+    const occupiedRows = await fetchAllPaged<{ asset_old_code: string | null }>((from, to) =>
+      context.supabase.from("ad_current_by_asset").select("asset_old_code").range(from, to),
     );
+    const occupied = new Set(occupiedRows.map((r) => r.asset_old_code).filter(Boolean) as string[]);
 
     const rows: AssetRow[] = [];
     const pageSize = 1000;
@@ -427,22 +427,23 @@ export const listAdBrands = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => z.object({ scope: z.enum(["current", "all"]).optional() }).parse(i ?? {}))
   .handler(async ({ data, context }) => {
-    let q = context.supabase
-      .from("ad_contracts")
-      .select("brand, brand_eng, asset_old_code, product_name")
-      .not("brand", "is", null)
-      .limit(20000);
-    if ((data.scope ?? "current") === "current") q = q.eq("status", "current");
-    const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
-
-    const map = new Map<string, { brand: string; brandEng: string | null; assets: Set<string>; products: Set<string> }>();
-    for (const r of (rows ?? []) as Array<{
+    const rows = await fetchAllPaged<{
       brand: string | null;
       brand_eng: string | null;
       asset_old_code: string | null;
       product_name: string | null;
-    }>) {
+    }>((from, to) => {
+      let q = context.supabase
+        .from("ad_contracts")
+        .select("brand, brand_eng, asset_old_code, product_name")
+        .not("brand", "is", null)
+        .range(from, to);
+      if ((data.scope ?? "current") === "current") q = q.eq("status", "current");
+      return q;
+    });
+
+    const map = new Map<string, { brand: string; brandEng: string | null; assets: Set<string>; products: Set<string> }>();
+    for (const r of rows) {
       const key = r.brand?.trim();
       if (!key) continue;
       const cur = map.get(key) ?? { brand: key, brandEng: null, assets: new Set<string>(), products: new Set<string>() };

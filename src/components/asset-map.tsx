@@ -563,7 +563,10 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
               const brandLine = ad.brand
                 ? `<span style="color:#6b7280;">แบรนด์:</span><span style="font-weight:700;">${escapeHtml(ad.brand)}${ad.brandEng ? ` (${escapeHtml(ad.brandEng)})` : ""}</span>`
                 : "";
-              return `${brandLine}<span style="color:#6b7280;">โฆษณา:</span><span style="font-weight:600;">${escapeHtml(ad.product ?? "—")}</span>
+              const pkgLine = ad.packageName
+                ? `<span style="color:#6b7280;">แพ็กเกจ:</span><span>${escapeHtml(ad.packageName)}</span>`
+                : "";
+              return `${brandLine}${pkgLine}<span style="color:#6b7280;">เลขที่สัญญา:</span><span style="font-weight:600;">${escapeHtml(ad.contract ?? "—")}</span>
                 <span style="color:#6b7280;">สิ้นสุดสัญญา:</span><span style="color:${tone};">${escapeHtml(ad.end ?? "—")}${d != null ? ` (${d} วัน)` : ""}</span>`;
             })()}
             ${warning ? '<span style="color:#b45309;grid-column:1/-1;margin-top:4px;font-weight:600;">⚠ กำลังซ่อม (มีเคลมเปิดอยู่)</span>' : ""}

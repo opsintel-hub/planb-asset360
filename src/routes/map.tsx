@@ -346,6 +346,7 @@ function MapPage() {
   const adsFn = useServerFn(getAllCurrentAds);
   const [adMode, setAdMode] = useState(false);
   const [adFilter, setAdFilter] = useState<"all" | "occupied" | "vacant" | "expiring">("all");
+  const [adBrand, setAdBrand] = useState<string>("all");
   // Handoff from the Ad Campaigns page: focus only that campaign's assets.
   const [adFocus, setAdFocus] = useState<{ product: string; codes: Set<string> } | null>(() => {
     if (typeof window === "undefined") return null;
@@ -368,10 +369,19 @@ function MapPage() {
     staleTime: 5 * 60_000,
   });
   const adMap = useMemo(() => {
-    const m = new Map<string, { product: string | null; end: string | null; daysToEnd: number | null }>();
+    const m = new Map<
+      string,
+      { product: string | null; brand: string | null; brandEng: string | null; end: string | null; daysToEnd: number | null }
+    >();
     for (const [k, v] of Object.entries(adData ?? {})) m.set(k, v);
     return m;
   }, [adData]);
+  // Brand list for the ad-mode brand filter.
+  const adBrands = useMemo(() => {
+    const set = new Set<string>();
+    for (const v of adMap.values()) if (v.brand) set.add(v.brand);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "th"));
+  }, [adMap]);
   const searchWrapRef = useRef<HTMLDivElement | null>(null);
 
   // ---------- Corridor state (with undo/redo) ----------
@@ -499,9 +509,10 @@ function MapPage() {
         if (adFilter === "vacant" && ad) return false;
         if (adFilter === "expiring" && !(ad && ad.daysToEnd != null && ad.daysToEnd <= 30)) return false;
       }
+      if (adMode && adBrand !== "all" && (adMap.get(a.old_code ?? "")?.brand ?? "") !== adBrand) return false;
       return true;
     });
-  }, [allAssets, fProjects, fMedias, onlyClaimed, claimedCodes, canSeeMaintenance, riskEnabled, onlyHighRisk, riskMap, adFocus, adMode, adFilter, adMap]);
+  }, [allAssets, fProjects, fMedias, onlyClaimed, claimedCodes, canSeeMaintenance, riskEnabled, onlyHighRisk, riskMap, adFocus, adMode, adFilter, adBrand, adMap]);
 
   // Corridor: nearby along drawn polyline
   const nearby = useMemo(() => {
@@ -1129,6 +1140,22 @@ function MapPage() {
           <option value="occupied">มีโฆษณาขึ้นอยู่</option>
           <option value="vacant">ป้ายว่าง</option>
           <option value="expiring">สัญญาหมดใน 30 วัน</option>
+        </select>
+      )}
+
+      {adMode && adBrands.length > 0 && (
+        <select
+          value={adBrand}
+          onChange={(e) => setAdBrand(e.target.value)}
+          className="h-9 rounded-md border bg-background px-2 text-xs max-w-[200px]"
+          title="กรองตามแบรนด์ (CRM)"
+        >
+          <option value="all">แบรนด์: ทั้งหมด</option>
+          {adBrands.map((b) => (
+            <option key={b} value={b}>
+              {b}
+            </option>
+          ))}
         </select>
       )}
 

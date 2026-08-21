@@ -1,0 +1,1 @@
+DELETE FROM public.ad_contracts WHERE status = 'archived';

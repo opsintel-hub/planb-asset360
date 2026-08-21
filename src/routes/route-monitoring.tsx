@@ -1384,6 +1384,28 @@ function RouteMonitoringPage() {
         subtitle="วางแผนเส้นทางตรวจสื่อ: กรองป้าย → ระบุจำนวนคนและกรอบเวลา → ระบบแบ่งโซนและงานต่อวันให้อัตโนมัติ"
       />
 
+      {photoJob && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/40 bg-primary/5 p-3">
+          <div className="text-sm">
+            <span className="font-semibold text-primary">โหมดถ่ายรูปโฆษณาขึ้นใหม่</span>
+            <span className="ml-2 text-muted-foreground">
+              {photoJob.label} · จำกัดเฉพาะ {photoJob.codes.length} ป้าย (จับคู่พิกัดได้ {filtered.length} ป้าย)
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setPhotoJob(null);
+              setPlan(null);
+            }}
+            className="rounded-md border px-2.5 py-1 text-xs hover:bg-accent"
+          >
+            ออกจากโหมดถ่ายรูป (วางแผนตรวจปกติ)
+          </button>
+        </div>
+      )}
+
+
       <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
         {/* ---------- Inputs ---------- */}
         <div className="space-y-3">

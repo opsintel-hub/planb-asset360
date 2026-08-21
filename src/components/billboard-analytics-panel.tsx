@@ -49,9 +49,18 @@ const DEMO_LABELS: Record<string, string> = {
 
 export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const analyze = useServerFn(analyzeBillboardArea);
+  const adHistoryFn = useServerFn(getAssetAdHistory);
+  const { data: adData } = useQuery({
+    queryKey: ["asset-ad-history", asset.old_code],
+    queryFn: () => adHistoryFn({ data: { oldCode: asset.old_code as string } }),
+    enabled: !!asset.old_code,
+    staleTime: 5 * 60_000,
+  });
+  const currentAd = adData?.current ?? null;
   const updateMockupFn = useServerFn(updateBillboardMockup);
   const getStreetViewImg = useServerFn(getStreetViewStaticImage);
   const [radiusM, setRadiusM] = useState<number>(500);
+
   const [data, setData] = useState<BillboardAnalytics | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);

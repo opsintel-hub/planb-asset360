@@ -10,7 +10,9 @@ import MockupManager from "@/components/mockup-manager";
 import type { MapAsset } from "@/lib/map.functions";
 import { getNearbyPOIsForAsset, type NearbyPOI } from "@/lib/poi-search.functions";
 import { PRESET_BY_KEY } from "@/lib/overpass";
+import { getAssetAdHistory } from "@/lib/ad-contracts.functions";
 import { cn } from "@/lib/utils";
+
 
 const StreetViewPanel = lazy(() => import("@/components/street-view-panel"));
 

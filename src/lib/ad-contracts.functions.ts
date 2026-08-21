@@ -621,17 +621,28 @@ export const listNewlyLaunchedAds = createServerFn({ method: "GET" })
     };
   });
 
-/** Cheap counter for the sidebar badge ("มีโฆษณาขึ้นใหม่ N รายการ"). */
+/**
+ * Sidebar badge counter. Counts DISTINCT ป้าย (asset_old_code) so it matches
+ * the KPI card / tab badge on /campaigns exactly (one asset can carry several
+ * contract rows, which is why a raw row count reads higher).
+ */
 export const countNewlyLaunchedAds = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => z.object({ days: z.number().int().min(1).max(120).optional() }).parse(i ?? {}))
   .handler(async ({ data, context }) => {
     const days = data.days ?? 7;
-    const { count } = await context.supabase
-      .from("ad_contracts")
-      .select("id", { count: "exact", head: true })
-      .not("favor_start_date_contract", "is", null)
-      .gte("favor_start_date_contract", windowStart(days))
-      .lte("favor_start_date_contract", new Date().toISOString().slice(0, 10));
-    return { days, count: count ?? 0 };
+    const from = windowStart(days);
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await fetchAllPaged<{ asset_old_code: string | null }>((a, b) =>
+      context.supabase
+        .from("ad_contracts")
+        .select("asset_old_code")
+        .not("favor_start_date_contract", "is", null)
+        .gte("favor_start_date_contract", from)
+        .lte("favor_start_date_contract", today)
+        .range(a, b),
+    );
+    const assets = new Set(rows.map((r) => r.asset_old_code).filter(Boolean) as string[]);
+    return { days, count: assets.size, rowCount: rows.length };
   });
+

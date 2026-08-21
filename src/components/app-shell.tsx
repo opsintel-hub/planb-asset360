@@ -156,12 +156,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="truncate">{item.label}</span>
               {item.to === "/campaigns" && (newAds?.count ?? 0) > 0 && (
                 <span
-                  title={`มีโฆษณาขึ้นใหม่ ${newAds?.count} รายการใน 7 วัน (รอทีมถ่ายรูป)`}
+                  title={`มีป้ายที่โฆษณาขึ้นใหม่ ${newAds?.count} ป้ายใน 7 วัน (${newAds?.rowCount ?? 0} รายการสัญญา) — รอทีมถ่ายรูป`}
                   className="ml-auto shrink-0 rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold text-destructive-foreground"
                 >
                   {newAds?.count}
                 </span>
               )}
+
             </Link>
           );
         })}

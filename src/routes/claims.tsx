@@ -85,7 +85,6 @@ function ClaimsPage() {
   });
 
   const [fProject, setFProject] = useState<string>("all");
-  const [fDept, setFDept] = useState<string>("all");
   const [fSla, setFSla] = useState<string>("all");
   const [fOldCode, setFOldCode] = useState<string>("all");
   const [qTicket, setQTicket] = useState<string>("");
@@ -111,18 +110,6 @@ function ClaimsPage() {
     enabled: claimCodes.length > 0,
     staleTime: 5 * 60_000,
   });
-
-  // Cascade: department options depend on selected project
-  const departments = useMemo(() => {
-    if (fProject === "all") return rawDepartments;
-    const allowed = departmentsForProjects([fProject]);
-    return rawDepartments.filter((d) => allowed.has(d));
-  }, [rawDepartments, fProject]);
-
-  // Auto-clear department when it no longer belongs to the selected project
-  useEffect(() => {
-    if (fDept !== "all" && !departments.includes(fDept)) setFDept("all");
-  }, [departments, fDept]);
 
   const inProject = (dept: string | null | undefined) =>
     fProject === "all" || projectForDepartment(dept) === fProject;

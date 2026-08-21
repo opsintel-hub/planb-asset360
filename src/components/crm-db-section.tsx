@@ -34,13 +34,14 @@ export function CrmDbSection() {
   const [view, setView] = useState("");
 
   useEffect(() => {
-    setHost(String(conn.host ?? "172.24.100.57"));
+    setHost(String(conn.host ?? "117.121.218.84"));
     setPort(String(conn.port ?? 3306));
     setDatabase(String(conn.database ?? "sugarcrm_prod"));
     setUsername(String(conn.username ?? "useroperation"));
     setView(String(conn.view ?? "view_productstatus"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
+
 
   const save = useMutation({
     mutationFn: () =>

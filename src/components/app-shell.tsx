@@ -61,6 +61,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     queryFn: () => newAdsFn({ data: { days: 7 } }),
     staleTime: 5 * 60_000,
   });
+  // Badge on "Claim Aging": total open claim tickets waiting to be cleared.
+  const claimCountFn = useServerFn(countOpenClaims);
+  const { data: openClaims } = useQuery({
+    queryKey: ["open-claims-count"],
+    queryFn: () => claimCountFn({}),
+    staleTime: 5 * 60_000,
+  });
   const { user } = useAuth();
   const email = user?.email ?? "";
   const displayName =

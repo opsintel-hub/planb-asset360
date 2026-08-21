@@ -34,13 +34,14 @@ export function CrmDbSection() {
   const [view, setView] = useState("");
 
   useEffect(() => {
-    setHost(String(conn.host ?? "172.24.100.57"));
+    setHost(String(conn.host ?? "117.121.218.84"));
     setPort(String(conn.port ?? 3306));
     setDatabase(String(conn.database ?? "sugarcrm_prod"));
     setUsername(String(conn.username ?? "useroperation"));
     setView(String(conn.view ?? "view_productstatus"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
+
 
   const save = useMutation({
     mutationFn: () =>
@@ -84,7 +85,7 @@ export function CrmDbSection() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Server Host" value={host} onChange={setHost} placeholder="172.24.100.57" />
+        <Field label="Server Host" value={host} onChange={setHost} placeholder="117.121.218.84" />
         <Field label="Port" value={port} onChange={setPort} placeholder="3306" />
         <Field label="Database" value={database} onChange={setDatabase} placeholder="sugarcrm_prod" />
         <Field label="Username" value={username} onChange={setUsername} placeholder="useroperation" />
@@ -110,19 +111,19 @@ export function CrmDbSection() {
         </button>
       </div>
 
-      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs space-y-2">
+      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs space-y-2">
         <div className="flex items-center gap-2 font-medium">
-          <Info className="size-4" /> ข้อจำกัดการเชื่อมต่อ
+          <Info className="size-4" /> สถานะการเชื่อมต่อ: ใช้งานได้แล้ว
         </div>
         <p>
-          <code>172.24.100.57</code> เป็น IP ภายในองค์กร — Lovable Cloud เข้าถึงจากภายนอกไม่ได้
-          ต้องขอให้ทีม IT เปิด host สาธารณะ + พอร์ต 3306 (เหมือนที่ทำกับ MSSQL) แล้วกด "ทดสอบดึงข้อมูล" ได้ทันที
+          เชื่อมต่อ <code>117.121.218.84:3306</code> สำเร็จ ดึงข้อมูลจาก <code>view_productstatus</code> ได้ครบ
+          (~9,600 แถว) ระบบจับคู่ป้ายด้วย <code>old_code</code> และถ้าไม่ตรงจะใช้ <code>equipment_id</code> ช่วยจับคู่อีกชั้น
         </p>
         <p>
-          หรือให้ทีม IT ส่งข้อมูลเข้ามาเองแบบรายวัน (Push) มาที่ endpoint นี้ ด้วย header{" "}
-          <code>x-sync-token</code> (ขอโทเคนได้จากผู้ดูแลระบบ) และ body{" "}
+          ทางเลือกสำรอง: ทีม IT ส่งข้อมูลเข้ามาเอง (Push) ที่ endpoint นี้ ด้วย header <code>x-sync-token</code> และ body{" "}
           <code>{`{"rows": [ ...แถวจาก view_productstatus... ]}`}</code>
         </p>
+
         <div className="flex items-center gap-2">
           <code className="truncate rounded bg-background px-2 py-1">{PUSH_ENDPOINT}</code>
           <button

@@ -31,6 +31,7 @@ import {
   getAdPlacements,
   getAdsInPeriod,
   getVacantAssets,
+  listAdBrands,
   type AdAsset,
   type AdRow,
 } from "@/lib/ad-contracts.functions";
@@ -193,13 +194,21 @@ function Kpi({
 
 function ProductBrowser({ scope }: { scope: "current" | "all" }) {
   const [q, setQ] = useState("");
+  const [brand, setBrand] = useState<string>("");
   const [selected, setSelected] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
 
+  const brandsFn = useServerFn(listAdBrands);
+  const { data: brands } = useQuery({
+    queryKey: ["ad-brands", scope],
+    queryFn: () => brandsFn({ data: { scope } }),
+    staleTime: 5 * 60_000,
+  });
+
   const listFn = useServerFn(listAdProducts);
   const { data: products, isLoading } = useQuery({
-    queryKey: ["ad-products", scope, q],
-    queryFn: () => listFn({ data: { q: q || undefined, scope } }),
+    queryKey: ["ad-products", scope, q, brand],
+    queryFn: () => listFn({ data: { q: q || undefined, brand: brand || undefined, scope } }),
     staleTime: 60_000,
   });
 
@@ -232,11 +241,14 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
   const exportCsv = () => {
     if (!selected) return;
     const rows: (string | number | null)[][] = [
-      ["Product", "Asset Code", "ชื่อป้าย", "Media Type", "แผนก", "เขต", "ทำเล", "สถานะสัญญา", "เริ่มสัญญา", "สิ้นสุดสัญญา", "ติดตั้งจริง", "Lat", "Lng"],
+      ["Brand", "Brand (EN)", "Package", "Product", "Asset Code", "ชื่อป้าย", "Media Type", "แผนก", "เขต", "ทำเล", "สถานะสัญญา", "เริ่มสัญญา", "สิ้นสุดสัญญา", "ติดตั้งจริง", "Lat", "Lng"],
     ];
     for (const a of assets) {
       const c = rowsByCode.get(a.old_code);
       rows.push([
+        c?.brand ?? null,
+        c?.brand_eng ?? null,
+        c?.package_name ?? null,
         selected,
         a.old_code,
         a.name,
@@ -317,6 +329,32 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
               className="pl-9"
             />
           </div>
+          <select
+            value={brand}
+            onChange={(e) => {
+              setBrand(e.target.value);
+              setSelected(null);
+            }}
+            className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+            title="กรองตามแบรนด์"
+          >
+            <option value="">แบรนด์ทั้งหมด</option>
+            {(brands ?? []).map((b) => (
+              <option key={b.brand} value={b.brand}>
+                {b.brand}
+                {b.brandEng ? ` (${b.brandEng})` : ""} · {b.assetCount} ป้าย
+              </option>
+            ))}
+          </select>
+          {brand && (
+            <button
+              type="button"
+              onClick={() => setBrand("")}
+              className="text-xs text-muted-foreground underline"
+            >
+              ล้างตัวกรองแบรนด์
+            </button>
+          )}
           <div className="max-h-[520px] overflow-auto -mx-2">
             {isLoading ? (
               <div className="space-y-2 px-2">
@@ -343,6 +381,12 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
                         <span className="truncate text-sm font-medium">{p.product}</span>
                         <Badge variant="secondary" className="shrink-0">{p.assetCount}</Badge>
                       </div>
+                      {p.brand && (
+                        <div className="text-[11px] font-medium text-primary truncate">
+                          {p.brand}
+                          {p.brandEng ? ` (${p.brandEng})` : ""}
+                        </div>
+                      )}
                       <div className="text-[11px] text-muted-foreground">
                         {fmtDate(p.firstStart)} → {fmtDate(p.lastEnd)}
                       </div>
@@ -362,6 +406,12 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
               <Megaphone className="h-4 w-4" />
               {selected ?? "เลือกชื่อโฆษณาด้านซ้าย"}
               {selected && <Badge variant="outline">{assets.length} ป้าย</Badge>}
+              {selected && placements?.contracts?.[0]?.brand && (
+                <Badge variant="secondary">
+                  {placements.contracts[0].brand}
+                  {placements.contracts[0].brand_eng ? ` (${placements.contracts[0].brand_eng})` : ""}
+                </Badge>
+              )}
             </CardTitle>
             {selected && (
               <div className="flex flex-wrap gap-2">
@@ -396,6 +446,7 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
                 <thead className="sticky top-0 bg-card">
                   <tr className="text-left text-xs text-muted-foreground border-b">
                     <th className="py-2 pr-3">รหัสป้าย</th>
+                    <th className="py-2 pr-3">แบรนด์</th>
                     <th className="py-2 pr-3">ทำเล</th>
                     <th className="py-2 pr-3">Media</th>
                     <th className="py-2 pr-3">สถานะ</th>
@@ -410,6 +461,12 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
                     return (
                       <tr key={a.old_code} className="border-b last:border-0 hover:bg-muted/40">
                         <td className="py-2 pr-3 font-medium">{a.old_code}</td>
+                        <td className="py-2 pr-3 max-w-[180px]">
+                          <span className="block truncate font-medium">{c?.brand ?? "-"}</span>
+                          {c?.brand_eng && (
+                            <span className="block truncate text-[11px] text-muted-foreground">{c.brand_eng}</span>
+                          )}
+                        </td>
                         <td className="py-2 pr-3 max-w-[280px] truncate">{a.location ?? a.name ?? "-"}</td>
                         <td className="py-2 pr-3">{a.media_type ?? "-"}</td>
                         <td className="py-2 pr-3">
@@ -425,7 +482,7 @@ function ProductBrowser({ scope }: { scope: "current" | "all" }) {
                   })}
                   {assets.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                      <td colSpan={8} className="py-8 text-center text-muted-foreground">
                         ไม่พบป้ายที่จับคู่รหัส (asset_old_code) กับข้อมูล CRM
                       </td>
                     </tr>
@@ -492,6 +549,7 @@ function PeriodTab() {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-card">
                   <tr className="text-left text-xs text-muted-foreground border-b">
+                    <th className="py-2 pr-3">แบรนด์</th>
                     <th className="py-2 pr-3">ชื่อโฆษณา</th>
                     <th className="py-2 pr-3">จำนวนป้าย</th>
                     <th className="py-2 pr-3">สัญญา</th>
@@ -500,7 +558,13 @@ function PeriodTab() {
                 <tbody>
                   {(data?.products ?? []).map((p) => (
                     <tr key={p.product} className="border-b last:border-0 hover:bg-muted/40">
-                      <td className="py-2 pr-3 font-medium">{p.product}</td>
+                      <td className="py-2 pr-3 font-medium">
+                        {p.rows.find((r) => r.brand)?.brand ?? "-"}
+                        {p.rows.find((r) => r.brand_eng)?.brand_eng
+                          ? ` (${p.rows.find((r) => r.brand_eng)?.brand_eng})`
+                          : ""}
+                      </td>
+                      <td className="py-2 pr-3">{p.product}</td>
                       <td className="py-2 pr-3">{p.assetCount}</td>
                       <td className="py-2 pr-3">{p.rows.length}</td>
                     </tr>

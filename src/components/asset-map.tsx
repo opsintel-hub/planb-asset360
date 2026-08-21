@@ -169,7 +169,10 @@ type Props = {
   riskMode?: boolean;
   riskByCode?: Map<string, { level: "high" | "medium" | "low"; score: number }> | null;
   /** Current ad (CRM) per asset code — shown inside the pin popup. */
-  adByCode?: Map<string, { product: string | null; end: string | null; daysToEnd: number | null }> | null;
+  adByCode?: Map<
+    string,
+    { product: string | null; brand?: string | null; brandEng?: string | null; end: string | null; daysToEnd: number | null }
+  > | null;
   /** Show the "กำลังซ่อม" warning badge + legend. Off for sale/CRM. */
   showClaimStatus?: boolean;
 };
@@ -557,7 +560,10 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
               if (!ad) return adByCode ? '<span style="color:#6b7280;">โฆษณา:</span><span style="color:#6b7280;">ว่าง (ไม่มีโฆษณาขึ้น)</span>' : "";
               const d = ad.daysToEnd;
               const tone = d != null && d <= 30 ? "#b91c1c" : "#15803d";
-              return `<span style="color:#6b7280;">โฆษณา:</span><span style="font-weight:600;">${escapeHtml(ad.product ?? "—")}</span>
+              const brandLine = ad.brand
+                ? `<span style="color:#6b7280;">แบรนด์:</span><span style="font-weight:700;">${escapeHtml(ad.brand)}${ad.brandEng ? ` (${escapeHtml(ad.brandEng)})` : ""}</span>`
+                : "";
+              return `${brandLine}<span style="color:#6b7280;">โฆษณา:</span><span style="font-weight:600;">${escapeHtml(ad.product ?? "—")}</span>
                 <span style="color:#6b7280;">สิ้นสุดสัญญา:</span><span style="color:${tone};">${escapeHtml(ad.end ?? "—")}${d != null ? ` (${d} วัน)` : ""}</span>`;
             })()}
             ${warning ? '<span style="color:#b45309;grid-column:1/-1;margin-top:4px;font-weight:600;">⚠ กำลังซ่อม (มีเคลมเปิดอยู่)</span>' : ""}

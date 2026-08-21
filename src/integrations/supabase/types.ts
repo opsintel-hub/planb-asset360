@@ -18,6 +18,8 @@ export type Database = {
         Row: {
           ad_contract: string | null
           asset_old_code: string | null
+          brand: string | null
+          brand_eng: string | null
           created_at: string
           end_date_contract: string | null
           equipment_id: string | null
@@ -26,6 +28,8 @@ export type Database = {
           first_seen_at: string
           id: string
           last_seen_at: string
+          package_code: string | null
+          package_name: string | null
           payload: Json
           product_name: string | null
           source: string
@@ -37,6 +41,8 @@ export type Database = {
         Insert: {
           ad_contract?: string | null
           asset_old_code?: string | null
+          brand?: string | null
+          brand_eng?: string | null
           created_at?: string
           end_date_contract?: string | null
           equipment_id?: string | null
@@ -45,6 +51,8 @@ export type Database = {
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          package_code?: string | null
+          package_name?: string | null
           payload?: Json
           product_name?: string | null
           source?: string
@@ -56,6 +64,8 @@ export type Database = {
         Update: {
           ad_contract?: string | null
           asset_old_code?: string | null
+          brand?: string | null
+          brand_eng?: string | null
           created_at?: string
           end_date_contract?: string | null
           equipment_id?: string | null
@@ -64,6 +74,8 @@ export type Database = {
           first_seen_at?: string
           id?: string
           last_seen_at?: string
+          package_code?: string | null
+          package_name?: string | null
           payload?: Json
           product_name?: string | null
           source?: string
@@ -1010,11 +1022,15 @@ export type Database = {
         Row: {
           ad_contract: string | null
           asset_old_code: string | null
+          brand: string | null
+          brand_eng: string | null
           days_to_end: number | null
           end_date_contract: string | null
           equipment_id: string | null
           favor_end_date_contract: string | null
           favor_start_date_contract: string | null
+          package_code: string | null
+          package_name: string | null
           product_name: string | null
           start_date_contract: string | null
           status: string | null

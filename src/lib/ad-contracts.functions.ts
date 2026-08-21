@@ -6,6 +6,10 @@ export type AdRow = {
   id: string;
   asset_old_code: string | null;
   product_name: string | null;
+  brand: string | null;
+  brand_eng: string | null;
+  package_name: string | null;
+  package_code: string | null;
   ad_contract: string | null;
   equipment_id: string | null;
   status: string | null;
@@ -133,6 +137,7 @@ export const listAdProducts = createServerFn({ method: "GET" })
     z
       .object({
         q: z.string().max(200).optional(),
+        brand: z.string().max(200).optional(),
         scope: z.enum(["current", "all"]).optional(),
       })
       .parse(i ?? {}),
@@ -140,31 +145,50 @@ export const listAdProducts = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     let query = context.supabase
       .from("ad_contracts")
-      .select("product_name, asset_old_code, status, start_date_contract, end_date_contract")
+      .select("product_name, brand, brand_eng, asset_old_code, status, start_date_contract, end_date_contract")
       .not("product_name", "is", null)
       .limit(20000);
     if ((data.scope ?? "current") === "current") query = query.eq("status", "current");
-    if (data.q && data.q.trim()) query = query.ilike("product_name", `%${data.q.trim()}%`);
+    if (data.brand && data.brand.trim()) query = query.eq("brand", data.brand.trim());
+    if (data.q && data.q.trim()) {
+      const t = data.q.trim().replace(/[,()]/g, " ");
+      query = query.or(`product_name.ilike.%${t}%,brand.ilike.%${t}%,brand_eng.ilike.%${t}%`);
+    }
     const { data: rows, error } = await query;
     if (error) throw new Error(error.message);
 
-    const map = new Map<string, { product: string; assets: Set<string>; start: string | null; end: string | null }>();
+    const map = new Map<
+      string,
+      { product: string; brand: string | null; brandEng: string | null; assets: Set<string>; start: string | null; end: string | null }
+    >();
     for (const r of (rows ?? []) as Array<{
       product_name: string | null;
+      brand: string | null;
+      brand_eng: string | null;
       asset_old_code: string | null;
       start_date_contract: string | null;
       end_date_contract: string | null;
     }>) {
       const key = r.product_name ?? "";
       if (!key) continue;
-      const cur = map.get(key) ?? { product: key, assets: new Set<string>(), start: null, end: null };
+      const cur =
+        map.get(key) ?? { product: key, brand: null, brandEng: null, assets: new Set<string>(), start: null, end: null };
+      if (!cur.brand && r.brand) cur.brand = r.brand;
+      if (!cur.brandEng && r.brand_eng) cur.brandEng = r.brand_eng;
       if (r.asset_old_code) cur.assets.add(r.asset_old_code);
       if (r.start_date_contract && (!cur.start || r.start_date_contract < cur.start)) cur.start = r.start_date_contract;
       if (r.end_date_contract && (!cur.end || r.end_date_contract > cur.end)) cur.end = r.end_date_contract;
       map.set(key, cur);
     }
     return Array.from(map.values())
-      .map((v) => ({ product: v.product, assetCount: v.assets.size, firstStart: v.start, lastEnd: v.end }))
+      .map((v) => ({
+        product: v.product,
+        brand: v.brand,
+        brandEng: v.brandEng,
+        assetCount: v.assets.size,
+        firstStart: v.start,
+        lastEnd: v.end,
+      }))
       .sort((a, b) => b.assetCount - a.assetCount || a.product.localeCompare(b.product));
   });
 
@@ -183,7 +207,7 @@ export const getAdPlacements = createServerFn({ method: "GET" })
     let q = context.supabase
       .from("ad_contracts")
       .select(
-        "id, asset_old_code, product_name, ad_contract, equipment_id, status, start_date_contract, end_date_contract, favor_start_date_contract, favor_end_date_contract",
+        "id, asset_old_code, product_name, brand, brand_eng, package_name, package_code, ad_contract, equipment_id, status, start_date_contract, end_date_contract, favor_start_date_contract, favor_end_date_contract",
       )
       .eq("product_name", data.product)
       .limit(5000);
@@ -216,7 +240,7 @@ export const getAssetAdHistory = createServerFn({ method: "GET" })
     const { data: rows, error } = await context.supabase
       .from("ad_contracts")
       .select(
-        "id, asset_old_code, product_name, ad_contract, equipment_id, status, start_date_contract, end_date_contract, favor_start_date_contract, favor_end_date_contract",
+        "id, asset_old_code, product_name, brand, brand_eng, package_name, package_code, ad_contract, equipment_id, status, start_date_contract, end_date_contract, favor_start_date_contract, favor_end_date_contract",
       )
       .eq("asset_old_code", data.oldCode)
       .order("start_date_contract", { ascending: false, nullsFirst: false })
@@ -240,22 +264,35 @@ export const getCurrentAdsByCodes = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ codes: z.array(z.string().max(120)).max(3000) }).parse(i))
   .handler(async ({ data, context }) => {
     const codes = Array.from(new Set(data.codes.filter(Boolean)));
-    const out: Record<string, { product_name: string | null; end_date_contract: string | null; days_to_end: number | null }> = {};
+    const out: Record<
+      string,
+      {
+        product_name: string | null;
+        brand: string | null;
+        brand_eng: string | null;
+        end_date_contract: string | null;
+        days_to_end: number | null;
+      }
+    > = {};
     const chunk = 300;
     for (let i = 0; i < codes.length; i += chunk) {
       const { data: rows } = await context.supabase
         .from("ad_current_by_asset")
-        .select("asset_old_code, product_name, end_date_contract, days_to_end")
+        .select("asset_old_code, product_name, brand, brand_eng, end_date_contract, days_to_end")
         .in("asset_old_code", codes.slice(i, i + chunk));
       for (const r of (rows ?? []) as Array<{
         asset_old_code: string | null;
         product_name: string | null;
+        brand: string | null;
+        brand_eng: string | null;
         end_date_contract: string | null;
         days_to_end: number | null;
       }>) {
         if (r.asset_old_code)
           out[r.asset_old_code] = {
             product_name: r.product_name,
+            brand: r.brand,
+            brand_eng: r.brand_eng,
             end_date_contract: r.end_date_contract,
             days_to_end: r.days_to_end,
           };
@@ -280,7 +317,7 @@ export const getAdsInPeriod = createServerFn({ method: "GET" })
     const { data: rows, error } = await context.supabase
       .from("ad_contracts")
       .select(
-        "id, asset_old_code, product_name, ad_contract, equipment_id, status, start_date_contract, end_date_contract, favor_start_date_contract, favor_end_date_contract",
+        "id, asset_old_code, product_name, brand, brand_eng, package_name, package_code, ad_contract, equipment_id, status, start_date_contract, end_date_contract, favor_start_date_contract, favor_end_date_contract",
       )
       .lte("start_date_contract", data.to)
       .or(`end_date_contract.is.null,end_date_contract.gte.${data.from}`)
@@ -351,24 +388,31 @@ export const getVacantAssets = createServerFn({ method: "GET" })
 export const getAllCurrentAds = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const out: Record<string, { product: string | null; end: string | null; daysToEnd: number | null }> = {};
+    const out: Record<
+      string,
+      { product: string | null; brand: string | null; brandEng: string | null; end: string | null; daysToEnd: number | null }
+    > = {};
     const pageSize = 1000;
     for (let from = 0; ; from += pageSize) {
       const { data, error } = await context.supabase
         .from("ad_current_by_asset")
-        .select("asset_old_code, product_name, end_date_contract, days_to_end")
+        .select("asset_old_code, product_name, brand, brand_eng, end_date_contract, days_to_end")
         .range(from, from + pageSize - 1);
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) break;
       for (const r of data as Array<{
         asset_old_code: string | null;
         product_name: string | null;
+        brand: string | null;
+        brand_eng: string | null;
         end_date_contract: string | null;
         days_to_end: number | null;
       }>) {
         if (r.asset_old_code)
           out[r.asset_old_code] = {
             product: r.product_name,
+            brand: r.brand,
+            brandEng: r.brand_eng,
             end: r.end_date_contract,
             daysToEnd: r.days_to_end,
           };
@@ -376,4 +420,38 @@ export const getAllCurrentAds = createServerFn({ method: "GET" })
       if (data.length < pageSize) break;
     }
     return out;
+  });
+
+/** Distinct brands (Thai + English) for the brand filter dropdowns. */
+export const listAdBrands = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) => z.object({ scope: z.enum(["current", "all"]).optional() }).parse(i ?? {}))
+  .handler(async ({ data, context }) => {
+    let q = context.supabase
+      .from("ad_contracts")
+      .select("brand, brand_eng, asset_old_code, product_name")
+      .not("brand", "is", null)
+      .limit(20000);
+    if ((data.scope ?? "current") === "current") q = q.eq("status", "current");
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+
+    const map = new Map<string, { brand: string; brandEng: string | null; assets: Set<string>; products: Set<string> }>();
+    for (const r of (rows ?? []) as Array<{
+      brand: string | null;
+      brand_eng: string | null;
+      asset_old_code: string | null;
+      product_name: string | null;
+    }>) {
+      const key = r.brand?.trim();
+      if (!key) continue;
+      const cur = map.get(key) ?? { brand: key, brandEng: null, assets: new Set<string>(), products: new Set<string>() };
+      if (!cur.brandEng && r.brand_eng) cur.brandEng = r.brand_eng;
+      if (r.asset_old_code) cur.assets.add(r.asset_old_code);
+      if (r.product_name) cur.products.add(r.product_name);
+      map.set(key, cur);
+    }
+    return Array.from(map.values())
+      .map((v) => ({ brand: v.brand, brandEng: v.brandEng, assetCount: v.assets.size, adCount: v.products.size }))
+      .sort((a, b) => b.assetCount - a.assetCount || a.brand.localeCompare(b.brand, "th"));
   });

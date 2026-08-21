@@ -91,6 +91,7 @@ function ClaimsPage() {
   const [fOldCode, setFOldCode] = useState<string>("all");
   const [qTicket, setQTicket] = useState<string>("");
   const [fRisk, setFRisk] = useState<boolean>(false);
+  const [fBrand, setFBrand] = useState<string>("all");
   const { canSeeMaintenance } = useMyRoles();
   const { map: riskMap, counts: riskCounts } = useAssetRiskMap(canSeeMaintenance);
 
@@ -148,6 +149,10 @@ function ClaimsPage() {
       if (fOldCode !== "all" && (c.asset_old_code ?? "") !== fOldCode) return false;
       if (q && !(c.ticket_code ?? "").toLowerCase().includes(q)) return false;
       if (fRisk && riskMap.get(c.asset_old_code ?? "")?.level !== "high") return false;
+      if (fBrand !== "all") {
+        const ad = adByCode?.[c.asset_old_code ?? ""];
+        if ((ad?.brand ?? "") !== fBrand) return false;
+      }
       return true;
     });
     // Count by asset_old_code to detect duplicate tickets on the same asset
@@ -179,7 +184,14 @@ function ClaimsPage() {
         return ageOf(b) - ageOf(a);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allClaims, fProject, fDept, fSla, fOldCode, qTicket, fRisk, riskMap]);
+  }, [allClaims, fProject, fDept, fSla, fOldCode, qTicket, fRisk, riskMap, fBrand, adByCode]);
+
+  // Brand options come from the CRM ads currently live on the claimed assets.
+  const brandOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const v of Object.values(adByCode ?? {})) if (v.brand) set.add(v.brand);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "th"));
+  }, [adByCode]);
 
   const breached = claims.filter((c) => c.sla_status === "breached").length;
   const onTrack = claims.filter((c) => c.sla_status === "ontrack").length;
@@ -259,6 +271,9 @@ function ClaimsPage() {
           options={["ontrack", "atrisk", "breached"]}
         />
         <FilterSelect label="Old Code" value={fOldCode} onChange={setFOldCode} options={oldCodes} />
+        {brandOptions.length > 0 && (
+          <FilterSelect label="แบรนด์ (CRM)" value={fBrand} onChange={setFBrand} options={brandOptions} />
+        )}
         {canSeeMaintenance && (
         <button
           type="button"
@@ -276,9 +291,9 @@ function ClaimsPage() {
           {riskCounts?.high ? <span className="tabular-nums">({riskCounts.high})</span> : null}
         </button>
         )}
-        {(fRisk || fProject !== "all" || fDept !== "all" || fSla !== "all" || fOldCode !== "all" || qTicket !== "") && (
+        {(fRisk || fProject !== "all" || fDept !== "all" || fSla !== "all" || fOldCode !== "all" || fBrand !== "all" || qTicket !== "") && (
           <button
-            onClick={() => { setFProject("all"); setFDept("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); setFRisk(false); }}
+            onClick={() => { setFProject("all"); setFDept("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); setFRisk(false); setFBrand("all"); }}
             className="text-xs px-3 py-2 rounded-md border hover:bg-accent"
           >
             ล้างตัวกรอง
@@ -348,7 +363,15 @@ function ClaimsPage() {
                           const d = ad.days_to_end;
                           return (
                             <span className="inline-flex flex-col leading-tight">
-                              <span className="truncate max-w-[180px]">{ad.product_name}</span>
+                              <span className="truncate max-w-[180px] font-medium">
+                                {ad.brand ?? ad.product_name}
+                                {ad.brand_eng ? ` (${ad.brand_eng})` : ""}
+                              </span>
+                              {ad.brand && ad.product_name && (
+                                <span className="truncate max-w-[180px] text-[11px] text-muted-foreground">
+                                  {ad.product_name}
+                                </span>
+                              )}
                               <span
                                 className={
                                   "text-[11px] " +

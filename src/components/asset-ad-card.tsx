@@ -48,8 +48,25 @@ export function AssetAdCard({ code }: { code: string | null | undefined }) {
         <p className="text-sm text-muted-foreground">ช่วงนี้ยังไม่มีโฆษณาขึ้นบนป้ายนี้</p>
       ) : (
         <div className="rounded-lg border p-3 bg-muted/30">
-          <div className="font-semibold">{current.product_name ?? "—"}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold">{current.brand ?? current.product_name ?? "—"}</span>
+            {current.brand_eng && (
+              <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {current.brand_eng}
+              </span>
+            )}
+          </div>
           <div className="mt-1 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <span className="text-muted-foreground">ชื่อโฆษณา: </span>
+              {current.product_name ?? "—"}
+            </div>
+            {current.package_name && (
+              <div>
+                <span className="text-muted-foreground">แพ็กเกจ: </span>
+                {current.package_name}
+              </div>
+            )}
             <div>
               <span className="text-muted-foreground">สัญญา: </span>
               {current.ad_contract ?? "—"}
@@ -79,7 +96,9 @@ export function AssetAdCard({ code }: { code: string | null | undefined }) {
           <ul className="text-sm space-y-1">
             {history.map((h) => (
               <li key={h.id} className="flex flex-wrap gap-x-2 text-muted-foreground">
-                <span className="text-foreground">{h.product_name ?? "—"}</span>
+                <span className="text-foreground">{h.brand ?? h.product_name ?? "—"}</span>
+                {h.brand_eng && <span className="text-xs">({h.brand_eng})</span>}
+                {h.brand && h.product_name && <span className="text-xs">· {h.product_name}</span>}
                 <span>
                   {fmt(h.start_date_contract)} → {fmt(h.end_date_contract)}
                 </span>

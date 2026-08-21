@@ -363,6 +363,14 @@ function RouteMonitoringPage() {
 
 
 
+  /**
+   * Photo mode — a set of asset codes handed over from Ad Campaigns
+   * ("โฆษณาขึ้นใหม่ → สร้างแผนถ่ายรูป"). While active, planning is limited
+   * to those assets so the photo team gets its own route plan.
+   */
+  const [photoJob, setPhotoJob] = useState<{ codes: string[]; label: string } | null>(null);
+  const photoCodes = useMemo(() => new Set(photoJob?.codes ?? []), [photoJob]);
+
   const [fProjects, setFProjects] = useState<string[]>([]);
   const [fMedias, setFMedias] = useState<string[]>([]);
   const [fRegions, setFRegions] = useState<RegionKey[]>([]);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { RefreshCw, Server, Info, Copy } from "lucide-react";
+import { RefreshCw, Server, Info } from "lucide-react";
 import { toast } from "sonner";
 import { getAppSettings } from "@/lib/data.functions";
 import { updateAppSetting } from "@/lib/admin.functions";
@@ -14,9 +14,6 @@ type CrmConn = {
   username?: string;
   view?: string;
 };
-
-const PUSH_ENDPOINT =
-  "https://project--6d2903c3-530f-4343-83c9-b9ada7a70d18.lovable.app/api/public/hooks/sync-ad-contracts";
 
 export function CrmDbSection() {
   const qc = useQueryClient();

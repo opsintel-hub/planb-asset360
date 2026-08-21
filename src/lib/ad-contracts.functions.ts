@@ -114,11 +114,27 @@ export const getAdSummary = createServerFn({ method: "GET" })
       ),
     ]);
 
+    // CRM holds codes that do not exist in our asset table, so only count
+    // matched codes as "occupied" — otherwise occupied can exceed totalAssets.
+    const assetCodes = new Set(
+      (
+        await fetchAllPaged<{ old_code: string | null }>((from, to) =>
+          context.supabase.from("assets").select("old_code").range(from, to),
+        )
+      )
+        .map((r) => r.old_code)
+        .filter(Boolean) as string[],
+    );
+
     const occupied = new Set<string>();
     const products = new Set<string>();
     const brands = new Set<string>();
+    let unmatched = 0;
     for (const r of distinctRows) {
-      if (r.asset_old_code) occupied.add(r.asset_old_code);
+      if (r.asset_old_code) {
+        if (assetCodes.has(r.asset_old_code)) occupied.add(r.asset_old_code);
+        else unmatched += 1;
+      }
       if (r.product_name) products.add(r.product_name);
       if (r.brand) brands.add(r.brand);
     }
@@ -131,6 +147,7 @@ export const getAdSummary = createServerFn({ method: "GET" })
       vacantAssets: Math.max(0, (totalAssets ?? 0) - occupied.size),
       activeProducts: products.size,
       activeBrands: brands.size,
+      crmUnmatchedAssets: unmatched,
       lastSyncedAt: null as string | null,
     };
   });

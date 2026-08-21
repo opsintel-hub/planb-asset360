@@ -74,7 +74,7 @@ function naturalKey(r: AdContractRow) {
 
 function friendlyError(message: string, host: string) {
   if (/ETIMEDOUT|ETIMEOUT|timeout|ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|ENOTFOUND|getaddrinfo|not implemented/i.test(message)) {
-    return `เชื่อมต่อ CRM Server ไม่สำเร็จ: ${host} — ต้องเป็น host ที่เข้าถึงได้จากอินเทอร์เน็ตและเปิดพอร์ตให้ Lovable Cloud (IP ภายในเช่น 172.24.x.x เชื่อมต่อจากภายนอกไม่ได้). ระหว่างนี้ให้ทีม IT ส่งข้อมูลเข้ามาทาง Push Endpoint ได้`;
+    return `เชื่อมต่อ CRM Server ไม่สำเร็จ: ${host} — พอร์ต MySQL ยังไม่เปิดให้เข้าถึงจากภายนอก (ถูก firewall กรอง). ให้ทีม IT เปิด inbound TCP ที่พอร์ตดังกล่าวสำหรับ Cloudflare IP ranges (https://www.cloudflare.com/ips/) และอนุญาต MySQL user ให้ล็อกอินจาก host ภายนอก ('useroperation'@'%'). ระหว่างนี้ใช้ Push Endpoint ส่งข้อมูลเข้ามาได้`;
   }
   if (/Access denied|authentication/i.test(message)) return "เข้าสู่ระบบ CRM ไม่สำเร็จ: ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";
   if (/Unknown database/i.test(message)) return "ไม่พบฐานข้อมูล: ตรวจสอบชื่อ database";

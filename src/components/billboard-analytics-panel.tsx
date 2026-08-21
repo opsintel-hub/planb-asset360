@@ -307,7 +307,12 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
               <span className="truncate">{asset.location ?? "—"}</span>
               <span className="text-muted-foreground">Status:</span>
               <span className="truncate">{asset.status ?? "—"}</span>
+              <span className="text-muted-foreground">ชื่อโฆษณา (ไทย):</span>
+              <span className="truncate">{currentAd?.brand ?? "—"}</span>
+              <span className="text-muted-foreground">ชื่อโฆษณา (EN):</span>
+              <span className="truncate">{currentAd?.brand_eng ?? "—"}</span>
             </div>
+
             {asset.old_code && (
               <a
                 href={`/search?q=${encodeURIComponent(asset.old_code)}`}

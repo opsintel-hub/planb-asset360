@@ -130,7 +130,6 @@ function ClaimsPage() {
     const q = qTicket.trim().toLowerCase();
     const filtered = allClaims.filter((c) => {
       if (!inProject(c.department)) return false;
-      if (fDept !== "all" && (c.department ?? "") !== fDept) return false;
       if (fSla !== "all" && (c.sla_status ?? "") !== fSla) return false;
       if (fOldCode !== "all" && (c.asset_old_code ?? "") !== fOldCode) return false;
       if (q && !(c.ticket_code ?? "").toLowerCase().includes(q)) return false;

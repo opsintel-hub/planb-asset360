@@ -109,8 +109,12 @@ export const getAdSummary = createServerFn({ method: "GET" })
         .eq("status", "current")
         .gte("end_date_contract", today)
         .lte("end_date_contract", in30),
-      fetchAllPaged<{ asset_old_code: string | null; product_name: string | null; brand: string | null }>((from, to) =>
-        context.supabase.from("ad_current_by_asset").select("asset_old_code, product_name, brand").range(from, to),
+      fetchAllPaged<{ asset_old_code: string | null; ad_contract: string | null; brand: string | null }>((from, to) =>
+        context.supabase
+          .from("ad_contracts")
+          .select("asset_old_code, ad_contract, brand")
+          .eq("status", "current")
+          .range(from, to),
       ),
     ]);
 
@@ -135,7 +139,7 @@ export const getAdSummary = createServerFn({ method: "GET" })
         if (assetCodes.has(r.asset_old_code)) occupied.add(r.asset_old_code);
         else unmatched += 1;
       }
-      if (r.product_name) products.add(r.product_name);
+      if (r.ad_contract) products.add(r.ad_contract);
       if (r.brand) brands.add(r.brand);
     }
 
@@ -145,6 +149,7 @@ export const getAdSummary = createServerFn({ method: "GET" })
       expiring30: expiring ?? 0,
       occupiedAssets: occupied.size,
       vacantAssets: Math.max(0, (totalAssets ?? 0) - occupied.size),
+      activeContracts: products.size,
       activeProducts: products.size,
       activeBrands: brands.size,
       crmUnmatchedAssets: unmatched,
@@ -166,7 +171,8 @@ export const listAdProducts = createServerFn({ method: "GET" })
   )
   .handler(async ({ data, context }) => {
     const rows = await fetchAllPaged<{
-      product_name: string | null;
+      ad_contract: string | null;
+      package_name: string | null;
       brand: string | null;
       brand_eng: string | null;
       asset_old_code: string | null;
@@ -175,27 +181,39 @@ export const listAdProducts = createServerFn({ method: "GET" })
     }>((from, to) => {
       let query = context.supabase
         .from("ad_contracts")
-        .select("product_name, brand, brand_eng, asset_old_code, status, start_date_contract, end_date_contract")
-        .not("product_name", "is", null)
+        .select("ad_contract, package_name, brand, brand_eng, asset_old_code, status, start_date_contract, end_date_contract")
+        .not("ad_contract", "is", null)
         .range(from, to);
       if ((data.scope ?? "current") === "current") query = query.eq("status", "current");
       if (data.brand && data.brand.trim()) query = query.eq("brand", data.brand.trim());
       if (data.q && data.q.trim()) {
         const t = data.q.trim().replace(/[,()]/g, " ");
-        query = query.or(`product_name.ilike.%${t}%,brand.ilike.%${t}%,brand_eng.ilike.%${t}%`);
+        query = query.or(
+          `ad_contract.ilike.%${t}%,package_name.ilike.%${t}%,brand.ilike.%${t}%,brand_eng.ilike.%${t}%`,
+        );
       }
       return query;
     });
 
     const map = new Map<
       string,
-      { product: string; brand: string | null; brandEng: string | null; assets: Set<string>; start: string | null; end: string | null }
+      {
+        product: string;
+        brand: string | null;
+        brandEng: string | null;
+        packageName: string | null;
+        assets: Set<string>;
+        start: string | null;
+        end: string | null;
+      }
     >();
     for (const r of rows) {
-      const key = r.product_name ?? "";
+      const key = r.ad_contract ?? "";
       if (!key) continue;
       const cur =
-        map.get(key) ?? { product: key, brand: null, brandEng: null, assets: new Set<string>(), start: null, end: null };
+        map.get(key) ??
+        { product: key, brand: null, brandEng: null, packageName: null, assets: new Set<string>(), start: null, end: null };
+      if (!cur.packageName && r.package_name) cur.packageName = r.package_name;
       if (!cur.brand && r.brand) cur.brand = r.brand;
       if (!cur.brandEng && r.brand_eng) cur.brandEng = r.brand_eng;
       if (r.asset_old_code) cur.assets.add(r.asset_old_code);
@@ -208,6 +226,7 @@ export const listAdProducts = createServerFn({ method: "GET" })
         product: v.product,
         brand: v.brand,
         brandEng: v.brandEng,
+        packageName: v.packageName,
         assetCount: v.assets.size,
         firstStart: v.start,
         lastEnd: v.end,
@@ -234,7 +253,7 @@ export const getAdPlacements = createServerFn({ method: "GET" })
         .select(
           "id, asset_old_code, product_name, brand, brand_eng, package_name, package_code, ad_contract, equipment_id, status, start_date_contract, end_date_contract, favor_start_date_contract, favor_end_date_contract",
         )
-        .eq("product_name", data.product)
+        .eq("ad_contract", data.product)
         .range(from, to);
       if (scope === "current") q = q.eq("status", "current");
       if (scope === "history") q = q.neq("status", "current");
@@ -348,7 +367,7 @@ export const getAdsInPeriod = createServerFn({ method: "GET" })
     );
     const byProduct = new Map<string, { product: string; assets: Set<string>; rows: AdRow[] }>();
     for (const r of list) {
-      const key = r.product_name ?? "(ไม่ระบุชื่อโฆษณา)";
+      const key = r.ad_contract ?? "(ไม่ระบุเลขสัญญา)";
       const cur = byProduct.get(key) ?? { product: key, assets: new Set<string>(), rows: [] };
       if (r.asset_old_code) cur.assets.add(r.asset_old_code);
       cur.rows.push(r);
@@ -448,11 +467,11 @@ export const listAdBrands = createServerFn({ method: "GET" })
       brand: string | null;
       brand_eng: string | null;
       asset_old_code: string | null;
-      product_name: string | null;
+      ad_contract: string | null;
     }>((from, to) => {
       let q = context.supabase
         .from("ad_contracts")
-        .select("brand, brand_eng, asset_old_code, product_name")
+        .select("brand, brand_eng, asset_old_code, ad_contract")
         .not("brand", "is", null)
         .range(from, to);
       if ((data.scope ?? "current") === "current") q = q.eq("status", "current");
@@ -466,7 +485,7 @@ export const listAdBrands = createServerFn({ method: "GET" })
       const cur = map.get(key) ?? { brand: key, brandEng: null, assets: new Set<string>(), products: new Set<string>() };
       if (!cur.brandEng && r.brand_eng) cur.brandEng = r.brand_eng;
       if (r.asset_old_code) cur.assets.add(r.asset_old_code);
-      if (r.product_name) cur.products.add(r.product_name);
+      if (r.ad_contract) cur.products.add(r.ad_contract);
       map.set(key, cur);
     }
     return Array.from(map.values())

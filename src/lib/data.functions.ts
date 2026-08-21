@@ -817,3 +817,13 @@ export const listDiagramMappings = createServerFn({ method: "GET" })
       .order("category", { ascending: true });
     return { mappings: data ?? [] };
   });
+
+// ---------- Open claim count (sidebar badge) ----------
+export const countOpenClaims = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { count } = await context.supabase
+      .from("claim_tickets")
+      .select("ref_number", { count: "exact", head: true });
+    return { count: count ?? 0 };
+  });

@@ -107,7 +107,7 @@ export async function readCrmConn(): Promise<Required<CrmDbConn>> {
     .maybeSingle();
   const conn = (data?.value ?? {}) as CrmDbConn;
   return {
-    host: (conn.host ?? "172.24.100.57").trim(),
+    host: (conn.host ?? "117.121.218.84").trim(),
     port: conn.port ? Number(conn.port) : 3306,
     database: (conn.database ?? "sugarcrm_prod").trim(),
     username: (conn.username ?? "useroperation").trim(),

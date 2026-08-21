@@ -115,12 +115,48 @@ export async function readCrmConn(): Promise<Required<CrmDbConn>> {
   };
 }
 
+/**
+ * CRM `old_code` only matches ~13% of our assets, but `equipment_id` matches a
+ * much larger share. Fill in / correct `asset_old_code` from the asset whose
+ * payload EquipmentID equals the CRM equipment_id so every menu can join on
+ * `asset_old_code` as designed.
+ */
+async function resolveAssetCodes(rows: AdContractRow[]): Promise<void> {
+  const byEquipment = new Map<string, string>();
+  const knownCodes = new Set<string>();
+  const page = 1000;
+  for (let from = 0; ; from += page) {
+    const { data, error } = await supabaseAdmin
+      .from("assets")
+      .select("old_code, payload")
+      .range(from, from + page - 1);
+    if (error) throw new Error(error.message);
+    const list = (data ?? []) as Array<{ old_code: string | null; payload: Record<string, unknown> | null }>;
+    for (const a of list) {
+      if (!a.old_code) continue;
+      knownCodes.add(a.old_code);
+      const eq = a.payload?.["EquipmentID"];
+      if (typeof eq === "string" && eq.trim()) byEquipment.set(eq.trim(), a.old_code);
+    }
+    if (list.length < page) break;
+  }
+
+  for (const r of rows) {
+    const matched = r.asset_old_code && knownCodes.has(r.asset_old_code);
+    if (matched) continue;
+    const viaEq = r.equipment_id ? byEquipment.get(r.equipment_id.trim()) : undefined;
+    if (viaEq) r.asset_old_code = viaEq;
+  }
+}
+
 /** Upsert a batch of mapped rows, then archive rows that vanished upstream. */
 export async function persistAdContracts(
   rows: AdContractRow[],
   syncedAt: string,
   archiveMissing: boolean,
 ): Promise<number> {
+  await resolveAssetCodes(rows);
+
   const byKey = new Map<string, AdContractRow>();
   for (const r of rows) byKey.set(naturalKey(r), r);
   const unique = Array.from(byKey.values());

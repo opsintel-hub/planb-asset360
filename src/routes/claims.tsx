@@ -206,26 +206,19 @@ function ClaimsPage() {
 
       {deptCounts.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {deptCounts.map(([dept, count]) => {
-            const active = fDept === dept;
-            return (
-              <button
-                key={dept}
-                onClick={() => setFDept(active ? "all" : dept)}
-                className={
-                  "text-left rounded-xl border bg-card p-4 shadow-[var(--shadow-card)] transition hover:border-primary/50 " +
-                  (active ? "border-primary ring-1 ring-primary" : "")
-                }
-              >
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Building2 className="size-3.5" />
-                  <span className="truncate">{dept}</span>
-                </div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums">{count}</div>
-                <div className="text-[11px] text-muted-foreground">ตั๋วที่ยังไม่ปิด</div>
-              </button>
-            );
-          })}
+          {deptCounts.map(([dept, count]) => (
+            <div
+              key={dept}
+              className="text-left rounded-xl border bg-card p-4 shadow-[var(--shadow-card)]"
+            >
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Building2 className="size-3.5" />
+                <span className="truncate">{dept}</span>
+              </div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums">{count}</div>
+              <div className="text-[11px] text-muted-foreground">ตั๋วที่ยังไม่ปิด</div>
+            </div>
+          ))}
         </div>
       )}
 

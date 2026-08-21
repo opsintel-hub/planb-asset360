@@ -309,6 +309,8 @@ export const getCurrentAdsByCodes = createServerFn({ method: "POST" })
       string,
       {
         product_name: string | null;
+        ad_contract: string | null;
+        package_name: string | null;
         brand: string | null;
         brand_eng: string | null;
         end_date_contract: string | null;
@@ -319,11 +321,13 @@ export const getCurrentAdsByCodes = createServerFn({ method: "POST" })
     for (let i = 0; i < codes.length; i += chunk) {
       const { data: rows } = await context.supabase
         .from("ad_current_by_asset")
-        .select("asset_old_code, product_name, brand, brand_eng, end_date_contract, days_to_end")
+        .select("asset_old_code, product_name, ad_contract, package_name, brand, brand_eng, end_date_contract, days_to_end")
         .in("asset_old_code", codes.slice(i, i + chunk));
       for (const r of (rows ?? []) as Array<{
         asset_old_code: string | null;
         product_name: string | null;
+        ad_contract: string | null;
+        package_name: string | null;
         brand: string | null;
         brand_eng: string | null;
         end_date_contract: string | null;
@@ -332,6 +336,8 @@ export const getCurrentAdsByCodes = createServerFn({ method: "POST" })
         if (r.asset_old_code)
           out[r.asset_old_code] = {
             product_name: r.product_name,
+            ad_contract: r.ad_contract,
+            package_name: r.package_name,
             brand: r.brand,
             brand_eng: r.brand_eng,
             end_date_contract: r.end_date_contract,
@@ -426,19 +432,29 @@ export const getAllCurrentAds = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const out: Record<
       string,
-      { product: string | null; brand: string | null; brandEng: string | null; end: string | null; daysToEnd: number | null }
+      {
+        product: string | null;
+        contract: string | null;
+        packageName: string | null;
+        brand: string | null;
+        brandEng: string | null;
+        end: string | null;
+        daysToEnd: number | null;
+      }
     > = {};
     const pageSize = 1000;
     for (let from = 0; ; from += pageSize) {
       const { data, error } = await context.supabase
         .from("ad_current_by_asset")
-        .select("asset_old_code, product_name, brand, brand_eng, end_date_contract, days_to_end")
+        .select("asset_old_code, product_name, ad_contract, package_name, brand, brand_eng, end_date_contract, days_to_end")
         .range(from, from + pageSize - 1);
       if (error) throw new Error(error.message);
       if (!data || data.length === 0) break;
       for (const r of data as Array<{
         asset_old_code: string | null;
         product_name: string | null;
+        ad_contract: string | null;
+        package_name: string | null;
         brand: string | null;
         brand_eng: string | null;
         end_date_contract: string | null;
@@ -447,6 +463,8 @@ export const getAllCurrentAds = createServerFn({ method: "GET" })
         if (r.asset_old_code)
           out[r.asset_old_code] = {
             product: r.product_name,
+            contract: r.ad_contract,
+            packageName: r.package_name,
             brand: r.brand,
             brandEng: r.brand_eng,
             end: r.end_date_contract,

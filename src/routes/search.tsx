@@ -56,6 +56,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/search")({
+  validateSearch: (search: Record<string, unknown>): { q?: string } =>
+    typeof search.q === "string" && search.q.trim() ? { q: search.q.trim() } : {},
   head: () => ({
     meta: [
       { title: "Asset history — Asset History 360" },
@@ -321,7 +323,8 @@ function SlotCombobox({
 
 // ---------- Page ----------
 function SearchPage() {
-  const [slots, setSlots] = useState<(string | null)[]>([null]);
+  const { q: initialCode } = Route.useSearch();
+  const [slots, setSlots] = useState<(string | null)[]>(() => [initialCode ?? null]);
   const [tab, setTab] = useState<TabId>("Profile");
   const [from, setFrom] = useState(() => {
     const d = new Date();
@@ -354,6 +357,12 @@ function SearchPage() {
       /* */
     }
   }, []);
+
+  // Deep link: /search?q=CODE loads that asset automatically (also on later navigations)
+  useEffect(() => {
+    if (!initialCode) return;
+    setSlots((prev) => (prev.includes(initialCode) ? prev : [initialCode, ...prev.filter(Boolean).slice(0, 4)]));
+  }, [initialCode]);
 
   const codes = slots.filter((s): s is string => !!s);
   const fromIso = from ? new Date(from + "T00:00:00").toISOString() : undefined;

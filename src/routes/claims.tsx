@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert } from "lucide-react";
 import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/hover-card";
 import {
   PROJECT_TO_DEPARTMENTS,
-  departmentsForProjects,
   projectForDepartment,
 } from "@/lib/project-department-map";
 import { RiskChip, useAssetRiskMap } from "@/components/asset-risk";
@@ -86,7 +85,6 @@ function ClaimsPage() {
   });
 
   const [fProject, setFProject] = useState<string>("all");
-  const [fDept, setFDept] = useState<string>("all");
   const [fSla, setFSla] = useState<string>("all");
   const [fOldCode, setFOldCode] = useState<string>("all");
   const [qTicket, setQTicket] = useState<string>("");
@@ -113,18 +111,6 @@ function ClaimsPage() {
     staleTime: 5 * 60_000,
   });
 
-  // Cascade: department options depend on selected project
-  const departments = useMemo(() => {
-    if (fProject === "all") return rawDepartments;
-    const allowed = departmentsForProjects([fProject]);
-    return rawDepartments.filter((d) => allowed.has(d));
-  }, [rawDepartments, fProject]);
-
-  // Auto-clear department when it no longer belongs to the selected project
-  useEffect(() => {
-    if (fDept !== "all" && !departments.includes(fDept)) setFDept("all");
-  }, [departments, fDept]);
-
   const inProject = (dept: string | null | undefined) =>
     fProject === "all" || projectForDepartment(dept) === fProject;
 
@@ -144,7 +130,6 @@ function ClaimsPage() {
     const q = qTicket.trim().toLowerCase();
     const filtered = allClaims.filter((c) => {
       if (!inProject(c.department)) return false;
-      if (fDept !== "all" && (c.department ?? "") !== fDept) return false;
       if (fSla !== "all" && (c.sla_status ?? "") !== fSla) return false;
       if (fOldCode !== "all" && (c.asset_old_code ?? "") !== fOldCode) return false;
       if (q && !(c.ticket_code ?? "").toLowerCase().includes(q)) return false;
@@ -184,7 +169,7 @@ function ClaimsPage() {
         return ageOf(b) - ageOf(a);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allClaims, fProject, fDept, fSla, fOldCode, qTicket, fRisk, riskMap, fBrand, adByCode]);
+  }, [allClaims, fProject, fSla, fOldCode, qTicket, fRisk, riskMap, fBrand, adByCode]);
 
   // Brand options come from the CRM ads currently live on the claimed assets.
   const brandOptions = useMemo(() => {
@@ -221,26 +206,19 @@ function ClaimsPage() {
 
       {deptCounts.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {deptCounts.map(([dept, count]) => {
-            const active = fDept === dept;
-            return (
-              <button
-                key={dept}
-                onClick={() => setFDept(active ? "all" : dept)}
-                className={
-                  "text-left rounded-xl border bg-card p-4 shadow-[var(--shadow-card)] transition hover:border-primary/50 " +
-                  (active ? "border-primary ring-1 ring-primary" : "")
-                }
-              >
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Building2 className="size-3.5" />
-                  <span className="truncate">{dept}</span>
-                </div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums">{count}</div>
-                <div className="text-[11px] text-muted-foreground">ตั๋วที่ยังไม่ปิด</div>
-              </button>
-            );
-          })}
+          {deptCounts.map(([dept, count]) => (
+            <div
+              key={dept}
+              className="text-left rounded-xl border bg-card p-4 shadow-[var(--shadow-card)]"
+            >
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Building2 className="size-3.5" />
+                <span className="truncate">{dept}</span>
+              </div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums">{count}</div>
+              <div className="text-[11px] text-muted-foreground">ตั๋วที่ยังไม่ปิด</div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -263,7 +241,6 @@ function ClaimsPage() {
           onChange={setFProject}
           options={Object.keys(PROJECT_TO_DEPARTMENTS)}
         />
-        <FilterSelect label="Department" value={fDept} onChange={setFDept} options={departments} />
         <FilterSelect
           label="SLA Status"
           value={fSla}
@@ -291,9 +268,9 @@ function ClaimsPage() {
           {riskCounts?.high ? <span className="tabular-nums">({riskCounts.high})</span> : null}
         </button>
         )}
-        {(fRisk || fProject !== "all" || fDept !== "all" || fSla !== "all" || fOldCode !== "all" || fBrand !== "all" || qTicket !== "") && (
+        {(fRisk || fProject !== "all" || fSla !== "all" || fOldCode !== "all" || fBrand !== "all" || qTicket !== "") && (
           <button
-            onClick={() => { setFProject("all"); setFDept("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); setFRisk(false); setFBrand("all"); }}
+            onClick={() => { setFProject("all"); setFSla("all"); setFOldCode("all"); setQTicket(""); setFRisk(false); setFBrand("all"); }}
             className="text-xs px-3 py-2 rounded-md border hover:bg-accent"
           >
             ล้างตัวกรอง

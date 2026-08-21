@@ -1,14 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-// CRM ad-contract sync endpoint.
-//
-//  • pg_cron (daily) calls it with ?token=... and an empty body → pull mode
-//    (connects to the CRM MySQL view directly; only works when the host is
-//    reachable from the internet).
-//  • The IT team can POST { rows: [...] } with the same token → push mode,
-//    used while the internal CRM host stays closed to the outside.
-//
-// Auth: shared token in `x-sync-token` header or `?token=`.
+// CRM ad-contract sync endpoint — called daily by pg_cron
+// (`crm-sync-ad-contracts-daily`) with `?token=` / `x-sync-token`.
+// It pulls straight from the CRM MySQL view `view_productstatus`.
 export const Route = createFileRoute("/api/public/hooks/sync-ad-contracts")({
   server: {
     handlers: {
@@ -23,33 +17,7 @@ export const Route = createFileRoute("/api/public/hooks/sync-ad-contracts")({
           });
         }
 
-        let body: { rows?: unknown; archiveMissing?: boolean } = {};
-        try {
-          const text = await request.text();
-          if (text.trim()) body = JSON.parse(text) as typeof body;
-        } catch {
-          return new Response(JSON.stringify({ ok: false, error: "invalid JSON body" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
-
-        const { pullAdContractsFromCrm, ingestPushedAdContracts } = await import("@/lib/ad-contracts.server");
-
-        if (Array.isArray(body.rows)) {
-          if (body.rows.length > 20000) {
-            return new Response(JSON.stringify({ ok: false, error: "too many rows (max 20000 per request)" }), {
-              status: 413,
-              headers: { "Content-Type": "application/json" },
-            });
-          }
-          const res = await ingestPushedAdContracts(
-            body.rows as Record<string, unknown>[],
-            body.archiveMissing !== false,
-          );
-          return Response.json(res, { status: res.ok ? 200 : 500 });
-        }
-
+        const { pullAdContractsFromCrm } = await import("@/lib/ad-contracts.server");
         const res = await pullAdContractsFromCrm();
         return Response.json(res, { status: res.ok ? 200 : 500 });
       },

@@ -228,21 +228,3 @@ export async function pullAdContractsFromCrm(): Promise<{ ok: boolean; rows: num
   }
 }
 
-/** Accept rows pushed in by the CRM/IT team (fallback when the port stays closed). */
-export async function ingestPushedAdContracts(
-  items: Record<string, unknown>[],
-  archiveMissing: boolean,
-): Promise<{ ok: boolean; rows: number; error?: string }> {
-  const logId = await logStart("ad_contract", "started (push:it-endpoint)");
-  try {
-    const syncedAt = new Date().toISOString();
-    const mapped = items.map((r) => mapCrmRow(r, syncedAt)).filter((r): r is AdContractRow => r !== null);
-    const written = await persistAdContracts(mapped, syncedAt, archiveMissing);
-    await logFinish(logId, "success", `ingested ${written} ad contract rows (push)`, written);
-    return { ok: true, rows: written };
-  } catch (e) {
-    const msg = (e as Error).message;
-    await logFinish(logId, "error", msg, 0);
-    return { ok: false, rows: 0, error: msg };
-  }
-}

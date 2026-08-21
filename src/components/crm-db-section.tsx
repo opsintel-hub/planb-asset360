@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { RefreshCw, Server, Info, Copy } from "lucide-react";
+import { RefreshCw, Server, Info } from "lucide-react";
 import { toast } from "sonner";
 import { getAppSettings } from "@/lib/data.functions";
 import { updateAppSetting } from "@/lib/admin.functions";
@@ -14,9 +14,6 @@ type CrmConn = {
   username?: string;
   view?: string;
 };
-
-const PUSH_ENDPOINT =
-  "https://project--6d2903c3-530f-4343-83c9-b9ada7a70d18.lovable.app/api/public/hooks/sync-ad-contracts";
 
 export function CrmDbSection() {
   const qc = useQueryClient();
@@ -120,23 +117,9 @@ export function CrmDbSection() {
           (~9,600 แถว) ระบบจับคู่ป้ายด้วย <code>old_code</code> และถ้าไม่ตรงจะใช้ <code>equipment_id</code> ช่วยจับคู่อีกชั้น
         </p>
         <p>
-          ทางเลือกสำรอง: ทีม IT ส่งข้อมูลเข้ามาเอง (Push) ที่ endpoint นี้ ด้วย header <code>x-sync-token</code> และ body{" "}
-          <code>{`{"rows": [ ...แถวจาก view_productstatus... ]}`}</code>
+          Sync อัตโนมัติทุกวัน (ตั้งเวลาได้ที่หัวข้อ “ตั้งเวลา Sync” ด้านล่าง)
         </p>
 
-        <div className="flex items-center gap-2">
-          <code className="truncate rounded bg-background px-2 py-1">{PUSH_ENDPOINT}</code>
-          <button
-            type="button"
-            onClick={() => {
-              void navigator.clipboard.writeText(PUSH_ENDPOINT);
-              toast.success("คัดลอก endpoint แล้ว");
-            }}
-            className="inline-flex items-center gap-1 rounded border px-2 py-1 hover:bg-accent"
-          >
-            <Copy className="size-3" /> คัดลอก
-          </button>
-        </div>
       </div>
     </div>
   );

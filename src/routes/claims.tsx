@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/hover-card";
 import {
   PROJECT_TO_DEPARTMENTS,
-  departmentsForProjects,
   projectForDepartment,
 } from "@/lib/project-department-map";
 import { RiskChip, useAssetRiskMap } from "@/components/asset-risk";

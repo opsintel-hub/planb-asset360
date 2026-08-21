@@ -53,6 +53,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     queryFn: () => fn({}),
     staleTime: 60_000,
   });
+  // Badge on "Ad Campaigns": ads launched in the last 7 days waiting for photos.
+  const newAdsFn = useServerFn(countNewlyLaunchedAds);
+  const { data: newAds } = useQuery({
+    queryKey: ["new-ads-count", 7],
+    queryFn: () => newAdsFn({ data: { days: 7 } }),
+    staleTime: 5 * 60_000,
+  });
   const { user } = useAuth();
   const email = user?.email ?? "";
   const displayName =

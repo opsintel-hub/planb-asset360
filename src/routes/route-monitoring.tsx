@@ -1141,6 +1141,26 @@ function RouteMonitoringPage() {
   const [planShared, setPlanShared] = useState(false);
   const [loadedId, setLoadedId] = useState<string | null>(null);
 
+  /** Pick up a photo job handed over from Ad Campaigns (once, on mount). */
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem("ad_photo_route");
+      if (!raw) return;
+      window.sessionStorage.removeItem("ad_photo_route");
+      const job = JSON.parse(raw) as { codes?: string[]; label?: string };
+      const codes = (job.codes ?? []).filter(Boolean);
+      if (!codes.length) return;
+      const label = job.label?.trim() || "แผนถ่ายรูปโฆษณาขึ้นใหม่";
+      setPhotoJob({ codes, label });
+      setPlanName(label);
+      toast.success(`โหมดถ่ายรูป: จำกัดการวางแผนไว้ ${codes.length} ป้าย`, {
+        description: "ส่งมาจากเมนู Ad Campaigns → ขึ้นใหม่ / รอถ่ายรูป",
+      });
+    } catch {
+      /* ignore malformed handoff */
+    }
+  }, []);
+
   const listRoutesFn = useServerFn(listSavedRoutes);
   const { data: savedRoutesData } = useQuery({
     queryKey: ["route-monitoring-plans"],

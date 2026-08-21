@@ -10,7 +10,9 @@ import MockupManager from "@/components/mockup-manager";
 import type { MapAsset } from "@/lib/map.functions";
 import { getNearbyPOIsForAsset, type NearbyPOI } from "@/lib/poi-search.functions";
 import { PRESET_BY_KEY } from "@/lib/overpass";
+import { getAssetAdHistory } from "@/lib/ad-contracts.functions";
 import { cn } from "@/lib/utils";
+
 
 const StreetViewPanel = lazy(() => import("@/components/street-view-panel"));
 
@@ -49,9 +51,18 @@ const DEMO_LABELS: Record<string, string> = {
 
 export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
   const analyze = useServerFn(analyzeBillboardArea);
+  const adHistoryFn = useServerFn(getAssetAdHistory);
+  const { data: adData } = useQuery({
+    queryKey: ["asset-ad-history", asset.old_code],
+    queryFn: () => adHistoryFn({ data: { oldCode: asset.old_code as string } }),
+    enabled: !!asset.old_code,
+    staleTime: 5 * 60_000,
+  });
+  const currentAd = adData?.current ?? null;
   const updateMockupFn = useServerFn(updateBillboardMockup);
   const getStreetViewImg = useServerFn(getStreetViewStaticImage);
   const [radiusM, setRadiusM] = useState<number>(500);
+
   const [data, setData] = useState<BillboardAnalytics | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -307,7 +318,12 @@ export default function BillboardAnalyticsPanel({ asset, onClose }: Props) {
               <span className="truncate">{asset.location ?? "—"}</span>
               <span className="text-muted-foreground">Status:</span>
               <span className="truncate">{asset.status ?? "—"}</span>
+              <span className="text-muted-foreground">ชื่อโฆษณา (ไทย):</span>
+              <span className="truncate">{currentAd?.brand ?? "—"}</span>
+              <span className="text-muted-foreground">ชื่อโฆษณา (EN):</span>
+              <span className="truncate">{currentAd?.brand_eng ?? "—"}</span>
             </div>
+
             {asset.old_code && (
               <a
                 href={`/search?q=${encodeURIComponent(asset.old_code)}`}

@@ -533,6 +533,7 @@ function RouteMonitoringPage() {
     const regSet = new Set(fRegions);
     const provSet = new Set(fProvinces.filter((p) => provinceOptions.includes(p)));
     return geoAssets.filter((a) => {
+      if (photoCodes.size && !photoCodes.has(a.old_code ?? a.id)) return false;
       if (projSet.size) {
         const p = projectForDepartment(a.department);
         if (!p || !projSet.has(p)) return false;
@@ -542,7 +543,7 @@ function RouteMonitoringPage() {
       if (provSet.size && !provSet.has(a.province)) return false;
       return true;
     });
-  }, [geoAssets, fProjects, fMedias, fRegions, fProvinces, provinceOptions]);
+  }, [geoAssets, fProjects, fMedias, fRegions, fProvinces, provinceOptions, photoCodes]);
 
   const activeInspectors = Math.max(1, inspectors - (emergency ? absent : 0));
 

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
-import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert, Eye, Settings2 } from "lucide-react";
+import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert, Settings2 } from "lucide-react";
 import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
 import { getCurrentAdsByCodes } from "@/lib/ad-contracts.functions";
 import { syncClaimsNow } from "@/lib/admin.functions";

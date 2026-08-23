@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
-import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert } from "lucide-react";
+import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert, Eye, Settings2 } from "lucide-react";
 import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
 import { getCurrentAdsByCodes } from "@/lib/ad-contracts.functions";
 import { syncClaimsNow } from "@/lib/admin.functions";
@@ -37,6 +37,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+
+const COLUMN_STORAGE_KEY = "claims-visible-columns-v1";
+
+const ALL_COLUMNS = [
+  { key: "ticket", label: "Ticket", default: true },
+  { key: "oldCode", label: "Old Code", default: true },
+  { key: "department", label: "Department", default: true },
+  { key: "currentAd", label: "โฆษณาปัจจุบัน", default: true },
+  { key: "symptom", label: "อาการ", default: true },
+  { key: "assetStatus", label: "Asset Status", default: true },
+  { key: "ticketStatus", label: "สถานะ Ticket", default: true },
+  { key: "age", label: "อายุงาน", default: true },
+  { key: "sla", label: "SLA", default: true },
+  { key: "remark", label: "Remark Ticket", default: true },
+  { key: "nextStep", label: "Next Step", default: true },
+] as const;
+
+type ColumnKey = (typeof ALL_COLUMNS)[number]["key"];
 
 export const Route = createFileRoute("/claims")({
   head: () => ({

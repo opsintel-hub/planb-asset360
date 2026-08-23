@@ -413,139 +413,151 @@ function ClaimsPage() {
                       : null;
                   return (
                     <tr key={c.id} className={isDup ? "bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100/70 dark:hover:bg-amber-950/50" : "hover:bg-accent/30"}>
-                      <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span>{c.ticket_code}</span>
-                          {isDup && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100">
-                              ซ้ำ ×{c._dupCount}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5">
-                          <span>{c.asset_old_code ?? "—"}</span>
-                          {canSeeMaintenance && (() => {
-                            const r = riskMap.get(c.asset_old_code ?? "");
-                            return <RiskChip level={r?.level} score={r?.score} />;
-                          })()}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">{c.department ?? "—"}</td>
-                      <td className="px-4 py-3 max-w-[200px]">
-                        {(() => {
-                          const ad = adByCode?.[c.asset_old_code ?? ""];
-                          if (!ad?.brand && !ad?.ad_contract)
-                            return <span className="text-muted-foreground text-[12px]">ไม่มีโฆษณาขึ้น</span>;
-                          const d = ad.days_to_end;
-                          return (
-                            <span className="inline-flex flex-col leading-tight">
-                              <span className="truncate max-w-[180px] font-medium">
-                                {ad.brand ?? ad.ad_contract}
-                                {ad.brand_eng ? ` (${ad.brand_eng})` : ""}
+                      {visibleColumns.has("ticket") && (
+                        <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span>{c.ticket_code}</span>
+                            {isDup && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100">
+                                ซ้ำ ×{c._dupCount}
                               </span>
-                              {ad.brand && ad.ad_contract && (
-                                <span className="truncate max-w-[180px] text-[11px] text-muted-foreground">
-                                  {ad.ad_contract}
+                            )}
+                          </div>
+                        </td>
+                      )}
+                      {visibleColumns.has("oldCode") && (
+                        <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span>{c.asset_old_code ?? "—"}</span>
+                            {canSeeMaintenance && (() => {
+                              const r = riskMap.get(c.asset_old_code ?? "");
+                              return <RiskChip level={r?.level} score={r?.score} />;
+                            })()}
+                          </span>
+                        </td>
+                      )}
+                      {visibleColumns.has("department") && <td className="px-4 py-3 whitespace-nowrap">{c.department ?? "—"}</td>}
+                      {visibleColumns.has("currentAd") && (
+                        <td className="px-4 py-3 max-w-[200px]">
+                          {(() => {
+                            const ad = adByCode?.[c.asset_old_code ?? ""];
+                            if (!ad?.brand && !ad?.ad_contract)
+                              return <span className="text-muted-foreground text-[12px]">ไม่มีโฆษณาขึ้น</span>;
+                            const d = ad.days_to_end;
+                            return (
+                              <span className="inline-flex flex-col leading-tight">
+                                <span className="truncate max-w-[180px] font-medium">
+                                  {ad.brand ?? ad.ad_contract}
+                                  {ad.brand_eng ? ` (${ad.brand_eng})` : ""}
                                 </span>
-                              )}
-                              <span
-                                className={
-                                  "text-[11px] " +
-                                  (d != null && d <= 30 ? "text-destructive font-medium" : "text-muted-foreground")
-                                }
-                              >
-                                หมด {ad.end_date_contract ?? "—"}
-                                {d != null ? ` (${d} วัน)` : ""}
+                                {ad.brand && ad.ad_contract && (
+                                  <span className="truncate max-w-[180px] text-[11px] text-muted-foreground">
+                                    {ad.ad_contract}
+                                  </span>
+                                )}
+                                <span
+                                  className={
+                                    "text-[11px] " +
+                                    (d != null && d <= 30 ? "text-destructive font-medium" : "text-muted-foreground")
+                                  }
+                                >
+                                  หมด {ad.end_date_contract ?? "—"}
+                                  {d != null ? ` (${d} วัน)` : ""}
+                                </span>
                               </span>
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-4 py-3 max-w-[220px]">
-                        <span className="line-clamp-2 leading-snug">{c.title ?? "—"}</span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">{c.asset_status ?? "—"}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{c.status ?? "—"}</td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">{ageDays != null ? `${ageDays} วัน` : "—"}</td>
-                      <td className="px-4 py-3 whitespace-nowrap"><Badge tone={tone}>{c.sla_status ?? "—"}</Badge></td>
-                      <td className="px-4 py-3 align-middle w-[220px] max-w-[220px]">
-                        {c.remark_ticket ? (
-                          <HoverCard openDelay={120} closeDelay={80}>
-                            <HoverCardTrigger asChild>
-                              <button
-                                type="button"
-                                className="flex w-full max-w-full items-start gap-1.5 rounded-md px-1.5 py-1 text-left text-[12px] leading-snug hover:bg-accent/50 transition"
-                                title="ดู Remark เต็ม"
-                              >
-                                <MessageSquareText className="size-3.5 shrink-0 mt-0.5 text-muted-foreground" />
-                                <span className="line-clamp-2 min-w-0 flex-1">{c.remark_ticket}</span>
-                              </button>
-                            </HoverCardTrigger>
-                            <HoverCardContent side="left" align="start" className="w-96 max-h-80 overflow-y-auto">
-                              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
-                                <MessageSquareText className="size-3.5" />
-                                Remark Ticket
-                              </div>
-                              <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
-                                {c.remark_ticket}
-                              </div>
-                            </HoverCardContent>
-                          </HoverCard>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 align-middle w-[180px] max-w-[180px]">
-                        {c.next_step ? (
-                          <HoverCard openDelay={120} closeDelay={80}>
-                            <HoverCardTrigger asChild>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditing({ ticket_code: c.ticket_code ?? "", note: c.next_step ?? "" });
-                                  setDraft(c.next_step ?? "");
-                                }}
-                                className="group flex w-full max-w-full items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 pl-2.5 pr-2 py-1 text-[12px] text-foreground hover:border-primary/40 hover:bg-primary/10 transition"
-                                title="ดู/แก้ไข Next Step"
-                              >
-                                <StickyNote className="size-3.5 shrink-0 text-primary" />
-                                <span className="truncate min-w-0 flex-1 text-left">{c.next_step}</span>
-                                <Pencil className="size-3 shrink-0 text-muted-foreground group-hover:text-primary transition" />
-                              </button>
-                            </HoverCardTrigger>
-                            <HoverCardContent side="left" align="start" className="w-80">
-                              <div className="flex items-center gap-1.5 text-xs font-medium text-primary mb-2">
-                                <StickyNote className="size-3.5" />
-                                Next Step
-                              </div>
-                              <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
-                                {c.next_step}
-                              </div>
-                              {(c.next_step_by || c.next_step_at) && (
-                                <div className="mt-3 pt-2 border-t text-[11px] text-muted-foreground">
-                                  {c.next_step_by ?? "—"}
-                                  {c.next_step_at ? ` · ${new Date(c.next_step_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                            );
+                          })()}
+                        </td>
+                      )}
+                      {visibleColumns.has("symptom") && (
+                        <td className="px-4 py-3 max-w-[220px]">
+                          <span className="line-clamp-2 leading-snug">{c.title ?? "—"}</span>
+                        </td>
+                      )}
+                      {visibleColumns.has("assetStatus") && <td className="px-4 py-3 whitespace-nowrap">{c.asset_status ?? "—"}</td>}
+                      {visibleColumns.has("ticketStatus") && <td className="px-4 py-3 whitespace-nowrap">{c.status ?? "—"}</td>}
+                      {visibleColumns.has("age") && <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">{ageDays != null ? `${ageDays} วัน` : "—"}</td>}
+                      {visibleColumns.has("sla") && <td className="px-4 py-3 whitespace-nowrap"><Badge tone={tone}>{c.sla_status ?? "—"}</Badge></td>}
+                      {visibleColumns.has("remark") && (
+                        <td className="px-4 py-3 align-middle w-[220px] max-w-[220px]">
+                          {c.remark_ticket ? (
+                            <HoverCard openDelay={120} closeDelay={80}>
+                              <HoverCardTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="flex w-full max-w-full items-start gap-1.5 rounded-md px-1.5 py-1 text-left text-[12px] leading-snug hover:bg-accent/50 transition"
+                                  title="ดู Remark เต็ม"
+                                >
+                                  <MessageSquareText className="size-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+                                  <span className="line-clamp-2 min-w-0 flex-1">{c.remark_ticket}</span>
+                                </button>
+                              </HoverCardTrigger>
+                              <HoverCardContent side="left" align="start" className="w-96 max-h-80 overflow-y-auto">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+                                  <MessageSquareText className="size-3.5" />
+                                  Remark Ticket
                                 </div>
-                              )}
-                            </HoverCardContent>
-                          </HoverCard>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditing({ ticket_code: c.ticket_code ?? "", note: "" });
-                              setDraft("");
-                            }}
-                            className="inline-flex size-7 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground/60 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition"
-                            title="เพิ่ม Next Step"
-                            aria-label="เพิ่ม Next Step"
-                          >
-                            <Pencil className="size-3.5" />
-                          </button>
-                        )}
-                      </td>
+                                <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                                  {c.remark_ticket}
+                                </div>
+                              </HoverCardContent>
+                            </HoverCard>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      )}
+                      {visibleColumns.has("nextStep") && (
+                        <td className="px-4 py-3 align-middle w-[180px] max-w-[180px]">
+                          {c.next_step ? (
+                            <HoverCard openDelay={120} closeDelay={80}>
+                              <HoverCardTrigger asChild>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditing({ ticket_code: c.ticket_code ?? "", note: c.next_step ?? "" });
+                                    setDraft(c.next_step ?? "");
+                                  }}
+                                  className="group flex w-full max-w-full items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 pl-2.5 pr-2 py-1 text-[12px] text-foreground hover:border-primary/40 hover:bg-primary/10 transition"
+                                  title="ดู/แก้ไข Next Step"
+                                >
+                                  <StickyNote className="size-3.5 shrink-0 text-primary" />
+                                  <span className="truncate min-w-0 flex-1 text-left">{c.next_step}</span>
+                                  <Pencil className="size-3 shrink-0 text-muted-foreground group-hover:text-primary transition" />
+                                </button>
+                              </HoverCardTrigger>
+                              <HoverCardContent side="left" align="start" className="w-80">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-primary mb-2">
+                                  <StickyNote className="size-3.5" />
+                                  Next Step
+                                </div>
+                                <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                                  {c.next_step}
+                                </div>
+                                {(c.next_step_by || c.next_step_at) && (
+                                  <div className="mt-3 pt-2 border-t text-[11px] text-muted-foreground">
+                                    {c.next_step_by ?? "—"}
+                                    {c.next_step_at ? ` · ${new Date(c.next_step_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                                  </div>
+                                )}
+                              </HoverCardContent>
+                            </HoverCard>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditing({ ticket_code: c.ticket_code ?? "", note: "" });
+                                setDraft("");
+                              }}
+                              className="inline-flex size-7 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground/60 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition"
+                              title="เพิ่ม Next Step"
+                              aria-label="เพิ่ม Next Step"
+                            >
+                              <Pencil className="size-3.5" />
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

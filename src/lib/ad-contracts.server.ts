@@ -88,7 +88,7 @@ function friendlyError(message: string, host: string) {
       message,
     )
   ) {
-    return `เชื่อมต่อ CRM Server ไม่สำเร็จ: ${host} — พอร์ต MySQL ยังไม่เปิดให้เข้าถึงจากภายนอก (ถูก firewall กรอง). ให้ทีม IT เปิด inbound TCP ที่พอร์ตดังกล่าวสำหรับ Cloudflare IP ranges (https://www.cloudflare.com/ips/) และอนุญาต MySQL user ให้ล็อกอินจาก host ภายนอก ('useroperation'@'%'). ระหว่างนี้ใช้ Push Endpoint ส่งข้อมูลเข้ามาได้`;
+    return `ตอนนี้เชื่อมต่อ CRM ไม่ได้ชั่วคราว: ${host} — เครือข่ายปลายทางไม่ตอบรับ (พอร์ต MySQL อาจถูก firewall กรอง หรือเซิร์ฟเวอร์กำลังปิด/ไม่ว่าง). ข้อมูลที่ Sync ไว้ก่อนหน้ายังใช้งานได้ปกติ ลองกดทดสอบอีกครั้งภายหลัง หรือแจ้งทีม IT เปิด inbound TCP สำหรับ Cloudflare IP ranges (https://www.cloudflare.com/ips/) และอนุญาต MySQL user ล็อกอินจากภายนอก ('useroperation'@'%') · รายละเอียด: ${message}`;
   }
   if (/Access denied|authentication/i.test(message)) return "เข้าสู่ระบบ CRM ไม่สำเร็จ: ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";
   if (/Unknown database/i.test(message)) return "ไม่พบฐานข้อมูล: ตรวจสอบชื่อ database";

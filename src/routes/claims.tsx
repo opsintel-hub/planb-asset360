@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
-import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert } from "lucide-react";
+import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert, Settings2 } from "lucide-react";
 import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
 import { getCurrentAdsByCodes } from "@/lib/ad-contracts.functions";
 import { syncClaimsNow } from "@/lib/admin.functions";
@@ -37,6 +37,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+
+const COLUMN_STORAGE_KEY = "claims-visible-columns-v1";
+
+const ALL_COLUMNS = [
+  { key: "ticket", label: "Ticket", default: true },
+  { key: "oldCode", label: "Old Code", default: true },
+  { key: "department", label: "Department", default: true },
+  { key: "currentAd", label: "โฆษณาปัจจุบัน", default: true },
+  { key: "symptom", label: "อาการ", default: true },
+  { key: "assetStatus", label: "Asset Status", default: true },
+  { key: "ticketStatus", label: "สถานะ Ticket", default: true },
+  { key: "age", label: "อายุงาน", default: true },
+  { key: "sla", label: "SLA", default: true },
+  { key: "remark", label: "Remark Ticket", default: true },
+  { key: "nextStep", label: "Next Step", default: true },
+] as const;
+
+type ColumnKey = (typeof ALL_COLUMNS)[number]["key"];
 
 export const Route = createFileRoute("/claims")({
   head: () => ({
@@ -90,6 +115,24 @@ function ClaimsPage() {
   const [qTicket, setQTicket] = useState<string>("");
   const [fRisk, setFRisk] = useState<boolean>(false);
   const [fBrand, setFBrand] = useState<string>("all");
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
+    try {
+      const raw = localStorage.getItem(COLUMN_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as ColumnKey[];
+        const valid = parsed.filter((k) => ALL_COLUMNS.some((c) => c.key === k));
+        if (valid.length > 0) return new Set(valid);
+      }
+    } catch {
+      // ignore
+    }
+    return new Set(ALL_COLUMNS.filter((c) => c.default).map((c) => c.key));
+  });
+
+  useEffect(() => {
+    localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(Array.from(visibleColumns)));
+  }, [visibleColumns]);
+
   const { canSeeMaintenance } = useMyRoles();
   const { map: riskMap, counts: riskCounts } = useAssetRiskMap(canSeeMaintenance);
 
@@ -276,6 +319,64 @@ function ClaimsPage() {
             ล้างตัวกรอง
           </button>
         )}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5">
+              <Settings2 className="size-3.5" />
+              แสดง/ซ่อน Column
+              <span className="text-[10px] tabular-nums text-muted-foreground ml-0.5">
+                ({visibleColumns.size}/{ALL_COLUMNS.length})
+              </span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-56 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium">เลือก Column</span>
+              <span className="text-[10px] text-muted-foreground">{visibleColumns.size} / {ALL_COLUMNS.length}</span>
+            </div>
+            <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+              {ALL_COLUMNS.map((col) => (
+                <label
+                  key={col.key}
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent/50 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={visibleColumns.has(col.key)}
+                    onCheckedChange={(checked) => {
+                      setVisibleColumns((prev) => {
+                        const next = new Set(prev);
+                        if (checked) next.add(col.key);
+                        else next.delete(col.key);
+                        return next;
+                      });
+                    }}
+                    aria-label={col.label}
+                  />
+                  <span className="flex-1 text-[13px]">{col.label}</span>
+                </label>
+              ))}
+            </div>
+            <Separator className="my-2" />
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 flex-1 text-xs"
+                onClick={() => setVisibleColumns(new Set(ALL_COLUMNS.map((c) => c.key)))}
+              >
+                แสดงทั้งหมด
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 flex-1 text-xs"
+                onClick={() => setVisibleColumns(new Set())}
+              >
+                ซ่อนทั้งหมด
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden">
@@ -288,17 +389,17 @@ function ClaimsPage() {
             <table className="w-full text-[13px] table-auto">
               <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Ticket</th>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Old Code</th>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Department</th>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">โฆษณาปัจจุบัน</th>
-                  <th className="text-left font-medium px-4 py-3">อาการ</th>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Asset Status</th>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">สถานะ Ticket</th>
-                  <th className="text-right font-medium px-4 py-3 whitespace-nowrap">อายุงาน</th>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">SLA</th>
-                  <th className="text-left font-medium px-4 py-3 w-[220px]">Remark Ticket</th>
-                  <th className="text-left font-medium px-4 py-3 w-[180px]">Next Step</th>
+                  {visibleColumns.has("ticket") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Ticket</th>}
+                  {visibleColumns.has("oldCode") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Old Code</th>}
+                  {visibleColumns.has("department") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Department</th>}
+                  {visibleColumns.has("currentAd") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">โฆษณาปัจจุบัน</th>}
+                  {visibleColumns.has("symptom") && <th className="text-left font-medium px-4 py-3">อาการ</th>}
+                  {visibleColumns.has("assetStatus") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Asset Status</th>}
+                  {visibleColumns.has("ticketStatus") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">สถานะ Ticket</th>}
+                  {visibleColumns.has("age") && <th className="text-right font-medium px-4 py-3 whitespace-nowrap">อายุงาน</th>}
+                  {visibleColumns.has("sla") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">SLA</th>}
+                  {visibleColumns.has("remark") && <th className="text-left font-medium px-4 py-3 w-[220px]">Remark Ticket</th>}
+                  {visibleColumns.has("nextStep") && <th className="text-left font-medium px-4 py-3 w-[180px]">Next Step</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -312,139 +413,151 @@ function ClaimsPage() {
                       : null;
                   return (
                     <tr key={c.id} className={isDup ? "bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100/70 dark:hover:bg-amber-950/50" : "hover:bg-accent/30"}>
-                      <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span>{c.ticket_code}</span>
-                          {isDup && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100">
-                              ซ้ำ ×{c._dupCount}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5">
-                          <span>{c.asset_old_code ?? "—"}</span>
-                          {canSeeMaintenance && (() => {
-                            const r = riskMap.get(c.asset_old_code ?? "");
-                            return <RiskChip level={r?.level} score={r?.score} />;
-                          })()}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">{c.department ?? "—"}</td>
-                      <td className="px-4 py-3 max-w-[200px]">
-                        {(() => {
-                          const ad = adByCode?.[c.asset_old_code ?? ""];
-                          if (!ad?.brand && !ad?.ad_contract)
-                            return <span className="text-muted-foreground text-[12px]">ไม่มีโฆษณาขึ้น</span>;
-                          const d = ad.days_to_end;
-                          return (
-                            <span className="inline-flex flex-col leading-tight">
-                              <span className="truncate max-w-[180px] font-medium">
-                                {ad.brand ?? ad.ad_contract}
-                                {ad.brand_eng ? ` (${ad.brand_eng})` : ""}
+                      {visibleColumns.has("ticket") && (
+                        <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span>{c.ticket_code}</span>
+                            {isDup && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100">
+                                ซ้ำ ×{c._dupCount}
                               </span>
-                              {ad.brand && ad.ad_contract && (
-                                <span className="truncate max-w-[180px] text-[11px] text-muted-foreground">
-                                  {ad.ad_contract}
+                            )}
+                          </div>
+                        </td>
+                      )}
+                      {visibleColumns.has("oldCode") && (
+                        <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span>{c.asset_old_code ?? "—"}</span>
+                            {canSeeMaintenance && (() => {
+                              const r = riskMap.get(c.asset_old_code ?? "");
+                              return <RiskChip level={r?.level} score={r?.score} />;
+                            })()}
+                          </span>
+                        </td>
+                      )}
+                      {visibleColumns.has("department") && <td className="px-4 py-3 whitespace-nowrap">{c.department ?? "—"}</td>}
+                      {visibleColumns.has("currentAd") && (
+                        <td className="px-4 py-3 max-w-[200px]">
+                          {(() => {
+                            const ad = adByCode?.[c.asset_old_code ?? ""];
+                            if (!ad?.brand && !ad?.ad_contract)
+                              return <span className="text-muted-foreground text-[12px]">ไม่มีโฆษณาขึ้น</span>;
+                            const d = ad.days_to_end;
+                            return (
+                              <span className="inline-flex flex-col leading-tight">
+                                <span className="truncate max-w-[180px] font-medium">
+                                  {ad.brand ?? ad.ad_contract}
+                                  {ad.brand_eng ? ` (${ad.brand_eng})` : ""}
                                 </span>
-                              )}
-                              <span
-                                className={
-                                  "text-[11px] " +
-                                  (d != null && d <= 30 ? "text-destructive font-medium" : "text-muted-foreground")
-                                }
-                              >
-                                หมด {ad.end_date_contract ?? "—"}
-                                {d != null ? ` (${d} วัน)` : ""}
+                                {ad.brand && ad.ad_contract && (
+                                  <span className="truncate max-w-[180px] text-[11px] text-muted-foreground">
+                                    {ad.ad_contract}
+                                  </span>
+                                )}
+                                <span
+                                  className={
+                                    "text-[11px] " +
+                                    (d != null && d <= 30 ? "text-destructive font-medium" : "text-muted-foreground")
+                                  }
+                                >
+                                  หมด {ad.end_date_contract ?? "—"}
+                                  {d != null ? ` (${d} วัน)` : ""}
+                                </span>
                               </span>
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-4 py-3 max-w-[220px]">
-                        <span className="line-clamp-2 leading-snug">{c.title ?? "—"}</span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">{c.asset_status ?? "—"}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{c.status ?? "—"}</td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">{ageDays != null ? `${ageDays} วัน` : "—"}</td>
-                      <td className="px-4 py-3 whitespace-nowrap"><Badge tone={tone}>{c.sla_status ?? "—"}</Badge></td>
-                      <td className="px-4 py-3 align-middle w-[220px] max-w-[220px]">
-                        {c.remark_ticket ? (
-                          <HoverCard openDelay={120} closeDelay={80}>
-                            <HoverCardTrigger asChild>
-                              <button
-                                type="button"
-                                className="flex w-full max-w-full items-start gap-1.5 rounded-md px-1.5 py-1 text-left text-[12px] leading-snug hover:bg-accent/50 transition"
-                                title="ดู Remark เต็ม"
-                              >
-                                <MessageSquareText className="size-3.5 shrink-0 mt-0.5 text-muted-foreground" />
-                                <span className="line-clamp-2 min-w-0 flex-1">{c.remark_ticket}</span>
-                              </button>
-                            </HoverCardTrigger>
-                            <HoverCardContent side="left" align="start" className="w-96 max-h-80 overflow-y-auto">
-                              <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
-                                <MessageSquareText className="size-3.5" />
-                                Remark Ticket
-                              </div>
-                              <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
-                                {c.remark_ticket}
-                              </div>
-                            </HoverCardContent>
-                          </HoverCard>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 align-middle w-[180px] max-w-[180px]">
-                        {c.next_step ? (
-                          <HoverCard openDelay={120} closeDelay={80}>
-                            <HoverCardTrigger asChild>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditing({ ticket_code: c.ticket_code ?? "", note: c.next_step ?? "" });
-                                  setDraft(c.next_step ?? "");
-                                }}
-                                className="group flex w-full max-w-full items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 pl-2.5 pr-2 py-1 text-[12px] text-foreground hover:border-primary/40 hover:bg-primary/10 transition"
-                                title="ดู/แก้ไข Next Step"
-                              >
-                                <StickyNote className="size-3.5 shrink-0 text-primary" />
-                                <span className="truncate min-w-0 flex-1 text-left">{c.next_step}</span>
-                                <Pencil className="size-3 shrink-0 text-muted-foreground group-hover:text-primary transition" />
-                              </button>
-                            </HoverCardTrigger>
-                            <HoverCardContent side="left" align="start" className="w-80">
-                              <div className="flex items-center gap-1.5 text-xs font-medium text-primary mb-2">
-                                <StickyNote className="size-3.5" />
-                                Next Step
-                              </div>
-                              <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
-                                {c.next_step}
-                              </div>
-                              {(c.next_step_by || c.next_step_at) && (
-                                <div className="mt-3 pt-2 border-t text-[11px] text-muted-foreground">
-                                  {c.next_step_by ?? "—"}
-                                  {c.next_step_at ? ` · ${new Date(c.next_step_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                            );
+                          })()}
+                        </td>
+                      )}
+                      {visibleColumns.has("symptom") && (
+                        <td className="px-4 py-3 max-w-[220px]">
+                          <span className="line-clamp-2 leading-snug">{c.title ?? "—"}</span>
+                        </td>
+                      )}
+                      {visibleColumns.has("assetStatus") && <td className="px-4 py-3 whitespace-nowrap">{c.asset_status ?? "—"}</td>}
+                      {visibleColumns.has("ticketStatus") && <td className="px-4 py-3 whitespace-nowrap">{c.status ?? "—"}</td>}
+                      {visibleColumns.has("age") && <td className="px-4 py-3 text-right whitespace-nowrap tabular-nums">{ageDays != null ? `${ageDays} วัน` : "—"}</td>}
+                      {visibleColumns.has("sla") && <td className="px-4 py-3 whitespace-nowrap"><Badge tone={tone}>{c.sla_status ?? "—"}</Badge></td>}
+                      {visibleColumns.has("remark") && (
+                        <td className="px-4 py-3 align-middle w-[220px] max-w-[220px]">
+                          {c.remark_ticket ? (
+                            <HoverCard openDelay={120} closeDelay={80}>
+                              <HoverCardTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="flex w-full max-w-full items-start gap-1.5 rounded-md px-1.5 py-1 text-left text-[12px] leading-snug hover:bg-accent/50 transition"
+                                  title="ดู Remark เต็ม"
+                                >
+                                  <MessageSquareText className="size-3.5 shrink-0 mt-0.5 text-muted-foreground" />
+                                  <span className="line-clamp-2 min-w-0 flex-1">{c.remark_ticket}</span>
+                                </button>
+                              </HoverCardTrigger>
+                              <HoverCardContent side="left" align="start" className="w-96 max-h-80 overflow-y-auto">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-2">
+                                  <MessageSquareText className="size-3.5" />
+                                  Remark Ticket
                                 </div>
-                              )}
-                            </HoverCardContent>
-                          </HoverCard>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditing({ ticket_code: c.ticket_code ?? "", note: "" });
-                              setDraft("");
-                            }}
-                            className="inline-flex size-7 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground/60 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition"
-                            title="เพิ่ม Next Step"
-                            aria-label="เพิ่ม Next Step"
-                          >
-                            <Pencil className="size-3.5" />
-                          </button>
-                        )}
-                      </td>
+                                <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                                  {c.remark_ticket}
+                                </div>
+                              </HoverCardContent>
+                            </HoverCard>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      )}
+                      {visibleColumns.has("nextStep") && (
+                        <td className="px-4 py-3 align-middle w-[180px] max-w-[180px]">
+                          {c.next_step ? (
+                            <HoverCard openDelay={120} closeDelay={80}>
+                              <HoverCardTrigger asChild>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditing({ ticket_code: c.ticket_code ?? "", note: c.next_step ?? "" });
+                                    setDraft(c.next_step ?? "");
+                                  }}
+                                  className="group flex w-full max-w-full items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 pl-2.5 pr-2 py-1 text-[12px] text-foreground hover:border-primary/40 hover:bg-primary/10 transition"
+                                  title="ดู/แก้ไข Next Step"
+                                >
+                                  <StickyNote className="size-3.5 shrink-0 text-primary" />
+                                  <span className="truncate min-w-0 flex-1 text-left">{c.next_step}</span>
+                                  <Pencil className="size-3 shrink-0 text-muted-foreground group-hover:text-primary transition" />
+                                </button>
+                              </HoverCardTrigger>
+                              <HoverCardContent side="left" align="start" className="w-80">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-primary mb-2">
+                                  <StickyNote className="size-3.5" />
+                                  Next Step
+                                </div>
+                                <div className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                                  {c.next_step}
+                                </div>
+                                {(c.next_step_by || c.next_step_at) && (
+                                  <div className="mt-3 pt-2 border-t text-[11px] text-muted-foreground">
+                                    {c.next_step_by ?? "—"}
+                                    {c.next_step_at ? ` · ${new Date(c.next_step_at).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                                  </div>
+                                )}
+                              </HoverCardContent>
+                            </HoverCard>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditing({ ticket_code: c.ticket_code ?? "", note: "" });
+                                setDraft("");
+                              }}
+                              className="inline-flex size-7 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground/60 hover:border-primary/50 hover:text-primary hover:bg-primary/5 transition"
+                              title="เพิ่ม Next Step"
+                              aria-label="เพิ่ม Next Step"
+                            >
+                              <Pencil className="size-3.5" />
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

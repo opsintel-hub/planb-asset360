@@ -83,7 +83,11 @@ function naturalKey(r: AdContractRow) {
 }
 
 function friendlyError(message: string, host: string) {
-  if (/ETIMEDOUT|ETIMEOUT|timeout|ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|ENOTFOUND|getaddrinfo|not implemented/i.test(message)) {
+  if (
+    /ETIMEDOUT|ETIMEOUT|timeout|ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENETUNREACH|ENOTFOUND|EPIPE|getaddrinfo|not implemented|proxy request failed|cannot connect to the specified address|Socket|connect\s/i.test(
+      message,
+    )
+  ) {
     return `เชื่อมต่อ CRM Server ไม่สำเร็จ: ${host} — พอร์ต MySQL ยังไม่เปิดให้เข้าถึงจากภายนอก (ถูก firewall กรอง). ให้ทีม IT เปิด inbound TCP ที่พอร์ตดังกล่าวสำหรับ Cloudflare IP ranges (https://www.cloudflare.com/ips/) และอนุญาต MySQL user ให้ล็อกอินจาก host ภายนอก ('useroperation'@'%'). ระหว่างนี้ใช้ Push Endpoint ส่งข้อมูลเข้ามาได้`;
   }
   if (/Access denied|authentication/i.test(message)) return "เข้าสู่ระบบ CRM ไม่สำเร็จ: ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง";

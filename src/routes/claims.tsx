@@ -115,6 +115,24 @@ function ClaimsPage() {
   const [qTicket, setQTicket] = useState<string>("");
   const [fRisk, setFRisk] = useState<boolean>(false);
   const [fBrand, setFBrand] = useState<string>("all");
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
+    try {
+      const raw = localStorage.getItem(COLUMN_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as ColumnKey[];
+        const valid = parsed.filter((k) => ALL_COLUMNS.some((c) => c.key === k));
+        if (valid.length > 0) return new Set(valid);
+      }
+    } catch {
+      // ignore
+    }
+    return new Set(ALL_COLUMNS.filter((c) => c.default).map((c) => c.key));
+  });
+
+  useEffect(() => {
+    localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(Array.from(visibleColumns)));
+  }, [visibleColumns]);
+
   const { canSeeMaintenance } = useMyRoles();
   const { map: riskMap, counts: riskCounts } = useAssetRiskMap(canSeeMaintenance);
 

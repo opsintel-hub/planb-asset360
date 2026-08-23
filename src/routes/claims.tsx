@@ -78,9 +78,12 @@ function ClaimsPage() {
   const upsertFn = useServerFn(upsertClaimNextStep);
   const syncFn = useServerFn(syncClaimsNow);
   const qc = useQueryClient();
+  const { session } = useAuth();
+  const isAuthed = !!session?.access_token;
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["claims", "all"],
     queryFn: () => fn({ data: { sla: "all" as const } }),
+    enabled: isAuthed,
   });
 
   const syncMut = useMutation({

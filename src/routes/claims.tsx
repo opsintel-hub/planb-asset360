@@ -319,6 +319,64 @@ function ClaimsPage() {
             ล้างตัวกรอง
           </button>
         )}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5">
+              <Settings2 className="size-3.5" />
+              แสดง/ซ่อน Column
+              <span className="text-[10px] tabular-nums text-muted-foreground ml-0.5">
+                ({visibleColumns.size}/{ALL_COLUMNS.length})
+              </span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-56 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium">เลือก Column</span>
+              <span className="text-[10px] text-muted-foreground">{visibleColumns.size} / {ALL_COLUMNS.length}</span>
+            </div>
+            <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+              {ALL_COLUMNS.map((col) => (
+                <label
+                  key={col.key}
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent/50 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={visibleColumns.has(col.key)}
+                    onCheckedChange={(checked) => {
+                      setVisibleColumns((prev) => {
+                        const next = new Set(prev);
+                        if (checked) next.add(col.key);
+                        else next.delete(col.key);
+                        return next;
+                      });
+                    }}
+                    aria-label={col.label}
+                  />
+                  <span className="flex-1 text-[13px]">{col.label}</span>
+                </label>
+              ))}
+            </div>
+            <Separator className="my-2" />
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 flex-1 text-xs"
+                onClick={() => setVisibleColumns(new Set(ALL_COLUMNS.map((c) => c.key)))}
+              >
+                แสดงทั้งหมด
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 flex-1 text-xs"
+                onClick={() => setVisibleColumns(new Set())}
+              >
+                ซ่อนทั้งหมด
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden">

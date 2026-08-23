@@ -389,17 +389,17 @@ function ClaimsPage() {
             <table className="w-full text-[13px] table-auto">
               <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Ticket</th>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Old Code</th>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Department</th>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">โฆษณาปัจจุบัน</th>
-                  <th className="text-left font-medium px-4 py-3">อาการ</th>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Asset Status</th>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">สถานะ Ticket</th>
-                  <th className="text-right font-medium px-4 py-3 whitespace-nowrap">อายุงาน</th>
-                  <th className="text-left font-medium px-4 py-3 whitespace-nowrap">SLA</th>
-                  <th className="text-left font-medium px-4 py-3 w-[220px]">Remark Ticket</th>
-                  <th className="text-left font-medium px-4 py-3 w-[180px]">Next Step</th>
+                  {visibleColumns.has("ticket") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Ticket</th>}
+                  {visibleColumns.has("oldCode") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Old Code</th>}
+                  {visibleColumns.has("department") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Department</th>}
+                  {visibleColumns.has("currentAd") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">โฆษณาปัจจุบัน</th>}
+                  {visibleColumns.has("symptom") && <th className="text-left font-medium px-4 py-3">อาการ</th>}
+                  {visibleColumns.has("assetStatus") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Asset Status</th>}
+                  {visibleColumns.has("ticketStatus") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">สถานะ Ticket</th>}
+                  {visibleColumns.has("age") && <th className="text-right font-medium px-4 py-3 whitespace-nowrap">อายุงาน</th>}
+                  {visibleColumns.has("sla") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">SLA</th>}
+                  {visibleColumns.has("remark") && <th className="text-left font-medium px-4 py-3 w-[220px]">Remark Ticket</th>}
+                  {visibleColumns.has("nextStep") && <th className="text-left font-medium px-4 py-3 w-[180px]">Next Step</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">

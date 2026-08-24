@@ -114,10 +114,13 @@ export const getAdSummary = createServerFn({ method: "GET" })
       activeBrands: number;
       crmUnmatchedAssets: number;
     };
-    const rpc = context.supabase.rpc as unknown as (
-      name: string,
-    ) => PromiseLike<{ data: Stats | null; error: { message: string } | null }>;
-    const { data: stats, error: statsError } = await rpc("get_ad_summary_stats");
+    const rpcFn = (name: string) =>
+      (context.supabase.rpc as unknown as (n: string) => PromiseLike<{
+        data: Stats | null;
+        error: { message: string } | null;
+      }>).call(context.supabase, name);
+    const { data: stats, error: statsError } = await rpcFn("get_ad_summary_stats");
+
 
     if (!statsError && stats) {
       const totalAssets = Number(stats.totalAssets ?? 0);

@@ -102,6 +102,43 @@ export const getAdSummary = createServerFn({ method: "GET" })
     const today = new Date().toISOString().slice(0, 10);
     const in30 = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
 
+    // Fast path: the whole summary is one aggregate query in Postgres
+    // (`get_ad_summary_stats`) instead of pulling ad_contracts + assets
+    // entirely into JS. Same numbers, same normalized code matching.
+    type Stats = {
+      totalAssets: number;
+      currentContracts: number;
+      expiring30: number;
+      occupiedAssets: number;
+      activeContracts: number;
+      activeBrands: number;
+      crmUnmatchedAssets: number;
+    };
+    const rpc = context.supabase.rpc as unknown as (
+      name: string,
+    ) => PromiseLike<{ data: Stats | null; error: { message: string } | null }>;
+    const { data: stats, error: statsError } = await rpc("get_ad_summary_stats");
+
+    if (!statsError && stats) {
+      const totalAssets = Number(stats.totalAssets ?? 0);
+      const occupied = Number(stats.occupiedAssets ?? 0);
+      const contracts = Number(stats.activeContracts ?? 0);
+      return {
+        totalAssets,
+        currentContracts: Number(stats.currentContracts ?? 0),
+        expiring30: Number(stats.expiring30 ?? 0),
+        occupiedAssets: occupied,
+        vacantAssets: Math.max(0, totalAssets - occupied),
+        activeContracts: contracts,
+        activeProducts: contracts,
+        activeBrands: Number(stats.activeBrands ?? 0),
+        crmUnmatchedAssets: Number(stats.crmUnmatchedAssets ?? 0),
+        lastSyncedAt: null as string | null,
+      };
+    }
+
+    // Fallback: original client-side aggregation, kept so the page still
+    // works if the aggregate function is unavailable.
     const [{ count: totalAssets }, { count: currentRows }, { count: expiring }, distinctRows] = await Promise.all([
       context.supabase.from("assets").select("old_code", { count: "exact", head: true }),
       context.supabase.from("ad_contracts").select("id", { count: "exact", head: true }).eq("status", "current"),
@@ -120,9 +157,6 @@ export const getAdSummary = createServerFn({ method: "GET" })
       ),
     ]);
 
-    // CRM holds codes that do not exist in our asset table, so only count
-    // matched codes as "occupied". Match on the normalized code so spelling
-    // differences ("MTP-A23" vs "MTP A23") still resolve to the same asset.
     const assetIndex = buildAssetCodeIndex(
       (
         await fetchAllPaged<{ old_code: string | null }>((from, to) =>
@@ -145,7 +179,6 @@ export const getAdSummary = createServerFn({ method: "GET" })
       if (r.brand) brands.add(r.brand);
     }
 
-
     return {
       totalAssets: totalAssets ?? 0,
       currentContracts: currentRows ?? 0,
@@ -158,6 +191,7 @@ export const getAdSummary = createServerFn({ method: "GET" })
       crmUnmatchedAssets: unmatched,
       lastSyncedAt: null as string | null,
     };
+
   });
 
 /** Distinct ad names with how many assets they run on (search / autocomplete). */

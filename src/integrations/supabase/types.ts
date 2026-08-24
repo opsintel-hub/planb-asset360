@@ -472,6 +472,13 @@ export type Database = {
             referencedRelation: "assets"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "claims_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets_map"
+            referencedColumns: ["id"]
+          },
         ]
       }
       diagram_mappings: {
@@ -664,6 +671,13 @@ export type Database = {
             columns: ["asset_id"]
             isOneToOne: true
             referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monitoring_status_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: true
+            referencedRelation: "assets_map"
             referencedColumns: ["id"]
           },
         ]
@@ -1037,8 +1051,48 @@ export type Database = {
         }
         Relationships: []
       }
+      assets_map: {
+        Row: {
+          department: string | null
+          district: string | null
+          id: string | null
+          latitude: number | null
+          location: string | null
+          longitude: number | null
+          media_type: string | null
+          name: string | null
+          old_code: string | null
+          status: string | null
+        }
+        Insert: {
+          department?: string | null
+          district?: string | null
+          id?: string | null
+          latitude?: never
+          location?: never
+          longitude?: never
+          media_type?: never
+          name?: never
+          old_code?: string | null
+          status?: string | null
+        }
+        Update: {
+          department?: string | null
+          district?: string | null
+          id?: string | null
+          latitude?: never
+          location?: never
+          longitude?: never
+          media_type?: never
+          name?: never
+          old_code?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      get_ad_summary_stats: { Args: never; Returns: Json }
       get_mssql_cron_schedules: {
         Args: never
         Returns: {

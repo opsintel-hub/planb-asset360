@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { fetchAllPaged } from "@/lib/ad-paging";
 
 export type MapAsset = {
   id: string;
@@ -14,67 +15,48 @@ export type MapAsset = {
   lng: number;
 };
 
+type MapRow = {
+  id: string;
+  old_code: string | null;
+  name: string | null;
+  department: string | null;
+  district: string | null;
+  status: string | null;
+  media_type: string | null;
+  location: string | null;
+  latitude: number | null;
+  longitude: number | null;
+};
 
-function parseLatLng(raw: unknown): [number, number] | null {
-  if (typeof raw !== "string") return null;
-  const m = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
-  if (!m) return null;
-  const lat = Number(m[1]);
-  const lng = Number(m[2]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
-  return [lat, lng];
-}
+const MAP_COLS = "id, old_code, name, department, district, status, media_type, location, latitude, longitude";
 
 export const listAssetsForMap = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    // pull all assets — 8k rows, one shot is fine.
-    const rows: Array<{
-      id: string;
-      old_code: string | null;
-      name: string | null;
-      department: string | null;
-      district: string | null;
-      status: string | null;
-      latitude: number | null;
-      longitude: number | null;
-      payload: Record<string, unknown> | null;
-    }> = [];
-    const pageSize = 1000;
-    let from = 0;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const { data, error } = await context.supabase
-        .from("assets")
-        .select("id, old_code, name, department, district, status, latitude, longitude, payload")
-        .range(from, from + pageSize - 1);
-      if (error) throw new Error(error.message);
-      if (!data || data.length === 0) break;
-      rows.push(...(data as typeof rows));
-      if (data.length < pageSize) break;
-      from += pageSize;
-    }
+    // `assets_map` is a lightweight view that already resolves name /
+    // media_type / location / lat-lng out of `payload`, so we no longer ship
+    // ~7 MB of raw JSON to render 8k pins. Pages are fetched concurrently.
+    const db = context.supabase as unknown as {
+      from: (table: string) => {
+        select: (cols: string) => { range: (a: number, b: number) => PromiseLike<{ data: MapRow[] | null; error: { message: string } | null }> };
+      };
+    };
+    const rows = await fetchAllPaged<MapRow>((from, to) => db.from("assets_map").select(MAP_COLS).range(from, to));
 
     const assets: MapAsset[] = [];
     for (const r of rows) {
-      let lat: number | null = r.latitude != null ? Number(r.latitude) : null;
-      let lng: number | null = r.longitude != null ? Number(r.longitude) : null;
-      if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
-        const p = (r.payload ?? {}) as Record<string, unknown>;
-        const ll = parseLatLng(p.LatitudeLongitude);
-        if (ll) { lat = ll[0]; lng = ll[1]; }
-      }
-      if (lat == null || lng == null) continue;
-      const p = (r.payload ?? {}) as Record<string, unknown>;
+      const lat = r.latitude != null ? Number(r.latitude) : null;
+      const lng = r.longitude != null ? Number(r.longitude) : null;
+      if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      if (Math.abs(lat) > 90 || Math.abs(lng) > 180) continue;
       assets.push({
         id: r.id,
         old_code: r.old_code,
-        name: r.name ?? (typeof p.Description === "string" ? p.Description : null),
+        name: r.name,
         department: r.department,
-        media_type: typeof p.MediaType === "string" ? p.MediaType : null,
+        media_type: r.media_type,
         status: r.status,
-        location: typeof p.Location === "string" ? p.Location : null,
+        location: r.location,
         district: r.district,
         lat,
         lng,
@@ -89,6 +71,7 @@ export const listAssetsForMap = createServerFn({ method: "GET" })
     ).sort();
     return { assets, departments, mediaTypes };
   });
+
 
 export const listOpenClaimOldCodes = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

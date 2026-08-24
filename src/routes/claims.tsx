@@ -79,13 +79,14 @@ function ClaimsPage() {
   const upsertFn = useServerFn(upsertClaimNextStep);
   const syncFn = useServerFn(syncClaimsNow);
   const qc = useQueryClient();
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const isAuthed = !!session?.access_token;
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["claims", "all"],
     queryFn: () => fn({ data: { sla: "all" as const } }),
     enabled: isAuthed,
   });
+  const isClaimsLoading = isLoading || authLoading || !isAuthed;
 
   const syncMut = useMutation({
     mutationFn: () => syncFn({}),
@@ -384,7 +385,7 @@ function ClaimsPage() {
       </div>
 
       <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden">
-        {isLoading ? (
+        {isClaimsLoading ? (
           <div className="p-4 space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
         ) : claims.length === 0 ? (
           <div className="p-10 text-center text-sm text-muted-foreground">ยังไม่มี Claim ตามตัวกรองที่เลือก</div>

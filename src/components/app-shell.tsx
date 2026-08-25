@@ -15,6 +15,8 @@ import {
   Sparkles,
   Navigation,
   ShieldAlert,
+  ExternalLink,
+
 } from "lucide-react";
 
 import { useState, useEffect } from "react";

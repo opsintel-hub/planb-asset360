@@ -40,6 +40,8 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import SearchableSelect from "@/components/searchable-select";
+
 import { listAssetsForMap, listOpenClaimOldCodes, type MapAsset } from "@/lib/map.functions";
 import { createPoiShare } from "@/lib/poi-share.functions";
 import {

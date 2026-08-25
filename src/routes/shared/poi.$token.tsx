@@ -250,7 +250,67 @@ function SharedContent({ payload }: { payload: PoiSharePayload }) {
       .sort((a, b) => a.distanceM - b.distanceM);
   }, [payload.matches]);
 
+  // Photo-team style share: a plain checklist (some rows have no coordinates).
+  if (payload.checklist?.length) {
+    const list = payload.checklist;
+    const withGeo = list.filter((c) => c.hasGeo).length;
+    return (
+      <div className="grid gap-3" style={{ gridTemplateColumns: mapAssets.length ? "1fr 420px" : "1fr" }}>
+        {mapAssets.length > 0 && (
+          <div className="rounded-xl border bg-card shadow overflow-hidden" style={{ height: "calc(100vh - 200px)", minHeight: 420 }}>
+            <ClientOnly fallback={<Skeleton className="w-full h-full" />}>
+              <Suspense fallback={<Skeleton className="w-full h-full" />}>
+                <AssetMap
+                  assets={mapAssets}
+                  claimedCodes={new Set()}
+                  focusId={null}
+                  nearbyIds={new Set(mapAssets.map((a) => a.id))}
+                  poiMarkers={[]}
+                  poiRadiusMeters={payload.radiusM}
+                  showRadiusRings={false}
+                />
+              </Suspense>
+            </ClientOnly>
+          </div>
+        )}
+        <aside className="rounded-xl border bg-card shadow p-3 space-y-2 overflow-auto" style={{ height: "calc(100vh - 200px)" }}>
+          <div>
+            <h2 className="font-semibold text-sm">{payload.checklistTitle ?? "รายการถ่ายรูป"}</h2>
+            <div className="text-xs text-muted-foreground">
+              ทั้งหมด <b>{list.length}</b> รายการ · มีพิกัดปักหมุด <b>{withGeo}</b>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            {list.map((c, i) => (
+              <div key={`${c.code ?? "x"}-${i}`} className="rounded-md border p-2 text-xs space-y-0.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold truncate">{c.code ?? "—"}</span>
+                  {c.hasGeo ? (
+                    <span className="text-[10px] text-emerald-600">มีพิกัด</span>
+                  ) : (
+                    <span className="text-[10px] text-amber-600">ไม่มีพิกัด</span>
+                  )}
+                </div>
+                <div className="truncate">{c.brand ?? "—"}</div>
+                <div className="text-muted-foreground truncate">
+                  {c.contract ?? "—"}
+                  {c.mediaType ? ` · ${c.mediaType}` : ""}
+                </div>
+                {c.location && <div className="text-muted-foreground truncate">{c.location}</div>}
+                <div className="text-muted-foreground">
+                  ติดตั้ง {c.favorStart ?? "—"}
+                  {c.endDate ? ` · สิ้นสุด ${c.endDate}` : ""}
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </div>
+    );
+  }
+
   return (
+
     <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 340px" }}>
       <div className="rounded-xl border bg-card shadow overflow-hidden" style={{ height: "calc(100vh - 200px)", minHeight: 480 }}>
         <ClientOnly fallback={<Skeleton className="w-full h-full" />}>

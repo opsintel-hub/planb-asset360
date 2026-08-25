@@ -204,7 +204,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </nav>
 
 
+      <div className="px-3 pb-2">
+        <button
+          type="button"
+          onClick={toggleNewTab}
+          aria-pressed={newTab}
+          title="เปิดเมนูในแท็บใหม่ทุกครั้ง (ยังกด Ctrl/Cmd + คลิก ได้เหมือนเดิม)"
+          className={cn(
+            "w-full flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors",
+            newTab
+              ? "bg-sidebar-accent text-sidebar-primary-foreground"
+              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60",
+          )}
+        >
+          <ExternalLink className="size-3.5 shrink-0" />
+          <span className="truncate">เปิดเมนูในแท็บใหม่</span>
+          <span
+            className={cn(
+              "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px]",
+              newTab ? "bg-primary text-primary-foreground" : "bg-sidebar-border/60",
+            )}
+          >
+            {newTab ? "เปิด" : "ปิด"}
+          </span>
+        </button>
+      </div>
+
       <div className="p-4 border-t border-sidebar-border">
+
         <div className="flex items-center gap-3">
           <div className="size-9 shrink-0 rounded-full bg-sidebar-primary grid place-items-center text-sm font-semibold text-sidebar-primary-foreground">
             {initial}

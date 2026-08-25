@@ -58,8 +58,6 @@ export const getNearbyPOIsForAsset = createServerFn({ method: "POST" })
         return { ok: false, error: (e as Error).message, pois: [] };
       }
     }
-    {
-    }
     const pois: NearbyPOI[] = [];
     for (const el of raw.elements ?? []) {
       const la = el.lat ?? el.center?.lat;

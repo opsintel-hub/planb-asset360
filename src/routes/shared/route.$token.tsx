@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, Clock, ExternalLink, MapPin, Navigation, Share2 } from "lucide-react";
 import type { RouteSharePayload } from "@/lib/route-share.functions";
-import { googleMapsLinks, planTextForDay, shareOrCopy } from "@/lib/route-mobile";
+import { googleMapsSegmentLinks, planTextForDay, shareOrCopy } from "@/lib/route-mobile";
 import type { PlanPoint } from "@/lib/route-planner";
 import { toast } from "sonner";
 

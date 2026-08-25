@@ -115,7 +115,7 @@ function SharedRoutePage() {
     );
   }
 
-  const links = mobileDay ? googleMapsLinks(mobileDay) : [];
+  const segments = mobileDay ? googleMapsSegmentLinks(mobileDay) : [];
 
   return (
     <main className="mx-auto w-full max-w-2xl p-4 pb-24 space-y-4">

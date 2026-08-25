@@ -324,12 +324,37 @@ export const searchPOIsNearAssets = createServerFn({ method: "POST" })
       raw = fetched.raw;
       overpassWarnings = fetched.warnings;
     } catch (e) {
-      return {
-        ok: false,
-        error: `บริการแผนที่ OSM ตอบช้า/ไม่พร้อมใช้งาน: ${(e as Error).message} — ลองซูมเข้า หรือเลือก Project/พื้นที่ให้แคบลง`,
-        pois: [], matches: [], assetCount: rows.length, poiCount: 0, matchedAssetCount: 0,
-        elapsedMs: Date.now() - t0,
-      };
+      // Public OSM/Overpass mirrors are unreliable (HTTP 5xx/521/timeouts).
+      // Fall back to Google Places around the selected assets so POI search
+      // still returns results instead of failing.
+      const osmError = (e as Error).message;
+      if (isPlacesFallbackAvailable() && presetKeys.length > 0) {
+        try {
+          const fb = await fetchPoisFromPlaces({
+            presetKeys,
+            radiusM: data.radiusM,
+            assetPoints: rows
+              .filter((r) => r.latitude != null && r.longitude != null)
+              .map((r) => ({ lat: r.latitude as number, lng: r.longitude as number })),
+          });
+          raw = fb.raw;
+          overpassWarnings = fb.warnings;
+        } catch (e2) {
+          return {
+            ok: false,
+            error: `บริการแผนที่ OSM ไม่พร้อมใช้งาน (${osmError}) และโหมดสำรองล้มเหลว: ${(e2 as Error).message}`,
+            pois: [], matches: [], assetCount: rows.length, poiCount: 0, matchedAssetCount: 0,
+            elapsedMs: Date.now() - t0,
+          };
+        }
+      } else {
+        return {
+          ok: false,
+          error: `บริการแผนที่ OSM ตอบช้า/ไม่พร้อมใช้งาน: ${osmError} — ลองซูมเข้า หรือเลือก Project/พื้นที่ให้แคบลง${presetKeys.length === 0 ? " (โหมดสำรองรองรับเฉพาะการเลือกประเภทสถานที่ ไม่รองรับคำค้นอิสระ)" : ""}`,
+          pois: [], matches: [], assetCount: rows.length, poiCount: 0, matchedAssetCount: 0,
+          elapsedMs: Date.now() - t0,
+        };
+      }
     }
     if (!Array.isArray(raw.elements)) {
       return {

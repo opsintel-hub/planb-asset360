@@ -14,6 +14,18 @@ export type PoiShareAsset = {
   lng: number;
 };
 
+/** Plain checklist row — used for jobs whose assets have no coordinates yet. */
+export type PoiShareChecklistItem = {
+  code: string | null;
+  brand: string | null;
+  contract: string | null;
+  location: string | null;
+  mediaType: string | null;
+  favorStart: string | null;
+  endDate: string | null;
+  hasGeo: boolean;
+};
+
 export type PoiSharePayload = {
   pois: POI[];
   matches: POIMatch[];
@@ -29,8 +41,11 @@ export type PoiSharePayload = {
   projects?: string[];
   medias?: string[];
   assets: PoiShareAsset[];
+  checklist?: PoiShareChecklistItem[];
+  checklistTitle?: string;
   createdByLabel?: string | null;
 };
+
 
 const TTL_HOURS = 72;
 

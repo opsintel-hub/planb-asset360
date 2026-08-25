@@ -1144,20 +1144,17 @@ function MapPage() {
       )}
 
       {adMode && adBrands.length > 0 && (
-        <select
+        <SearchableSelect
           value={adBrand}
-          onChange={(e) => setAdBrand(e.target.value)}
-          className="h-9 rounded-md border bg-background px-2 text-xs max-w-[200px]"
+          onChange={setAdBrand}
+          options={adBrands}
+          allLabel="แบรนด์: ทั้งหมด"
+          placeholder="พิมพ์ชื่อแบรนด์เพื่อค้นหา..."
+          className="w-[190px]"
           title="กรองตามแบรนด์ (CRM)"
-        >
-          <option value="all">แบรนด์: ทั้งหมด</option>
-          {adBrands.map((b) => (
-            <option key={b} value={b}>
-              {b}
-            </option>
-          ))}
-        </select>
+        />
       )}
+
 
       {adFocus && (
         <span className="h-9 px-2.5 rounded-md border border-primary bg-primary/10 text-primary inline-flex items-center gap-2 text-xs">

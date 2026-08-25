@@ -877,11 +877,16 @@ function NewLaunchTab() {
 
   const shareFn = useServerFn(createPoiShare);
   const share = async () => {
-    if (!geoRows.length) return toast.error("ไม่มีป้ายที่มีพิกัดสำหรับแชร์");
+    if (!rows.length) return toast.error("ไม่มีรายการสำหรับแชร์");
     setSharing(true);
     try {
       const lats = geoRows.map((r) => r.asset!.lat as number);
       const lngs = geoRows.map((r) => r.asset!.lng as number);
+      // No matched coordinates yet → fall back to a Bangkok-wide bbox so the
+      // shared page still renders, and rely on the checklist below.
+      const bbox: [number, number, number, number] = geoRows.length
+        ? [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)]
+        : [13.5, 100.3, 14.0, 100.95];
       const res = await shareFn({
         data: {
           payload: {
@@ -889,7 +894,7 @@ function NewLaunchTab() {
             matches: [],
             radiusM: 200,
             matchMode: "any",
-            bbox: [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)],
+            bbox,
             presetKeys: [],
             freeText: `งานถ่ายรูปโฆษณาขึ้นใหม่ ${days} วัน`,
             chipProjects: [],
@@ -906,18 +911,33 @@ function NewLaunchTab() {
               lat: r.asset!.lat as number,
               lng: r.asset!.lng as number,
             })),
+            checklistTitle: `รายการถ่ายรูปโฆษณาขึ้นใหม่ ${days} วัน${brand ? ` · ${brand}` : ""}`,
+            checklist: rows.map((r) => ({
+              code: r.asset_old_code,
+              brand: r.brand,
+              contract: r.ad_contract,
+              location: r.asset?.location ?? null,
+              mediaType: r.asset?.media_type ?? null,
+              favorStart: r.favor_start,
+              endDate: r.end_date_contract,
+              hasGeo: r.asset?.lat != null && r.asset?.lng != null,
+            })),
           },
         },
       });
       const url = `${window.location.origin}/shared/poi/${res.token}`;
       await navigator.clipboard.writeText(url).catch(() => null);
-      toast.success("คัดลอกลิงก์งานถ่ายรูปแล้ว (อายุ 72 ชม.)", { description: url });
+      toast.success(
+        `คัดลอกลิงก์งานถ่ายรูปแล้ว (อายุ 72 ชม.) — ${rows.length} รายการ, ปักหมุดได้ ${geoRows.length}`,
+        { description: url },
+      );
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
       setSharing(false);
     }
   };
+
 
   return (
     <Card>

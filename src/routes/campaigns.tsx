@@ -809,28 +809,46 @@ function NewLaunchTab() {
     () => rows.filter((r) => r.asset?.lat != null && r.asset?.lng != null),
     [rows],
   );
+  /** Codes that exist in the asset master — the only ones Route Monitoring can plan. */
+  const matchedCodes = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.filter((r) => r.asset).map((r) => r.asset_old_code).filter(Boolean) as string[]),
+      ),
+    [rows],
+  );
+  const unmatchedCount = rows.filter((r) => !r.asset).length;
 
   const sendToRoute = () => {
-    if (!codes.length) return toast.error("ไม่มีป้ายให้ส่งเข้าแผนถ่ายรูป");
+    if (!matchedCodes.length)
+      return toast.error("ยังไม่มีป้ายที่จับคู่กับฐานข้อมูลป้ายได้ จึงวางแผนเส้นทางไม่ได้", {
+        description: `รายการทั้งหมด ${rows.length} แถวยังไม่มีในฐานข้อมูลป้าย (MSSQL) — ใช้ปุ่ม "แชร์ให้ทีมถ่ายรูป" เป็น checklist ได้`,
+      });
     sessionStorage.setItem(
       PHOTO_ROUTE_KEY,
       JSON.stringify({
-        codes,
+        codes: matchedCodes,
         label: `ถ่ายรูปโฆษณาขึ้นใหม่ ${days} วัน${brand ? ` · ${brand}` : ""}`,
         at: Date.now(),
       }),
     );
+    if (unmatchedCount > 0)
+      toast.info(`ส่งเข้าแผน ${matchedCodes.length} ป้าย (อีก ${unmatchedCount} แถวยังจับคู่ป้ายไม่ได้)`);
     window.location.href = "/route-monitoring";
   };
 
   const focusOnMap = () => {
-    if (!geoRows.length) return toast.error("ไม่พบพิกัดป้ายของรายการนี้");
+    if (!geoRows.length)
+      return toast.error("ไม่พบพิกัดป้ายของรายการนี้", {
+        description: "ป้ายชุดนี้ยังไม่มีในฐานข้อมูลป้าย (MSSQL) จึงยังไม่มีพิกัดให้ปักหมุด",
+      });
     sessionStorage.setItem(
       AD_FOCUS_KEY,
-      JSON.stringify({ product: `ขึ้นใหม่ ${days} วัน`, codes, at: Date.now() }),
+      JSON.stringify({ product: `ขึ้นใหม่ ${days} วัน`, codes: matchedCodes, at: Date.now() }),
     );
     window.location.href = "/map";
   };
+
 
   const exportCsv = () => {
     const out: (string | number | null)[][] = [

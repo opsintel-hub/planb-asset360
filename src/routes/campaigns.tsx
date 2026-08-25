@@ -985,19 +985,21 @@ function NewLaunchTab() {
                 </option>
               ))}
             </select>
-            <Button size="sm" onClick={sendToRoute} disabled={!codes.length}>
+            <Button size="sm" onClick={sendToRoute} disabled={!rows.length} title="ส่งป้ายที่จับคู่ได้เข้า Route Monitoring">
               <Navigation className="h-4 w-4 mr-1" /> สร้างแผนถ่ายรูป
+              {matchedCodes.length > 0 && unmatchedCount > 0 ? ` (${matchedCodes.length})` : ""}
             </Button>
-            <Button size="sm" variant="secondary" onClick={focusOnMap} disabled={!geoRows.length}>
+            <Button size="sm" variant="secondary" onClick={focusOnMap} disabled={!rows.length}>
               <MapPin className="h-4 w-4 mr-1" /> ดูบนแผนที่
             </Button>
             <Button size="sm" variant="secondary" onClick={exportCsv} disabled={!rows.length}>
               <Download className="h-4 w-4 mr-1" /> CSV
             </Button>
-            <Button size="sm" variant="secondary" onClick={share} disabled={sharing || !geoRows.length}>
+            <Button size="sm" variant="secondary" onClick={share} disabled={sharing || !rows.length}>
               {sharing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Share2 className="h-4 w-4 mr-1" />}
               แชร์ให้ทีมถ่ายรูป
             </Button>
+
           </div>
         </div>
       </CardHeader>

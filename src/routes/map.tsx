@@ -1180,22 +1180,32 @@ function MapPage() {
 
 
 
-      {hasFilter && (
-        <button
-          onClick={() => {
-            setFProjects([]);
-            setFMedias([]);
-            setQ("");
-            setOnlyClaimed(false);
-            setOnlyHighRisk(false);
-            setFocusId(null);
-          }}
-          className="text-xs px-2.5 h-9 rounded-md border hover:bg-accent inline-flex items-center gap-1"
-          title="ล้างตัวกรอง"
-        >
-          <X className="size-3.5" /> Clear
-        </button>
-      )}
+      <button
+        type="button"
+        disabled={!hasFilter}
+        onClick={() => {
+          setFProjects([]);
+          setFMedias([]);
+          setQ("");
+          setOnlyClaimed(false);
+          setOnlyHighRisk(false);
+          setRiskMode(false);
+          setAdMode(false);
+          setAdFilter("all");
+          setAdBrand("all");
+          setAdFocus(null);
+          setFocusId(null);
+          clearPlacePin();
+        }}
+        className={
+          "text-xs px-2.5 h-9 rounded-md border inline-flex items-center gap-1 " +
+          (hasFilter ? "border-destructive/50 text-destructive hover:bg-destructive/10" : "opacity-50 cursor-not-allowed")
+        }
+        title={hasFilter ? "ล้างตัวกรองทั้งหมดในหน้านี้" : "ยังไม่มีตัวกรองที่ใช้งานอยู่"}
+      >
+        <X className="size-3.5" /> ล้างตัวกรอง
+      </button>
+
 
       <div className="ml-auto w-full sm:w-[300px] order-last sm:order-none">
         <PlaceSearchBox onSelect={flyToPlace} onClear={clearPlacePin} />

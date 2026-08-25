@@ -168,6 +168,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               key={item.to}
               to={item.to}
+              target={newTab ? "_blank" : undefined}
+              rel={newTab ? "noopener" : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                 active
@@ -175,6 +177,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
               )}
             >
+
               <Icon className="size-4 shrink-0" />
               <span className="truncate">{item.label}</span>
               {item.to === "/campaigns" && (newAds?.count ?? 0) > 0 && (

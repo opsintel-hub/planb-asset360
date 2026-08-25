@@ -373,7 +373,6 @@ async function renderInfoBlock(input: ExportInput): Promise<{ dataUrl: string; r
   const rows: [string, string][] = [
     ["รหัส", a.old_code ?? "—"],
     ["ชื่อ", a.name ?? a.location ?? "—"],
-    ["Department", a.department ?? "—"],
     ["Media Type", a.media_type ?? "—"],
     ["Location", a.location ?? "—"],
     ["สถานะ", a.status ?? "—"],
@@ -639,7 +638,7 @@ export async function exportBillboardPptx(input: ExportInput): Promise<void> {
   const infoRows: [string, string][] = [
     ["รหัส", a.old_code ?? "—"],
     ["ชื่อ", a.name ?? a.location ?? "—"],
-    ["Department", a.department ?? "—"],
+    
     ["Media Type", a.media_type ?? "—"],
     ["Location", a.location ?? "—"],
     ["สถานะ", a.status ?? "—"],

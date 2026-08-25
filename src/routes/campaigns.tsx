@@ -801,36 +801,50 @@ function NewLaunchTab() {
     return Array.from(s).sort((a, b) => a.localeCompare(b, "th"));
   }, [rows]);
 
-  const codes = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.asset_old_code).filter(Boolean) as string[])),
-    [rows],
-  );
   const geoRows = useMemo(
     () => rows.filter((r) => r.asset?.lat != null && r.asset?.lng != null),
     [rows],
   );
+  /** Codes that exist in the asset master — the only ones Route Monitoring can plan. */
+  const matchedCodes = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.filter((r) => r.asset).map((r) => r.asset_old_code).filter(Boolean) as string[]),
+      ),
+    [rows],
+  );
+  const unmatchedCount = rows.filter((r) => !r.asset).length;
 
   const sendToRoute = () => {
-    if (!codes.length) return toast.error("ไม่มีป้ายให้ส่งเข้าแผนถ่ายรูป");
+    if (!matchedCodes.length)
+      return toast.error("ยังไม่มีป้ายที่จับคู่กับฐานข้อมูลป้ายได้ จึงวางแผนเส้นทางไม่ได้", {
+        description: `รายการทั้งหมด ${rows.length} แถวยังไม่มีในฐานข้อมูลป้าย (MSSQL) — ใช้ปุ่ม "แชร์ให้ทีมถ่ายรูป" เป็น checklist ได้`,
+      });
     sessionStorage.setItem(
       PHOTO_ROUTE_KEY,
       JSON.stringify({
-        codes,
+        codes: matchedCodes,
         label: `ถ่ายรูปโฆษณาขึ้นใหม่ ${days} วัน${brand ? ` · ${brand}` : ""}`,
         at: Date.now(),
       }),
     );
+    if (unmatchedCount > 0)
+      toast.info(`ส่งเข้าแผน ${matchedCodes.length} ป้าย (อีก ${unmatchedCount} แถวยังจับคู่ป้ายไม่ได้)`);
     window.location.href = "/route-monitoring";
   };
 
   const focusOnMap = () => {
-    if (!geoRows.length) return toast.error("ไม่พบพิกัดป้ายของรายการนี้");
+    if (!geoRows.length)
+      return toast.error("ไม่พบพิกัดป้ายของรายการนี้", {
+        description: "ป้ายชุดนี้ยังไม่มีในฐานข้อมูลป้าย (MSSQL) จึงยังไม่มีพิกัดให้ปักหมุด",
+      });
     sessionStorage.setItem(
       AD_FOCUS_KEY,
-      JSON.stringify({ product: `ขึ้นใหม่ ${days} วัน`, codes, at: Date.now() }),
+      JSON.stringify({ product: `ขึ้นใหม่ ${days} วัน`, codes: matchedCodes, at: Date.now() }),
     );
     window.location.href = "/map";
   };
+
 
   const exportCsv = () => {
     const out: (string | number | null)[][] = [
@@ -859,11 +873,16 @@ function NewLaunchTab() {
 
   const shareFn = useServerFn(createPoiShare);
   const share = async () => {
-    if (!geoRows.length) return toast.error("ไม่มีป้ายที่มีพิกัดสำหรับแชร์");
+    if (!rows.length) return toast.error("ไม่มีรายการสำหรับแชร์");
     setSharing(true);
     try {
       const lats = geoRows.map((r) => r.asset!.lat as number);
       const lngs = geoRows.map((r) => r.asset!.lng as number);
+      // No matched coordinates yet → fall back to a Bangkok-wide bbox so the
+      // shared page still renders, and rely on the checklist below.
+      const bbox: [number, number, number, number] = geoRows.length
+        ? [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)]
+        : [13.5, 100.3, 14.0, 100.95];
       const res = await shareFn({
         data: {
           payload: {
@@ -871,7 +890,7 @@ function NewLaunchTab() {
             matches: [],
             radiusM: 200,
             matchMode: "any",
-            bbox: [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)],
+            bbox,
             presetKeys: [],
             freeText: `งานถ่ายรูปโฆษณาขึ้นใหม่ ${days} วัน`,
             chipProjects: [],
@@ -888,18 +907,33 @@ function NewLaunchTab() {
               lat: r.asset!.lat as number,
               lng: r.asset!.lng as number,
             })),
+            checklistTitle: `รายการถ่ายรูปโฆษณาขึ้นใหม่ ${days} วัน${brand ? ` · ${brand}` : ""}`,
+            checklist: rows.map((r) => ({
+              code: r.asset_old_code,
+              brand: r.brand,
+              contract: r.ad_contract,
+              location: r.asset?.location ?? null,
+              mediaType: r.asset?.media_type ?? null,
+              favorStart: r.favor_start,
+              endDate: r.end_date_contract,
+              hasGeo: r.asset?.lat != null && r.asset?.lng != null,
+            })),
           },
         },
       });
       const url = `${window.location.origin}/shared/poi/${res.token}`;
       await navigator.clipboard.writeText(url).catch(() => null);
-      toast.success("คัดลอกลิงก์งานถ่ายรูปแล้ว (อายุ 72 ชม.)", { description: url });
+      toast.success(
+        `คัดลอกลิงก์งานถ่ายรูปแล้ว (อายุ 72 ชม.) — ${rows.length} รายการ, ปักหมุดได้ ${geoRows.length}`,
+        { description: url },
+      );
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
       setSharing(false);
     }
   };
+
 
   return (
     <Card>
@@ -913,6 +947,13 @@ function NewLaunchTab() {
               เกณฑ์: วันติดตั้งจริง (favor start) อยู่ในช่วง {days} วันล่าสุด — ป้าย {data?.assetCount ?? 0} ป้าย ·
               สัญญา {data?.contractCount ?? 0} · แบรนด์ {data?.brandCount ?? 0} · มีพิกัด {data?.withGeo ?? 0}
             </p>
+            {unmatchedCount > 0 && (
+              <p className="mt-1 text-xs text-amber-600">
+                {unmatchedCount} จาก {rows.length} แถวยังจับคู่กับฐานข้อมูลป้ายไม่ได้ (MSSQL ซิงก์ไม่ครบ) →
+                วางแผนเส้นทาง/ปักหมุดได้เฉพาะ {matchedCodes.length} ป้าย ส่วนลิงก์แชร์จะได้ครบทุกแถวเป็น checklist
+              </p>
+            )}
+
           </div>
           <div className="flex flex-wrap gap-2">
             <select
@@ -940,19 +981,21 @@ function NewLaunchTab() {
                 </option>
               ))}
             </select>
-            <Button size="sm" onClick={sendToRoute} disabled={!codes.length}>
+            <Button size="sm" onClick={sendToRoute} disabled={!rows.length} title="ส่งป้ายที่จับคู่ได้เข้า Route Monitoring">
               <Navigation className="h-4 w-4 mr-1" /> สร้างแผนถ่ายรูป
+              {matchedCodes.length > 0 && unmatchedCount > 0 ? ` (${matchedCodes.length})` : ""}
             </Button>
-            <Button size="sm" variant="secondary" onClick={focusOnMap} disabled={!geoRows.length}>
+            <Button size="sm" variant="secondary" onClick={focusOnMap} disabled={!rows.length}>
               <MapPin className="h-4 w-4 mr-1" /> ดูบนแผนที่
             </Button>
             <Button size="sm" variant="secondary" onClick={exportCsv} disabled={!rows.length}>
               <Download className="h-4 w-4 mr-1" /> CSV
             </Button>
-            <Button size="sm" variant="secondary" onClick={share} disabled={sharing || !geoRows.length}>
+            <Button size="sm" variant="secondary" onClick={share} disabled={sharing || !rows.length}>
               {sharing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Share2 className="h-4 w-4 mr-1" />}
               แชร์ให้ทีมถ่ายรูป
             </Button>
+
           </div>
         </div>
       </CardHeader>

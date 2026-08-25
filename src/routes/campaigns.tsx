@@ -951,6 +951,13 @@ function NewLaunchTab() {
               เกณฑ์: วันติดตั้งจริง (favor start) อยู่ในช่วง {days} วันล่าสุด — ป้าย {data?.assetCount ?? 0} ป้าย ·
               สัญญา {data?.contractCount ?? 0} · แบรนด์ {data?.brandCount ?? 0} · มีพิกัด {data?.withGeo ?? 0}
             </p>
+            {unmatchedCount > 0 && (
+              <p className="mt-1 text-xs text-amber-600">
+                {unmatchedCount} จาก {rows.length} แถวยังจับคู่กับฐานข้อมูลป้ายไม่ได้ (MSSQL ซิงก์ไม่ครบ) →
+                วางแผนเส้นทาง/ปักหมุดได้เฉพาะ {matchedCodes.length} ป้าย ส่วนลิงก์แชร์จะได้ครบทุกแถวเป็น checklist
+              </p>
+            )}
+
           </div>
           <div className="flex flex-wrap gap-2">
             <select

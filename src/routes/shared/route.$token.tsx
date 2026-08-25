@@ -168,11 +168,11 @@ function SharedRoutePage() {
           </section>
 
           <div className="flex flex-wrap gap-2">
-            {links.map((u, i) => (
-              <Button key={u} asChild size="sm" variant={i === 0 ? "default" : "outline"}>
-                <a href={u} target="_blank" rel="noreferrer">
+            {segments.map((seg, i) => (
+              <Button key={seg.url} asChild size="sm" variant={i === 0 ? "default" : "outline"}>
+                <a href={seg.url} target="_blank" rel="noreferrer">
                   <Navigation className="mr-1.5 h-4 w-4" />
-                  นำทางช่วงที่ {i + 1}
+                  {seg.label}
                 </a>
               </Button>
             ))}
@@ -180,7 +180,7 @@ function SharedRoutePage() {
               size="sm"
               variant="outline"
               onClick={async () => {
-                const r = await shareOrCopy(planTextForDay(mobileDay, links));
+                const r = await shareOrCopy(planTextForDay(mobileDay, segments.map((s) => s.url)));
                 toast.success(r === "shared" ? "แชร์แผนแล้ว" : "คัดลอกแผนแล้ว");
               }}
             >

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, Clock, ExternalLink, MapPin, Navigation, Share2 } from "lucide-react";
 import type { RouteSharePayload } from "@/lib/route-share.functions";
-import { googleMapsLinks, planTextForDay, shareOrCopy } from "@/lib/route-mobile";
+import { googleMapsSegmentLinks, planTextForDay, shareOrCopy } from "@/lib/route-mobile";
 import type { PlanPoint } from "@/lib/route-planner";
 import { toast } from "sonner";
 
@@ -115,7 +115,7 @@ function SharedRoutePage() {
     );
   }
 
-  const links = mobileDay ? googleMapsLinks(mobileDay) : [];
+  const segments = mobileDay ? googleMapsSegmentLinks(mobileDay) : [];
 
   return (
     <main className="mx-auto w-full max-w-2xl p-4 pb-24 space-y-4">
@@ -168,11 +168,11 @@ function SharedRoutePage() {
           </section>
 
           <div className="flex flex-wrap gap-2">
-            {links.map((u, i) => (
-              <Button key={u} asChild size="sm" variant={i === 0 ? "default" : "outline"}>
-                <a href={u} target="_blank" rel="noreferrer">
+            {segments.map((seg, i) => (
+              <Button key={seg.url} asChild size="sm" variant={i === 0 ? "default" : "outline"}>
+                <a href={seg.url} target="_blank" rel="noreferrer">
                   <Navigation className="mr-1.5 h-4 w-4" />
-                  นำทางช่วงที่ {i + 1}
+                  {seg.label}
                 </a>
               </Button>
             ))}
@@ -180,7 +180,7 @@ function SharedRoutePage() {
               size="sm"
               variant="outline"
               onClick={async () => {
-                const r = await shareOrCopy(planTextForDay(mobileDay, links));
+                const r = await shareOrCopy(planTextForDay(mobileDay, segments.map((s) => s.url)));
                 toast.success(r === "shared" ? "แชร์แผนแล้ว" : "คัดลอกแผนแล้ว");
               }}
             >

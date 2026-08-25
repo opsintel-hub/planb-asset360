@@ -12,7 +12,43 @@ export type MobileDay = {
   end?: { lat: number; lng: number; name?: string } | null;
 };
 
+export type RouteSegment = {
+  url: string;
+  label: string;
+  fromDisplay: string;
+  toDisplay: string;
+};
+
 const ll = (p: { lat: number; lng: number }) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
+
+type ChainItem = { lat: number; lng: number; kind: "start" | "point" | "end"; index?: number };
+
+function buildChain(day: MobileDay): ChainItem[] {
+  const chain: ChainItem[] = [];
+  if (day.start) chain.push({ ...day.start, kind: "start" });
+  day.points.forEach((p, i) => chain.push({ lat: p.lat, lng: p.lng, kind: "point", index: i }));
+  if (day.end) chain.push({ ...day.end, kind: "end" });
+  return chain;
+}
+
+function stopDisplay(item: ChainItem, chainIdx: number, hasStart: boolean): string {
+  if (item.kind === "start") return "จุดเริ่ม";
+  if (item.kind === "end") return "จุดจบ";
+  const stopNumber = hasStart ? chainIdx : chainIdx + 1;
+  return `ป้าย ${stopNumber}`;
+}
+
+function segmentLabel(from: string, to: string, segIdx: number): string {
+  const prefix = `ช่วงที่ ${segIdx + 1} · `;
+  const fromIsStop = from.startsWith("ป้าย ");
+  const toIsStop = to.startsWith("ป้าย ");
+  if (fromIsStop && toIsStop) {
+    const fromNum = from.replace("ป้าย ", "");
+    const toNum = to.replace("ป้าย ", "");
+    return `${prefix}ป้าย ${fromNum}–${toNum}`;
+  }
+  return `${prefix}${from} → ${to}`;
+}
 
 /**
  * Google Maps directions supports at most 10 points per URL (origin +
@@ -20,14 +56,23 @@ const ll = (p: { lat: number; lng: number }) => `${p.lat.toFixed(6)},${p.lng.toF
  * where each one starts where the previous ended.
  */
 export function googleMapsLinks(day: MobileDay, travelmode: "driving" | "two-wheeler" = "driving"): string[] {
+  return googleMapsSegmentLinks(day, travelmode).map((s) => s.url);
+}
+
+/**
+ * Same as googleMapsLinks but also returns human-readable labels for each
+ * segment so the UI can show e.g. "ช่วงที่ 1 · ป้าย 1–9".
+ */
+export function googleMapsSegmentLinks(
+  day: MobileDay,
+  travelmode: "driving" | "two-wheeler" = "driving",
+): RouteSegment[] {
   const pts = day.points;
   if (pts.length === 0) return [];
-  const chain: Array<{ lat: number; lng: number }> = [];
-  if (day.start) chain.push(day.start);
-  chain.push(...pts.map((p) => ({ lat: p.lat, lng: p.lng })));
-  if (day.end) chain.push(day.end);
+  const chain = buildChain(day);
+  const hasStart = !!day.start;
 
-  const links: string[] = [];
+  const segments: RouteSegment[] = [];
   let i = 0;
   while (i < chain.length - 1) {
     const seg = chain.slice(i, i + 10);
@@ -42,10 +87,16 @@ export function googleMapsLinks(day: MobileDay, travelmode: "driving" | "two-whe
       travelmode,
     });
     if (waypoints.length) params.set("waypoints", waypoints.map(ll).join("|"));
-    links.push(`https://www.google.com/maps/dir/?${params.toString()}`);
+    const url = `https://www.google.com/maps/dir/?${params.toString()}`;
+
+    const fromDisplay = stopDisplay(seg[0], i, hasStart);
+    const toDisplay = stopDisplay(seg[seg.length - 1], i + seg.length - 1, hasStart);
+    const label = segmentLabel(fromDisplay, toDisplay, segments.length);
+
+    segments.push({ url, label, fromDisplay, toDisplay });
     i += seg.length - 1;
   }
-  return links;
+  return segments;
 }
 
 /** Text briefing a technician can read straight from LINE / WhatsApp. */

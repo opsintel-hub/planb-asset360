@@ -10,6 +10,7 @@ import {
   type OverpassResponse,
 } from "./overpass";
 import { fetchPoisFromOverpassAdaptive } from "./poi-overpass-search.server";
+import { fetchPoisFromPlaces, isPlacesFallbackAvailable } from "./poi-places.server";
 
 export type NearbyPOI = {
   id: string;
@@ -41,7 +42,23 @@ export const getNearbyPOIsForAsset = createServerFn({ method: "POST" })
     try {
       raw = await fetchOverpassJson<OverpassResponse>(query);
     } catch (e) {
-      return { ok: false, error: (e as Error).message, pois: [] };
+      // OSM/Overpass down -> fall back to Google Places so the feature keeps working.
+      if (isPlacesFallbackAvailable()) {
+        try {
+          const fb = await fetchPoisFromPlaces({
+            presetKeys,
+            radiusM: 1000,
+            assetPoints: [{ lat, lng }],
+          });
+          raw = fb.raw;
+        } catch (e2) {
+          return { ok: false, error: (e2 as Error).message, pois: [] };
+        }
+      } else {
+        return { ok: false, error: (e as Error).message, pois: [] };
+      }
+    }
+    {
     }
     const pois: NearbyPOI[] = [];
     for (const el of raw.elements ?? []) {

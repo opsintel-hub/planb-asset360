@@ -801,10 +801,6 @@ function NewLaunchTab() {
     return Array.from(s).sort((a, b) => a.localeCompare(b, "th"));
   }, [rows]);
 
-  const codes = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.asset_old_code).filter(Boolean) as string[])),
-    [rows],
-  );
   const geoRows = useMemo(
     () => rows.filter((r) => r.asset?.lat != null && r.asset?.lng != null),
     [rows],

@@ -87,6 +87,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
+  // ---------- Open menus in a new browser tab (per-user preference) ----------
+  // Read after mount so SSR markup and the first client render always match.
+  const [newTab, setNewTab] = useState(false);
+  useEffect(() => {
+    setNewTab(window.localStorage.getItem("app:menu-new-tab") === "1");
+  }, []);
+  const toggleNewTab = () => {
+    setNewTab((v) => {
+      const next = !v;
+      window.localStorage.setItem("app:menu-new-tab", next ? "1" : "0");
+      return next;
+    });
+  };
+
+
   // ---------- Global Neon theme toggle ----------
   const [neon, setNeon] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;

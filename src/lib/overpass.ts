@@ -301,6 +301,9 @@ export function haversineMeters(
  */
 export function classifyPreset(tags: Record<string, string> | undefined): string {
   if (!tags) return "other";
+  // Non-OSM providers (Google Places fallback) tag the preset explicitly.
+  const explicit = tags["poi:preset"];
+  if (explicit && PRESET_BY_KEY[explicit]) return explicit;
   for (const preset of POI_PRESETS) {
     for (const filter of preset.tags) {
       if (filter.every(([k, v]) => tags[k] === v)) return preset.key;

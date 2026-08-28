@@ -52,6 +52,7 @@ const ALL_COLUMNS = [
   { key: "ticket", label: "Ticket", default: true },
   { key: "oldCode", label: "Old Code", default: true },
   { key: "department", label: "Department", default: true },
+  { key: "mediaType", label: "Media Type", default: true },
   { key: "currentAd", label: "โฆษณาปัจจุบัน", default: true },
   { key: "symptom", label: "อาการ", default: true },
   { key: "assetStatus", label: "Asset Status", default: true },
@@ -397,6 +398,7 @@ function ClaimsPage() {
                   {visibleColumns.has("ticket") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Ticket</th>}
                   {visibleColumns.has("oldCode") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Old Code</th>}
                   {visibleColumns.has("department") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Department</th>}
+                  {visibleColumns.has("mediaType") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Media Type</th>}
                   {visibleColumns.has("currentAd") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">โฆษณาปัจจุบัน</th>}
                   {visibleColumns.has("symptom") && <th className="text-left font-medium px-4 py-3">อาการ</th>}
                   {visibleColumns.has("assetStatus") && <th className="text-left font-medium px-4 py-3 whitespace-nowrap">Asset Status</th>}
@@ -442,6 +444,7 @@ function ClaimsPage() {
                         </td>
                       )}
                       {visibleColumns.has("department") && <td className="px-4 py-3 whitespace-nowrap">{c.department ?? "—"}</td>}
+                      {visibleColumns.has("mediaType") && <td className="px-4 py-3 whitespace-nowrap">{c.media_type ?? "—"}</td>}
                       {visibleColumns.has("currentAd") && (
                         <td className="px-4 py-3 max-w-[200px]">
                           {(() => {

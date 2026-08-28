@@ -496,12 +496,20 @@ export const listClaims = createServerFn({ method: "POST" })
       new Set(tickets.map((c) => c.asset_old_code).filter(Boolean) as string[]),
     );
     const deptMap = new Map<string, string | null>();
+    const mediaTypeMap = new Map<string, string | null>();
     if (codes.length) {
       const { data: assets } = await context.supabase
         .from("assets")
-        .select("old_code, department")
+        .select("old_code, department, media_type, payload")
         .in("old_code", codes);
-      for (const a of assets ?? []) deptMap.set(a.old_code, a.department ?? null);
+      for (const a of assets ?? []) {
+        deptMap.set(a.old_code, a.department ?? null);
+        const mt =
+          a.media_type ??
+          ((a.payload as Record<string, unknown> | null)?.["MediaType"] as string | null) ??
+          null;
+        mediaTypeMap.set(a.old_code, mt);
+      }
     }
 
     // Load next-step notes for these tickets
@@ -542,6 +550,7 @@ export const listClaims = createServerFn({ method: "POST" })
         sla_status: c.sla_status,
         severity: c.severity,
         department: c.asset_old_code ? deptMap.get(c.asset_old_code) ?? null : null,
+        media_type: c.asset_old_code ? mediaTypeMap.get(c.asset_old_code) ?? null : null,
         status: c.status,
         asset_status: assetStatus,
         payload: c.payload,

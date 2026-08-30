@@ -46,7 +46,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 
-const COLUMN_STORAGE_KEY = "claims-visible-columns-v1";
+// Bumped to v2 when the "Media Type" column was added, so returning users
+// pick up newly added default columns instead of their stale saved set.
+const COLUMN_STORAGE_KEY = "claims-visible-columns-v2";
 
 const ALL_COLUMNS = [
   { key: "ticket", label: "Ticket", default: true },

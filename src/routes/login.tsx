@@ -3,10 +3,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/lib/auth-context";
+import { isAllowedEmail, ALLOWED_EMAIL_DOMAIN } from "@/lib/authDomain";
 import { toast } from "sonner";
-
-/** โดเมนอีเมลบริษัทที่อนุญาตให้เข้าสู่ระบบด้วย Google (เช่น "planbmedia.co.th") */
-const ALLOWED_EMAIL_DOMAIN = "planbmedia.co.th";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "เข้าสู่ระบบ — Asset History 360" }] }),
@@ -15,7 +13,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const nav = useNavigate();
-  const { user, loading, signOut } = useAuth();
+  const { user, loading } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,17 +23,10 @@ function LoginPage() {
   const [needConfirm, setNeedConfirm] = useState(false);
   const [resending, setResending] = useState(false);
 
-  // จำกัดเฉพาะอีเมลโดเมนบริษัท — ถ้า login ด้วย Google ส่วนตัวให้เด้งออกทันที
+  // เช็คโดเมนแบบ global อยู่ที่ auth-context แล้ว — ที่นี่แค่พาเข้าหน้าหลักเมื่อ login ผ่าน
   useEffect(() => {
-    if (loading || !user) return;
-    const userEmail = user.email?.toLowerCase() ?? "";
-    if (!userEmail.endsWith(`@${ALLOWED_EMAIL_DOMAIN}`)) {
-      toast.error(`อนุญาตเฉพาะอีเมลบริษัท @${ALLOWED_EMAIL_DOMAIN} เท่านั้น`);
-      signOut();
-      return;
-    }
-    nav({ to: "/" });
-  }, [user, loading, nav, signOut]);
+    if (!loading && user) nav({ to: "/" });
+  }, [user, loading, nav]);
 
   const signInWithGoogle = async () => {
     setGoogleBusy(true);
@@ -46,7 +37,7 @@ function LoginPage() {
       });
       if (result.error) throw result.error;
       if (result.redirected) return; // browser กำลัง redirect ไป Google
-      // session พร้อมแล้ว — domain check ใน useEffect จะจัดการต่อ
+      // session พร้อมแล้ว — domain check ใน auth-context จะจัดการต่อ
     } catch (err) {
       toast.error((err as Error).message || "เข้าสู่ระบบด้วย Google ไม่สำเร็จ");
     } finally {
@@ -85,6 +76,12 @@ function LoginPage() {
         setNeedConfirm(false);
         toast.success("เข้าสู่ระบบสำเร็จ");
       } else {
+        // ชั้นกันที่ 1 (สมัคร): รับเฉพาะอีเมลโดเมนบริษัท
+        if (!isAllowedEmail(email)) {
+          toast.error(`สมัครได้เฉพาะอีเมลบริษัท @${ALLOWED_EMAIL_DOMAIN} เท่านั้น`);
+          setBusy(false);
+          return;
+        }
         const { error } = await supabase.auth.signUp({
           email,
           password,

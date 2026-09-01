@@ -1,8 +1,12 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
+
+/** โดเมนอีเมลบริษัทที่อนุญาตให้เข้าสู่ระบบด้วย Google (เช่น "planbmedia.co.th") */
+const ALLOWED_EMAIL_DOMAIN = "planbmedia.co.th";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "เข้าสู่ระบบ — Asset History 360" }] }),
@@ -11,18 +15,44 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const nav = useNavigate();
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [needConfirm, setNeedConfirm] = useState(false);
   const [resending, setResending] = useState(false);
 
+  // จำกัดเฉพาะอีเมลโดเมนบริษัท — ถ้า login ด้วย Google ส่วนตัวให้เด้งออกทันที
   useEffect(() => {
-    if (!loading && user) nav({ to: "/" });
-  }, [user, loading, nav]);
+    if (loading || !user) return;
+    const userEmail = user.email?.toLowerCase() ?? "";
+    if (!userEmail.endsWith(`@${ALLOWED_EMAIL_DOMAIN}`)) {
+      toast.error(`อนุญาตเฉพาะอีเมลบริษัท @${ALLOWED_EMAIL_DOMAIN} เท่านั้น`);
+      signOut();
+      return;
+    }
+    nav({ to: "/" });
+  }, [user, loading, nav, signOut]);
+
+  const signInWithGoogle = async () => {
+    setGoogleBusy(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+        extraParams: { hd: ALLOWED_EMAIL_DOMAIN, prompt: "select_account" },
+      });
+      if (result.error) throw result.error;
+      if (result.redirected) return; // browser กำลัง redirect ไป Google
+      // session พร้อมแล้ว — domain check ใน useEffect จะจัดการต่อ
+    } catch (err) {
+      toast.error((err as Error).message || "เข้าสู่ระบบด้วย Google ไม่สำเร็จ");
+    } finally {
+      setGoogleBusy(false);
+    }
+  };
 
   const resendConfirm = async () => {
     if (!email) {
@@ -105,6 +135,27 @@ function LoginPage() {
         <p className="text-sm text-muted-foreground mb-6">
           {mode === "signin" ? "ใช้บัญชีพนักงานของคุณ" : "สร้างบัญชีใหม่"}
         </p>
+
+        <button
+          type="button"
+          onClick={signInWithGoogle}
+          disabled={googleBusy || busy}
+          className="w-full h-11 rounded-lg border bg-background font-medium flex items-center justify-center gap-2.5 hover:bg-accent transition disabled:opacity-50"
+        >
+          <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
+            <path fill="#4285F4" d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47a5.53 5.53 0 0 1-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z"/>
+            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A11.98 11.98 0 0 0 12 24z"/>
+            <path fill="#FBBC05" d="M5.27 14.29a7.2 7.2 0 0 1 0-4.58V6.62H1.29a12 12 0 0 0 0 10.76l3.98-3.09z"/>
+            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42A11.97 11.97 0 0 0 12 0 11.98 11.98 0 0 0 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z"/>
+          </svg>
+          {googleBusy ? "กำลังไปที่ Google..." : "เข้าสู่ระบบด้วย Google (อีเมลบริษัท)"}
+        </button>
+
+        <div className="flex items-center gap-3 my-4">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs text-muted-foreground">หรือใช้อีเมล/รหัสผ่าน</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
 
         <form onSubmit={submit} className="space-y-3">
           {mode === "signup" && (

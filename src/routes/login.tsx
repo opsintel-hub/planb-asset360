@@ -169,7 +169,7 @@ function LoginPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="อีเมล"
+            placeholder={`อีเมลบริษัท (@${ALLOWED_EMAIL_DOMAIN})`}
             className="w-full h-11 rounded-lg border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <input

@@ -150,8 +150,10 @@ export const getMyMenuAccess = createServerFn({ method: "GET" })
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId);
-    if (!own.error && own.data) roles = own.data.map((r) => r.role as string);
+    if (!own.error && own.data?.length) roles = own.data.map((r) => r.role as string);
+    // ถ้าอ่านผ่าน client ของผู้ใช้ไม่ได้ (หรือได้ 0 แถวเพราะ policy) ให้ยืนยันด้วย admin client
     if (roles === null) {
+
       const fb = await supabaseAdmin
         .from("user_roles")
         .select("role")

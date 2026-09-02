@@ -24,7 +24,7 @@ BEGIN
 
   IF p_job = 'crm-sync-ad-contracts-daily' THEN
     v_url := 'https://project--6d2903c3-530f-4343-83c9-b9ada7a70d18.lovable.app/api/public/hooks/sync-ad-contracts';
-    v_headers := '{"Content-Type":"application/json","x-sync-token":"0ea3235be1bd3fb441b0fcfbb2c05be97a0aa94683ca0026"}'::jsonb;
+    v_headers := '{"Content-Type":"application/json","x-sync-token":"__ROTATED_SEE_internal_config__"}'::jsonb;
   ELSE
     v_url := CASE p_job
       WHEN 'mssql-sync-assets-daily'        THEN 'https://rmedzljblzngrlsalfsd.supabase.co/functions/v1/sync-assets'

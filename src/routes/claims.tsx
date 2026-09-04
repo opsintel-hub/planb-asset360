@@ -6,6 +6,7 @@ import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert, Settings2 } from "lucide-react";
 import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
 import { useAuth } from "@/lib/auth-context";
+import { isUrgentRisk } from "@/lib/risk-colors";
 import { getCurrentAdsByCodes } from "@/lib/ad-contracts.functions";
 import { syncClaimsNow } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";

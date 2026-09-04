@@ -24,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { RiskChip, useAssetRiskMap, type AssetRisk } from "@/components/asset-risk";
-import { RISK_PIN_COLORS } from "@/lib/risk-colors";
+import { RISK_PIN_COLORS, RISK_LABELS, isUrgentRisk } from "@/lib/risk-colors";
 import { getAssetRisk } from "@/lib/route-risk.functions";
 
 export const Route = createFileRoute("/risk-score")({
@@ -109,7 +109,13 @@ function advice(r: AssetRisk) {
   if (focus.length === 0) focus.push("ไม่มีสัญญาณเฉพาะจุด — ตรวจตามเช็กลิสต์ PM ปกติ");
 
   const queue =
-    r.level === "high"
+    r.level === "critical"
+      ? {
+          tone: "critical" as const,
+          title: "จัดคิวตรวจ: วิกฤต — ภายใน 48 ชั่วโมง",
+          text: "ยกระดับเป็นงานเร่งด่วนที่สุด แจ้งหัวหน้าทีมทันที จัดคนเข้าตรวจ/ซ่อมก่อนงานอื่น และติดตามผลจนปิดเคลม",
+        }
+      : r.level === "high"
       ? {
           tone: "high" as const,
           title: "จัดคิวตรวจ: ด่วน — ภายใน 7 วัน",
@@ -239,7 +245,9 @@ function RiskDetail({ code }: { code: string }) {
               <div
                 className={cn(
                   "rounded-xl border p-4",
-                  queue.tone === "high"
+                  queue.tone === "critical"
+                    ? "border-destructive/60 bg-destructive/10"
+                    : queue.tone === "high"
                     ? "border-destructive/40 bg-destructive/5"
                     : queue.tone === "medium"
                       ? "border-warning/40 bg-warning/5"
@@ -276,7 +284,8 @@ function RiskDetail({ code }: { code: string }) {
             <Info className="mt-0.5 size-3.5 shrink-0" />
             <span>
               คะแนน 0–100 คำนวณใหม่ทุกคืน: เคลมค้างเปิด 40 คะแนน + เคลม 30 วัน 25 + เคลม 90 วัน 15 + เคลม
-              365 วัน 10 + วันตั้งแต่ PM ล่าสุด 10 • ≥60 = เสี่ยงสูง, ≥25 = เสี่ยงกลาง
+              365 วัน 10 + วันตั้งแต่ PM ล่าสุด 10 • ≥80 = วิกฤต, 60–79.9 = เสี่ยงสูง, 25–59.9 = เสี่ยงกลาง,
+              น้อยกว่า 25 = เสี่ยงต่ำ
             </span>
           </div>
         </CardContent>
@@ -331,6 +340,9 @@ function RiskScorePage() {
 
       {counts && (
         <div className="mb-4 flex flex-wrap gap-2 text-xs">
+          <span className="rounded-full border border-destructive bg-destructive px-3 py-1 text-destructive-foreground">
+            วิกฤต {counts.critical} ป้าย
+          </span>
           <span className="rounded-full border border-destructive/40 bg-destructive/10 px-3 py-1 text-destructive">
             เสี่ยงสูง {counts.high} ป้าย
           </span>

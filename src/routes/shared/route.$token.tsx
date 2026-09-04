@@ -201,7 +201,7 @@ function SharedRoutePage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate font-medium">{s.code}</span>
-                    {s.risk === "high" && (
+                    {(s.risk === "high" || s.risk === "critical") && (
                       <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
                         เสี่ยงสูง
                       </span>

@@ -5,7 +5,7 @@ import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import type { MapAsset } from "@/lib/map.functions";
-import { RISK_PIN_COLORS } from "@/lib/risk-colors";
+import { RISK_PIN_COLORS, RISK_LABELS, type RiskLevelName } from "@/lib/risk-colors";
 import { projectForDepartment } from "@/lib/project-department-map";
 
 export type AssetMapHandle = {
@@ -167,7 +167,7 @@ type Props = {
   // Phase 5 — risk colouring (opt-in; hidden for commercial roles):
   /** Colour pins by risk level instead of project colour. */
   riskMode?: boolean;
-  riskByCode?: Map<string, { level: "high" | "medium" | "low"; score: number }> | null;
+  riskByCode?: Map<string, { level: RiskLevelName; score: number }> | null;
   /** Current ad (CRM) per asset code — shown inside the pin popup. */
   adByCode?: Map<
     string,
@@ -654,10 +654,10 @@ const AssetMap = forwardRef<AssetMapHandle, Props>(function AssetMap({
         )}
         {riskMode && (
           <div className="mb-1.5 space-y-1">
-            {(["high", "medium", "low"] as const).map((lv) => (
+            {(["critical", "high", "medium", "low"] as const).map((lv) => (
               <div key={lv} className="flex items-center gap-2">
                 <span className="inline-block w-3 h-3 rounded-full" style={{ background: RISK_PIN_COLORS[lv] }} />
-                <span>{lv === "high" ? "เสี่ยงสูง" : lv === "medium" ? "เสี่ยงกลาง" : "เสี่ยงต่ำ"}</span>
+                <span>{RISK_LABELS[lv]}</span>
               </div>
             ))}
           </div>

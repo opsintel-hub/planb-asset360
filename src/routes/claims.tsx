@@ -6,6 +6,7 @@ import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert, Settings2 } from "lucide-react";
 import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
 import { useAuth } from "@/lib/auth-context";
+import { isUrgentRisk } from "@/lib/risk-colors";
 import { getCurrentAdsByCodes } from "@/lib/ad-contracts.functions";
 import { syncClaimsNow } from "@/lib/admin.functions";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -184,7 +185,7 @@ function ClaimsPage() {
       if (fSla !== "all" && (c.sla_status ?? "") !== fSla) return false;
       if (fOldCode !== "all" && (c.asset_old_code ?? "") !== fOldCode) return false;
       if (q && !(c.ticket_code ?? "").toLowerCase().includes(q)) return false;
-      if (fRisk && riskMap.get(c.asset_old_code ?? "")?.level !== "high") return false;
+      if (fRisk && !isUrgentRisk(riskMap.get(c.asset_old_code ?? "")?.level)) return false;
       if (fBrand !== "all") {
         const ad = adByCode?.[c.asset_old_code ?? ""];
         if ((ad?.brand ?? "") !== fBrand) return false;
@@ -312,10 +313,10 @@ function ClaimsPage() {
               ? "border-destructive bg-destructive/10 text-destructive"
               : "hover:bg-accent text-muted-foreground")
           }
-          title="แสดงเฉพาะตั๋วของป้ายที่มีความเสี่ยงสูง"
+          title="แสดงเฉพาะตั๋วของป้ายที่มีความเสี่ยงวิกฤต/สูง"
         >
           <ShieldAlert className="size-3.5" />
-          เฉพาะป้ายเสี่ยงสูง
+          เฉพาะป้ายวิกฤต/เสี่ยงสูง
           {riskCounts?.high ? <span className="tabular-nums">({riskCounts.high})</span> : null}
         </button>
         )}

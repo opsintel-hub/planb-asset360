@@ -39,6 +39,7 @@ import {
 import { PageHeader } from "@/components/ui-bits";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RISK_LABELS } from "@/lib/risk-colors";
 import { cn } from "@/lib/utils";
 import {
   listSavedLocations,
@@ -143,16 +144,18 @@ function fmtHours(hours: number): string {
 
 /** Phase 5 — compact risk chip (สูง / กลาง). Low risk renders nothing. */
 function RiskChip({ level, score }: { level?: PlanRisk | null; score?: number | null }) {
-  if (level !== "high" && level !== "medium") return null;
-  const label = level === "high" ? "เสี่ยงสูง" : "เสี่ยงกลาง";
+  if (level !== "critical" && level !== "high" && level !== "medium") return null;
+  const label = RISK_LABELS[level];
   return (
     <span
       title={`คะแนนความเสี่ยง ${score ?? 0}/100`}
       className={cn(
         "ml-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-medium align-middle",
-        level === "high"
-          ? "border-destructive/40 bg-destructive/10 text-destructive"
-          : "border-warning/40 bg-warning/10 text-warning",
+        level === "critical"
+          ? "border-destructive bg-destructive text-destructive-foreground"
+          : level === "high"
+            ? "border-destructive/40 bg-destructive/10 text-destructive"
+            : "border-warning/40 bg-warning/10 text-warning",
       )}
     >
       <ShieldAlert className="size-3" />
@@ -553,7 +556,7 @@ function RouteMonitoringPage() {
     let medium = 0;
     for (const a of filtered) {
       const r = riskMap.get(a.old_code ?? a.id);
-      if (r?.level === "high") high += 1;
+      if (r?.level === "critical" || r?.level === "high") high += 1;
       else if (r?.level === "medium") medium += 1;
     }
     return { high, medium, low: Math.max(0, filtered.length - high - medium) };

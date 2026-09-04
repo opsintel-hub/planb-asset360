@@ -1,6 +1,6 @@
 // Pure geospatial planning helpers — no AI, no network, no credits.
 
-export type PlanRisk = "high" | "medium" | "low";
+export type PlanRisk = "critical" | "high" | "medium" | "low";
 
 export type PlanPoint = {
   id: string;
@@ -16,7 +16,7 @@ export type PlanPoint = {
   riskScore?: number | null;
 };
 
-export const RISK_WEIGHT: Record<PlanRisk, number> = { high: 3, medium: 1, low: 0 };
+export const RISK_WEIGHT: Record<PlanRisk, number> = { critical: 5, high: 3, medium: 1, low: 0 };
 
 /** Risk pressure of a batch: high-risk assets count most. */
 export function riskPressure(points: PlanPoint[]): number {
@@ -528,7 +528,7 @@ export function trimToHourCap(
   const droppableOrder = (p: PlanPoint) => {
     if (pinned.has(p.code)) return -1; // never drop
     const lvl = p.risk ?? "low";
-    if (lvl === "high") return -1;
+    if (lvl === "critical" || lvl === "high") return -1;
     return lvl === "low" ? 0 : 1; // low first, then medium
   };
 

@@ -105,7 +105,14 @@ export function planTextForDay(day: MobileDay, links: string[] = []): string {
   const startLine = day.start ? `จุดเริ่ม: ${day.start.name ?? ll(day.start)}` : "";
   const list = day.points
     .map((p, i) => {
-      const risk = p.risk === "high" ? " ⚠️ เสี่ยงสูง" : p.risk === "medium" ? " • เสี่ยงกลาง" : "";
+      const risk =
+        p.risk === "critical"
+          ? " 🚨 วิกฤต"
+          : p.risk === "high"
+            ? " ⚠️ เสี่ยงสูง"
+            : p.risk === "medium"
+              ? " • เสี่ยงกลาง"
+              : "";
       const name = p.name ? ` ${p.name}` : "";
       return `${i + 1}. ${p.code}${name}${risk}\n   https://maps.google.com/?q=${ll(p)}`;
     })

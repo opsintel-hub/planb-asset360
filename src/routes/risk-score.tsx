@@ -24,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { RiskChip, useAssetRiskMap, type AssetRisk } from "@/components/asset-risk";
-import { RISK_PIN_COLORS } from "@/lib/risk-colors";
+import { RISK_PIN_COLORS, RISK_LABELS, isUrgentRisk } from "@/lib/risk-colors";
 import { getAssetRisk } from "@/lib/route-risk.functions";
 
 export const Route = createFileRoute("/risk-score")({
@@ -109,7 +109,13 @@ function advice(r: AssetRisk) {
   if (focus.length === 0) focus.push("ไม่มีสัญญาณเฉพาะจุด — ตรวจตามเช็กลิสต์ PM ปกติ");
 
   const queue =
-    r.level === "high"
+    r.level === "critical"
+      ? {
+          tone: "critical" as const,
+          title: "จัดคิวตรวจ: วิกฤต — ภายใน 48 ชั่วโมง",
+          text: "ยกระดับเป็นงานเร่งด่วนที่สุด แจ้งหัวหน้าทีมทันที จัดคนเข้าตรวจ/ซ่อมก่อนงานอื่น และติดตามผลจนปิดเคลม",
+        }
+      : r.level === "high"
       ? {
           tone: "high" as const,
           title: "จัดคิวตรวจ: ด่วน — ภายใน 7 วัน",
@@ -239,7 +245,9 @@ function RiskDetail({ code }: { code: string }) {
               <div
                 className={cn(
                   "rounded-xl border p-4",
-                  queue.tone === "high"
+                  queue.tone === "critical"
+                    ? "border-destructive/60 bg-destructive/10"
+                    : queue.tone === "high"
                     ? "border-destructive/40 bg-destructive/5"
                     : queue.tone === "medium"
                       ? "border-warning/40 bg-warning/5"

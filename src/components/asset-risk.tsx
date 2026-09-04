@@ -6,6 +6,7 @@ import { ShieldAlert, ShieldCheck, Activity, CalendarClock, Wrench } from "lucid
 import { cn } from "@/lib/utils";
 import { useMyRoles } from "@/hooks/use-my-roles";
 export { RISK_PIN_COLORS } from "@/lib/risk-colors";
+import { RISK_LABELS, isUrgentRisk } from "@/lib/risk-colors";
 import { listAssetRiskScores, getAssetRisk, type AssetRisk, type RiskLevel } from "@/lib/route-risk.functions";
 
 export type { AssetRisk, RiskLevel };
@@ -20,16 +21,18 @@ export function RiskChip({
   score?: number | null;
   className?: string;
 }) {
-  if (level !== "high" && level !== "medium") return null;
-  const label = level === "high" ? "เสี่ยงสูง" : "เสี่ยงกลาง";
+  if (level !== "critical" && level !== "high" && level !== "medium") return null;
+  const label = RISK_LABELS[level];
   return (
     <span
       title={`คะแนนความเสี่ยง ${score ?? 0}/100`}
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-medium align-middle",
-        level === "high"
-          ? "border-destructive/40 bg-destructive/10 text-destructive"
-          : "border-warning/40 bg-warning/10 text-warning",
+        level === "critical"
+          ? "border-destructive bg-destructive text-destructive-foreground"
+          : level === "high"
+            ? "border-destructive/40 bg-destructive/10 text-destructive"
+            : "border-warning/40 bg-warning/10 text-warning",
         className,
       )}
     >
@@ -101,7 +104,9 @@ export function AssetHealthCard({ code }: { code: string }) {
   const score = risk?.score ?? 0;
 
   const tone =
-    level === "high"
+    level === "critical"
+      ? "border-destructive/60 bg-destructive/10"
+      : level === "high"
       ? "border-destructive/40 bg-destructive/5"
       : level === "medium"
         ? "border-warning/40 bg-warning/5"
@@ -122,7 +127,7 @@ export function AssetHealthCard({ code }: { code: string }) {
             {level === "low" ? (
               <ShieldCheck className="size-6 text-emerald-600" />
             ) : (
-              <ShieldAlert className={cn("size-6", level === "high" ? "text-destructive" : "text-warning")} />
+              <ShieldAlert className={cn("size-6", isUrgentRisk(level) ? "text-destructive" : "text-warning")} />
             )}
             <div>
               <div className="text-2xl font-bold tabular-nums leading-none">
@@ -130,7 +135,7 @@ export function AssetHealthCard({ code }: { code: string }) {
                 <span className="text-sm font-normal text-muted-foreground">/100</span>
               </div>
               <div className="text-xs text-muted-foreground">
-                {level === "high" ? "ความเสี่ยงสูง" : level === "medium" ? "ความเสี่ยงกลาง" : "ความเสี่ยงต่ำ"}
+                {level === "critical" ? "ความเสี่ยงวิกฤต" : level === "high" ? "ความเสี่ยงสูง" : level === "medium" ? "ความเสี่ยงกลาง" : "ความเสี่ยงต่ำ"}
               </div>
             </div>
             <RiskChip level={level} score={score} className="ml-auto" />
@@ -173,7 +178,7 @@ export function AssetHealthCard({ code }: { code: string }) {
 export function RiskSummaryCard({ onOpen }: { onOpen?: () => void }) {
   const { canSeeMaintenance } = useMyRoles();
   const { counts, isLoading } = useAssetRiskMap(canSeeMaintenance);
-  if (!canSeeMaintenance || isLoading || !counts || (!counts.high && !counts.medium)) return null;
+  if (!canSeeMaintenance || isLoading || !counts || (!counts.critical && !counts.high && !counts.medium)) return null;
   return (
     <button
       type="button"
@@ -185,9 +190,11 @@ export function RiskSummaryCard({ onOpen }: { onOpen?: () => void }) {
         ป้ายที่ต้องเฝ้าระวัง
       </div>
       <div className="mt-1 flex items-end gap-3">
-        <div className="text-2xl font-semibold tabular-nums text-destructive">{counts.high}</div>
+        <div className="text-2xl font-semibold tabular-nums text-destructive">
+          {counts.critical + counts.high}
+        </div>
         <div className="text-xs text-muted-foreground pb-1">
-          เสี่ยงสูง • เสี่ยงกลาง {counts.medium} ป้าย
+          วิกฤต {counts.critical} • เสี่ยงสูง {counts.high} • เสี่ยงกลาง {counts.medium} ป้าย
         </div>
       </div>
     </button>

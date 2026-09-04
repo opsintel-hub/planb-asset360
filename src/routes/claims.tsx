@@ -313,10 +313,10 @@ function ClaimsPage() {
               ? "border-destructive bg-destructive/10 text-destructive"
               : "hover:bg-accent text-muted-foreground")
           }
-          title="แสดงเฉพาะตั๋วของป้ายที่มีความเสี่ยงสูง"
+          title="แสดงเฉพาะตั๋วของป้ายที่มีความเสี่ยงวิกฤต/สูง"
         >
           <ShieldAlert className="size-3.5" />
-          เฉพาะป้ายเสี่ยงสูง
+          เฉพาะป้ายวิกฤต/เสี่ยงสูง
           {riskCounts?.high ? <span className="tabular-nums">({riskCounts.high})</span> : null}
         </button>
         )}

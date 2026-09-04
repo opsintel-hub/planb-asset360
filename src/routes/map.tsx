@@ -1121,7 +1121,10 @@ function MapPage() {
       {riskEnabled && (
         <label className="flex items-center gap-2 h-9 px-3 rounded-md border cursor-pointer hover:bg-accent text-xs">
           <input type="checkbox" checked={onlyHighRisk} onChange={(e) => setOnlyHighRisk(e.target.checked)} />
-          <span>เฉพาะเสี่ยงสูง{riskCounts?.high ? ` (${riskCounts.high})` : ""}</span>
+          <span>
+            เฉพาะวิกฤต/เสี่ยงสูง
+            {riskCounts ? ` (${(riskCounts.critical ?? 0) + riskCounts.high})` : ""}
+          </span>
         </label>
       )}
 

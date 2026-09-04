@@ -284,7 +284,7 @@ function RiskDetail({ code }: { code: string }) {
             <Info className="mt-0.5 size-3.5 shrink-0" />
             <span>
               คะแนน 0–100 คำนวณใหม่ทุกคืน: เคลมค้างเปิด 40 คะแนน + เคลม 30 วัน 25 + เคลม 90 วัน 15 + เคลม
-              365 วัน 10 + วันตั้งแต่ PM ล่าสุด 10 • ≥60 = เสี่ยงสูง, ≥25 = เสี่ยงกลาง
+              365 วัน 10 + วันตั้งแต่ PM ล่าสุด 10 • ≥80 = วิกฤต, 60–79.9 = เสี่ยงสูง, 25–59.9 = เสี่ยงกลาง, <25 = เสี่ยงต่ำ
             </span>
           </div>
         </CardContent>
@@ -339,6 +339,9 @@ function RiskScorePage() {
 
       {counts && (
         <div className="mb-4 flex flex-wrap gap-2 text-xs">
+          <span className="rounded-full border border-destructive bg-destructive px-3 py-1 text-destructive-foreground">
+            วิกฤต {counts.critical} ป้าย
+          </span>
           <span className="rounded-full border border-destructive/40 bg-destructive/10 px-3 py-1 text-destructive">
             เสี่ยงสูง {counts.high} ป้าย
           </span>

@@ -10,7 +10,7 @@ export type RouteShareStop = {
   department: string | null;
   lat: number;
   lng: number;
-  risk: "high" | "medium" | "low" | null;
+  risk: "critical" | "high" | "medium" | "low" | null;
 };
 
 export type RouteShareDay = {

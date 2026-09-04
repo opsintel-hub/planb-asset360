@@ -1,6 +1,6 @@
 // Pure geospatial planning helpers — no AI, no network, no credits.
 
-export type PlanRisk = "high" | "medium" | "low";
+export type PlanRisk = "critical" | "high" | "medium" | "low";
 
 export type PlanPoint = {
   id: string;
@@ -528,7 +528,7 @@ export function trimToHourCap(
   const droppableOrder = (p: PlanPoint) => {
     if (pinned.has(p.code)) return -1; // never drop
     const lvl = p.risk ?? "low";
-    if (lvl === "high") return -1;
+    if (lvl === "critical" || lvl === "high") return -1;
     return lvl === "low" ? 0 : 1; // low first, then medium
   };
 

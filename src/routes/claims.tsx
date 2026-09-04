@@ -184,7 +184,7 @@ function ClaimsPage() {
       if (fSla !== "all" && (c.sla_status ?? "") !== fSla) return false;
       if (fOldCode !== "all" && (c.asset_old_code ?? "") !== fOldCode) return false;
       if (q && !(c.ticket_code ?? "").toLowerCase().includes(q)) return false;
-      if (fRisk && riskMap.get(c.asset_old_code ?? "")?.level !== "high") return false;
+      if (fRisk && !isUrgentRisk(riskMap.get(c.asset_old_code ?? "")?.level)) return false;
       if (fBrand !== "all") {
         const ad = adByCode?.[c.asset_old_code ?? ""];
         if ((ad?.brand ?? "") !== fBrand) return false;

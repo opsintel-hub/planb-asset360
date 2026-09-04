@@ -5,7 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-export type RiskLevel = "high" | "medium" | "low";
+export type RiskLevel = "critical" | "high" | "medium" | "low";
 
 export type AssetRisk = {
   code: string;
@@ -39,7 +39,10 @@ type Row = {
 };
 
 function toRisk(r: Row): AssetRisk {
-  const lvl = r.risk_level === "high" || r.risk_level === "medium" ? r.risk_level : "low";
+  const lvl: RiskLevel =
+    r.risk_level === "critical" || r.risk_level === "high" || r.risk_level === "medium"
+      ? r.risk_level
+      : "low";
   return {
     code: r.asset_old_code,
     level: lvl,
@@ -76,6 +79,7 @@ export const listAssetRiskScores = createServerFn({ method: "GET" })
     return {
       rows: list,
       counts: {
+        critical: list.filter((r) => r.level === "critical").length,
         high: list.filter((r) => r.level === "high").length,
         medium: list.filter((r) => r.level === "medium").length,
       },

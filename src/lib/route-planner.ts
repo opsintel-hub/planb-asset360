@@ -16,7 +16,7 @@ export type PlanPoint = {
   riskScore?: number | null;
 };
 
-export const RISK_WEIGHT: Record<PlanRisk, number> = { high: 3, medium: 1, low: 0 };
+export const RISK_WEIGHT: Record<PlanRisk, number> = { critical: 5, high: 3, medium: 1, low: 0 };
 
 /** Risk pressure of a batch: high-risk assets count most. */
 export function riskPressure(points: PlanPoint[]): number {

@@ -28,6 +28,7 @@ import { countNewlyLaunchedAds } from "@/lib/ad-contracts.functions";
 import { countOpenClaims } from "@/lib/data.functions";
 import { useAuth } from "@/lib/auth-context";
 import { APP_MENUS } from "@/lib/app-menus";
+import { useActivityTracker } from "@/hooks/use-activity-tracker";
 
 const MENU_ICONS: Record<string, typeof Search> = {
   "/search": Search,
@@ -50,6 +51,7 @@ const NAV_ALL = APP_MENUS.map((m) => ({
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
+  useActivityTracker();
   const fn = useServerFn(getMyMenuAccess);
   const { data, isLoading } = useQuery({
     queryKey: ["my-menu-access"],

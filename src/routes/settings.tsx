@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Database, RefreshCw, CheckCircle2, Server, AlertTriangle, Tag, FileSpreadsheet, Zap, Bot, Sliders } from "lucide-react";
+import { BarChart3, Database, RefreshCw, CheckCircle2, Server, AlertTriangle, Tag, FileSpreadsheet, Zap, Bot, Sliders } from "lucide-react";
 import { PageHeader, Badge } from "@/components/ui-bits";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ import { DiagramMappingsSection } from "@/components/diagram-mappings-section";
 import { MappingImportExport } from "@/components/mapping-import-export";
 import { DatabaseSchemaSection } from "@/components/database-schema-section";
 import { MssqlTableControls, type TablesEnabled } from "@/components/mssql-table-controls";
+import { UsageAnalyticsSection } from "@/components/usage-analytics-section";
 import { ExternalApisSection } from "@/components/external-apis-section";
 import { AiPromptSettings } from "@/components/ai-prompt-settings";
 import { AnalyticsWeightsSettings } from "@/components/analytics-weights-settings";
@@ -40,11 +41,12 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const [active, setActive] = useState<"main" | "schema" | "apis" | "airtable" | "mappings" | "informed" | "ai" | "analytics">("main");
+  const [active, setActive] = useState<"main" | "schema" | "apis" | "airtable" | "mappings" | "informed" | "ai" | "analytics" | "usage">("main");
   const sections = [
     { id: "main", label: "การเชื่อมต่อหลัก", icon: Server },
     { id: "ai", label: "AI Prompt", icon: Bot },
     { id: "analytics", label: "Analytics Weights", icon: Sliders },
+    { id: "usage", label: "Usage Analytics", icon: BarChart3 },
     { id: "schema", label: "Database Schema", icon: Database },
     { id: "apis", label: "API ภายนอก", icon: Zap },
     { id: "airtable", label: "Airtable Connections", icon: Database },
@@ -80,6 +82,8 @@ function SettingsPage() {
         <AiPromptSettings />
       ) : active === "analytics" ? (
         <AnalyticsWeightsSettings />
+      ) : active === "usage" ? (
+        <UsageAnalyticsSection />
       ) : active === "schema" ? (
         <DatabaseSchemaSection />
       ) : active === "apis" ? (

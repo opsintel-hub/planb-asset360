@@ -929,6 +929,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          department: string | null
           display_name: string | null
           email: string | null
           id: string
@@ -938,6 +939,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          department?: string | null
           display_name?: string | null
           email?: string | null
           id?: string
@@ -947,6 +949,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          department?: string | null
           display_name?: string | null
           email?: string | null
           id?: string
@@ -1024,6 +1027,63 @@ export type Database = {
           source?: string
           started_at?: string
           status?: string
+        }
+        Relationships: []
+      }
+      user_activity_events: {
+        Row: {
+          browser: string | null
+          country: string | null
+          created_at: string
+          device_type: string | null
+          email: string | null
+          event_type: string
+          feature: string | null
+          id: number
+          ip: string | null
+          os: string | null
+          path: string | null
+          platform: string | null
+          session_id: string | null
+          success: boolean
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          browser?: string | null
+          country?: string | null
+          created_at?: string
+          device_type?: string | null
+          email?: string | null
+          event_type: string
+          feature?: string | null
+          id?: number
+          ip?: string | null
+          os?: string | null
+          path?: string | null
+          platform?: string | null
+          session_id?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          browser?: string | null
+          country?: string | null
+          created_at?: string
+          device_type?: string | null
+          email?: string | null
+          event_type?: string
+          feature?: string | null
+          id?: number
+          ip?: string | null
+          os?: string | null
+          path?: string | null
+          platform?: string | null
+          session_id?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -1127,6 +1187,23 @@ export type Database = {
         }[]
       }
       get_public_schema_info: { Args: never; Returns: Json }
+      get_usage_analytics: {
+        Args: {
+          _browser?: string
+          _department?: string
+          _device?: string
+          _from: string
+          _platform?: string
+          _role?: string
+          _to: string
+          _user_id?: string
+        }
+        Returns: Json
+      }
+      get_user_usage_detail: {
+        Args: { _from: string; _to: string; _user_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

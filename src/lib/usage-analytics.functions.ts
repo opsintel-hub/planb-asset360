@@ -170,11 +170,7 @@ export const getUsageAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => filterInput.parse(d))
   .handler(async ({ data, context }) => {
-    const rpc = context.supabase.rpc as unknown as (
-      name: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ data: unknown; error: { message: string } | null }>;
-    const { data: res, error } = await rpc("get_usage_analytics", {
+    const { data: res, error } = await context.supabase.rpc("get_usage_analytics", {
       _from: data.from,
       _to: data.to,
       _user_id: data.userId ?? null,
@@ -183,7 +179,7 @@ export const getUsageAnalytics = createServerFn({ method: "POST" })
       _device: data.device ?? null,
       _platform: data.platform ?? null,
       _browser: data.browser ?? null,
-    });
+    } as never);
     if (error) throw new Error(error.message);
     return res as UsageAnalytics;
   });
@@ -194,15 +190,12 @@ export const getUserUsageDetail = createServerFn({ method: "POST" })
     z.object({ userId: z.string().uuid(), from: z.string(), to: z.string() }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const rpc = context.supabase.rpc as unknown as (
-      name: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ data: unknown; error: { message: string } | null }>;
-    const { data: res, error } = await rpc("get_user_usage_detail", {
+    const { data: res, error } = await context.supabase.rpc("get_user_usage_detail", {
       _user_id: data.userId,
       _from: data.from,
       _to: data.to,
-    });
+    } as never);
     if (error) throw new Error(error.message);
     return res as UserUsageDetail;
   });
+

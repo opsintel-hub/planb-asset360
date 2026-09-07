@@ -317,7 +317,9 @@ function ClaimsPage() {
         >
           <ShieldAlert className="size-3.5" />
           เฉพาะป้ายวิกฤต/เสี่ยงสูง
-          {riskCounts?.high ? <span className="tabular-nums">({riskCounts.high})</span> : null}
+          {((riskCounts?.critical ?? 0) + (riskCounts?.high ?? 0)) > 0 ? (
+            <span className="tabular-nums">({(riskCounts?.critical ?? 0) + (riskCounts?.high ?? 0)})</span>
+          ) : null}
         </button>
         )}
         {(fRisk || fProject !== "all" || fSla !== "all" || fOldCode !== "all" || fBrand !== "all" || qTicket !== "") && (

@@ -796,7 +796,7 @@ function Heatmap({
               return (
                 <div
                   key={h}
-                  title={`${label} ${h}:00 — ${v} เหตุการณ์`}
+                  title={`${label} เวลา ${String(h).padStart(2, "0")}:00 — ใช้งาน ${v} ครั้ง`}
                   className="h-4 rounded-[3px] bg-primary"
                   style={{ opacity: v ? 0.15 + 0.85 * (v / max) : 0.06 }}
                 />

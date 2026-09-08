@@ -53,18 +53,32 @@ const PIE_COLORS = [
   "oklch(0.65 0.15 300)",
 ];
 
+const TH_TZ = "Asia/Bangkok";
+
+function bangkokTodayIso(): string {
+  // YYYY-MM-DD of "today" in Thailand time regardless of the browser's timezone
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TH_TZ }).format(new Date());
+}
 function isoDaysAgo(days: number) {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
+  const d = new Date(`${bangkokTodayIso()}T00:00:00+07:00`);
   d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TH_TZ }).format(d);
 }
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return bangkokTodayIso();
+}
+// ช่วงวันที่ของตัวกรองตีความเป็นเวลาไทยเสมอ (00:00 ถึงก่อน 00:00 ของวันถัดไป)
+function bangkokDayStartIso(dateIso: string) {
+  return new Date(`${dateIso}T00:00:00+07:00`).toISOString();
+}
+function bangkokNextDayStartIso(dateIso: string) {
+  const d = new Date(`${dateIso}T00:00:00+07:00`);
+  d.setDate(d.getDate() + 1);
+  return d.toISOString();
 }
 function fmtDateTime(v: string | null) {
   if (!v) return "—";
-  return new Date(v).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" });
+  return new Date(v).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short", timeZone: TH_TZ });
 }
 function fmtMinutes(m: number | null | undefined) {
   const v = Number(m ?? 0);
@@ -115,8 +129,8 @@ export function UsageAnalyticsSection() {
     queryFn: () =>
       fn({
         data: {
-          from: new Date(`${from}T00:00:00`).toISOString(),
-          to: new Date(new Date(`${to}T00:00:00`).getTime() + 86_400_000).toISOString(),
+          from: bangkokDayStartIso(from),
+          to: bangkokNextDayStartIso(to),
           userId: userId || null,
           department: department || null,
           role: role || null,
@@ -670,8 +684,8 @@ export function UsageAnalyticsSection() {
       {openUser?.userId ? (
         <UserDetailPanel
           row={openUser}
-          from={new Date(`${from}T00:00:00`).toISOString()}
-          to={new Date(new Date(`${to}T00:00:00`).getTime() + 86_400_000).toISOString()}
+          from={bangkokDayStartIso(from)}
+          to={bangkokNextDayStartIso(to)}
           onClose={() => setOpenUser(null)}
         />
       ) : null}

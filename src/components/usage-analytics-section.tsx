@@ -341,98 +341,190 @@ export function UsageAnalyticsSection() {
         </div>
       )}
 
+      {/* Glossary */}
+      <details className="rounded-xl border bg-card p-4 text-sm">
+        <summary className="font-semibold cursor-pointer">
+          คำอธิบายศัพท์ในหน้านี้ (อ่านก่อนใช้งาน)
+        </summary>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 text-muted-foreground">
+          <div>
+            <b className="text-foreground">ครั้งที่ใช้งาน</b> = จำนวนการกระทำที่ระบบบันทึกได้ เช่น เข้าสู่ระบบ 1 ครั้ง,
+            เปิดหน้าเมนู 1 ครั้ง, กดใช้ฟีเจอร์ 1 ครั้ง (เดิมเขียนว่า “เหตุการณ์”)
+          </div>
+          <div>
+            <b className="text-foreground">เซสชัน</b> = การเข้าใช้งาน 1 รอบ (เปิดระบบใช้งานต่อเนื่องจนหยุด)
+          </div>
+          <div>
+            <b className="text-foreground">DAU / WAU / MAU</b> = จำนวนคนที่เข้าใช้งานจริงใน 1 วัน / 7 วัน / 30 วัน
+            (นับคนไม่ซ้ำ)
+          </div>
+          <div>
+            <b className="text-foreground">Retention (สัปดาห์)</b> = สัดส่วนคนที่ใช้สัปดาห์ก่อน แล้วกลับมาใช้อีกสัปดาห์นี้
+          </div>
+          <div>
+            <b className="text-foreground">Bounce Rate</b> = สัดส่วนการเข้าใช้ที่เปิดแค่หน้าเดียวแล้วออก
+          </div>
+          <div>
+            <b className="text-foreground">เวลาเฉลี่ย/เซสชัน</b> = เวลาที่อยู่ในระบบเฉลี่ยต่อการเข้าใช้ 1 รอบ
+          </div>
+        </div>
+      </details>
+
       {/* Analytics summary */}
       <div className="rounded-xl border bg-card p-4">
-        <div className="font-semibold mb-3">ตัวชี้วัดการใช้งาน</div>
+        <div className="font-semibold mb-1">ตัวชี้วัดการใช้งาน</div>
+        <div className="text-xs text-muted-foreground mb-3">คำนวณจากช่วงวันที่และตัวกรองที่เลือกด้านบน</div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-sm">
-          <Metric label="DAU" value={a?.dau ?? 0} />
-          <Metric label="WAU" value={a?.wau ?? 0} />
-          <Metric label="MAU" value={a?.mau ?? 0} />
-          <Metric label="Retention (สัปดาห์)" value={`${a?.retentionRate ?? 0}%`} />
-          <Metric label="เวลาเฉลี่ย/เซสชัน" value={fmtMinutes(a?.avgSessionMinutes)} />
-          <Metric label="เข้าใช้เฉลี่ย/คน" value={a?.avgVisitsPerUser ?? 0} />
-          <Metric label="Bounce Rate" value={`${a?.bounceRate ?? 0}%`} />
-          <Metric label="ผู้ใช้เดิมที่กลับมา" value={a?.returningUsers ?? 0} />
-          <Metric label="ผู้ใช้ใหม่" value={a?.newUsers ?? 0} />
+          <Metric label="ผู้ใช้งานวันนี้ (DAU)" value={a?.dau ?? 0} hint="จำนวนคนไม่ซ้ำที่เข้าใช้งานภายในวันนี้" />
+          <Metric label="ผู้ใช้งาน 7 วัน (WAU)" value={a?.wau ?? 0} hint="จำนวนคนไม่ซ้ำที่เข้าใช้งานใน 7 วันล่าสุด" />
+          <Metric label="ผู้ใช้งาน 30 วัน (MAU)" value={a?.mau ?? 0} hint="จำนวนคนไม่ซ้ำที่เข้าใช้งานใน 30 วันล่าสุด" />
+          <Metric
+            label="อัตรากลับมาใช้ซ้ำ (Retention)"
+            value={`${a?.retentionRate ?? 0}%`}
+            hint="คนที่ใช้สัปดาห์ก่อนและกลับมาใช้อีกในสัปดาห์นี้ คิดเป็นกี่เปอร์เซ็นต์"
+          />
+          <Metric
+            label="เวลาเฉลี่ย/การเข้าใช้"
+            value={fmtMinutes(a?.avgSessionMinutes)}
+            hint="เวลาที่อยู่ในระบบเฉลี่ยต่อการเข้าใช้งาน 1 รอบ"
+          />
+          <Metric
+            label="จำนวนครั้งเข้าใช้เฉลี่ย/คน"
+            value={a?.avgVisitsPerUser ?? 0}
+            hint="คนหนึ่งคนเข้าใช้งานเฉลี่ยกี่รอบในช่วงที่เลือก"
+          />
+          <Metric
+            label="เปิดแล้วออกทันที (Bounce)"
+            value={`${a?.bounceRate ?? 0}%`}
+            hint="สัดส่วนการเข้าใช้ที่เปิดแค่หน้าเดียวแล้วออกไป"
+          />
+          <Metric label="ผู้ใช้เดิมที่กลับมา" value={a?.returningUsers ?? 0} hint="คนที่เคยใช้งานก่อนช่วงที่เลือก และกลับมาใช้อีก" />
+          <Metric label="ผู้ใช้ใหม่" value={a?.newUsers ?? 0} hint="คนที่เพิ่งเข้าใช้งานครั้งแรกในช่วงที่เลือก" />
         </div>
       </div>
 
       {/* Charts */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <ChartCard title="ผู้ใช้งานรายวัน (DAU)" empty={!data?.daily.length}>
+        <ChartCard
+          title="จำนวนคนที่เข้าใช้งานในแต่ละวัน"
+          hint="แกนนอน = วันที่ · แกนตั้ง = จำนวนคนไม่ซ้ำที่เข้าใช้งานวันนั้น"
+          empty={!data?.daily.length}
+        >
           <LineChart data={data?.daily ?? []}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
             <XAxis dataKey="day" fontSize={11} />
             <YAxis fontSize={11} allowDecimals={false} />
-            <Tooltip />
-            <Line type="monotone" dataKey="users" name="ผู้ใช้" stroke="var(--primary)" strokeWidth={2} />
+            <Tooltip labelFormatter={(v) => `วันที่ ${v}`} formatter={(v) => [`${v} คน`, "ผู้ใช้งาน"]} />
+            <Line type="monotone" dataKey="users" name="ผู้ใช้งาน (คน)" stroke="var(--primary)" strokeWidth={2} />
           </LineChart>
         </ChartCard>
 
-        <ChartCard title="การใช้งานตามช่วงเวลา (ราย ชม.)" empty={!data?.hourly.length}>
+        <ChartCard
+          title="ช่วงเวลาที่มีการใช้งานมากที่สุด (แยกตามชั่วโมง)"
+          hint="แกนนอน = เวลาแบบ 24 ชม. (00:00 – 23:00) · แกนตั้ง = จำนวนครั้งที่ใช้งานรวมในชั่วโมงนั้น"
+          empty={!data?.hourly.length}
+        >
           <BarChart data={data?.hourly ?? []}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-            <XAxis dataKey="hour" fontSize={11} />
+            <XAxis dataKey="hour" fontSize={11} tickFormatter={(h) => `${String(h).padStart(2, "0")}:00`} />
             <YAxis fontSize={11} allowDecimals={false} />
-            <Tooltip />
-            <Bar dataKey="events" name="เหตุการณ์" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+            <Tooltip
+              labelFormatter={(h) => `ช่วงเวลา ${String(h).padStart(2, "0")}:00–${String(h).padStart(2, "0")}:59`}
+              formatter={(v) => [`${v} ครั้ง`, "การใช้งาน"]}
+            />
+            <Bar dataKey="events" name="ครั้งที่ใช้งาน" fill="var(--primary)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ChartCard>
 
-        <ChartCard title="แนวโน้มรายสัปดาห์" empty={!data?.weekly.length}>
+        <ChartCard
+          title="แนวโน้มรายสัปดาห์"
+          hint="แกนนอน = วันเริ่มต้นของสัปดาห์ · เส้นน้ำเงิน = จำนวนคน · เส้นเขียว = จำนวนครั้งที่ใช้งาน"
+          empty={!data?.weekly.length}
+        >
           <LineChart data={data?.weekly ?? []}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
             <XAxis dataKey="week" fontSize={11} />
             <YAxis fontSize={11} allowDecimals={false} />
-            <Tooltip />
+            <Tooltip
+              labelFormatter={(v) => `สัปดาห์ที่เริ่ม ${v}`}
+              formatter={(v, n) => [n === "ผู้ใช้งาน (คน)" ? `${v} คน` : `${v} ครั้ง`, n as string]}
+            />
             <Legend />
-            <Line type="monotone" dataKey="users" name="ผู้ใช้" stroke="var(--primary)" strokeWidth={2} />
-            <Line type="monotone" dataKey="events" name="เหตุการณ์" stroke="oklch(0.72 0.15 160)" strokeWidth={2} />
+            <Line type="monotone" dataKey="users" name="ผู้ใช้งาน (คน)" stroke="var(--primary)" strokeWidth={2} />
+            <Line
+              type="monotone"
+              dataKey="events"
+              name="ครั้งที่ใช้งาน"
+              stroke="oklch(0.72 0.15 160)"
+              strokeWidth={2}
+            />
           </LineChart>
         </ChartCard>
 
-        <ChartCard title="แนวโน้มรายเดือน" empty={!data?.monthly.length}>
+        <ChartCard
+          title="แนวโน้มรายเดือน"
+          hint="แกนนอน = เดือน · แท่งน้ำเงิน = จำนวนคน · แท่งเหลือง = จำนวนครั้งที่ใช้งาน"
+          empty={!data?.monthly.length}
+        >
           <BarChart data={data?.monthly ?? []}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
             <XAxis dataKey="month" fontSize={11} />
             <YAxis fontSize={11} allowDecimals={false} />
-            <Tooltip />
+            <Tooltip
+              labelFormatter={(v) => `เดือน ${v}`}
+              formatter={(v, n) => [n === "ผู้ใช้งาน (คน)" ? `${v} คน` : `${v} ครั้ง`, n as string]}
+            />
             <Legend />
-            <Bar dataKey="users" name="ผู้ใช้" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="events" name="เหตุการณ์" fill="oklch(0.75 0.16 75)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="users" name="ผู้ใช้งาน (คน)" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="events" name="ครั้งที่ใช้งาน" fill="oklch(0.75 0.16 75)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ChartCard>
 
-        <ChartCard title="10 ผู้ใช้ที่ใช้งานมากสุด" empty={!data?.topUsers.length}>
+        <ChartCard
+          title="10 ผู้ใช้ที่ใช้งานมากที่สุด"
+          hint="ความยาวแท่ง = จำนวนครั้งที่ใช้งานรวมของคนนั้นในช่วงที่เลือก"
+          empty={!data?.topUsers.length}
+        >
           <BarChart data={data?.topUsers ?? []} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
             <XAxis type="number" fontSize={11} allowDecimals={false} />
             <YAxis type="category" dataKey="name" width={110} fontSize={11} />
-            <Tooltip />
-            <Bar dataKey="events" name="เหตุการณ์" fill="var(--primary)" radius={[0, 4, 4, 0]} />
+            <Tooltip formatter={(v) => [`${v} ครั้ง`, "การใช้งาน"]} />
+            <Bar dataKey="events" name="ครั้งที่ใช้งาน" fill="var(--primary)" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ChartCard>
 
-        <ChartCard title="การใช้งานตามหน่วยงาน" empty={!data?.byDepartment.length}>
+        <ChartCard
+          title="การใช้งานแยกตามหน่วยงาน"
+          hint="แท่งน้ำเงิน = จำนวนคนของหน่วยงานนั้น · แท่งม่วง = จำนวนครั้งที่ใช้งานรวม"
+          empty={!data?.byDepartment.length}
+        >
           <BarChart data={data?.byDepartment ?? []}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
             <XAxis dataKey="department" fontSize={11} />
             <YAxis fontSize={11} allowDecimals={false} />
-            <Tooltip />
+            <Tooltip formatter={(v, n) => [n === "ผู้ใช้งาน (คน)" ? `${v} คน` : `${v} ครั้ง`, n as string]} />
             <Legend />
-            <Bar dataKey="users" name="ผู้ใช้" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="events" name="เหตุการณ์" fill="oklch(0.65 0.15 300)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="users" name="ผู้ใช้งาน (คน)" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="events" name="ครั้งที่ใช้งาน" fill="oklch(0.65 0.15 300)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ChartCard>
 
         <div className="rounded-xl border bg-card p-4">
-          <div className="font-semibold mb-3">ช่วงเวลาที่ใช้งานหนาแน่น (Heatmap)</div>
+          <div className="font-semibold mb-1">ตารางความหนาแน่นการใช้งาน (วัน × เวลา)</div>
+          <div className="text-xs text-muted-foreground mb-3">
+            แถว = วันในสัปดาห์ · คอลัมน์ = เวลา 00:00–23:00 · ยิ่งสีเข้ม = ยิ่งมีการใช้งานมาก (นำเมาส์ชี้เพื่อดูจำนวนครั้ง)
+          </div>
           <Heatmap data={data?.heatmap ?? []} loading={isLoading} />
         </div>
 
-        <ChartCard title="สัดส่วนอุปกรณ์" empty={!data?.devices.length}>
+        <ChartCard
+          title="สัดส่วนอุปกรณ์ที่ใช้เข้าระบบ"
+          hint="แบ่งตามชนิดอุปกรณ์ เช่น คอมพิวเตอร์ / มือถือ / แท็บเล็ต"
+          empty={!data?.devices.length}
+        >
           <PieChart>
-            <Tooltip />
+            <Tooltip formatter={(v, n) => [`${v} ครั้ง`, n as string]} />
             <Legend />
             <Pie data={data?.devices ?? []} dataKey="value" nameKey="name" outerRadius={90} label>
               {(data?.devices ?? []).map((_, i) => (

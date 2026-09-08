@@ -129,8 +129,8 @@ export function UsageAnalyticsSection() {
     queryFn: () =>
       fn({
         data: {
-          from: new Date(`${from}T00:00:00`).toISOString(),
-          to: new Date(new Date(`${to}T00:00:00`).getTime() + 86_400_000).toISOString(),
+          from: bangkokDayStartIso(from),
+          to: bangkokNextDayStartIso(to),
           userId: userId || null,
           department: department || null,
           role: role || null,
@@ -684,8 +684,8 @@ export function UsageAnalyticsSection() {
       {openUser?.userId ? (
         <UserDetailPanel
           row={openUser}
-          from={new Date(`${from}T00:00:00`).toISOString()}
-          to={new Date(new Date(`${to}T00:00:00`).getTime() + 86_400_000).toISOString()}
+          from={bangkokDayStartIso(from)}
+          to={bangkokNextDayStartIso(to)}
           onClose={() => setOpenUser(null)}
         />
       ) : null}

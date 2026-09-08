@@ -711,27 +711,31 @@ function FilterSelect({
   );
 }
 
-function Metric({ label, value }: { label: string; value: string | number }) {
+function Metric({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
-    <div className="rounded-lg border bg-background/60 p-3">
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
+    <div className="rounded-lg border bg-background/60 p-3" title={hint}>
+      <div className="text-[11px] tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 text-lg font-bold tabular-nums">{value}</div>
+      {hint ? <div className="mt-1 text-[11px] leading-snug text-muted-foreground">{hint}</div> : null}
     </div>
   );
 }
 
 function ChartCard({
   title,
+  hint,
   empty,
   children,
 }: {
   title: string;
+  hint?: string;
   empty?: boolean;
   children: React.ReactElement;
 }) {
   return (
     <div className="rounded-xl border bg-card p-4">
-      <div className="font-semibold mb-3">{title}</div>
+      <div className="font-semibold mb-1">{title}</div>
+      {hint ? <div className="text-xs text-muted-foreground mb-3 leading-snug">{hint}</div> : <div className="mb-3" />}
       {empty ? (
         <div className="h-[240px] grid place-items-center text-sm text-muted-foreground">
           ยังไม่มีข้อมูลในช่วงที่เลือก

@@ -540,7 +540,7 @@ function RiskScorePage() {
               disabled={filtered.length === 0}
               className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-2.5 text-xs text-primary-foreground hover:opacity-90 disabled:opacity-50"
             >
-              <Navigation className="size-3.5" />
+              <NavIcon className="size-3.5" />
               สร้างแผนตรวจจากรายการนี้
             </button>
           </div>

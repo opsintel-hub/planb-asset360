@@ -110,6 +110,29 @@ export const getAssetRisk = createServerFn({ method: "GET" })
     return { risk: row ? toRisk(row as Row) : null };
   });
 
+/**
+ * Live open-claim counts per asset (from claim_tickets, synced every 15 min).
+ * The risk table itself is only recomputed nightly, so the UI merges this in
+ * to keep "เคลมค้างเปิด" consistent with Claim Aging.
+ */
+export const listOpenClaimCounts = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("claim_tickets")
+      .select("asset_old_code")
+      .not("asset_old_code", "is", null)
+      .limit(20000);
+    if (error) throw error;
+    const counts: Record<string, number> = {};
+    for (const r of (rows ?? []) as { asset_old_code: string | null }[]) {
+      const code = (r.asset_old_code ?? "").trim();
+      if (!code) continue;
+      counts[code] = (counts[code] ?? 0) + 1;
+    }
+    return { counts };
+  });
+
 /** Admin-only manual refresh (the nightly cron does this automatically). */
 export const recomputeAssetRiskScores = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

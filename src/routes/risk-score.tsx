@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { RiskChip, useAssetRiskMap, type AssetRisk } from "@/components/asset-risk";
 import { RISK_PIN_COLORS, RISK_LABELS, isUrgentRisk } from "@/lib/risk-colors";
-import { getAssetRisk } from "@/lib/route-risk.functions";
+import { getAssetRisk, listOpenClaimCounts } from "@/lib/route-risk.functions";
 
 export const Route = createFileRoute("/risk-score")({
   head: () => ({
@@ -354,7 +354,25 @@ function RiskScorePage() {
   const [openOnly, setOpenOnly] = useState(false);
   const [sort, setSort] = useState("score");
 
-  const all = useMemo(() => Array.from(map.values()), [map]);
+  // Live open-ticket counts (same source as Claim Aging). The risk table is
+  // only recomputed nightly, so without this the "เคลมค้างเปิด" filter lags a day.
+  const openFn = useServerFn(listOpenClaimCounts);
+  const openQ = useQuery({
+    queryKey: ["risk-open-claims"],
+    queryFn: () => openFn(),
+    staleTime: 5 * 60 * 1000,
+    enabled: canSeeMaintenance,
+  });
+  const liveOpen = openQ.data?.counts;
+
+  const all = useMemo(() => {
+    const list = Array.from(map.values());
+    if (!liveOpen) return list;
+    return list.map((r) => {
+      const live = liveOpen[r.code] ?? 0;
+      return live === r.openClaims ? r : { ...r, openClaims: live };
+    });
+  }, [map, liveOpen]);
 
   const projectOptions = useMemo(
     () => uniqSorted(all.map((r) => projectForDepartment(r.department))),
@@ -656,7 +674,10 @@ function RiskScorePage() {
                 </option>
               ))}
             </select>
-            <label className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs">
+            <label
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs"
+              title="นับจำนวนป้าย (1 ป้ายอาจมีหลายตั๋ว) จากตั๋วที่ยังเปิดอยู่ชุดเดียวกับเมนู Claim Aging"
+            >
               <input
                 type="checkbox"
                 checked={openOnly}

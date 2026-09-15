@@ -16,7 +16,17 @@ import {
   LineChart,
   Line,
 } from "recharts";
-import { ShieldAlert, ShieldCheck, Search as SearchIcon, Info, ClipboardList } from "lucide-react";
+import {
+  ShieldAlert,
+  ShieldCheck,
+  Search as SearchIcon,
+  Info,
+  ClipboardList,
+  Download,
+  FilterX,
+} from "lucide-react";
+import SearchableSelect from "@/components/searchable-select";
+import { projectForDepartment } from "@/lib/project-department-map";
 import { PageHeader } from "@/components/ui-bits";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

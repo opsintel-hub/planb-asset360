@@ -303,22 +303,167 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+const LEVEL_OPTIONS = ["critical", "high", "medium", "low"] as const;
+const PM_OPTIONS = [
+  { value: "all", label: "ไม่กรอง" },
+  { value: "none", label: "ไม่มีข้อมูล PM" },
+  { value: "30", label: "ไม่ได้ PM ≥ 30 วัน" },
+  { value: "60", label: "ไม่ได้ PM ≥ 60 วัน" },
+  { value: "90", label: "ไม่ได้ PM ≥ 90 วัน" },
+  { value: "180", label: "ไม่ได้ PM ≥ 180 วัน" },
+];
+const SORT_OPTIONS = [
+  { value: "score", label: "คะแนนสูงสุด" },
+  { value: "pm", label: "ไม่ได้ PM นานที่สุด" },
+  { value: "claims90", label: "เคลม 90 วันมากสุด" },
+  { value: "open", label: "เคลมค้างเปิดมากสุด" },
+];
+
+function uniqSorted(values: (string | null | undefined)[]) {
+  return Array.from(new Set(values.filter((v): v is string => !!v && v.trim() !== ""))).sort((a, b) =>
+    a.localeCompare(b, "th"),
+  );
+}
+
 function RiskScorePage() {
   const { canSeeMaintenance, isLoading: rolesLoading } = useMyRoles();
   const { map, counts, isLoading } = useAssetRiskMap(canSeeMaintenance);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
 
-  const rows = useMemo(() => {
-    const list = Array.from(map.values());
-    const needle = q.trim().toLowerCase();
-    return list
-      .filter((r) => (needle ? r.code.toLowerCase().includes(needle) : true))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 200);
-  }, [map, q]);
+  const [project, setProject] = useState("all");
+  const [department, setDepartment] = useState("all");
+  const [mediaType, setMediaType] = useState("all");
+  const [district, setDistrict] = useState("all");
+  const [level, setLevel] = useState("all");
+  const [minScore, setMinScore] = useState("");
+  const [maxScore, setMaxScore] = useState("");
+  const [pmGap, setPmGap] = useState("all");
+  const [openOnly, setOpenOnly] = useState(false);
+  const [sort, setSort] = useState("score");
 
-  const code = selected ?? rows[0]?.code ?? null;
+  const all = useMemo(() => Array.from(map.values()), [map]);
+
+  const projectOptions = useMemo(
+    () => uniqSorted(all.map((r) => projectForDepartment(r.department))),
+    [all],
+  );
+  const departmentOptions = useMemo(() => {
+    const scoped =
+      project === "all"
+        ? all
+        : all.filter((r) => projectForDepartment(r.department) === project);
+    return uniqSorted(scoped.map((r) => r.department));
+  }, [all, project]);
+  const mediaOptions = useMemo(() => uniqSorted(all.map((r) => r.mediaType)), [all]);
+  const districtOptions = useMemo(() => uniqSorted(all.map((r) => r.district)), [all]);
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const min = minScore.trim() === "" ? null : Number(minScore);
+    const max = maxScore.trim() === "" ? null : Number(maxScore);
+    return all.filter((r) => {
+      if (needle && !r.code.toLowerCase().includes(needle)) return false;
+      if (project !== "all" && projectForDepartment(r.department) !== project) return false;
+      if (department !== "all" && r.department !== department) return false;
+      if (mediaType !== "all" && r.mediaType !== mediaType) return false;
+      if (district !== "all" && r.district !== district) return false;
+      if (level !== "all" && r.level !== level) return false;
+      if (min != null && Number.isFinite(min) && r.score < min) return false;
+      if (max != null && Number.isFinite(max) && r.score > max) return false;
+      if (pmGap === "none" && r.daysSincePm != null) return false;
+      if (pmGap !== "all" && pmGap !== "none" && (r.daysSincePm ?? -1) < Number(pmGap)) return false;
+      if (openOnly && r.openClaims <= 0) return false;
+      return true;
+    });
+  }, [all, q, project, department, mediaType, district, level, minScore, maxScore, pmGap, openOnly]);
+
+  const sorted = useMemo(() => {
+    const list = [...filtered];
+    list.sort((a, b) => {
+      if (sort === "pm") return (b.daysSincePm ?? -1) - (a.daysSincePm ?? -1) || b.score - a.score;
+      if (sort === "claims90") return b.claims90d - a.claims90d || b.score - a.score;
+      if (sort === "open") return b.openClaims - a.openClaims || b.score - a.score;
+      return b.score - a.score;
+    });
+    return list;
+  }, [filtered, sort]);
+
+  const rows = useMemo(() => sorted.slice(0, 300), [sorted]);
+
+  const hasFilters =
+    project !== "all" ||
+    department !== "all" ||
+    mediaType !== "all" ||
+    district !== "all" ||
+    level !== "all" ||
+    minScore !== "" ||
+    maxScore !== "" ||
+    pmGap !== "all" ||
+    openOnly ||
+    q !== "";
+
+  const clearFilters = () => {
+    setProject("all");
+    setDepartment("all");
+    setMediaType("all");
+    setDistrict("all");
+    setLevel("all");
+    setMinScore("");
+    setMaxScore("");
+    setPmGap("all");
+    setOpenOnly(false);
+    setQ("");
+  };
+
+  const exportCsv = () => {
+    const head = [
+      "old_code",
+      "score",
+      "risk_level",
+      "department",
+      "media_type",
+      "district",
+      "open_claims",
+      "claims_30d",
+      "claims_90d",
+      "claims_365d",
+      "days_since_pm",
+      "last_pm_at",
+      "top_problem",
+    ];
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const body = sorted.map((r) =>
+      [
+        r.code,
+        r.score,
+        RISK_LABELS[r.level],
+        r.department,
+        r.mediaType,
+        r.district,
+        r.openClaims,
+        r.claims30d,
+        r.claims90d,
+        r.claims365d,
+        r.daysSincePm,
+        r.lastPmAt,
+        r.topProblem,
+      ]
+        .map(esc)
+        .join(","),
+    );
+    const blob = new Blob(["\uFEFF" + [head.join(","), ...body].join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `risk-pm-plan-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const code = selected && filtered.some((r) => r.code === selected) ? selected : rows[0]?.code ?? null;
 
   if (!rolesLoading && !canSeeMaintenance) {
     return (

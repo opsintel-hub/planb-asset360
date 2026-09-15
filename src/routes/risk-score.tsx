@@ -532,6 +532,15 @@ function RiskScorePage() {
               <Download className="size-3.5" />
               ดาวน์โหลด CSV (แผน PM)
             </button>
+            <button
+              type="button"
+              onClick={sendToRoutePlan}
+              disabled={filtered.length === 0}
+              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-2.5 text-xs text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              <Route className="size-3.5" />
+              สร้างแผนตรวจจากรายการนี้
+            </button>
           </div>
         </div>
 

@@ -674,7 +674,10 @@ function RiskScorePage() {
                 </option>
               ))}
             </select>
-            <label className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs">
+            <label
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs"
+              title="นับจำนวนป้าย (1 ป้ายอาจมีหลายตั๋ว) จากตั๋วที่ยังเปิดอยู่ชุดเดียวกับเมนู Claim Aging"
+            >
               <input
                 type="checkbox"
                 checked={openOnly}

@@ -19,10 +19,13 @@ export type AssetRisk = {
   lastPmAt: string | null;
   daysSincePm: number | null;
   topProblem: string | null;
+  department: string | null;
+  mediaType: string | null;
+  district: string | null;
 };
 
 const COLUMNS =
-  "asset_old_code, risk_level, score, claims_30d, claims_90d, claims_365d, open_claims, last_claim_at, last_pm_at, days_since_pm, top_problem";
+  "asset_old_code, risk_level, score, claims_30d, claims_90d, claims_365d, open_claims, last_claim_at, last_pm_at, days_since_pm, top_problem, department, media_type, district";
 
 type Row = {
   asset_old_code: string;
@@ -36,6 +39,9 @@ type Row = {
   last_pm_at: string | null;
   days_since_pm: number | null;
   top_problem: string | null;
+  department: string | null;
+  media_type: string | null;
+  district: string | null;
 };
 
 function toRisk(r: Row): AssetRisk {
@@ -55,6 +61,9 @@ function toRisk(r: Row): AssetRisk {
     lastPmAt: r.last_pm_at,
     daysSincePm: r.days_since_pm,
     topProblem: r.top_problem,
+    department: r.department,
+    mediaType: r.media_type,
+    district: r.district,
   };
 }
 

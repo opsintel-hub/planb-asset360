@@ -1157,7 +1157,7 @@ function RouteMonitoringPage() {
       setPhotoJob({ codes, label });
       setPlanName(label);
       toast.success(`โหมดถ่ายรูป: จำกัดการวางแผนไว้ ${codes.length} ป้าย`, {
-        description: "ส่งมาจากเมนู Ad Campaigns → ขึ้นใหม่ / รอถ่ายรูป",
+        description: "รายการถูกส่งมาจากเมนูอื่น (Ad Campaigns / คะแนนความเสี่ยง)",
       });
     } catch {
       /* ignore malformed handoff */

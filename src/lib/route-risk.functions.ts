@@ -61,6 +61,9 @@ function toRisk(r: Row): AssetRisk {
     lastPmAt: r.last_pm_at,
     daysSincePm: r.days_since_pm,
     topProblem: r.top_problem,
+    department: r.department,
+    mediaType: r.media_type,
+    district: r.district,
   };
 }
 

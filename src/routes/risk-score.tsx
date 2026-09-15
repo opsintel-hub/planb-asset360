@@ -507,6 +507,138 @@ function RiskScorePage() {
         </div>
       )}
 
+      <div className="mb-4 rounded-xl border bg-card p-3">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <div className="text-sm font-medium">ตัวกรองสำหรับวางแผน PM</div>
+          <div className="text-[11px] text-muted-foreground">
+            ตรงเงื่อนไข {filtered.length} ป้าย {filtered.length > 300 && "(แสดง 300 อันดับแรก)"}
+          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={clearFilters}
+              disabled={!hasFilters}
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-xs hover:bg-accent disabled:opacity-50"
+            >
+              <FilterX className="size-3.5" />
+              ล้างตัวกรอง
+            </button>
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={filtered.length === 0}
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-xs hover:bg-accent disabled:opacity-50"
+            >
+              <Download className="size-3.5" />
+              ดาวน์โหลด CSV (แผน PM)
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <SearchableSelect
+            value={project}
+            onChange={(v) => {
+              setProject(v);
+              setDepartment("all");
+            }}
+            options={projectOptions}
+            allLabel="กลุ่มสื่อ: ทั้งหมด"
+            title="กลุ่มสื่อ (Project)"
+          />
+          <SearchableSelect
+            value={department}
+            onChange={setDepartment}
+            options={departmentOptions}
+            allLabel="แผนก: ทั้งหมด"
+            title="แผนก (Department)"
+          />
+          <SearchableSelect
+            value={mediaType}
+            onChange={setMediaType}
+            options={mediaOptions}
+            allLabel="Media Type: ทั้งหมด"
+            title="Media Type"
+          />
+          <SearchableSelect
+            value={district}
+            onChange={setDistrict}
+            options={districtOptions}
+            allLabel="พื้นที่/เขต: ทั้งหมด"
+            title="พื้นที่ (District)"
+          />
+
+          <select
+            value={level}
+            onChange={(e) => setLevel(e.target.value)}
+            className="h-9 rounded-md border bg-background px-2 text-xs"
+            title="ระดับความเสี่ยง"
+          >
+            <option value="all">ระดับความเสี่ยง: ทั้งหมด</option>
+            {LEVEL_OPTIONS.map((l) => (
+              <option key={l} value={l}>
+                {RISK_LABELS[l]}
+              </option>
+            ))}
+          </select>
+
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={minScore}
+              onChange={(e) => setMinScore(e.target.value)}
+              inputMode="numeric"
+              placeholder="คะแนนต่ำสุด"
+              className="h-9 text-xs"
+            />
+            <span className="text-xs text-muted-foreground">–</span>
+            <Input
+              value={maxScore}
+              onChange={(e) => setMaxScore(e.target.value)}
+              inputMode="numeric"
+              placeholder="สูงสุด"
+              className="h-9 text-xs"
+            />
+          </div>
+
+          <select
+            value={pmGap}
+            onChange={(e) => setPmGap(e.target.value)}
+            className="h-9 rounded-md border bg-background px-2 text-xs"
+            title="ช่วงเวลาที่ไม่ได้ PM"
+          >
+            {PM_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              className="h-9 flex-1 rounded-md border bg-background px-2 text-xs"
+              title="เรียงลำดับ"
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  เรียง: {o.label}
+                </option>
+              ))}
+            </select>
+            <label className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs">
+              <input
+                type="checkbox"
+                checked={openOnly}
+                onChange={(e) => setOpenOnly(e.target.checked)}
+                className="size-3.5"
+              />
+              เคลมค้างเปิด
+            </label>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <div className="rounded-xl border bg-card overflow-hidden">
           <div className="border-b p-3">

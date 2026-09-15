@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { RiskChip, useAssetRiskMap, type AssetRisk } from "@/components/asset-risk";
 import { RISK_PIN_COLORS, RISK_LABELS, isUrgentRisk } from "@/lib/risk-colors";
-import { getAssetRisk } from "@/lib/route-risk.functions";
+import { getAssetRisk, listOpenClaimCounts } from "@/lib/route-risk.functions";
 
 export const Route = createFileRoute("/risk-score")({
   head: () => ({

@@ -24,7 +24,9 @@ import {
   ClipboardList,
   Download,
   FilterX,
+  Navigation as NavIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import SearchableSelect from "@/components/searchable-select";
 import { projectForDepartment } from "@/lib/project-department-map";
 import { PageHeader } from "@/components/ui-bits";
@@ -426,6 +428,25 @@ function RiskScorePage() {
     setQ("");
   };
 
+  /** Hand the filtered list over to Route Monitoring to build a PM plan. */
+  const sendToRoutePlan = () => {
+    const codes = sorted.slice(0, 300).map((r) => r.code);
+    if (!codes.length) return;
+    const scope = [
+      project !== "all" ? project : null,
+      department !== "all" ? department : null,
+      mediaType !== "all" ? mediaType : null,
+      district !== "all" ? district : null,
+      level !== "all" ? RISK_LABELS[level as keyof typeof RISK_LABELS] : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const label = `แผน PM ตามความเสี่ยง${scope ? ` (${scope})` : ""}`;
+    window.sessionStorage.setItem("ad_photo_route", JSON.stringify({ codes, label }));
+    toast.success(`ส่ง ${codes.length} ป้ายไปหน้า Route Monitoring แล้ว`);
+    window.location.href = "/route-monitoring";
+  };
+
   const exportCsv = () => {
     const head = [
       "old_code",
@@ -531,6 +552,15 @@ function RiskScorePage() {
             >
               <Download className="size-3.5" />
               ดาวน์โหลด CSV (แผน PM)
+            </button>
+            <button
+              type="button"
+              onClick={sendToRoutePlan}
+              disabled={filtered.length === 0}
+              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-2.5 text-xs text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              <NavIcon className="size-3.5" />
+              สร้างแผนตรวจจากรายการนี้
             </button>
           </div>
         </div>

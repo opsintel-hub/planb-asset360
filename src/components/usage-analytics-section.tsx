@@ -369,11 +369,12 @@ export function UsageAnalyticsSection() {
             <b className="text-foreground">เซสชัน</b> = การเข้าใช้งาน 1 รอบ (เปิดระบบใช้งานต่อเนื่องจนหยุด)
           </div>
           <div>
-            <b className="text-foreground">DAU / WAU / MAU</b> = จำนวนคนที่เข้าใช้งานจริงใน 1 วัน / 7 วัน / 30 วัน
-            (นับคนไม่ซ้ำ)
+            <b className="text-foreground">DAU / WAU / MAU</b> = จำนวนคนไม่ซ้ำที่เข้าใช้งานใน 24 ชั่วโมง / 7 วัน / 30 วัน
+            ล่าสุดนับถึงตอนนี้ (ไม่ขึ้นกับช่วงวันที่ที่เลือก)
           </div>
           <div>
-            <b className="text-foreground">Retention (สัปดาห์)</b> = สัดส่วนคนที่ใช้สัปดาห์ก่อน แล้วกลับมาใช้อีกสัปดาห์นี้
+            <b className="text-foreground">Retention (สัปดาห์)</b> = สัดส่วนคนที่ใช้ใน 7–14 วันก่อน แล้วกลับมาใช้อีกใน 7
+            วันล่าสุด (ไม่ขึ้นกับช่วงวันที่ที่เลือก)
           </div>
           <div>
             <b className="text-foreground">Bounce Rate</b> = สัดส่วนการเข้าใช้ที่เปิดแค่หน้าเดียวแล้วออก
@@ -387,15 +388,30 @@ export function UsageAnalyticsSection() {
       {/* Analytics summary */}
       <div className="rounded-xl border bg-card p-4">
         <div className="font-semibold mb-1">ตัวชี้วัดการใช้งาน</div>
-        <div className="text-xs text-muted-foreground mb-3">คำนวณจากช่วงวันที่และตัวกรองที่เลือกด้านบน</div>
+        <div className="text-xs text-muted-foreground mb-3">
+          ค่าเวลาเฉลี่ย, จำนวนครั้งเข้าใช้เฉลี่ย, Bounce, ผู้ใช้เดิม/ผู้ใช้ใหม่ คำนวณจากช่วงวันที่และตัวกรองที่เลือกด้านบน ·
+          ส่วน DAU / WAU / MAU และ Retention เป็นค่าล่าสุดนับถึงตอนนี้ ไม่ขึ้นกับช่วงวันที่ที่เลือก
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-sm">
-          <Metric label="ผู้ใช้งานวันนี้ (DAU)" value={a?.dau ?? 0} hint="จำนวนคนไม่ซ้ำที่เข้าใช้งานภายในวันนี้" />
-          <Metric label="ผู้ใช้งาน 7 วัน (WAU)" value={a?.wau ?? 0} hint="จำนวนคนไม่ซ้ำที่เข้าใช้งานใน 7 วันล่าสุด" />
-          <Metric label="ผู้ใช้งาน 30 วัน (MAU)" value={a?.mau ?? 0} hint="จำนวนคนไม่ซ้ำที่เข้าใช้งานใน 30 วันล่าสุด" />
+          <Metric
+            label="ผู้ใช้งาน 24 ชม. ล่าสุด (DAU)"
+            value={a?.dau ?? 0}
+            hint="จำนวนคนไม่ซ้ำที่เข้าใช้งานใน 24 ชั่วโมงล่าสุดนับถึงตอนนี้ (ไม่ขึ้นกับช่วงวันที่ที่เลือก)"
+          />
+          <Metric
+            label="ผู้ใช้งาน 7 วันล่าสุด (WAU)"
+            value={a?.wau ?? 0}
+            hint="จำนวนคนไม่ซ้ำที่เข้าใช้งานใน 7 วันล่าสุดนับถึงตอนนี้ (ไม่ขึ้นกับช่วงวันที่ที่เลือก)"
+          />
+          <Metric
+            label="ผู้ใช้งาน 30 วันล่าสุด (MAU)"
+            value={a?.mau ?? 0}
+            hint="จำนวนคนไม่ซ้ำที่เข้าใช้งานใน 30 วันล่าสุดนับถึงตอนนี้ (ไม่ขึ้นกับช่วงวันที่ที่เลือก)"
+          />
           <Metric
             label="อัตรากลับมาใช้ซ้ำ (Retention)"
             value={`${a?.retentionRate ?? 0}%`}
-            hint="คนที่ใช้สัปดาห์ก่อนและกลับมาใช้อีกในสัปดาห์นี้ คิดเป็นกี่เปอร์เซ็นต์"
+            hint="คนที่ใช้ใน 7–14 วันก่อน แล้วกลับมาใช้อีกใน 7 วันล่าสุด คิดเป็นกี่เปอร์เซ็นต์ (ไม่ขึ้นกับช่วงวันที่ที่เลือก)"
           />
           <Metric
             label="เวลาเฉลี่ย/การเข้าใช้"

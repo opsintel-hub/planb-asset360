@@ -144,20 +144,14 @@ export const getAssetHistorySummary = createServerFn({ method: "GET" })
     };
     if (!data.code) return { summary: empty };
 
-    const cutoff = new Date(Date.now() - 360 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: rows, error } = await context.supabase
-      .from("mv_pm_history")
-      .select("ref_number,type,event_ts,status,problem_category,problem_equipment,solution_detail")
-      .eq("asset_old_code", data.code)
-      .in("type", ["Claim", "PM"])
-      .gte("event_ts", cutoff)
-      .order("event_ts", { ascending: false })
-      .limit(500);
+    const { data: rows, error } = await context.supabase.rpc("get_asset_history_360", {
+      _asset_code: data.code,
+    });
     if (error) throw error;
 
     type HistoryRow = {
       ref_number: string | null;
-      type: string | null;
+      event_type: string | null;
       event_ts: string | null;
       status: string | null;
       problem_category: string | null;
@@ -165,10 +159,10 @@ export const getAssetHistorySummary = createServerFn({ method: "GET" })
       solution_detail: string | null;
     };
     const events = ((rows ?? []) as HistoryRow[])
-      .filter((row): row is HistoryRow & { event_ts: string } => !!row.event_ts && (row.type === "Claim" || row.type === "PM"))
+      .filter((row): row is HistoryRow & { event_ts: string } => !!row.event_ts && (row.event_type === "Claim" || row.event_type === "PM"))
       .map((row) => ({
         refNumber: row.ref_number,
-        type: row.type as "Claim" | "PM",
+        type: row.event_type as "Claim" | "PM",
         eventAt: row.event_ts,
         status: row.status,
         problemCategory: row.problem_category,

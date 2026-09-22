@@ -5,18 +5,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  BarChart,
-  Bar,
-  Cell,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  LineChart,
-  Line,
-} from "recharts";
-import {
   ShieldAlert,
   ShieldCheck,
   Search as SearchIcon,
@@ -25,19 +13,21 @@ import {
   Download,
   FilterX,
   Navigation as NavIcon,
+  Wrench,
+  CalendarClock,
+  CircleCheckBig,
 } from "lucide-react";
 import { toast } from "sonner";
 import SearchableSelect from "@/components/searchable-select";
 import { projectForDepartment } from "@/lib/project-department-map";
 import { PageHeader } from "@/components/ui-bits";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { RiskChip, useAssetRiskMap, type AssetRisk } from "@/components/asset-risk";
 import { RISK_PIN_COLORS, RISK_LABELS, isUrgentRisk } from "@/lib/risk-colors";
-import { getAssetRisk, listOpenClaimCounts } from "@/lib/route-risk.functions";
+import { getAssetHistorySummary, getAssetRisk, listOpenClaimCounts } from "@/lib/route-risk.functions";
 
 export const Route = createFileRoute("/risk-score")({
   head: () => ({
@@ -107,18 +97,51 @@ function fmtDate(v: string | null) {
   return new Date(v).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
 }
 
+function fmtMonth(v: string) {
+  return new Date(v).toLocaleDateString("th-TH", { month: "short", year: "2-digit", timeZone: "Asia/Bangkok" });
+}
+
+function eventDescription(event: {
+  type: "Claim" | "PM";
+  problemCategory: string | null;
+  problemEquipment: string | null;
+  solutionDetail: string | null;
+}) {
+  if (event.type === "PM") return event.solutionDetail || event.problemCategory || "บำรุงรักษาเชิงป้องกัน";
+  return event.problemEquipment || event.problemCategory || "รับแจ้งปัญหา";
+}
+
 /** Inspection guidance derived from the same signals as the score. */
 function advice(r: AssetRisk) {
-  const focus: string[] = [];
-  if (r.topProblem) focus.push(`ตรวจหมวด "${r.topProblem}" เป็นอย่างแรก (ปัญหาที่พบซ้ำบ่อยที่สุด)`);
-  if (r.openClaims > 0)
-    focus.push(`มีเคลมค้างเปิด ${r.openClaims} ตั๋ว — เช็คว่างานซ่อมเดิมปิดจริงหรือยัง`);
-  if (r.claims30d >= 2)
-    focus.push("เคลมซ้ำภายใน 30 วัน — สงสัยการซ่อมไม่จบ ให้ตรวจต้นเหตุ (อุปกรณ์/ระบบไฟ) ไม่ใช่แค่อาการ");
-  else if (r.claims90d >= 2) focus.push("เคลมซ้ำในรอบ 90 วัน — ตรวจอุปกรณ์ที่เคยเสียซ้ำและอะไหล่สำรอง");
-  if ((r.daysSincePm ?? 0) >= 120)
-    focus.push(`ไม่ได้ PM มา ${r.daysSincePm} วัน — ทำ PM เต็มชุด (ทำความสะอาด/ขันแน่น/วัดค่าไฟ)`);
-  if (focus.length === 0) focus.push("ไม่มีสัญญาณเฉพาะจุด — ตรวจตามเช็กลิสต์ PM ปกติ");
+  const actions: { title: string; detail: string; owner: string; deadline: string; done: string }[] = [];
+  if (r.openClaims > 0) actions.push({
+    title: `เคลียร์เคลมค้าง ${r.openClaims} ตั๋ว`,
+    detail: `เปิดใบงานเดิม ตรวจหน้างานและยืนยันสาเหตุจริง${r.topProblem ? ` โดยเริ่มที่ ${r.topProblem}` : ""} ห้ามปิดงานจากสถานะในระบบเพียงอย่างเดียว`,
+    owner: "ทีมซ่อม + ผู้ควบคุมงาน",
+    deadline: r.level === "critical" ? "ภายใน 24 ชม." : "ภายใน 3 วัน",
+    done: "มีภาพหลังซ่อม ผลทดสอบ และปิดตั๋วครบ",
+  });
+  if (r.claims30d >= 2 || r.claims90d >= 2) actions.push({
+    title: "ทำ Root Cause Analysis อาการเสียซ้ำ",
+    detail: "ตรวจไฟต้นทาง สายไฟ จุดต่อ โคม/อุปกรณ์ และทบทวนอะไหล่ที่เปลี่ยนครั้งก่อน แก้ที่ต้นเหตุแทนการแก้อาการ",
+    owner: "วิศวกรหน้างาน",
+    deadline: r.level === "critical" ? "ภายใน 48 ชม." : "ภายใน 7 วัน",
+    done: "ระบุสาเหตุหลักและมาตรการป้องกันการเกิดซ้ำ",
+  });
+  if ((r.daysSincePm ?? 0) >= 90 || r.lastPmAt == null) actions.push({
+    title: "ทำ Full PM และบันทึกค่าก่อน–หลัง",
+    detail: "ทำความสะอาด ขันแน่น ตรวจความร้อน วัดแรงดัน/กระแส และทดสอบเปิดใช้งานจริงหลังจบงาน",
+    owner: "ทีม PM",
+    deadline: r.level === "critical" ? "ภายใน 48 ชม." : "รอบ PM ถัดไป",
+    done: "Checklist ครบ พร้อมค่าที่วัดได้และภาพหลักฐาน",
+  });
+  if (actions.length === 0) actions.push({
+    title: "ตรวจยืนยันตามรอบ PM",
+    detail: "ตรวจสภาพและทดสอบการทำงานตาม Checklist มาตรฐาน พร้อมบันทึกภาพก่อน–หลัง",
+    owner: "ทีม PM",
+    deadline: "ตามรอบปกติ",
+    done: "Checklist ผ่านครบทุกหัวข้อ",
+  });
 
   const queue =
     r.level === "critical"
@@ -145,21 +168,28 @@ function advice(r: AssetRisk) {
             text: "ตรวจตามรอบ PM ที่วางไว้ ไม่ต้องแทรกคิว",
           };
 
-  return { focus, queue };
+  return { actions: actions.slice(0, 3), queue };
 }
 
-
-function RiskDetail({ code }: { code: string }) {
+function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: number }) {
   const fn = useServerFn(getAssetRisk);
+  const historyFn = useServerFn(getAssetHistorySummary);
   const { data, isLoading } = useQuery({
     queryKey: ["asset-risk", code],
     queryFn: () => fn({ data: { code } }),
     staleTime: 10 * 60 * 1000,
     enabled: !!code,
   });
+  const historyQ = useQuery({
+    queryKey: ["asset-risk-history-360", code],
+    queryFn: () => historyFn({ data: { code } }),
+    staleTime: 10 * 60 * 1000,
+    enabled: !!code,
+  });
 
-  if (isLoading) return <Skeleton className="h-72 w-full" />;
-  const risk = data?.risk ?? null;
+  if (isLoading || historyQ.isLoading) return <Skeleton className="aspect-video min-h-[620px] w-full" />;
+  const baseRisk = data?.risk ?? null;
+  const risk = baseRisk && liveOpenClaims != null ? { ...baseRisk, openClaims: liveOpenClaims } : baseRisk;
   if (!risk)
     return (
       <div className="rounded-xl border bg-muted/20 p-6 text-sm text-muted-foreground">
@@ -168,150 +198,143 @@ function RiskDetail({ code }: { code: string }) {
     );
 
   const parts = breakdown(risk);
-  const trend = [
-    { name: "365 วัน", claims: risk.claims365d },
-    { name: "90 วัน", claims: risk.claims90d },
-    { name: "30 วัน", claims: risk.claims30d },
-  ];
-  const color = RISK_PIN_COLORS[risk.level];
+  const summary = historyQ.data?.summary;
+  const recentEvents = summary?.events.slice(0, 6) ?? [];
+  const monthly = Array.from({ length: 12 }, (_, offset) => {
+    const now = new Date();
+    const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (11 - offset), 1));
+    const key = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
+    const events = summary?.events.filter((event) => event.eventAt.slice(0, 7) === key) ?? [];
+    return { key, label: fmtMonth(month.toISOString()), claims: events.filter((e) => e.type === "Claim").length, pm: events.filter((e) => e.type === "PM").length };
+  });
+  const { actions, queue } = advice(risk);
 
   return (
-    <div className="grid gap-4">
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+    <section className="aspect-video min-h-[640px] overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)]">
+      <header className="flex min-h-20 items-center justify-between gap-4 border-b bg-card px-6 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
             {risk.level === "low" ? (
-              <ShieldCheck className="size-4 text-emerald-600" />
+              <ShieldCheck className="size-5" />
             ) : (
-              <ShieldAlert className="size-4" style={{ color }} />
+              <ShieldAlert className="size-5" />
             )}
-            <span className="font-mono">{risk.code}</span>
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="truncate font-mono text-xl font-bold text-primary">{risk.code}</h2>
             <RiskChip level={risk.level} score={risk.score} />
-            <span className="ml-auto text-2xl font-bold tabular-nums" style={{ color }}>
-              {risk.score}
-              <span className="text-sm font-normal text-muted-foreground">/100</span>
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid gap-2 sm:grid-cols-3">
-            <Stat label="ปัญหาที่พบซ้ำบ่อย" value={risk.topProblem ?? "—"} />
-            <Stat label="PM ล่าสุด" value={fmtDate(risk.lastPmAt)} />
-            <Stat label="เคลมล่าสุด" value={fmtDate(risk.lastClaimAt)} />
+            </div>
+            <p className="text-[11px] text-muted-foreground">รายงานเพื่อการตัดสินใจและสั่งการซ่อมบำรุง</p>
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-[10px] font-semibold uppercase text-muted-foreground">คะแนนความเสี่ยงรวม</div>
+          <div className={cn("text-4xl font-black tabular-nums", isUrgentRisk(risk.level) ? "text-destructive" : "text-primary")}>
+            {risk.score}<span className="text-sm font-normal text-muted-foreground">/100</span>
+          </div>
+        </div>
+      </header>
+
+      <div className="grid h-[calc(100%-5rem)] grid-cols-12 gap-4 bg-muted/20 p-4">
+        <div className="col-span-7 flex min-w-0 flex-col gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="border-l-4 border-destructive bg-card px-3 py-2 shadow-[var(--shadow-card)]">
+              <div className="text-[10px] font-semibold text-destructive">CLAIM · 360 วัน</div>
+              <div className="text-2xl font-bold text-destructive">{summary?.claimTotal ?? 0} <span className="text-xs font-normal">ครั้ง</span></div>
+              <div className="text-[10px] text-muted-foreground">เฉลี่ย {summary?.claimAveragePerMonth ?? 0} ครั้ง/เดือน</div>
+            </div>
+            <div className="border-l-4 border-primary bg-card px-3 py-2 shadow-[var(--shadow-card)]">
+              <div className="text-[10px] font-semibold text-primary">PM · 360 วัน</div>
+              <div className="text-2xl font-bold text-primary">{summary?.pmTotal ?? 0} <span className="text-xs font-normal">ครั้ง</span></div>
+              <div className="text-[10px] text-muted-foreground">เฉลี่ย {summary?.pmAveragePerMonth ?? 0} ครั้ง/เดือน</div>
+            </div>
+            <div className="border-l-4 border-warning bg-card px-3 py-2 shadow-[var(--shadow-card)]">
+              <div className="text-[10px] font-semibold text-warning-foreground">สัญญาณหลัก</div>
+              <div className="truncate text-sm font-bold">{risk.topProblem ?? "ไม่ระบุหมวด"}</div>
+              <div className="text-[10px] text-muted-foreground">PM ล่าสุด {fmtDate(risk.lastPmAt)}</div>
+            </div>
           </div>
 
-          <div>
-            <div className="mb-1 text-sm font-medium">องค์ประกอบคะแนน</div>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={parts} layout="vertical" margin={{ left: 8, right: 24 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" domain={[0, 40]} tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="label" width={120} tick={{ fontSize: 11 }} />
-                  <Tooltip
-                    formatter={(v: number, _n, p: { payload?: { max?: number } }) =>
-                      [`${v} / ${p?.payload?.max ?? 0} คะแนน`, "ได้"] as [string, string]
-                    }
-                  />
-                  <Bar dataKey="max" fill="hsl(var(--muted))" radius={4} barSize={14} />
-                  <Bar dataKey="value" radius={4} barSize={14}>
-                    {parts.map((p) => (
-                      <Cell key={p.key} fill={color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+          <div className="min-h-0 flex-1 bg-card p-3 shadow-[var(--shadow-card)]">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-sm font-bold">Claim & PM รายเดือน</h3>
+              <div className="flex gap-3 text-[10px] text-muted-foreground"><span>● <b className="text-destructive">Claim</b></span><span>● <b className="text-primary">PM</b></span></div>
             </div>
-            <ul className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-              {parts.map((p) => (
-                <li key={p.key} className="flex justify-between gap-2 rounded border bg-background/60 px-2 py-1">
-                  <span className="truncate">
-                    {p.label} — {p.detail}
-                  </span>
-                  <span className="tabular-nums font-medium text-foreground">
-                    {p.value}/{p.max}
-                  </span>
-                </li>
+            <div className="grid grid-cols-6 gap-1.5">
+              {monthly.map((month) => (
+                <div key={month.key} className={cn("min-h-11 border px-1.5 py-1", (month.claims || month.pm) ? "bg-muted/40" : "bg-background")}>
+                  <div className="truncate text-[9px] font-medium">{month.label}</div>
+                  <div className="mt-1 flex gap-1 text-[9px] font-semibold">
+                    {month.claims > 0 && <span className="text-destructive">C {month.claims}</span>}
+                    {month.pm > 0 && <span className="text-primary">P {month.pm}</span>}
+                    {!month.claims && !month.pm && <span className="text-muted-foreground">—</span>}
+                  </div>
+                </div>
               ))}
-            </ul>
-          </div>
+            </div>
 
-          <div>
-            <div className="mb-1 text-sm font-medium">แนวโน้มจำนวนเคลม (สะสมย้อนหลัง)</div>
-            <div className="h-36">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trend} margin={{ left: 0, right: 16, top: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="claims" stroke={color} strokeWidth={2} dot />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="mt-3 border-t pt-2">
+              <div className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">รายการล่าสุด</div>
+              <div className="grid gap-1">
+                {recentEvents.length === 0 ? <p className="text-xs text-muted-foreground">ไม่พบประวัติในช่วง 360 วัน</p> : recentEvents.map((event) => (
+                  <div key={`${event.refNumber}-${event.eventAt}`} className="grid grid-cols-[70px_42px_minmax(0,1fr)_58px] items-center gap-2 border-l-2 border-border bg-muted/20 px-2 py-1 text-[10px]">
+                    <span className="font-semibold">{fmtDate(event.eventAt)}</span>
+                    <span className={event.type === "Claim" ? "font-bold text-destructive" : "font-bold text-primary"}>{event.type}</span>
+                    <span className="truncate">{eventDescription(event)}</span>
+                    <span className="truncate text-right text-muted-foreground">{event.status ?? "—"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-span-5 flex min-w-0 flex-col gap-3">
+          <div className="bg-card p-3 shadow-[var(--shadow-card)]">
+            <h3 className="mb-2 text-xs font-bold">องค์ประกอบคะแนน <span className="font-normal text-muted-foreground">(ย่อ)</span></h3>
+            <div className="grid gap-1.5">
+              {parts.map((part) => (
+                <div key={part.key}>
+                  <div className="mb-0.5 flex justify-between text-[9px]"><span>{part.label}</span><span className="font-semibold tabular-nums">{part.value}/{part.max}</span></div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", isUrgentRisk(risk.level) ? "bg-destructive" : "bg-primary")} style={{ width: `${Math.min(100, part.value / part.max * 100)}%` }} /></div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {(() => {
-            const { focus, queue } = advice(risk);
-            return (
-              <div
-                className={cn(
-                  "rounded-xl border p-4",
-                  queue.tone === "critical"
-                    ? "border-destructive/60 bg-destructive/10"
-                    : queue.tone === "high"
-                    ? "border-destructive/40 bg-destructive/5"
-                    : queue.tone === "medium"
-                      ? "border-warning/40 bg-warning/5"
-                      : "border-emerald-300/50 bg-emerald-50/60 dark:bg-emerald-950/20",
-                )}
-              >
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <ClipboardList className="size-4" />
-                  คำแนะนำการตรวจ
+          <div className={cn("min-h-0 flex-1 border p-3", queue.tone === "critical" || queue.tone === "high" ? "border-destructive/50 bg-destructive/5" : "border-warning/50 bg-warning/5")}>
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <div><h3 className="flex items-center gap-1.5 text-xs font-bold text-destructive"><ClipboardList className="size-3.5" />แผนปฏิบัติการเร่งด่วน</h3><p className="mt-0.5 text-[10px] font-semibold">{queue.title}</p></div>
+              <span className="shrink-0 rounded bg-destructive px-2 py-1 text-[9px] font-bold text-destructive-foreground">ต้องสั่งการ</span>
+            </div>
+            <div className="grid gap-1.5">
+              {actions.map((action, index) => (
+                <div key={action.title} className="bg-card p-2 shadow-[var(--shadow-card)]">
+                  <div className="flex items-start gap-2">
+                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">{index + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] font-bold">{action.title}</div>
+                      <p className="mt-0.5 text-[9px] leading-4 text-muted-foreground">{action.detail}</p>
+                      <div className="mt-1 grid grid-cols-2 gap-1 text-[9px]">
+                        <span className="flex items-center gap-1"><Wrench className="size-3 text-primary" />{action.owner}</span>
+                        <span className="flex items-center gap-1 font-semibold text-destructive"><CalendarClock className="size-3" />{action.deadline}</span>
+                      </div>
+                      <div className="mt-1 flex items-start gap-1 border-t pt-1 text-[9px] text-muted-foreground"><CircleCheckBig className="mt-0.5 size-3 shrink-0 text-success" /><span>เกณฑ์ปิดงาน: {action.done}</span></div>
+                    </div>
+                  </div>
                 </div>
-
-                <div className="mt-3">
-                  <div className="text-xs font-medium text-muted-foreground">ควรโฟกัสอะไร</div>
-                  <ul className="mt-1 grid gap-1 text-[13px]">
-                    {focus.map((f, i) => (
-                      <li key={i} className="flex gap-2">
-                        <span className="mt-1 size-1.5 shrink-0 rounded-full bg-current opacity-60" />
-                        <span>{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="mt-3 rounded-lg border bg-background/60 p-3">
-                  <div className="text-[13px] font-semibold">{queue.title}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">{queue.text}</div>
-                </div>
-              </div>
-            );
-          })()}
-
-
-          <div className="flex items-start gap-2 rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
-            <Info className="mt-0.5 size-3.5 shrink-0" />
-            <span>
-              คะแนน 0–100 คำนวณใหม่ทุกคืน: เคลมค้างเปิด 40 คะแนน + เคลม 30 วัน 25 + เคลม 90 วัน 15 + เคลม
-              365 วัน 10 + วันตั้งแต่ PM ล่าสุด 10 • ≥80 = วิกฤต, 60–79.9 = เสี่ยงสูง, 25–59.9 = เสี่ยงกลาง,
-              น้อยกว่า 25 = เสี่ยงต่ำ
-            </span>
+              ))}
+            </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+        </div>
+      </div>
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border bg-background/60 px-3 py-2">
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div className="truncate text-sm font-medium">{value}</div>
-    </div>
+      <footer className="flex h-7 items-center justify-between bg-primary px-4 text-[9px] text-primary-foreground">
+        <span className="flex items-center gap-1"><Info className="size-3" />คะแนนคำนวณทุกคืน · Claim ค้างอัปเดตจากข้อมูลล่าสุด</span>
+        <span>ข้อมูลรายงาน ณ {fmtDate(summary?.generatedAt ?? null)} · Critical ≥80</span>
+      </footer>
+    </section>
   );
 }
 
@@ -736,7 +759,7 @@ function RiskScorePage() {
           </div>
         </div>
 
-        <div>{code ? <RiskDetail code={code} /> : <Skeleton className="h-72 w-full" />}</div>
+        <div>{code ? <RiskDetail code={code} liveOpenClaims={liveOpen?.[code]} /> : <Skeleton className="h-72 w-full" />}</div>
       </div>
     </div>
   );

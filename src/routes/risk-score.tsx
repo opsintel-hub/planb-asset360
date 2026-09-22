@@ -210,7 +210,7 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
   const { actions, queue } = advice(risk);
 
   return (
-    <section className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)] xl:aspect-video xl:min-h-0">
+    <section className="flex aspect-video min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)]">
       <header className="flex min-h-20 shrink-0 items-center justify-between gap-4 border-b bg-card px-6 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
@@ -713,7 +713,7 @@ function RiskScorePage() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid gap-4 2xl:grid-cols-[320px_minmax(0,1fr)]">
         <div className="rounded-xl border bg-card overflow-hidden">
           <div className="border-b p-3">
             <div className="relative">

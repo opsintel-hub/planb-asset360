@@ -87,10 +87,10 @@ export async function exportRiskReportPptx(input: RiskReportExportInput): Promis
   slide.addShape("rect", { x: 0, y: 0, w: 13.333, h: 0.76, fill: { color: C.white }, line: { color: C.border, width: 0.8 } });
   slide.addShape("roundRect", { x: 0.27, y: 0.17, w: 0.43, h: 0.43, rectRadius: 0.05, fill: { color: C.navy }, line: { color: C.navy } });
   addTextBox(slide, "!", { x: 0.27, y: 0.2, w: 0.43, h: 0.28, align: "center", fontSize: 17, bold: true, color: C.white });
-  addTextBox(slide, risk.code, { x: 0.81, y: 0.14, w: 2.2, h: 0.28, fontSize: 20, bold: true, color: C.navy });
-  slide.addShape("roundRect", { x: 2.04, y: 0.17, w: 0.62, h: 0.22, rectRadius: 0.04, fill: { color: C.red }, line: { color: C.red } });
-  addTextBox(slide, risk.level === "critical" ? "วิกฤต" : risk.level === "high" ? "เสี่ยงสูง" : risk.level === "medium" ? "เฝ้าระวัง" : "เสี่ยงต่ำ", { x: 2.04, y: 0.195, w: 0.62, h: 0.14, fontSize: 8, bold: true, color: C.white, align: "center" });
-  addTextBox(slide, "รายงานเพื่อการตัดสินใจและสั่งการซ่อมบำรุง", { x: 0.81, y: 0.45, w: 3.5, h: 0.16, fontSize: 9, color: C.muted });
+  addTextBox(slide, risk.code, { x: 0.81, y: 0.14, w: 3.05, h: 0.28, fontSize: 20, bold: true, color: C.navy, fit: "shrink" });
+  slide.addShape("roundRect", { x: 3.98, y: 0.17, w: 0.72, h: 0.22, rectRadius: 0.04, fill: { color: C.red }, line: { color: C.red } });
+  addTextBox(slide, risk.level === "critical" ? "วิกฤต" : risk.level === "high" ? "เสี่ยงสูง" : risk.level === "medium" ? "เฝ้าระวัง" : "เสี่ยงต่ำ", { x: 3.98, y: 0.195, w: 0.72, h: 0.14, fontSize: 8, bold: true, color: C.white, align: "center" });
+  addTextBox(slide, "รายงานเพื่อการตัดสินใจและสั่งการซ่อมบำรุง", { x: 0.81, y: 0.45, w: 4.1, h: 0.16, fontSize: 9, color: C.muted });
   addTextBox(slide, "คะแนนความเสี่ยงรวม", { x: 11.45, y: 0.13, w: 1.45, h: 0.14, fontSize: 8, bold: true, color: C.muted, align: "right" });
   addTextBox(slide, `${risk.score}`, { x: 11.55, y: 0.28, w: 1.02, h: 0.35, fontSize: 27, bold: true, color: risk.level === "low" ? C.navy : C.red, align: "right" });
   addTextBox(slide, "/100", { x: 12.59, y: 0.45, w: 0.34, h: 0.14, fontSize: 9, color: C.muted });

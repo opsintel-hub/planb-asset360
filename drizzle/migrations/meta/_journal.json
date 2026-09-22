@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790059968383,
+      "tag": "0000_grant_pm_history_report_read",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790060092516,
+      "tag": "0001_add_asset_history_summary_rpc",
+      "breakpoints": true
+    }
+  ]
+}

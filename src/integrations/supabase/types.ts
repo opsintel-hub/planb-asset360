@@ -1171,6 +1171,18 @@ export type Database = {
     }
     Functions: {
       get_ad_summary_stats: { Args: never; Returns: Json }
+      get_asset_history_360: {
+        Args: { _asset_code: string }
+        Returns: {
+          event_ts: string
+          event_type: string
+          problem_category: string
+          problem_equipment: string
+          ref_number: string
+          solution_detail: string
+          status: string
+        }[]
+      }
       get_mssql_cron_schedules: {
         Args: never
         Returns: {

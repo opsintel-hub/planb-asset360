@@ -24,6 +24,25 @@ export type AssetRisk = {
   district: string | null;
 };
 
+export type AssetHistoryEvent = {
+  refNumber: string | null;
+  type: "Claim" | "PM";
+  eventAt: string;
+  status: string | null;
+  problemCategory: string | null;
+  problemEquipment: string | null;
+  solutionDetail: string | null;
+};
+
+export type AssetHistorySummary = {
+  claimTotal: number;
+  pmTotal: number;
+  claimAveragePerMonth: number;
+  pmAveragePerMonth: number;
+  events: AssetHistoryEvent[];
+  generatedAt: string;
+};
+
 const COLUMNS =
   "asset_old_code, risk_level, score, claims_30d, claims_90d, claims_365d, open_claims, last_claim_at, last_pm_at, days_since_pm, top_problem, department, media_type, district";
 
@@ -108,6 +127,60 @@ export const getAssetRisk = createServerFn({ method: "GET" })
       .maybeSingle();
     if (error) throw error;
     return { risk: row ? toRisk(row as Row) : null };
+  });
+
+/** Actual Claim and PM events for the executive 360-day report. */
+export const getAssetHistorySummary = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { code: string }) => ({ code: String(input.code ?? "").trim() }))
+  .handler(async ({ data, context }) => {
+    const empty: AssetHistorySummary = {
+      claimTotal: 0,
+      pmTotal: 0,
+      claimAveragePerMonth: 0,
+      pmAveragePerMonth: 0,
+      events: [],
+      generatedAt: new Date().toISOString(),
+    };
+    if (!data.code) return { summary: empty };
+
+    const { data: rows, error } = await context.supabase.rpc("get_asset_history_360", {
+      _asset_code: data.code,
+    });
+    if (error) throw error;
+
+    type HistoryRow = {
+      ref_number: string | null;
+      event_type: string | null;
+      event_ts: string | null;
+      status: string | null;
+      problem_category: string | null;
+      problem_equipment: string | null;
+      solution_detail: string | null;
+    };
+    const events = ((rows ?? []) as HistoryRow[])
+      .filter((row): row is HistoryRow & { event_ts: string } => !!row.event_ts && (row.event_type === "Claim" || row.event_type === "PM"))
+      .map((row) => ({
+        refNumber: row.ref_number,
+        type: row.event_type as "Claim" | "PM",
+        eventAt: row.event_ts,
+        status: row.status,
+        problemCategory: row.problem_category,
+        problemEquipment: row.problem_equipment,
+        solutionDetail: row.solution_detail,
+      }));
+    const claimTotal = events.filter((event) => event.type === "Claim").length;
+    const pmTotal = events.filter((event) => event.type === "PM").length;
+    return {
+      summary: {
+        claimTotal,
+        pmTotal,
+        claimAveragePerMonth: Math.round((claimTotal / 12) * 10) / 10,
+        pmAveragePerMonth: Math.round((pmTotal / 12) * 10) / 10,
+        events,
+        generatedAt: new Date().toISOString(),
+      } satisfies AssetHistorySummary,
+    };
   });
 
 /**

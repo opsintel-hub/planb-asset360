@@ -4,4 +4,4 @@
 - [x] Redesign the selected asset detail as a compact 16:9 executive report.
 - [x] Remove the cumulative claim trend and replace generic advice with accountable actions.
 - [x] Verify types and the authenticated preview.
-- [ ] Add an editable PowerPoint export for the selected 16:9 risk report.
+- [x] Add an editable PowerPoint export for the selected 16:9 risk report.

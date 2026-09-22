@@ -79,7 +79,6 @@ export async function exportRiskReportPptx(input: RiskReportExportInput): Promis
   pres.subject = "Asset Risk Executive Report";
   pres.title = `Asset Risk Report · ${risk.code}`;
   pres.company = "Plan B Media Public Company Limited";
-  pres.lang = "th-TH";
 
   const slide = pres.addSlide();
   slide.background = { color: C.surface };

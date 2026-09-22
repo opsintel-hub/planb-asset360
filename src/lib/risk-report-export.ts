@@ -80,12 +80,7 @@ async function downloadCompatiblePptx(pres: pptxgen, fileName: string): Promise<
     const xml = await presentation.async("string");
     const notesMaster = xml.match(/<p:notesMasterIdLst>[\s\S]*?<\/p:notesMasterIdLst>/)?.[0];
     if (notesMaster) {
-      const withoutNotesMaster = xml.replace(notesMaster, "");
-      const notesSizeIndex = withoutNotesMaster.indexOf("<p:notesSz");
-      const repaired = notesSizeIndex >= 0
-        ? `${withoutNotesMaster.slice(0, notesSizeIndex)}${notesMaster}${withoutNotesMaster.slice(notesSizeIndex)}`
-        : withoutNotesMaster.replace("</p:presentation>", `${notesMaster}</p:presentation>`);
-      zip.file("ppt/presentation.xml", repaired);
+      zip.file("ppt/presentation.xml", xml.replace(notesMaster, ""));
     }
   }
 

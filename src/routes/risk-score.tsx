@@ -210,8 +210,8 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
   const { actions, queue } = advice(risk);
 
   return (
-    <section className="aspect-video min-h-[640px] overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)]">
-      <header className="flex min-h-20 items-center justify-between gap-4 border-b bg-card px-6 py-3">
+    <section className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)] xl:aspect-video xl:min-h-0">
+      <header className="flex min-h-20 shrink-0 items-center justify-between gap-4 border-b bg-card px-6 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
             {risk.level === "low" ? (
@@ -236,7 +236,7 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
         </div>
       </header>
 
-      <div className="grid h-[calc(100%-5rem)] grid-cols-12 gap-4 bg-muted/20 p-4">
+      <div className="grid min-h-0 flex-1 grid-cols-12 gap-4 bg-muted/20 p-4">
         <div className="col-span-7 flex min-w-0 flex-col gap-3">
           <div className="grid grid-cols-3 gap-3">
             <div className="border-l-4 border-destructive bg-card px-3 py-2 shadow-[var(--shadow-card)]">
@@ -330,7 +330,7 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
         </div>
       </div>
 
-      <footer className="flex h-7 items-center justify-between bg-primary px-4 text-[9px] text-primary-foreground">
+      <footer className="flex h-7 shrink-0 items-center justify-between bg-primary px-4 text-[9px] text-primary-foreground">
         <span className="flex items-center gap-1"><Info className="size-3" />คะแนนคำนวณทุกคืน · Claim ค้างอัปเดตจากข้อมูลล่าสุด</span>
         <span>ข้อมูลรายงาน ณ {fmtDate(summary?.generatedAt ?? null)} · Critical ≥80</span>
       </footer>

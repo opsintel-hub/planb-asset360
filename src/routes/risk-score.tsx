@@ -16,18 +16,22 @@ import {
   Wrench,
   CalendarClock,
   CircleCheckBig,
+  FileDown,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import SearchableSelect from "@/components/searchable-select";
 import { projectForDepartment } from "@/lib/project-department-map";
 import { PageHeader } from "@/components/ui-bits";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { RiskChip, useAssetRiskMap, type AssetRisk } from "@/components/asset-risk";
 import { RISK_PIN_COLORS, RISK_LABELS, isUrgentRisk } from "@/lib/risk-colors";
 import { getAssetHistorySummary, getAssetRisk, listOpenClaimCounts } from "@/lib/route-risk.functions";
+import { exportRiskReportPptx } from "@/lib/risk-report-export";
 
 export const Route = createFileRoute("/risk-score")({
   head: () => ({
@@ -172,6 +176,7 @@ function advice(r: AssetRisk) {
 }
 
 function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: number }) {
+  const [exporting, setExporting] = useState(false);
   const fn = useServerFn(getAssetRisk);
   const historyFn = useServerFn(getAssetHistorySummary);
   const { data, isLoading } = useQuery({
@@ -209,7 +214,34 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
   });
   const { actions, queue } = advice(risk);
 
+  const exportPowerPoint = async () => {
+    if (!summary) return;
+    setExporting(true);
+    try {
+      await exportRiskReportPptx({
+        risk,
+        summary,
+        months: monthly,
+        actions,
+        queueTitle: queue.title,
+      });
+      toast.success("ดาวน์โหลด PowerPoint แบบแก้ไขได้แล้ว");
+    } catch (error) {
+      console.error("Risk report PowerPoint export failed", error);
+      toast.error("ส่งออก PowerPoint ไม่สำเร็จ กรุณาลองอีกครั้ง");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
+    <div>
+      <div className="mb-2 flex justify-end">
+        <Button type="button" size="sm" onClick={() => void exportPowerPoint()} disabled={exporting || !summary}>
+          {exporting ? <Loader2 className="animate-spin" /> : <FileDown />}
+          {exporting ? "กำลังสร้าง PowerPoint…" : "ส่งออก PowerPoint (แก้ไขได้)"}
+        </Button>
+      </div>
     <section className="flex aspect-video min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)]">
       <header className="flex min-h-20 shrink-0 items-center justify-between gap-4 border-b bg-card px-6 py-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -335,6 +367,7 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
         <span>ข้อมูลรายงาน ณ {fmtDate(summary?.generatedAt ?? null)} · Critical ≥80</span>
       </footer>
     </section>
+    </div>
   );
 }
 

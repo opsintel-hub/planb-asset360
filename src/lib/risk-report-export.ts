@@ -1,4 +1,5 @@
 import pptxgen from "pptxgenjs";
+import JSZip from "jszip";
 import type { AssetHistorySummary, AssetRisk } from "@/lib/route-risk.functions";
 
 export type RiskReportAction = {
@@ -69,6 +70,35 @@ function addTextBox(
   options: Parameters<typeof slide.addText>[1],
 ) {
   slide.addText(text, { fontFace: FONT, margin: 0, color: C.text, ...options });
+}
+
+async function downloadCompatiblePptx(pres: pptxgen, fileName: string): Promise<void> {
+  const output = await pres.write({ outputType: "arraybuffer" });
+  const zip = await JSZip.loadAsync(output as ArrayBuffer);
+  const presentation = zip.file("ppt/presentation.xml");
+  if (presentation) {
+    const xml = await presentation.async("string");
+    const notesMaster = xml.match(/<p:notesMasterIdLst>[\s\S]*?<\/p:notesMasterIdLst>/)?.[0];
+    if (notesMaster) {
+      const withoutNotesMaster = xml.replace(notesMaster, "");
+      const notesSizeIndex = withoutNotesMaster.indexOf("<p:notesSz");
+      const repaired = notesSizeIndex >= 0
+        ? `${withoutNotesMaster.slice(0, notesSizeIndex)}${notesMaster}${withoutNotesMaster.slice(notesSizeIndex)}`
+        : withoutNotesMaster.replace("</p:presentation>", `${notesMaster}</p:presentation>`);
+      zip.file("ppt/presentation.xml", repaired);
+    }
+  }
+
+  const blob = await zip.generateAsync({
+    type: "blob",
+    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 export async function exportRiskReportPptx(input: RiskReportExportInput): Promise<void> {
@@ -168,5 +198,5 @@ export async function exportRiskReportPptx(input: RiskReportExportInput): Promis
   addTextBox(slide, "คะแนนคำนวณทุกคืน · Claim ค้างอัปเดตจากข้อมูลล่าสุด", { x: 0.25, y: 7.29, w: 5.2, h: 0.1, fontSize: 7, color: C.white });
   addTextBox(slide, `ข้อมูลรายงาน ณ ${thDate(summary.generatedAt)} · Critical ≥80 · ทุกข้อความและองค์ประกอบแก้ไขได้`, { x: 7.35, y: 7.29, w: 5.72, h: 0.1, fontSize: 7, color: C.white, align: "right" });
 
-  await pres.writeFile({ fileName: `risk-report-${risk.code}-${new Date().toISOString().slice(0, 10)}.pptx` });
+  await downloadCompatiblePptx(pres, `risk-report-${risk.code}-${new Date().toISOString().slice(0, 10)}.pptx`);
 }

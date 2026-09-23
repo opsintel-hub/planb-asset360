@@ -21,6 +21,7 @@ export const APP_MENUS: AppMenu[] = [
   { to: "/pm-insights", label: "PM Insights", hint: "วิเคราะห์งาน PM" },
   { to: "/monitoring", label: "Monitoring", hint: "สถานะออนไลน์" },
   { to: "/risk-score", label: "คะแนนความเสี่ยง", hint: "Risk Score รายป้าย" },
+  { to: "/asset-risk-score", label: "Asset Risk Score", hint: "ตารางความเสี่ยงและประวัติ Claim/PM 1 ปี" },
   { to: "/rca", label: "Root Cause Analysis", hint: "วิเคราะห์สาเหตุ" },
   { to: "/map", label: "Asset Map", hint: "แผนที่ป้าย/POI" },
   { to: "/route-monitoring", label: "Route Monitoring", hint: "วางแผนเส้นทางตรวจ" },

@@ -36,6 +36,7 @@ const MENU_ICONS: Record<string, typeof Search> = {
   "/pm-insights": BarChart3,
   "/monitoring": Activity,
   "/risk-score": ShieldAlert,
+  "/asset-risk-score": ShieldAlert,
   "/rca": Microscope,
   "/map": MapPin,
   "/route-monitoring": Navigation,

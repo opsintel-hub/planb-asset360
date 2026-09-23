@@ -43,6 +43,11 @@ export type AssetHistorySummary = {
   generatedAt: string;
 };
 
+export type AssetHistoryCount360 = {
+  claims: number;
+  pm: number;
+};
+
 const COLUMNS =
   "asset_old_code, risk_level, score, claims_30d, claims_90d, claims_365d, open_claims, last_claim_at, last_pm_at, days_since_pm, top_problem, department, media_type, district";
 
@@ -220,6 +225,25 @@ export const listOpenClaimCounts = createServerFn({ method: "GET" })
       if (batch.length < PAGE) break;
     }
 
+    return { counts };
+  });
+
+/** Claim and PM totals for every asset in the last 360 days, returned in one RPC. */
+export const listAssetHistoryCounts360 = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase.rpc("get_asset_history_counts_360");
+    if (error) throw error;
+    const source = data && typeof data === "object" && !Array.isArray(data)
+      ? data as Record<string, { claims?: unknown; pm?: unknown }>
+      : {};
+    const counts: Record<string, AssetHistoryCount360> = {};
+    for (const [code, value] of Object.entries(source)) {
+      counts[code] = {
+        claims: Number(value?.claims ?? 0),
+        pm: Number(value?.pm ?? 0),
+      };
+    }
     return { counts };
   });
 

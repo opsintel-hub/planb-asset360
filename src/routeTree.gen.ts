@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AssetRiskScoreRouteImport } from './routes/asset-risk-score'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as ClaimsRouteImport } from './routes/claims'
 import { Route as LoginRouteImport } from './routes/login'
@@ -32,6 +33,11 @@ import { Route as ApiPublicPoiShareTokenRouteImport } from './routes/api/public/
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssetRiskScoreRoute = AssetRiskScoreRouteImport.update({
+  id: '/asset-risk-score',
+  path: '/asset-risk-score',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CampaignsRoute = CampaignsRouteImport.update({
@@ -130,6 +136,7 @@ const ApiPublicPoiShareTokenRoute = ApiPublicPoiShareTokenRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/asset-risk-score': typeof AssetRiskScoreRoute
   '/campaigns': typeof CampaignsRoute
   '/claims': typeof ClaimsRoute
   '/login': typeof LoginRoute
@@ -151,6 +158,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/asset-risk-score': typeof AssetRiskScoreRoute
   '/campaigns': typeof CampaignsRoute
   '/claims': typeof ClaimsRoute
   '/login': typeof LoginRoute
@@ -173,6 +181,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/asset-risk-score': typeof AssetRiskScoreRoute
   '/campaigns': typeof CampaignsRoute
   '/claims': typeof ClaimsRoute
   '/login': typeof LoginRoute
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/asset-risk-score'
     | '/campaigns'
     | '/claims'
     | '/login'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/asset-risk-score'
     | '/campaigns'
     | '/claims'
     | '/login'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/asset-risk-score'
     | '/campaigns'
     | '/claims'
     | '/login'
@@ -260,6 +272,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AssetRiskScoreRoute: typeof AssetRiskScoreRoute
   CampaignsRoute: typeof CampaignsRoute
   ClaimsRoute: typeof ClaimsRoute
   LoginRoute: typeof LoginRoute
@@ -287,6 +300,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/asset-risk-score': {
+      id: '/asset-risk-score'
+      path: '/asset-risk-score'
+      fullPath: '/asset-risk-score'
+      preLoaderRoute: typeof AssetRiskScoreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/campaigns': {
@@ -420,6 +440,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AssetRiskScoreRoute: AssetRiskScoreRoute,
   CampaignsRoute: CampaignsRoute,
   ClaimsRoute: ClaimsRoute,
   LoginRoute: LoginRoute,

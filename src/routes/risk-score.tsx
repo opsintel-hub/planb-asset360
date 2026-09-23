@@ -401,7 +401,7 @@ function uniqSorted(values: (string | null | undefined)[]) {
 
 function RiskScorePage() {
   const { canSeeMaintenance, isLoading: rolesLoading } = useMyRoles();
-  const { map, counts, isLoading } = useAssetRiskMap(canSeeMaintenance);
+  const { map, isLoading } = useAssetRiskMap(canSeeMaintenance);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
 

@@ -15,6 +15,13 @@
       "when": 1790060092516,
       "tag": "0001_add_asset_history_summary_rpc",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790143732130,
+      "tag": "0002_asset_history_counts_360",
+      "breakpoints": true
     }
   ]
 }

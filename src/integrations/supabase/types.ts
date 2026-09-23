@@ -1183,6 +1183,7 @@ export type Database = {
           status: string
         }[]
       }
+      get_asset_history_counts_360: { Args: never; Returns: Json }
       get_mssql_cron_schedules: {
         Args: never
         Returns: {

@@ -671,20 +671,6 @@ function RiskScorePage() {
         subtitle="แยกองค์ประกอบคะแนน 0–100 ของแต่ละป้าย พร้อมกราฟสรุปทันที • อัปเดตทุกคืน"
       />
 
-      {counts && (
-        <div className="mb-4 flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full border border-destructive bg-destructive px-3 py-1 text-destructive-foreground">
-            วิกฤต {counts.critical} ป้าย
-          </span>
-          <span className="rounded-full border border-destructive/40 bg-destructive/10 px-3 py-1 text-destructive">
-            เสี่ยงสูง {counts.high} ป้าย
-          </span>
-          <span className="rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-warning">
-            เสี่ยงกลาง {counts.medium} ป้าย
-          </span>
-        </div>
-      )}
-
       <div className="mb-4 rounded-xl border bg-card p-3">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <div className="text-sm font-medium">ตัวกรองสำหรับวางแผน PM</div>

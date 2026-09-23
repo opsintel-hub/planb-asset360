@@ -240,7 +240,7 @@ export async function exportRiskOverviewPptx(input: RiskOverviewExportInput): Pr
   cover.background = { color: C.navyDark };
   cover.addShape("rect", { x: 0, y: 0, w: 0.18, h: 7.5, fill: { color: C.red }, line: { color: C.red } });
   addTextBox(cover, "ASSET RISK PORTFOLIO", { x: 0.75, y: 0.72, w: 5.5, h: 0.25, fontSize: 12, bold: true, color: C.amber, charSpacing: 1.5 });
-  addTextBox(cover, "แผนจัดลำดับงาน PM\nตามความเสี่ยง", { x: 0.75, y: 1.2, w: 7.5, h: 1.45, fontSize: 36, bold: true, color: C.white, breakLine: false, fit: "shrink" });
+  addTextBox(cover, "แผนจัดลำดับงาน PM\nตามความเสี่ยง", { x: 0.75, y: 1.2, w: 7.5, h: 1.45, fontSize: 36, bold: true, color: C.white, fit: "shrink" });
   addTextBox(cover, filterLabel, { x: 0.78, y: 2.86, w: 7.5, h: 0.45, fontSize: 14, color: "D8E5F5", fit: "shrink" });
 
   const coverStats = [

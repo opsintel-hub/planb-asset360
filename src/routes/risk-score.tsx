@@ -18,6 +18,8 @@ import {
   CircleCheckBig,
   FileDown,
   Loader2,
+  Presentation,
+  Layers3,
 } from "lucide-react";
 import { toast } from "sonner";
 import SearchableSelect from "@/components/searchable-select";
@@ -31,7 +33,11 @@ import { useMyRoles } from "@/hooks/use-my-roles";
 import { RiskChip, useAssetRiskMap, type AssetRisk } from "@/components/asset-risk";
 import { RISK_PIN_COLORS, RISK_LABELS, isUrgentRisk } from "@/lib/risk-colors";
 import { getAssetHistorySummary, getAssetRisk, listOpenClaimCounts } from "@/lib/route-risk.functions";
-import { exportRiskReportPptx } from "@/lib/risk-report-export";
+import {
+  exportRiskOverviewPptx,
+  exportRiskReportPptx,
+  type RiskOverviewGroup,
+} from "@/lib/risk-report-export";
 
 export const Route = createFileRoute("/risk-score")({
   head: () => ({
@@ -239,10 +245,10 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
       <div className="mb-2 flex justify-end">
         <Button type="button" size="sm" onClick={() => void exportPowerPoint()} disabled={exporting || !summary}>
           {exporting ? <Loader2 className="animate-spin" /> : <FileDown />}
-          {exporting ? "กำลังสร้าง PowerPoint…" : "ส่งออก PowerPoint (แก้ไขได้)"}
+          {exporting ? "กำลังสร้าง PowerPoint…" : "Export to PowerPoint (.pptx)"}
         </Button>
       </div>
-    <section className="flex aspect-video min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)]">
+    <section className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)] lg:aspect-video lg:min-h-0">
       <header className="flex min-h-20 shrink-0 items-center justify-between gap-4 border-b bg-card px-6 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
@@ -395,7 +401,7 @@ function uniqSorted(values: (string | null | undefined)[]) {
 
 function RiskScorePage() {
   const { canSeeMaintenance, isLoading: rolesLoading } = useMyRoles();
-  const { map, counts, isLoading } = useAssetRiskMap(canSeeMaintenance);
+  const { map, isLoading } = useAssetRiskMap(canSeeMaintenance);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -409,6 +415,8 @@ function RiskScorePage() {
   const [pmGap, setPmGap] = useState("all");
   const [openOnly, setOpenOnly] = useState(false);
   const [sort, setSort] = useState("score");
+  const [summaryGrouping, setSummaryGrouping] = useState<"project" | "department">("project");
+  const [exportingOverview, setExportingOverview] = useState(false);
 
   // Live open-ticket counts (same source as Claim Aging). The risk table is
   // only recomputed nightly, so without this the "เคลมค้างเปิด" filter lags a day.
@@ -476,6 +484,39 @@ function RiskScorePage() {
   }, [filtered, sort]);
 
   const rows = useMemo(() => sorted.slice(0, 300), [sorted]);
+
+  const filteredCounts = useMemo(
+    () => ({
+      critical: filtered.filter((r) => r.level === "critical").length,
+      high: filtered.filter((r) => r.level === "high").length,
+      medium: filtered.filter((r) => r.level === "medium").length,
+      low: filtered.filter((r) => r.level === "low").length,
+    }),
+    [filtered],
+  );
+
+  const riskGroups = useMemo<RiskOverviewGroup[]>(() => {
+    const grouped = new Map<string, RiskOverviewGroup>();
+    for (const risk of filtered) {
+      const label = summaryGrouping === "project"
+        ? projectForDepartment(risk.department) ?? "ไม่ระบุ Project"
+        : risk.department ?? "ไม่ระบุ Department";
+      const current = grouped.get(label) ?? {
+        label,
+        total: 0,
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+      };
+      current.total += 1;
+      current[risk.level] += 1;
+      grouped.set(label, current);
+    }
+    return Array.from(grouped.values()).sort(
+      (a, b) => b.critical - a.critical || b.high - a.high || b.total - a.total || a.label.localeCompare(b.label, "th"),
+    );
+  }, [filtered, summaryGrouping]);
 
   const hasFilters =
     project !== "all" ||
@@ -568,6 +609,48 @@ function RiskScorePage() {
     URL.revokeObjectURL(url);
   };
 
+  const filterLabel = useMemo(() => {
+    const active = [
+      project !== "all" ? `Project: ${project}` : null,
+      department !== "all" ? `Department: ${department}` : null,
+      mediaType !== "all" ? `Media Type: ${mediaType}` : null,
+      district !== "all" ? `พื้นที่: ${district}` : null,
+      level !== "all" ? `ระดับ: ${RISK_LABELS[level as keyof typeof RISK_LABELS]}` : null,
+      minScore ? `คะแนน ≥ ${minScore}` : null,
+      maxScore ? `คะแนน ≤ ${maxScore}` : null,
+      pmGap !== "all" ? PM_OPTIONS.find((option) => option.value === pmGap)?.label ?? null : null,
+      openOnly ? "เฉพาะป้ายที่มีเคลมค้างเปิด" : null,
+    ].filter((item): item is string => !!item);
+    return active.length ? active.join(" · ") : "ทุก Project และทุกระดับความเสี่ยง";
+  }, [project, department, mediaType, district, level, minScore, maxScore, pmGap, openOnly]);
+
+  const exportOverview = async () => {
+    if (!sorted.length) return;
+    setExportingOverview(true);
+    try {
+      await exportRiskOverviewPptx({
+        rows: sorted.map((risk) => ({
+          code: risk.code,
+          project: projectForDepartment(risk.department) ?? "ไม่ระบุ",
+          department: risk.department ?? "ไม่ระบุ",
+          mediaType: risk.mediaType ?? "ไม่ระบุ",
+          level: risk.level,
+          score: risk.score,
+          openClaims: risk.openClaims,
+        })),
+        groups: riskGroups,
+        groupingLabel: summaryGrouping === "project" ? "Project" : "Department",
+        filterLabel,
+      });
+      toast.success("ดาวน์โหลด PowerPoint ภาพรวมพร้อมหน้าปกแล้ว");
+    } catch (error) {
+      console.error("Risk overview PowerPoint export failed", error);
+      toast.error("ส่งออก PowerPoint ไม่สำเร็จ กรุณาลองอีกครั้ง");
+    } finally {
+      setExportingOverview(false);
+    }
+  };
+
   const code = selected && filtered.some((r) => r.code === selected) ? selected : rows[0]?.code ?? null;
 
   if (!rolesLoading && !canSeeMaintenance) {
@@ -588,20 +671,6 @@ function RiskScorePage() {
         subtitle="แยกองค์ประกอบคะแนน 0–100 ของแต่ละป้าย พร้อมกราฟสรุปทันที • อัปเดตทุกคืน"
       />
 
-      {counts && (
-        <div className="mb-4 flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full border border-destructive bg-destructive px-3 py-1 text-destructive-foreground">
-            วิกฤต {counts.critical} ป้าย
-          </span>
-          <span className="rounded-full border border-destructive/40 bg-destructive/10 px-3 py-1 text-destructive">
-            เสี่ยงสูง {counts.high} ป้าย
-          </span>
-          <span className="rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-warning">
-            เสี่ยงกลาง {counts.medium} ป้าย
-          </span>
-        </div>
-      )}
-
       <div className="mb-4 rounded-xl border bg-card p-3">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <div className="text-sm font-medium">ตัวกรองสำหรับวางแผน PM</div>
@@ -609,33 +678,38 @@ function RiskScorePage() {
             ตรงเงื่อนไข {filtered.length} ป้าย {filtered.length > 300 && "(แสดง 300 อันดับแรก)"}
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={clearFilters}
               disabled={!hasFilters}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-xs hover:bg-accent disabled:opacity-50"
+              className="text-xs"
             >
               <FilterX className="size-3.5" />
               ล้างตัวกรอง
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={exportCsv}
               disabled={filtered.length === 0}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-xs hover:bg-accent disabled:opacity-50"
+              className="text-xs"
             >
               <Download className="size-3.5" />
               ดาวน์โหลด CSV (แผน PM)
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              size="sm"
               onClick={sendToRoutePlan}
               disabled={filtered.length === 0}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-2.5 text-xs text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              className="text-xs"
             >
               <NavIcon className="size-3.5" />
               สร้างแผนตรวจจากรายการนี้
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -746,7 +820,67 @@ function RiskScorePage() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="mb-4 grid gap-4 xl:grid-cols-[minmax(260px,0.72fr)_minmax(0,2fr)]">
+        <section className="rounded-lg border bg-card p-4 shadow-[var(--shadow-card)]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase text-muted-foreground">Filter Result Summary</div>
+              <div className="mt-2 text-4xl font-black tabular-nums text-primary">{filtered.length}</div>
+              <div className="mt-1 text-sm text-muted-foreground">ป้ายที่ตรงตามตัวกรองปัจจุบัน</div>
+            </div>
+            <span className="grid size-10 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+              <Layers3 className="size-5" />
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-4 gap-2 border-t pt-3 text-center">
+            <div><div className="font-bold tabular-nums text-destructive">{filteredCounts.critical}</div><div className="text-[10px] text-muted-foreground">วิกฤต</div></div>
+            <div><div className="font-bold tabular-nums text-destructive">{filteredCounts.high}</div><div className="text-[10px] text-muted-foreground">เสี่ยงสูง</div></div>
+            <div><div className="font-bold tabular-nums text-warning-foreground">{filteredCounts.medium}</div><div className="text-[10px] text-muted-foreground">เฝ้าระวัง</div></div>
+            <div><div className="font-bold tabular-nums text-success">{filteredCounts.low}</div><div className="text-[10px] text-muted-foreground">เสี่ยงต่ำ</div></div>
+          </div>
+        </section>
+
+        <section className="rounded-lg border bg-card p-4 shadow-[var(--shadow-card)]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase text-muted-foreground">Risk Breakdown by Category</div>
+              <div className="mt-1 text-sm font-bold">สรุปความเสี่ยงเพื่อจัดลำดับแผน PM</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
+                <Button type="button" size="sm" variant={summaryGrouping === "project" ? "default" : "ghost"} className="h-7 px-2.5 text-xs" onClick={() => setSummaryGrouping("project")}>Project</Button>
+                <Button type="button" size="sm" variant={summaryGrouping === "department" ? "default" : "ghost"} className="h-7 px-2.5 text-xs" onClick={() => setSummaryGrouping("department")}>Department</Button>
+              </div>
+              <Button type="button" size="sm" onClick={() => void exportOverview()} disabled={!sorted.length || exportingOverview}>
+                {exportingOverview ? <Loader2 className="animate-spin" /> : <Presentation />}
+                {exportingOverview ? "กำลังสร้าง…" : "Export to PowerPoint"}
+              </Button>
+            </div>
+          </div>
+          <div className="mt-3 overflow-x-auto">
+            <div className="min-w-[620px]">
+              <div className="grid grid-cols-[minmax(180px,1fr)_64px_64px_64px_64px_64px] gap-2 border-b pb-2 text-[10px] font-semibold uppercase text-muted-foreground">
+                <span>{summaryGrouping === "project" ? "Project" : "Department"}</span><span className="text-center">วิกฤต</span><span className="text-center">สูง</span><span className="text-center">กลาง</span><span className="text-center">ต่ำ</span><span className="text-right">รวม</span>
+              </div>
+              <div className="divide-y">
+                {riskGroups.slice(0, 6).map((group) => (
+                  <div key={group.label} className="grid grid-cols-[minmax(180px,1fr)_64px_64px_64px_64px_64px] items-center gap-2 py-2 text-xs">
+                    <span className="truncate font-medium" title={group.label}>{group.label}</span>
+                    <span className="text-center font-bold tabular-nums text-destructive">{group.critical}</span>
+                    <span className="text-center font-bold tabular-nums text-destructive">{group.high}</span>
+                    <span className="text-center font-bold tabular-nums text-warning-foreground">{group.medium}</span>
+                    <span className="text-center font-bold tabular-nums text-success">{group.low}</span>
+                    <span className="text-right font-bold tabular-nums text-primary">{group.total}</span>
+                  </div>
+                ))}
+                {riskGroups.length === 0 && <div className="py-4 text-sm text-muted-foreground">ไม่พบข้อมูลตามตัวกรอง</div>}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div className="grid items-start gap-4 2xl:grid-cols-[460px_minmax(0,1fr)]">
         <div className="rounded-xl border bg-card overflow-hidden">
           <div className="border-b p-3">
             <div className="relative">
@@ -758,6 +892,12 @@ function RiskScorePage() {
                 className="pl-8"
               />
             </div>
+          </div>
+          <div className="grid grid-cols-[96px_minmax(90px,1fr)_minmax(100px,1fr)_52px] gap-2 border-b bg-muted/50 px-3 py-2 text-[10px] font-semibold uppercase text-muted-foreground">
+            <span>Old Code</span>
+            <span>Project</span>
+            <span>Media Type</span>
+            <span className="text-right">คะแนน</span>
           </div>
           <div className="max-h-[560px] overflow-y-auto divide-y">
             {isLoading ? (
@@ -775,13 +915,15 @@ function RiskScorePage() {
                   type="button"
                   onClick={() => setSelected(r.code)}
                   className={cn(
-                    "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-accent/40",
+                    "grid w-full grid-cols-[96px_minmax(90px,1fr)_minmax(100px,1fr)_52px] items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent/40",
                     r.code === code && "bg-accent/60",
                   )}
                 >
-                  <span className="truncate font-mono text-[12px]">{r.code}</span>
+                  <span className="truncate font-mono text-[11px] font-semibold" title={r.code}>{r.code}</span>
+                  <span className="truncate text-[11px] text-muted-foreground" title={projectForDepartment(r.department) ?? "ไม่ระบุ"}>{projectForDepartment(r.department) ?? "ไม่ระบุ"}</span>
+                  <span className="truncate text-[11px] text-muted-foreground" title={r.mediaType ?? "ไม่ระบุ"}>{r.mediaType ?? "ไม่ระบุ"}</span>
                   <span
-                    className="tabular-nums text-xs font-semibold"
+                    className="text-right tabular-nums text-xs font-semibold"
                     style={{ color: RISK_PIN_COLORS[r.level] }}
                   >
                     {r.score}

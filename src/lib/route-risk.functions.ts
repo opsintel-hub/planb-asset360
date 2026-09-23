@@ -201,18 +201,25 @@ export const getAssetHistorySummary = createServerFn({ method: "GET" })
 export const listOpenClaimCounts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: rows, error } = await context.supabase
-      .from("claim_tickets")
-      .select("asset_old_code")
-      .not("asset_old_code", "is", null)
-      .limit(20000);
-    if (error) throw error;
+    const PAGE = 1000;
     const counts: Record<string, number> = {};
-    for (const r of (rows ?? []) as { asset_old_code: string | null }[]) {
-      const code = (r.asset_old_code ?? "").trim();
-      if (!code) continue;
-      counts[code] = (counts[code] ?? 0) + 1;
+    for (let from = 0; from < 20000; from += PAGE) {
+      const { data: rows, error } = await context.supabase
+        .from("claim_tickets")
+        .select("asset_old_code")
+        .not("asset_old_code", "is", null)
+        .order("ref_number", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      const batch = (rows ?? []) as { asset_old_code: string | null }[];
+      for (const r of batch) {
+        const code = (r.asset_old_code ?? "").trim();
+        if (!code) continue;
+        counts[code] = (counts[code] ?? 0) + 1;
+      }
+      if (batch.length < PAGE) break;
     }
+
     return { counts };
   });
 

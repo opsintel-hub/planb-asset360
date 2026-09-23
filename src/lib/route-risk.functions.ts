@@ -96,14 +96,24 @@ export const listAssetRiskScores = createServerFn({ method: "GET" })
     minScore: Math.max(0, Math.min(100, input?.minScore ?? 1)),
   }))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase
-      .from("asset_risk_scores")
-      .select(COLUMNS)
-      .gte("score", data.minScore)
-      .order("score", { ascending: false })
-      .limit(20000);
-    if (error) throw error;
-    const list = ((rows ?? []) as Row[]).map(toRisk);
+    // The Data API caps each response at 1000 rows, so page through everything.
+    const PAGE = 1000;
+    const all: Row[] = [];
+    for (let from = 0; from < 20000; from += PAGE) {
+      const { data: rows, error } = await context.supabase
+        .from("asset_risk_scores")
+        .select(COLUMNS)
+        .gte("score", data.minScore)
+        .order("score", { ascending: false })
+        .order("asset_old_code", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      const batch = (rows ?? []) as Row[];
+      all.push(...batch);
+      if (batch.length < PAGE) break;
+    }
+    const list = all.map(toRisk);
+
     return {
       rows: list,
       counts: {

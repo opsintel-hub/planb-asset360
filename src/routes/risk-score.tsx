@@ -880,7 +880,7 @@ function RiskScorePage() {
         </section>
       </div>
 
-      <div className="grid items-start gap-4 xl:grid-cols-[460px_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 2xl:grid-cols-[460px_minmax(0,1fr)]">
         <div className="rounded-xl border bg-card overflow-hidden">
           <div className="border-b p-3">
             <div className="relative">

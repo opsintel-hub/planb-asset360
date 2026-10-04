@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
 import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert, Settings2 } from "lucide-react";
 import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
@@ -78,7 +78,10 @@ export const Route = createFileRoute("/claims")({
   component: ClaimsPage,
 });
 
+const ClaimsMapView = lazy(() => import("@/components/claims-map-view"));
+
 function ClaimsPage() {
+  const [view, setView] = useState<"table" | "map">("table");
   const fn = useServerFn(listClaims);
   const upsertFn = useServerFn(upsertClaimNextStep);
   const syncFn = useServerFn(syncClaimsNow);
@@ -390,6 +393,24 @@ function ClaimsPage() {
         </Popover>
       </div>
 
+      <div className="inline-flex rounded-lg border bg-muted/40 p-1 gap-1">
+        {(["table", "map"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            className={"px-4 py-1.5 text-sm rounded-md transition " + (view === v ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground")}
+          >
+            {v === "table" ? "รายการตาราง" : "มุมมองแผนที่"}
+          </button>
+        ))}
+      </div>
+
+      {view === "map" ? (
+        <Suspense fallback={<Skeleton className="h-[600px] w-full rounded-xl" />}>
+          <ClaimsMapView claims={claims} riskMap={riskMap} />
+        </Suspense>
+      ) : (
       <div className="rounded-xl border bg-card shadow-[var(--shadow-card)] overflow-hidden">
         {isClaimsLoading ? (
           <div className="p-4 space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
@@ -579,6 +600,7 @@ function ClaimsPage() {
           </div>
         )}
       </div>
+      )}
 
 
       <Dialog open={!!editing} onOpenChange={(o) => { if (!o) setEditing(null); }}>

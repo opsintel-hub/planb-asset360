@@ -326,5 +326,35 @@ export async function exportRiskOverviewPptx(input: RiskOverviewExportInput): Pr
   addTextBox(overview, "ใช้รายการตามตัวกรองปัจจุบันเพื่อจัดลำดับแผน PM", { x: 0.28, y: 7.29, w: 5.6, h: 0.1, fontSize: 7, color: C.white });
   addTextBox(overview, `ข้อมูล ณ ${generatedAt} · ทุกข้อความและองค์ประกอบแก้ไขได้`, { x: 7.2, y: 7.29, w: 5.82, h: 0.1, fontSize: 7, color: C.white, align: "right" });
 
+  // Full ranked list: 18 rows per slide so every filtered sign is included (capped to keep the file usable).
+  const PER = 18;
+  const listRows = rows.slice(0, 540);
+  const pages = Math.ceil(listRows.length / PER);
+  const heads = ["#", "Old Code", "Project", "Department", "Media Type", "ระดับ", "คะแนน", "เคลมค้าง"];
+  const xs = [0.4, 0.85, 2.55, 4.6, 7.4, 9.9, 11.0, 12.0];
+  const ws = [0.4, 1.6, 1.95, 2.7, 2.4, 1.0, 0.9, 0.9];
+  for (let p = 0; p < pages; p++) {
+    const s = pres.addSlide();
+    s.background = { color: C.surface };
+    s.addShape("rect", { x: 0, y: 0, w: 13.333, h: 0.72, fill: { color: C.white }, line: { color: C.border, width: 0.8 } });
+    addTextBox(s, "รายชื่อป้ายตามลำดับความเสี่ยง", { x: 0.35, y: 0.2, w: 7, h: 0.3, fontSize: 18, bold: true, color: C.navy });
+    addTextBox(s, `หน้า ${p + 1}/${pages} · ${rows.length} ป้าย`, { x: 9.2, y: 0.24, w: 3.8, h: 0.2, fontSize: 9, bold: true, color: C.muted, align: "right" });
+    s.addShape("rect", { x: 0.28, y: 0.9, w: 12.78, h: 6.1, fill: { color: C.white }, line: { color: C.border, width: 0.6 } });
+    heads.forEach((h, i) => addTextBox(s, h, { x: xs[i], y: 1.05, w: ws[i], h: 0.18, fontSize: 9, bold: true, color: C.muted }));
+    listRows.slice(p * PER, p * PER + PER).forEach((row, i) => {
+      const y = 1.38 + i * 0.31;
+      if (i % 2 === 0) s.addShape("rect", { x: 0.34, y: y - 0.06, w: 12.66, h: 0.29, fill: { color: "F8FAFC" }, line: { color: "F8FAFC" } });
+      const lc = row.level === "critical" ? C.red : row.level === "high" ? "D95C2B" : row.level === "medium" ? C.amber : C.green;
+      const vals = [
+        `${p * PER + i + 1}`, row.code, row.project, row.department, row.mediaType,
+        row.level === "critical" ? "วิกฤต" : row.level === "high" ? "สูง" : row.level === "medium" ? "กลาง" : "ต่ำ",
+        `${row.score}`, `${row.openClaims}`,
+      ];
+      vals.forEach((v, k) => addTextBox(s, v, { x: xs[k], y, w: ws[k], h: 0.17, fontSize: 8.5, bold: k === 1 || k >= 5, color: k === 1 ? C.navy : k === 5 || k === 6 ? lc : C.text, fit: "shrink" }));
+    });
+    s.addShape("rect", { x: 0, y: 7.19, w: 13.333, h: 0.31, fill: { color: C.navy }, line: { color: C.navy } });
+    addTextBox(s, listRows.length < rows.length ? `แสดง ${listRows.length} ป้ายแรก จาก ${rows.length} (ดูทั้งหมดได้จากปุ่ม CSV)` : "ครบทุกป้ายตามตัวกรอง", { x: 0.28, y: 7.29, w: 8, h: 0.1, fontSize: 7, color: C.white });
+  }
+
   await downloadCompatiblePptx(pres, `risk-overview-${new Date().toISOString().slice(0, 10)}.pptx`);
 }

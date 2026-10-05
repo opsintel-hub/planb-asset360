@@ -319,7 +319,10 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
                   <div key={`${event.refNumber}-${event.eventAt}`} className="grid grid-cols-[70px_42px_minmax(0,1fr)_58px] items-center gap-2 border-l-2 border-border bg-muted/20 px-2 py-1 text-[10px]">
                     <span className="font-semibold">{fmtDate(event.eventAt)}</span>
                     <span className={event.type === "Claim" ? "font-bold text-destructive" : "font-bold text-primary"}>{event.type}</span>
-                    <span className="truncate">{eventDescription(event)}</span>
+                    <span className="min-w-0" title={`${event.refNumber ?? ""} — ${eventDescription(event)}`}>
+                      <span className="block truncate font-mono font-semibold">{event.refNumber || "—"}</span>
+                      <span className="block truncate text-muted-foreground">อาการ: {eventDescription(event)}</span>
+                    </span>
                     <span className="truncate text-right text-muted-foreground">{event.status ?? "—"}</span>
                   </div>
                 ))}

@@ -32,6 +32,7 @@ export type AssetHistoryEvent = {
   problemCategory: string | null;
   problemEquipment: string | null;
   solutionDetail: string | null;
+  informDetail?: string | null;
 };
 
 export type AssetHistorySummary = {
@@ -173,9 +174,27 @@ export const getAssetHistorySummary = createServerFn({ method: "GET" })
       problem_equipment: string | null;
       solution_detail: string | null;
     };
-    const events = ((rows ?? []) as HistoryRow[])
-      .filter((row): row is HistoryRow & { event_ts: string } => !!row.event_ts && (row.event_type === "Claim" || row.event_type === "PM"))
-      .map((row) => ({
+    const historyRows = ((rows ?? []) as HistoryRow[])
+      .filter((row): row is HistoryRow & { event_ts: string } => !!row.event_ts && (row.event_type === "Claim" || row.event_type === "PM"));
+
+    // The RPC only returns rows when the caller has an app role, so it doubles as
+    // the authorization check. Fill in the reported symptom (Informed Detail) that
+    // the RPC does not expose, so open tickets without a diagnosis still show it.
+    const informByRef = new Map<string, string>();
+    const refs = historyRows.map((r) => r.ref_number).filter((r): r is string => !!r);
+    if (refs.length) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: details } = await supabaseAdmin
+        .from("mssql_asset_history")
+        .select("ref_number, inform_detail")
+        .eq("old_code", data.code)
+        .in("ref_number", refs.slice(0, 500));
+      for (const d of details ?? []) {
+        if (d.ref_number && d.inform_detail) informByRef.set(d.ref_number, d.inform_detail);
+      }
+    }
+
+    const events = historyRows.map((row) => ({
         refNumber: row.ref_number,
         type: row.event_type as "Claim" | "PM",
         eventAt: row.event_ts,
@@ -183,6 +202,7 @@ export const getAssetHistorySummary = createServerFn({ method: "GET" })
         problemCategory: row.problem_category,
         problemEquipment: row.problem_equipment,
         solutionDetail: row.solution_detail,
+        informDetail: row.ref_number ? informByRef.get(row.ref_number) ?? null : null,
       }));
     const claimTotal = events.filter((event) => event.type === "Claim").length;
     const pmTotal = events.filter((event) => event.type === "PM").length;

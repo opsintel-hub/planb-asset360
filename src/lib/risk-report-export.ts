@@ -77,7 +77,7 @@ function thDate(value: string | null): string {
 
 function eventText(event: AssetHistorySummary["events"][number]): string {
   if (event.type === "PM") return event.solutionDetail || event.problemCategory || "บำรุงรักษาเชิงป้องกัน";
-  return event.problemEquipment || event.problemCategory || "รับแจ้งปัญหา";
+  return event.problemEquipment || event.informDetail || event.problemCategory || "รับแจ้งปัญหา";
 }
 
 function scoreParts(risk: AssetRisk) {

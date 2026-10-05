@@ -141,7 +141,8 @@ export async function exportRiskReportPptx(input: RiskReportExportInput): Promis
   addTextBox(slide, risk.code, { x: 0.81, y: 0.14, w: 3.05, h: 0.28, fontSize: 20, bold: true, color: C.navy, fit: "shrink" });
   slide.addShape("roundRect", { x: 3.98, y: 0.17, w: 0.72, h: 0.22, rectRadius: 0.04, fill: { color: C.red }, line: { color: C.red } });
   addTextBox(slide, risk.level === "critical" ? "วิกฤต" : risk.level === "high" ? "เสี่ยงสูง" : risk.level === "medium" ? "เฝ้าระวัง" : "เสี่ยงต่ำ", { x: 3.98, y: 0.195, w: 0.72, h: 0.14, fontSize: 8, bold: true, color: C.white, align: "center" });
-  addTextBox(slide, "รายงานเพื่อการตัดสินใจและสั่งการซ่อมบำรุง", { x: 0.81, y: 0.45, w: 4.1, h: 0.16, fontSize: 9, color: C.muted });
+  const context = [risk.department, risk.mediaType, risk.district].filter(Boolean).join(" · ");
+  addTextBox(slide, `รายงานเพื่อการตัดสินใจและสั่งการซ่อมบำรุง${context ? ` · ${context}` : ""}`, { x: 0.81, y: 0.45, w: 10.4, h: 0.16, fontSize: 9, color: C.muted, fit: "shrink" });
   addTextBox(slide, "คะแนนความเสี่ยงรวม", { x: 11.45, y: 0.13, w: 1.45, h: 0.14, fontSize: 8, bold: true, color: C.muted, align: "right" });
   addTextBox(slide, `${risk.score}`, { x: 11.55, y: 0.28, w: 1.02, h: 0.35, fontSize: 27, bold: true, color: risk.level === "low" ? C.navy : C.red, align: "right" });
   addTextBox(slide, "/100", { x: 12.59, y: 0.45, w: 0.34, h: 0.14, fontSize: 9, color: C.muted });
@@ -187,13 +188,18 @@ export async function exportRiskReportPptx(input: RiskReportExportInput): Promis
     addTextBox(slide, month.claims || month.pm ? `${month.claims ? `C ${month.claims}` : ""}${month.claims && month.pm ? "   " : ""}${month.pm ? `P ${month.pm}` : ""}` : "—", { x: x + 0.08, y: y + 0.24, w: 0.88, h: 0.11, fontSize: 7.5, bold: true, color: month.claims ? C.red : month.pm ? C.navy : C.muted });
   });
   addTextBox(slide, "รายการล่าสุด", { x: 0.35, y: 3.55, w: 1.2, h: 0.16, fontSize: 8, bold: true, color: C.muted });
-  summary.events.slice(0, 6).forEach((event, index) => {
-    const y = 3.82 + index * 0.43;
-    if (index % 2 === 0) slide.addShape("rect", { x: 0.34, y: y - 0.05, w: 6.98, h: 0.35, fill: { color: "F8FAFC" }, line: { color: "F8FAFC" } });
-    addTextBox(slide, thDate(event.eventAt), { x: 0.44, y, w: 0.83, h: 0.14, fontSize: 7.5, bold: true });
-    addTextBox(slide, event.type, { x: 1.34, y, w: 0.48, h: 0.14, fontSize: 7.5, bold: true, color: event.type === "Claim" ? C.red : C.navy });
-    addTextBox(slide, eventText(event), { x: 1.9, y, w: 4.05, h: 0.14, fontSize: 7.5, fit: "shrink" });
-    addTextBox(slide, event.status ?? "—", { x: 6.05, y, w: 1.08, h: 0.14, fontSize: 7.5, color: C.muted, align: "right", fit: "shrink" });
+  const recent = summary.events.slice(0, 6);
+  if (recent.length === 0) {
+    addTextBox(slide, "ไม่พบประวัติในช่วง 360 วัน", { x: 0.44, y: 3.85, w: 6.8, h: 0.2, fontSize: 9, color: C.muted });
+  }
+  recent.forEach((event, index) => {
+    const y = 3.8 + index * 0.51;
+    if (index % 2 === 0) slide.addShape("rect", { x: 0.34, y: y - 0.04, w: 6.98, h: 0.46, fill: { color: "F8FAFC" }, line: { color: "F8FAFC" } });
+    addTextBox(slide, thDate(event.eventAt), { x: 0.44, y: y + 0.1, w: 0.9, h: 0.16, fontSize: 7.5, bold: true });
+    addTextBox(slide, event.type, { x: 1.36, y: y + 0.1, w: 0.48, h: 0.16, fontSize: 7.5, bold: true, color: event.type === "Claim" ? C.red : C.navy });
+    addTextBox(slide, event.refNumber || "—", { x: 1.9, y, w: 4.1, h: 0.16, fontSize: 8, bold: true, color: C.navy, fontFace: "Consolas" });
+    addTextBox(slide, `อาการ: ${eventText(event)}`, { x: 1.9, y: y + 0.19, w: 4.1, h: 0.18, fontSize: 7.5, color: C.muted, fit: "shrink" });
+    addTextBox(slide, event.status ?? "—", { x: 6.05, y: y + 0.1, w: 1.15, h: 0.16, fontSize: 7.5, color: C.muted, align: "right", fit: "shrink" });
   });
 
   // Action plan

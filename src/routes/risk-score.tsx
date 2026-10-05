@@ -116,9 +116,10 @@ function eventDescription(event: {
   problemCategory: string | null;
   problemEquipment: string | null;
   solutionDetail: string | null;
+  informDetail?: string | null;
 }) {
   if (event.type === "PM") return event.solutionDetail || event.problemCategory || "บำรุงรักษาเชิงป้องกัน";
-  return event.problemEquipment || event.problemCategory || "รับแจ้งปัญหา";
+  return event.problemEquipment || event.informDetail || event.problemCategory || "รับแจ้งปัญหา";
 }
 
 /** Inspection guidance derived from the same signals as the score. */

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { PageHeader, Badge, StatCard } from "@/components/ui-bits";
-import { Wrench, AlertCircle, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert, Settings2 } from "lucide-react";
+import { Wrench, AlertCircle, ClockAlert, CheckCircle2, Search, Building2, Pencil, StickyNote, RefreshCw, MessageSquareText, ShieldAlert, Settings2 } from "lucide-react";
 import { listClaims, upsertClaimNextStep } from "@/lib/data.functions";
 import { useAuth } from "@/lib/auth-context";
 import { isUrgentRisk } from "@/lib/risk-colors";
@@ -73,6 +73,10 @@ export const Route = createFileRoute("/claims")({
     meta: [
       { title: "Claim Aging — Asset History 360" },
       { name: "description", content: "รายการ Claim ที่กำลังซ่อม พร้อม Aging และระดับความเร่งด่วน" },
+      { property: "og:title", content: "Claim Aging — Asset History 360" },
+      { property: "og:description", content: "ติดตามตั๋วซ่อมค้างและสรุปสถานะ SLA ตามตัวกรองใน Asset360" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: ClaimsPage,
@@ -169,18 +173,6 @@ function ClaimsPage() {
   const inProject = (dept: string | null | undefined) =>
     fProject === "all" || projectForDepartment(dept) === fProject;
 
-  // Count claims per department across ALL open tickets (respects Project filter)
-  const deptCounts = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const c of allClaims) {
-      if (!inProject(c.department)) continue;
-      const k = c.department ?? "ไม่ระบุ";
-      m.set(k, (m.get(k) ?? 0) + 1);
-    }
-    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allClaims, fProject]);
-
   const claims = useMemo(() => {
     const q = qTicket.trim().toLowerCase();
     const filtered = allClaims.filter((c) => {
@@ -233,7 +225,18 @@ function ClaimsPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, "th"));
   }, [adByCode]);
 
+  // Use the same fully filtered tickets as the table and map for every summary.
+  const deptCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const claim of claims) {
+      const department = claim.department ?? "ไม่ระบุ";
+      counts.set(department, (counts.get(department) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  }, [claims]);
+
   const breached = claims.filter((c) => c.sla_status === "breached").length;
+  const atRisk = claims.filter((c) => c.sla_status === "atrisk").length;
   const onTrack = claims.filter((c) => c.sla_status === "ontrack").length;
 
   return (
@@ -253,9 +256,10 @@ function ClaimsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Claim ทั้งหมด" value={String(allClaims.length)} tone="warning" icon={<Wrench className="size-5" />} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <StatCard label="Claim ทั้งหมด" value={String(claims.length)} tone="warning" icon={<Wrench className="size-5" />} />
         <StatCard label="เกิน SLA" value={String(breached)} tone="danger" icon={<AlertCircle className="size-5" />} />
+        <StatCard label="ใกล้เกิน SLA (At Risk)" value={String(atRisk)} tone="warning" icon={<ClockAlert className="size-5" />} />
         <StatCard label="On Track" value={String(onTrack)} tone="success" icon={<CheckCircle2 className="size-5" />} />
       </div>
 

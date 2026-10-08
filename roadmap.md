@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Align all Claim Aging summary cards with every active filter and add the At Risk SLA card; verify filtered results.
+- [x] Align all Claim Aging summary cards with every active filter and add the At Risk SLA card; verify filtered results.
 
 - [x] Add a live 360-day Claim and PM history summary for each asset.
 - [x] Redesign the selected asset detail as a compact 16:9 executive report.

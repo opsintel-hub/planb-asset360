@@ -1153,11 +1153,11 @@ function RouteMonitoringPage() {
       const job = JSON.parse(raw) as { codes?: string[]; label?: string };
       const codes = (job.codes ?? []).filter(Boolean);
       if (!codes.length) return;
-      const label = job.label?.trim() || "แผนถ่ายรูปโฆษณาขึ้นใหม่";
+      const label = job.label?.trim() || "แผนตรวจจากรายการที่ส่งมา";
       setPhotoJob({ codes, label });
       setPlanName(label);
-      toast.success(`โหมดถ่ายรูป: จำกัดการวางแผนไว้ ${codes.length} ป้าย`, {
-        description: "รายการถูกส่งมาจากเมนูอื่น (Ad Campaigns / คะแนนความเสี่ยง)",
+      toast.success(`รับรายการตรวจ ${codes.length} ป้าย`, {
+        description: "รายการถูกส่งมาจากเมนูอื่น (Ad Campaigns / Asset Risk Score)",
       });
     } catch {
       /* ignore malformed handoff */
@@ -1390,9 +1390,9 @@ function RouteMonitoringPage() {
       {photoJob && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/40 bg-primary/5 p-3">
           <div className="text-sm">
-            <span className="font-semibold text-primary">โหมดถ่ายรูปโฆษณาขึ้นใหม่</span>
+            <span className="font-semibold text-primary">แผนตรวจจากรายการที่ส่งมา</span>
             <span className="ml-2 text-muted-foreground">
-              {photoJob.label} · จำกัดเฉพาะ {photoJob.codes.length} ป้าย (จับคู่พิกัดได้ {filtered.length} ป้าย)
+              {photoJob.label} · รับมา {photoJob.codes.length} ป้าย · มีพิกัดใช้วางแผนได้ {filtered.length} ป้าย
             </span>
           </div>
           <button
@@ -1403,7 +1403,7 @@ function RouteMonitoringPage() {
             }}
             className="rounded-md border px-2.5 py-1 text-xs hover:bg-accent"
           >
-            ออกจากโหมดถ่ายรูป (วางแผนตรวจปกติ)
+            ออกจากรายการนี้ (วางแผนตรวจปกติ)
           </button>
         </div>
       )}

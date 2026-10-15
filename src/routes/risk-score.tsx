@@ -20,6 +20,7 @@ import {
   Loader2,
   Presentation,
   Layers3,
+  Box,
 } from "lucide-react";
 import { toast } from "sonner";
 import SearchableSelect from "@/components/searchable-select";
@@ -28,6 +29,7 @@ import { PageHeader } from "@/components/ui-bits";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AssetIsometricRisk } from "@/components/asset-isometric-risk";
 import { cn } from "@/lib/utils";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { RiskChip, useAssetRiskMap, type AssetRisk } from "@/components/asset-risk";
@@ -184,6 +186,7 @@ function advice(r: AssetRisk) {
 
 function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: number }) {
   const [exporting, setExporting] = useState(false);
+  const [detailView, setDetailView] = useState<"twin" | "slide">("twin");
   const fn = useServerFn(getAssetRisk);
   const historyFn = useServerFn(getAssetHistorySummary);
   const { data, isLoading } = useQuery({
@@ -243,13 +246,17 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
 
   return (
     <div>
-      <div className="mb-2 flex justify-end">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex gap-1 rounded-md border bg-muted/30 p-1" role="group" aria-label="มุมมองรายละเอียดป้าย">
+          <Button type="button" size="sm" variant={detailView === "twin" ? "default" : "ghost"} aria-pressed={detailView === "twin"} onClick={() => setDetailView("twin")}><Box className="size-4" />ผัง 2.5D</Button>
+          <Button type="button" size="sm" variant={detailView === "slide" ? "default" : "ghost"} aria-pressed={detailView === "slide"} onClick={() => setDetailView("slide")}><Presentation className="size-4" />รายงานสไลด์</Button>
+        </div>
         <Button type="button" size="sm" onClick={() => void exportPowerPoint()} disabled={exporting || !summary}>
           {exporting ? <Loader2 className="animate-spin" /> : <FileDown />}
           {exporting ? "กำลังสร้าง PowerPoint…" : "Export to PowerPoint (.pptx)"}
         </Button>
       </div>
-    <section className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)] lg:aspect-video lg:min-h-0">
+    {detailView === "twin" ? <AssetIsometricRisk key={risk.code} risk={risk} parts={parts} actions={actions} queueTitle={queue.title} /> : <section className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)] lg:aspect-video lg:min-h-0">
       <header className="flex min-h-20 shrink-0 items-center justify-between gap-4 border-b bg-card px-6 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
@@ -376,7 +383,7 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
         <span className="flex items-center gap-1"><Info className="size-3" />คะแนนคำนวณทุกคืน · Claim ค้างอัปเดตจากข้อมูลล่าสุด</span>
         <span>ข้อมูลรายงาน ณ {fmtDate(summary?.generatedAt ?? null)} · Critical ≥80</span>
       </footer>
-    </section>
+    </section>}
     </div>
   );
 }
@@ -824,7 +831,7 @@ function RiskScorePage() {
         </div>
       </div>
 
-      <div className="mb-4 grid gap-4 xl:grid-cols-[minmax(260px,0.72fr)_minmax(0,2fr)]">
+      <div className="mb-4 grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(260px,0.72fr)_minmax(0,2fr)]">
         <section className="rounded-lg border bg-card p-4 shadow-[var(--shadow-card)]">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -884,8 +891,8 @@ function RiskScorePage() {
         </section>
       </div>
 
-      <div className="grid items-start gap-4 2xl:grid-cols-[460px_minmax(0,1fr)]">
-        <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-4 2xl:grid-cols-[460px_minmax(0,1fr)]">
+        <div className="min-w-0 rounded-xl border bg-card overflow-hidden">
           <div className="border-b p-3">
             <div className="relative">
               <SearchIcon className="absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -897,7 +904,7 @@ function RiskScorePage() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-[96px_minmax(90px,1fr)_minmax(100px,1fr)_52px] gap-2 border-b bg-muted/50 px-3 py-2 text-[10px] font-semibold uppercase text-muted-foreground">
+          <div className="grid grid-cols-[80px_minmax(0,1fr)_minmax(0,1fr)_40px] sm:grid-cols-[96px_minmax(90px,1fr)_minmax(100px,1fr)_52px] gap-2 border-b bg-muted/50 px-3 py-2 text-[10px] font-semibold uppercase text-muted-foreground">
             <span>Old Code</span>
             <span>Project</span>
             <span>Media Type</span>
@@ -919,7 +926,7 @@ function RiskScorePage() {
                   type="button"
                   onClick={() => setSelected(r.code)}
                   className={cn(
-                    "grid w-full grid-cols-[96px_minmax(90px,1fr)_minmax(100px,1fr)_52px] items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent/40",
+                    "grid w-full grid-cols-[80px_minmax(0,1fr)_minmax(0,1fr)_40px] sm:grid-cols-[96px_minmax(90px,1fr)_minmax(100px,1fr)_52px] items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent/40",
                     r.code === code && "bg-accent/60",
                   )}
                 >
@@ -938,7 +945,7 @@ function RiskScorePage() {
           </div>
         </div>
 
-        <div>{code ? <RiskDetail code={code} liveOpenClaims={liveOpen?.[code]} /> : <Skeleton className="h-72 w-full" />}</div>
+        <div className="min-w-0">{code ? <RiskDetail code={code} liveOpenClaims={liveOpen?.[code]} /> : <Skeleton className="h-72 w-full" />}</div>
       </div>
     </div>
   );

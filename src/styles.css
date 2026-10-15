@@ -341,3 +341,51 @@
     font-feature-settings: "cv11", "ss01";
   }
 }
+
+/* Selected-asset risk anatomy: all SVG surfaces inherit semantic theme roles. */
+:root {
+  --risk-critical: oklch(0.43 0.17 25);
+  --risk-high: var(--destructive);
+  --risk-medium: var(--warning);
+  --risk-low: var(--success);
+  --risk-model-metal: var(--muted-foreground);
+  --risk-model-side: var(--foreground);
+  --risk-model-screen: var(--card);
+}
+.dark, .neon-theme { --risk-critical: oklch(0.72 0.22 25); }
+.risk-twin { --risk-tone: var(--risk-low); }
+.risk-twin[data-level="critical"] { --risk-tone: var(--risk-critical); }
+.risk-twin[data-level="high"] { --risk-tone: var(--risk-high); }
+.risk-twin[data-level="medium"] { --risk-tone: var(--risk-medium); }
+.risk-twin-status { color: var(--risk-tone); }
+.risk-twin-stage { background: var(--muted); }
+.risk-twin-grid { stroke: var(--border); opacity: .7; }
+.risk-twin-track { stroke: var(--border); }
+.risk-twin-flow { stroke: var(--muted-foreground); opacity: .25; }
+.risk-twin-signal.is-live .risk-twin-flow { stroke: var(--risk-tone); opacity: .7; stroke-dasharray: 6 18; animation: risk-signal-flow 3s linear infinite; }
+.risk-twin-signal.is-selected .risk-twin-flow { stroke: var(--primary); opacity: 1; stroke-width: 4; }
+.risk-twin-node-top { fill: var(--card); stroke: var(--border); }
+.risk-twin-node-side { fill: var(--accent); stroke: var(--border); }
+.risk-twin-signal.is-selected .risk-twin-node-top { stroke: var(--primary); stroke-width: 2; }
+.risk-twin-node-number { fill: var(--foreground); font-size: 16px; font-weight: 700; }
+.risk-twin-base-top { fill: var(--card); stroke: var(--border); }
+.risk-twin-base-side { fill: var(--accent); stroke: var(--border); }
+.risk-twin-metal { fill: var(--risk-model-metal); }
+.risk-twin-metal-side { fill: var(--risk-model-side); }
+.risk-twin-frame { fill: var(--risk-model-side); }
+.risk-twin-screen { fill: var(--risk-model-screen); }
+.risk-twin-screen-brand { fill: var(--foreground); font-size: 12px; font-weight: 800; }
+.risk-twin-heartbeat { stroke: var(--risk-tone); stroke-dasharray: 180; animation: risk-heartbeat 4s ease-in-out infinite; }
+.risk-twin-alert-ring { stroke: var(--risk-tone); }
+.risk-twin[data-level="critical"] .risk-twin-alert-ring,
+.risk-twin[data-level="high"] .risk-twin-alert-ring { animation: risk-alert-pulse 2.5s ease-in-out infinite; }
+.risk-twin-caption { fill: var(--foreground); font-size: 13px; font-weight: 700; }
+.risk-twin-caption-sub { fill: var(--muted-foreground); font-size: 11px; font-weight: 400; }
+.risk-twin-factor { border: 1px solid transparent; }
+.risk-twin-factor.is-selected { background: var(--accent); border-color: var(--primary); }
+.risk-twin-factor-index { color: var(--primary); }
+.risk-twin[data-paused="true"] * { animation-play-state: paused !important; }
+@keyframes risk-signal-flow { to { stroke-dashoffset: -96; } }
+@keyframes risk-heartbeat { 0% { stroke-dashoffset: 180; } 55%, 100% { stroke-dashoffset: 0; } }
+@keyframes risk-alert-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .risk-twin * { animation: none !important; } }

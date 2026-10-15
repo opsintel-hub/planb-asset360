@@ -20,6 +20,7 @@ import {
   Loader2,
   Presentation,
   Layers3,
+  Box,
 } from "lucide-react";
 import { toast } from "sonner";
 import SearchableSelect from "@/components/searchable-select";
@@ -28,6 +29,7 @@ import { PageHeader } from "@/components/ui-bits";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AssetIsometricRisk } from "@/components/asset-isometric-risk";
 import { cn } from "@/lib/utils";
 import { useMyRoles } from "@/hooks/use-my-roles";
 import { RiskChip, useAssetRiskMap, type AssetRisk } from "@/components/asset-risk";
@@ -184,6 +186,7 @@ function advice(r: AssetRisk) {
 
 function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: number }) {
   const [exporting, setExporting] = useState(false);
+  const [detailView, setDetailView] = useState<"twin" | "slide">("twin");
   const fn = useServerFn(getAssetRisk);
   const historyFn = useServerFn(getAssetHistorySummary);
   const { data, isLoading } = useQuery({
@@ -243,13 +246,17 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
 
   return (
     <div>
-      <div className="mb-2 flex justify-end">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex gap-1 rounded-md border bg-muted/30 p-1" role="group" aria-label="มุมมองรายละเอียดป้าย">
+          <Button type="button" size="sm" variant={detailView === "twin" ? "default" : "ghost"} aria-pressed={detailView === "twin"} onClick={() => setDetailView("twin")}><Box className="size-4" />ผัง 2.5D</Button>
+          <Button type="button" size="sm" variant={detailView === "slide" ? "default" : "ghost"} aria-pressed={detailView === "slide"} onClick={() => setDetailView("slide")}><Presentation className="size-4" />รายงานสไลด์</Button>
+        </div>
         <Button type="button" size="sm" onClick={() => void exportPowerPoint()} disabled={exporting || !summary}>
           {exporting ? <Loader2 className="animate-spin" /> : <FileDown />}
           {exporting ? "กำลังสร้าง PowerPoint…" : "Export to PowerPoint (.pptx)"}
         </Button>
       </div>
-    <section className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)] lg:aspect-video lg:min-h-0">
+    {detailView === "twin" ? <AssetIsometricRisk key={risk.code} risk={risk} parts={parts} actions={actions} queueTitle={queue.title} /> : <section className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)] lg:aspect-video lg:min-h-0">
       <header className="flex min-h-20 shrink-0 items-center justify-between gap-4 border-b bg-card px-6 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
@@ -376,7 +383,7 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
         <span className="flex items-center gap-1"><Info className="size-3" />คะแนนคำนวณทุกคืน · Claim ค้างอัปเดตจากข้อมูลล่าสุด</span>
         <span>ข้อมูลรายงาน ณ {fmtDate(summary?.generatedAt ?? null)} · Critical ≥80</span>
       </footer>
-    </section>
+    </section>}
     </div>
   );
 }

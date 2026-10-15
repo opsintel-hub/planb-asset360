@@ -891,8 +891,8 @@ function RiskScorePage() {
         </section>
       </div>
 
-      <div className="grid items-start gap-4 2xl:grid-cols-[460px_minmax(0,1fr)]">
-        <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-4 2xl:grid-cols-[460px_minmax(0,1fr)]">
+        <div className="min-w-0 rounded-xl border bg-card overflow-hidden">
           <div className="border-b p-3">
             <div className="relative">
               <SearchIcon className="absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -904,7 +904,7 @@ function RiskScorePage() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-[96px_minmax(90px,1fr)_minmax(100px,1fr)_52px] gap-2 border-b bg-muted/50 px-3 py-2 text-[10px] font-semibold uppercase text-muted-foreground">
+          <div className="grid grid-cols-[80px_minmax(0,1fr)_minmax(0,1fr)_40px] sm:grid-cols-[96px_minmax(90px,1fr)_minmax(100px,1fr)_52px] gap-2 border-b bg-muted/50 px-3 py-2 text-[10px] font-semibold uppercase text-muted-foreground">
             <span>Old Code</span>
             <span>Project</span>
             <span>Media Type</span>
@@ -926,7 +926,7 @@ function RiskScorePage() {
                   type="button"
                   onClick={() => setSelected(r.code)}
                   className={cn(
-                    "grid w-full grid-cols-[96px_minmax(90px,1fr)_minmax(100px,1fr)_52px] items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent/40",
+                    "grid w-full grid-cols-[80px_minmax(0,1fr)_minmax(0,1fr)_40px] sm:grid-cols-[96px_minmax(90px,1fr)_minmax(100px,1fr)_52px] items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent/40",
                     r.code === code && "bg-accent/60",
                   )}
                 >
@@ -945,7 +945,7 @@ function RiskScorePage() {
           </div>
         </div>
 
-        <div>{code ? <RiskDetail code={code} liveOpenClaims={liveOpen?.[code]} /> : <Skeleton className="h-72 w-full" />}</div>
+        <div className="min-w-0">{code ? <RiskDetail code={code} liveOpenClaims={liveOpen?.[code]} /> : <Skeleton className="h-72 w-full" />}</div>
       </div>
     </div>
   );

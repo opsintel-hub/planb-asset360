@@ -1,4 +1,4 @@
-import { createRootRouteWithContext, Outlet, HeadContent, Scripts, Link, useRouter, useLocation, useNavigate } from "@tanstack/react-router";
+import { createRootRouteWithContext, Outlet, HeadContent, Scripts, Link, useRouter, useLocation, useNavigate, type ErrorComponentProps } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { useEffect } from "react";
@@ -18,14 +18,14 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
   console.error(error);
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold">เกิดข้อผิดพลาด</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{error instanceof Error ? error.message : "กรุณาลองอีกครั้ง"}</p>
         <button
           onClick={() => { router.invalidate(); reset(); }}
           className="mt-6 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
@@ -46,8 +46,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:title", content: "Asset History 360 — PlanB Media" },
       { property: "og:description", content: "ระบบบริหารจัดการทรัพย์สินสื่อโฆษณา PlanB Media — ติดตาม PM, Claim, Monitoring" },
       { name: "twitter:description", content: "ระบบบริหารจัดการทรัพย์สินสื่อโฆษณา PlanB Media — ติดตาม PM, Claim, Monitoring" },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f856023a-779b-49ea-964f-4022d8d87972/id-preview-1333a767--6d2903c3-530f-4343-83c9-b9ada7a70d18.lovable.app-1779268647975.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f856023a-779b-49ea-964f-4022d8d87972/id-preview-1333a767--6d2903c3-530f-4343-83c9-b9ada7a70d18.lovable.app-1779268647975.png" },
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],

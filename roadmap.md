@@ -1,7 +1,7 @@
 # Roadmap
 
-- [ ] Add a default 2.5D selected-asset risk view with animated real score factors and a switch to the existing slide report.
-- [ ] Verify selected-asset switching, slide export access, and desktop/mobile rendering.
+- [x] Add a default 2.5D selected-asset risk view with animated real score factors and a switch to the existing slide report.
+- [x] Verify selected-asset switching, slide export access, and desktop/mobile rendering.
 
 - [x] Align all Claim Aging summary cards with every active filter and add the At Risk SLA card; verify filtered results.
 

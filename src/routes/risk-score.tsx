@@ -831,7 +831,7 @@ function RiskScorePage() {
         </div>
       </div>
 
-      <div className="mb-4 grid gap-4 xl:grid-cols-[minmax(260px,0.72fr)_minmax(0,2fr)]">
+      <div className="mb-4 grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(260px,0.72fr)_minmax(0,2fr)]">
         <section className="rounded-lg border bg-card p-4 shadow-[var(--shadow-card)]">
           <div className="flex items-start justify-between gap-3">
             <div>

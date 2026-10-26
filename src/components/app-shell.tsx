@@ -185,6 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               key={item.to}
               to={item.to}
+              title={item.label}
               target={newTab ? "_blank" : undefined}
               rel={newTab ? "noopener" : undefined}
               className={cn(
@@ -196,7 +197,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
 
               <Icon className="size-4 shrink-0" />
-              <span className="truncate">{item.label}</span>
+              <span className="truncate sb-label">{item.label}</span>
               {item.to === "/campaigns" && (newAds?.count ?? 0) > 0 && (
                 <span
                   title={`มีป้ายที่โฆษณาขึ้นใหม่ ${newAds?.count} ป้ายใน 7 วัน (${newAds?.rowCount ?? 0} รายการสัญญา) — รอทีมถ่ายรูป`}

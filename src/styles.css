@@ -489,3 +489,12 @@
   .mission-context, .mission-actions, .mission-footer { padding: 14px 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .mission-control * { transition: none !important; animation: none !important; } }
+
+/* Collapsed desktop sidebar: icon-only rail */
+.app-sidebar[data-collapsed="true"] .sb-label,
+.app-sidebar[data-collapsed="true"] .leading-tight,
+.app-sidebar[data-collapsed="true"] nav a > span,
+.app-sidebar[data-collapsed="true"] > div:nth-last-child(2) { display: none; }
+.app-sidebar[data-collapsed="true"] > div:first-child { padding-left: 1rem; padding-right: 1rem; justify-content: center; }
+.app-sidebar[data-collapsed="true"] nav a { justify-content: center; position: relative; }
+.app-sidebar[data-collapsed="true"] > div:last-child > div { justify-content: center; }

@@ -35,6 +35,10 @@ export const Route = createFileRoute("/settings")({
     meta: [
       { title: "ตั้งค่าระบบ — Asset History 360" },
       { name: "description", content: "ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset, API Claim Aging และ Airtable" },
+      {"property": "og:title", "content": "ตั้งค่าระบบ — Asset History 360"},
+      {"property": "og:description", "content": "ตั้งค่าการเชื่อมต่อฐานข้อมูล Asset, API Claim Aging และ Airtable"},
+      {"property": "og:type", "content": "website"},
+      {"name": "twitter:card", "content": "summary"},
     ],
   }),
   component: SettingsPage,

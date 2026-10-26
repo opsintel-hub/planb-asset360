@@ -891,8 +891,8 @@ function RiskScorePage() {
         </section>
       </div>
 
-      <div className="grid min-w-0 grid-cols-1 items-start gap-4 2xl:grid-cols-[460px_minmax(0,1fr)]">
-        <div className="min-w-0 rounded-xl border bg-card overflow-hidden">
+      <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 2xl:grid-cols-[460px_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col rounded-xl border bg-card overflow-hidden">
           <div className="border-b p-3">
             <div className="relative">
               <SearchIcon className="absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -910,7 +910,7 @@ function RiskScorePage() {
             <span>Media Type</span>
             <span className="text-right">คะแนน</span>
           </div>
-          <div className="max-h-[560px] overflow-y-auto divide-y">
+          <div className="min-h-[420px] flex-1 overflow-y-auto divide-y">
             {isLoading ? (
               <div className="space-y-2 p-3">
                 {Array.from({ length: 8 }).map((_, i) => (

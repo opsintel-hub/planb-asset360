@@ -150,13 +150,19 @@ export function AssetIsometricRisk({ risk, parts, actions, queueTitle, events, h
     window.location.href = "/route-monitoring";
   };
   return <section aria-label={`ผังความเสี่ยง 2.5D ของ ${risk.code}`} className="risk-twin mission-control" data-level={risk.level}>
+    <header className="mission-header">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <h2 className="font-mono text-xl font-bold" data-testid="twin-asset-code">{risk.code}</h2>
+        <span className="mission-status"><ShieldAlert className="size-3" />{RISK_LABELS[risk.level]}</span>
+        <span className="truncate text-[11px] text-muted-foreground">{[risk.department, risk.mediaType, risk.district].filter(Boolean).join(" · ") || "ไม่ระบุข้อมูลพื้นที่"}</span>
+      </div>
+      <div className="flex shrink-0 items-baseline gap-1.5">
+        <span className="text-[10px] text-muted-foreground">คะแนนความเสี่ยง</span>
+        <span className="font-mono text-2xl font-bold mission-score">{risk.score}<span className="text-xs font-normal text-muted-foreground">/100</span></span>
+      </div>
+    </header>
     <div className="mission-workspace">
       <aside className="mission-factors" aria-label="องค์ประกอบคะแนนความเสี่ยง">
-        <div className="mission-asset-summary">
-          <div className="flex flex-wrap items-center gap-2"><h2 className="font-mono text-2xl font-bold" data-testid="twin-asset-code">{risk.code}</h2><span className="mission-status"><ShieldAlert className="size-3" />{RISK_LABELS[risk.level]}</span></div>
-          <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{[risk.department, risk.mediaType, risk.district].filter(Boolean).join(" · ") || "ไม่ระบุข้อมูลพื้นที่"}</p>
-          <div className="mt-4 flex items-end justify-between border-t pt-3"><span className="text-[11px] text-muted-foreground">คะแนนความเสี่ยง</span><span className="font-mono text-3xl font-bold mission-score">{risk.score}<span className="text-sm text-muted-foreground">/100</span></span></div>
-        </div>
         <div className="mission-factor-list">{parts.map((part,index)=><FactorGauge key={part.key} part={part} risk={risk} index={index} selected={part.key===activeKey} onSelect={()=>setActiveKey(part.key)} />)}</div>
       </aside>
       <div className="mission-main">
@@ -179,7 +185,7 @@ export function AssetIsometricRisk({ risk, parts, actions, queueTitle, events, h
             </div>
           </aside>
         </div>
-        {active && <div className="mission-context" aria-live="polite"><Activity className="size-5 shrink-0"/><div><h3 className="text-sm font-semibold">{active.label}</h3><p className="mt-1 text-[11px] text-muted-foreground">{operationalDetail(active, risk).fact} · {operationalDetail(active, risk).note}{active.key === "pm" ? ` · ${active.detail}` : ""}{active.key === "pm" && risk.daysSincePm == null ? " · ไม่มีข้อมูล PM ไม่ได้หมายความว่าทำ PM แล้ว" : ""}{active.key === "open" && risk.topProblem ? ` · ปัญหาที่พบ: ${risk.topProblem}` : ""}</p></div></div>}
+        {active && <div className="mission-context" aria-live="polite"><Activity className="size-4 shrink-0"/><h3 className="shrink-0 text-xs font-semibold">{active.label}</h3><p className="min-w-0 text-[11px] text-muted-foreground">{operationalDetail(active, risk).fact} · {operationalDetail(active, risk).note}{active.key === "pm" ? ` · ${active.detail}` : ""}{active.key === "pm" && risk.daysSincePm == null ? " · ไม่มีข้อมูล PM ไม่ได้หมายความว่าทำ PM แล้ว" : ""}{active.key === "open" && risk.topProblem ? ` · ปัญหาที่พบ: ${risk.topProblem}` : ""}</p></div>}
         <div className="mission-actions"><h3 className="flex items-start gap-2 text-sm font-semibold"><Wrench className="size-4 shrink-0 mt-0.5"/>{queueTitle}</h3><div className="mission-protocol">{actions.map((action,index)=><div key={action.title} className="mission-action"><div className="flex items-start gap-2"><span className="mission-step">{index+1}</span><h4 className="text-xs font-semibold leading-relaxed">{action.title}</h4></div><p className="mt-2 text-[10px] text-muted-foreground">{action.owner} · {action.deadline}</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{action.done}</p>{index<actions.length-1&&<ArrowRight className="mission-action-arrow size-3.5"/>}</div>)}</div></div>
         <div className="mission-footer"><span className="text-[10px] text-muted-foreground">คะแนนบันทึกรอบล่าสุด · เคลมค้างจากข้อมูลล่าสุด</span><div className="flex flex-wrap gap-2"><Button asChild size="sm" variant="outline"><Link to="/search" search={{q:risk.code}}><History/>ตรวจสอบประวัติป้าย</Link></Button><Button size="sm" onClick={sendToRoutePlan}><Navigation/>ส่งเข้า Route Monitoring</Button></div></div>
       </div>

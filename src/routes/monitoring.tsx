@@ -58,6 +58,10 @@ export const Route = createFileRoute("/monitoring")({
     meta: [
       { title: "Monitoring Insights — แดชบอร์ดการตรวจสอบป้าย" },
       { name: "description", content: "วิเคราะห์ผลการตรวจสอบ Monitoring และ Claim ภาพรวมทุกป้าย" },
+      {"property": "og:title", "content": "Monitoring Insights — แดชบอร์ดการตรวจสอบป้าย"},
+      {"property": "og:description", "content": "วิเคราะห์ผลการตรวจสอบ Monitoring และ Claim ภาพรวมทุกป้าย"},
+      {"property": "og:type", "content": "website"},
+      {"name": "twitter:card", "content": "summary"},
     ],
   }),
   component: MonitoringPage,

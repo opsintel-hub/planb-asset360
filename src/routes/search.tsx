@@ -62,6 +62,10 @@ export const Route = createFileRoute("/search")({
     meta: [
       { title: "Asset history — Asset History 360" },
       { name: "description", content: "เปรียบเทียบประวัติ PM / Claim / Monitoring ของป้ายโฆษณาสูงสุด 5 ป้าย" },
+      {"property": "og:title", "content": "Asset history — Asset History 360"},
+      {"property": "og:description", "content": "เปรียบเทียบประวัติ PM / Claim / Monitoring ของป้ายโฆษณาสูงสุด 5 ป้าย"},
+      {"property": "og:type", "content": "website"},
+      {"name": "twitter:card", "content": "summary"},
     ],
   }),
   component: SearchPage,

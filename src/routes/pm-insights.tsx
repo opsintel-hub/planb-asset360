@@ -52,6 +52,10 @@ export const Route = createFileRoute("/pm-insights")({
     meta: [
       { title: "PM Insights — แดชบอร์ดประสิทธิภาพ PM" },
       { name: "description", content: "วิเคราะห์ประสิทธิภาพ PM และ Claim ภาพรวมทั้งบริษัท" },
+      {"property": "og:title", "content": "PM Insights — แดชบอร์ดประสิทธิภาพ PM"},
+      {"property": "og:description", "content": "วิเคราะห์ประสิทธิภาพ PM และ Claim ภาพรวมทั้งบริษัท"},
+      {"property": "og:type", "content": "website"},
+      {"name": "twitter:card", "content": "summary"},
     ],
   }),
   component: PmInsightsPage,

@@ -22,6 +22,10 @@ export const Route = createFileRoute("/permissions")({
     meta: [
       { title: "จัดการสิทธิ์ — Asset History 360" },
       { name: "description", content: "จัดการสิทธิ์การเข้าถึงของผู้ใช้งานแต่ละบทบาท" },
+      {"property": "og:title", "content": "จัดการสิทธิ์ — Asset History 360"},
+      {"property": "og:description", "content": "จัดการสิทธิ์การเข้าถึงของผู้ใช้งานแต่ละบทบาท"},
+      {"property": "og:type", "content": "website"},
+      {"name": "twitter:card", "content": "summary"},
     ],
   }),
   component: PermissionsPage,

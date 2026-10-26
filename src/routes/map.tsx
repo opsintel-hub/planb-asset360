@@ -104,6 +104,10 @@ export const Route = createFileRoute("/map")({
         content:
           "แผนที่ป้ายโฆษณา วาดเส้นทาง ค้นป้ายใกล้เคียง วางแผนงานตรวจสื่อ พร้อม auto-routing ผ่าน OSRM",
       },
+      {"property": "og:title", "content": "Asset Map — Asset History 360"},
+      {"property": "og:description", "content": "แผนที่ป้ายโฆษณา วาดเส้นทาง ค้นป้ายใกล้เคียง วางแผนงานตรวจสื่อ พร้อม auto-routing ผ่าน OSRM"},
+      {"property": "og:type", "content": "website"},
+      {"name": "twitter:card", "content": "summary"},
     ],
   }),
   component: MapPage,

@@ -39,6 +39,10 @@ export const Route = createFileRoute("/rca")({
     meta: [
       { title: "Root Cause Analysis — วิเคราะห์อาการเสียป้าย" },
       { name: "description", content: "วิเคราะห์อาการเสียของป้ายโฆษณาแบบ Portfolio และรายป้าย พร้อม Diagram Mapping Coverage" },
+      {"property": "og:title", "content": "Root Cause Analysis — วิเคราะห์อาการเสียป้าย"},
+      {"property": "og:description", "content": "วิเคราะห์อาการเสียของป้ายโฆษณาแบบ Portfolio และรายป้าย พร้อม Diagram Mapping Coverage"},
+      {"property": "og:type", "content": "website"},
+      {"name": "twitter:card", "content": "summary"},
     ],
   }),
   component: RcaPage,

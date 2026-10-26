@@ -7,7 +7,14 @@ import { isAllowedEmail, ALLOWED_EMAIL_DOMAIN } from "@/lib/authDomain";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({ meta: [{ title: "เข้าสู่ระบบ — Asset History 360" }] }),
+  head: () => ({ meta: [
+      { title: "เข้าสู่ระบบ — Asset History 360" },
+      { name: "description", content: "เข้าสู่ระบบ Operation Intelligence ของ Plan B Media" },
+      {"property": "og:title", "content": "เข้าสู่ระบบ — Asset History 360"},
+      {"property": "og:description", "content": "เข้าสู่ระบบ Operation Intelligence ของ Plan B Media"},
+      {"property": "og:type", "content": "website"},
+      {"name": "twitter:card", "content": "summary"},
+    ] }),
   component: LoginPage,
 });
 

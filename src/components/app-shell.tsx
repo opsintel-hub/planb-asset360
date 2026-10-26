@@ -105,6 +105,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       return next;
     });
   };
+  // ---------- Collapsible desktop sidebar ----------
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    setCollapsed(window.localStorage.getItem("app:sidebar-collapsed") === "1");
+  }, []);
+  const toggleCollapsed = () => {
+    setCollapsed((v) => {
+      const next = !v;
+      window.localStorage.setItem("app:sidebar-collapsed", next ? "1" : "0");
+      return next;
+    });
+  };
 
 
   // ---------- Global Neon theme toggle ----------
@@ -173,6 +185,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               key={item.to}
               to={item.to}
+              title={item.label}
               target={newTab ? "_blank" : undefined}
               rel={newTab ? "noopener" : undefined}
               className={cn(
@@ -184,7 +197,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
 
               <Icon className="size-4 shrink-0" />
-              <span className="truncate">{item.label}</span>
+              <span className="truncate sb-label">{item.label}</span>
               {item.to === "/campaigns" && (newAds?.count ?? 0) > 0 && (
                 <span
                   title={`มีป้ายที่โฆษณาขึ้นใหม่ ${newAds?.count} ป้ายใน 7 วัน (${newAds?.rowCount ?? 0} รายการสัญญา) — รอทีมถ่ายรูป`}
@@ -258,7 +271,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Desktop sidebar */}
       <aside
-        className="hidden md:flex w-64 shrink-0 text-sidebar-foreground flex-col"
+        data-collapsed={collapsed ? "true" : "false"}
+        className={cn(
+          "app-sidebar hidden md:flex shrink-0 text-sidebar-foreground flex-col overflow-hidden transition-[width] duration-200 sticky top-0 h-screen",
+          collapsed ? "w-[72px]" : "w-64",
+        )}
         style={{ background: "var(--gradient-sidebar)" }}
       >
         {SidebarContent}
@@ -287,6 +304,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="md:hidden size-9 rounded-lg hover:bg-accent grid place-items-center"
               onClick={() => setMobileOpen(true)}
               aria-label="เปิดเมนู"
+            >
+              <Menu className="size-5" />
+            </button>
+            <button
+              className="hidden md:grid size-9 rounded-lg hover:bg-accent place-items-center text-muted-foreground hover:text-foreground"
+              onClick={toggleCollapsed}
+              aria-label={collapsed ? "ขยายเมนู" : "หุบเมนู"}
+              title={collapsed ? "ขยายเมนู" : "หุบเมนู"}
             >
               <Menu className="size-5" />
             </button>

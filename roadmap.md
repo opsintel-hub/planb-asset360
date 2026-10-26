@@ -17,3 +17,4 @@
 - [x] Add the Asset Risk Score full-width list with 360-day Claim/PM totals and menu permissions.
 
 - [x] Redesign the 2.5D risk twin as an engineering-structure billboard (truss, catwalk, spotlights, MDB, status glow) with floating telemetry cards and Asset History / Route Monitoring quick actions; verified in the authenticated preview.
+- [x] Rebuild the 2.5D twin as a clean industrial model: no floating cards or duplicated numbers, single factor panel with progress bars, click-to-highlight real billboard parts; verified in the authenticated preview.

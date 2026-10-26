@@ -373,6 +373,16 @@
 .risk-twin-metal { fill: var(--risk-model-metal); }
 .risk-twin-metal-side { fill: var(--risk-model-side); }
 .risk-twin-frame { fill: var(--risk-model-side); }
+.risk-twin-truss { stroke: var(--border); stroke-width: 1.5; fill: none; opacity: .8; }
+.risk-twin-catwalk { fill: var(--risk-model-metal); stroke: var(--border); stroke-width: 1; }
+.risk-twin-rail { stroke: var(--muted-foreground); stroke-width: 1.5; fill: none; opacity: .6; }
+.risk-twin-lamp { fill: var(--risk-model-side); stroke: var(--border); stroke-width: 1; }
+.risk-twin-lamp-beam { stroke: var(--warning); stroke-width: 1.5; fill: none; opacity: .35; stroke-dasharray: 3 4; }
+.risk-twin-mdb { fill: var(--card); stroke: var(--border); stroke-width: 1; }
+.risk-twin-mdb-side { fill: var(--accent); stroke: var(--border); stroke-width: 1; }
+.risk-twin-glow { fill: var(--risk-tone); opacity: .16; }
+.risk-twin[data-level="critical"] .risk-twin-glow,
+.risk-twin[data-level="high"] .risk-twin-glow { animation: risk-alert-pulse 2.5s ease-in-out infinite; }
 .risk-twin-screen { fill: var(--risk-model-screen); }
 .risk-twin-screen-brand { fill: var(--foreground); font-size: 12px; font-weight: 800; }
 .risk-twin-heartbeat { stroke: var(--risk-tone); stroke-dasharray: 180; animation: risk-heartbeat 4s ease-in-out infinite; }

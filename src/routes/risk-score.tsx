@@ -248,7 +248,7 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
     <div>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex gap-1 rounded-md border bg-muted/30 p-1" role="group" aria-label="มุมมองรายละเอียดป้าย">
-          <Button type="button" size="sm" variant={detailView === "twin" ? "default" : "ghost"} aria-pressed={detailView === "twin"} onClick={() => setDetailView("twin")}><Box className="size-4" />ผัง 2.5D</Button>
+          <Button type="button" size="sm" variant={detailView === "twin" ? "default" : "ghost"} aria-pressed={detailView === "twin"} onClick={() => setDetailView("twin")}><Box className="size-4" />รายงานรายป้าย</Button>
           <Button type="button" size="sm" variant={detailView === "slide" ? "default" : "ghost"} aria-pressed={detailView === "slide"} onClick={() => setDetailView("slide")}><Presentation className="size-4" />รายงานสไลด์</Button>
         </div>
         <Button type="button" size="sm" onClick={() => void exportPowerPoint()} disabled={exporting || !summary}>

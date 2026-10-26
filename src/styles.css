@@ -373,15 +373,15 @@
 .risk-twin[data-level="high"] { --risk-tone: var(--risk-high); }
 .risk-twin[data-level="medium"] { --risk-tone: var(--risk-medium); }
 .mission-control { container-type: inline-size; background: var(--mission-surface); border-radius: 8px; border: 1px solid var(--border); color: var(--foreground); }
+.mission-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--border); background: var(--card); border-radius: 8px 8px 0 0; }
 .mission-workspace { display: grid; grid-template-columns: 222px minmax(0,1fr); }
-.mission-factors { padding: 16px 12px; border-right: 1px solid var(--border); }
-.mission-asset-summary { padding: 2px 5px 16px; }
+.mission-factors { padding: 12px 10px; border-right: 1px solid var(--border); }
 .mission-status { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; color: var(--risk-tone); background: color-mix(in oklab,var(--risk-tone) 9%,var(--card)); padding: 3px 7px; border-radius: 4px; }
 .mission-score { color: var(--risk-tone); }
-.mission-factor-list { display: grid; gap: 9px; }
-.mission-factor { height: auto; min-height: 98px; width: 100%; display: flex; gap: 11px; text-align: left; white-space: normal; border: 1px solid var(--border); border-radius: 6px; padding: 12px 10px; background: var(--card); color: var(--foreground); box-shadow: var(--shadow-card); }
+.mission-factor-list { display: grid; gap: 7px; }
+.mission-factor { height: auto; min-height: 84px; width: 100%; display: flex; gap: 9px; text-align: left; white-space: normal; border: 1px solid var(--border); border-radius: 6px; padding: 10px 9px; background: var(--card); color: var(--foreground); box-shadow: var(--shadow-card); }
 .mission-factor.is-selected { border-color: var(--mission-cyan); background: var(--card); box-shadow: 0 0 0 1px color-mix(in oklab,var(--mission-cyan) 15%,transparent); }
-.mission-factor svg.mission-ring { width: 43px; height: 43px; flex-shrink: 0; }
+.mission-factor svg.mission-ring { width: 40px; height: 40px; flex-shrink: 0; }
 .mission-ring circle { fill: none; stroke-width: 4; }
 .mission-ring-track { stroke: var(--muted); }
 .mission-ring-value { stroke: var(--mission-metal-front); }
@@ -395,23 +395,23 @@
 .is-selected .mission-factor-dot { background: var(--mission-cyan); }
 .mission-main { min-width: 0; }
 .mission-visuals { display: grid; grid-template-columns: minmax(0,1fr) 226px; }
-.mission-anatomy { min-width: 0; padding: 20px 12px 12px; display: flex; flex-direction: column; justify-content: space-between; }
+.mission-anatomy { min-width: 0; padding: 14px 10px 10px; display: flex; flex-direction: column; justify-content: space-between; }
 .mission-section-label { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; font-size: 11px; font-weight: 700; }
-.mission-model { display: block; width: 100%; min-height: 340px; max-height: 485px; flex: 1; }
+.mission-model { display: block; width: 100%; min-height: 320px; max-height: 430px; flex: 1; }
 .mission-model-caption { text-align: center; font-size: 9px; color: var(--muted-foreground); padding-top: 6px; }
-.mission-analytics { border-left: 1px solid var(--border); padding: 18px 14px; }
+.mission-analytics { border-left: 1px solid var(--border); padding: 14px 12px; }
 .mission-profile { border-bottom: 1px solid var(--border); padding-bottom: 8px; }
-.mission-radar { width: 100%; height: 210px; }
-.mission-history { padding-top: 16px; }
-.mission-trend { height: 148px; width: 100%; margin-top: 6px; }
-.mission-context { background: var(--mission-cyan-soft); color: var(--foreground); border-top: 1px solid color-mix(in oklab,var(--mission-cyan) 20%,var(--border)); border-bottom: 1px solid color-mix(in oklab,var(--mission-cyan) 20%,var(--border)); padding: 14px 18px; display: flex; align-items: center; gap: 12px; }
+.mission-radar { width: 100%; height: 190px; }
+.mission-history { padding-top: 12px; }
+.mission-trend { height: 128px; width: 100%; margin-top: 6px; }
+.mission-context { background: var(--mission-cyan-soft); color: var(--foreground); border-top: 1px solid color-mix(in oklab,var(--mission-cyan) 20%,var(--border)); border-bottom: 1px solid color-mix(in oklab,var(--mission-cyan) 20%,var(--border)); padding: 9px 18px; display: flex; align-items: center; gap: 10px; }
 .mission-context > svg { color: var(--mission-cyan); }
-.mission-actions { padding: 16px 18px; background: var(--card); }
-.mission-protocol { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); margin-top: 12px; gap: 22px; }
-.mission-action { position: relative; min-width: 0; padding: 11px 0 4px; border-top: 2px solid var(--border); }
+.mission-actions { padding: 12px 18px; background: var(--card); }
+.mission-protocol { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); margin-top: 8px; gap: 18px; }
+.mission-action { position: relative; min-width: 0; padding: 8px 0 2px; border-top: 2px solid var(--border); }
 .mission-step { font: 10px monospace; color: var(--mission-cyan); padding-top: 2px; }
-.mission-action-arrow { position: absolute; top: 19px; right: -18px; color: var(--muted-foreground); }
-.mission-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--border); background: var(--card); border-radius: 0 0 8px 0; }
+.mission-action-arrow { position: absolute; top: 15px; right: -16px; color: var(--muted-foreground); }
+.mission-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 10px 18px; border-top: 1px solid var(--border); background: var(--card); border-radius: 0 0 8px 0; }
 /* Detailed, outlined cutaway surfaces rather than status glows. */
 .mission-model path { stroke-linejoin: round; stroke-linecap: round; }
 .mission-grid-line { stroke: var(--border); stroke-width: .7; }
@@ -459,10 +459,10 @@
 @container (max-width: 900px) {
   .mission-workspace { grid-template-columns: 198px minmax(0,1fr); }
   .mission-visuals { grid-template-columns: minmax(0,1fr) 194px; }
-  .mission-anatomy { padding: 16px 8px 10px; }
-  .mission-analytics { padding: 16px 10px; }
-  .mission-model { min-height: 325px; }
-  .mission-factor { padding: 10px 8px; gap: 8px; }
+  .mission-anatomy { padding: 12px 8px 8px; }
+  .mission-analytics { padding: 12px 10px; }
+  .mission-model { min-height: 300px; }
+  .mission-factor { padding: 9px 7px; gap: 8px; }
   .mission-factor svg.mission-ring { width: 34px; height: 34px; }
   .mission-section-label { font-size: 10px; }
 }
@@ -471,22 +471,21 @@
   .mission-analytics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border-left: 0; border-top: 1px solid var(--border); gap: 12px; }
   .mission-profile { border-bottom: 0; padding-bottom: 0; }
   .mission-history { padding-top: 0; }
-  .mission-radar { height: 170px; }
-  .mission-trend { height: 120px; }
-  .mission-model { min-height: 300px; max-height: 400px; }
+  .mission-radar { height: 160px; }
+  .mission-trend { height: 110px; }
+  .mission-model { min-height: 280px; max-height: 380px; }
   .mission-protocol { grid-template-columns: 1fr; gap: 12px; }
   .mission-action-arrow { display: none; }
 }
 @container (max-width: 520px) {
+  .mission-header { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; }
   .mission-workspace { grid-template-columns: 1fr; }
   .mission-factors { border-right: 0; border-bottom: 1px solid var(--border); }
   .mission-factor-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .mission-factor { min-height: 90px; }
-  .mission-asset-summary { padding-bottom: 12px; }
-  .mission-asset-summary > div:last-child { margin-top: 8px; padding-top: 8px; }
-  .mission-model { min-height: 320px; }
-  .mission-analytics { padding: 14px 10px; }
-  .mission-context, .mission-actions, .mission-footer { padding: 14px 12px; }
+  .mission-factor { min-height: 84px; }
+  .mission-model { min-height: 300px; }
+  .mission-analytics { padding: 12px 10px; }
+  .mission-context, .mission-actions, .mission-footer { padding: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .mission-control * { transition: none !important; animation: none !important; } }
 

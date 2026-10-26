@@ -15,3 +15,5 @@
 - [x] Add a 16:9 overview/cover PowerPoint export for the current filtered result.
 - [x] Refine the risk workspace and selected-asset report alignment, then verify desktop rendering and exports.
 - [x] Add the Asset Risk Score full-width list with 360-day Claim/PM totals and menu permissions.
+
+- [x] Redesign the 2.5D risk twin as an engineering-structure billboard (truss, catwalk, spotlights, MDB, status glow) with floating telemetry cards and Asset History / Route Monitoring quick actions; verified in the authenticated preview.

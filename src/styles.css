@@ -359,15 +359,8 @@
 .risk-twin[data-level="medium"] { --risk-tone: var(--risk-medium); }
 .risk-twin-status { color: var(--risk-tone); }
 .risk-twin-stage { background: var(--muted); }
-.risk-twin-grid { stroke: var(--border); opacity: .7; }
-.risk-twin-track { stroke: var(--border); }
-.risk-twin-flow { stroke: var(--muted-foreground); opacity: .25; }
-.risk-twin-signal.is-live .risk-twin-flow { stroke: var(--risk-tone); opacity: .7; stroke-dasharray: 6 18; animation: risk-signal-flow 3s linear infinite; }
-.risk-twin-signal.is-selected .risk-twin-flow { stroke: var(--primary); opacity: 1; stroke-width: 4; }
-.risk-twin-node-top { fill: var(--card); stroke: var(--border); }
-.risk-twin-node-side { fill: var(--accent); stroke: var(--border); }
-.risk-twin-signal.is-selected .risk-twin-node-top { stroke: var(--primary); stroke-width: 2; }
-.risk-twin-node-number { fill: var(--foreground); font-size: 16px; font-weight: 700; }
+.risk-twin-grid { stroke: var(--border); opacity: .55; }
+.risk-twin-shadow { fill: var(--foreground); opacity: .1; }
 .risk-twin-base-top { fill: var(--card); stroke: var(--border); }
 .risk-twin-base-side { fill: var(--accent); stroke: var(--border); }
 .risk-twin-metal { fill: var(--risk-model-metal); }
@@ -380,22 +373,27 @@
 .risk-twin-lamp-beam { stroke: var(--warning); stroke-width: 1.5; fill: none; opacity: .35; stroke-dasharray: 3 4; }
 .risk-twin-mdb { fill: var(--card); stroke: var(--border); stroke-width: 1; }
 .risk-twin-mdb-side { fill: var(--accent); stroke: var(--border); stroke-width: 1; }
-.risk-twin-glow { fill: var(--risk-tone); opacity: .16; }
-.risk-twin[data-level="critical"] .risk-twin-glow,
-.risk-twin[data-level="high"] .risk-twin-glow { animation: risk-alert-pulse 2.5s ease-in-out infinite; }
 .risk-twin-screen { fill: var(--risk-model-screen); }
 .risk-twin-screen-brand { fill: var(--foreground); font-size: 12px; font-weight: 800; }
-.risk-twin-heartbeat { stroke: var(--risk-tone); stroke-dasharray: 180; animation: risk-heartbeat 4s ease-in-out infinite; }
-.risk-twin-alert-ring { stroke: var(--risk-tone); }
-.risk-twin[data-level="critical"] .risk-twin-alert-ring,
-.risk-twin[data-level="high"] .risk-twin-alert-ring { animation: risk-alert-pulse 2.5s ease-in-out infinite; }
+.risk-twin-screen-block { fill: var(--primary); opacity: .75; }
+.risk-twin-screen-block-sub { fill: var(--muted-foreground); opacity: .5; }
+.risk-twin-screen-badge { fill: var(--accent); stroke: var(--border); stroke-width: 1; }
 .risk-twin-caption { fill: var(--foreground); font-size: 13px; font-weight: 700; }
 .risk-twin-caption-sub { fill: var(--muted-foreground); font-size: 11px; font-weight: 400; }
-.risk-twin-factor { border: 1px solid transparent; }
 .risk-twin-factor.is-selected { background: var(--accent); border-color: var(--primary); }
 .risk-twin-factor-index { color: var(--primary); }
+/* Part highlight: the selected factor lights up its physical part on the model. */
+.risk-twin-part { transition: opacity .2s ease; }
+.risk-twin-part.is-highlighted { filter: drop-shadow(0 0 6px var(--risk-tone)); }
+.risk-twin-part.is-highlighted.risk-twin-frame { fill: var(--risk-tone); }
+.risk-twin-part.is-highlighted.risk-twin-truss { stroke: var(--risk-tone); opacity: 1; stroke-width: 2.5; }
+.risk-twin-part.is-highlighted.risk-twin-lamps .risk-twin-lamp { fill: var(--risk-tone); }
+.risk-twin-part.is-highlighted.risk-twin-lamps .risk-twin-lamp-beam { stroke: var(--risk-tone); opacity: .9; stroke-dasharray: none; }
+.risk-twin-part.is-highlighted.risk-twin-mdb-box .risk-twin-mdb,
+.risk-twin-part.is-highlighted.risk-twin-mdb-box .risk-twin-mdb-side { fill: var(--risk-tone); }
+.risk-twin-part.is-highlighted.risk-twin-screen-group .risk-twin-screen { fill: var(--risk-tone); opacity: .9; }
+.risk-twin[data-level="critical"] .risk-twin-part.is-highlighted,
+.risk-twin[data-level="high"] .risk-twin-part.is-highlighted { animation: risk-alert-pulse 2.5s ease-in-out infinite; }
 .risk-twin[data-paused="true"] * { animation-play-state: paused !important; }
-@keyframes risk-signal-flow { to { stroke-dashoffset: -96; } }
-@keyframes risk-heartbeat { 0% { stroke-dashoffset: 180; } 55%, 100% { stroke-dashoffset: 0; } }
-@keyframes risk-alert-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@keyframes risk-alert-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .risk-twin * { animation: none !important; } }

@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Rebuild the selected-asset twin to the approved three-column reference: factor gauges, billboard cutaway, risk profile and real history; verify interaction and layout.
+
 - [x] Add a default 2.5D selected-asset risk view with animated real score factors and a switch to the existing slide report.
 - [x] Verify selected-asset switching, slide export access, and desktop/mobile rendering.
 

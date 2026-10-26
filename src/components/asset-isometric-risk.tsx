@@ -21,8 +21,21 @@ const TARGETS = [
 ];
 const AXES: Record<string, string> = { open: "เคลมค้าง", c30: "30 วัน", c90: "90 วัน", c365: "365 วัน", pm: "รอบ PM" };
 
-function FactorGauge({ part, index, selected, onSelect }: { part: RiskPart; index: number; selected: boolean; onSelect: () => void }) {
+function operationalDetail(part: RiskPart, risk: AssetRisk) {
+  if (part.key === "pm") {
+    const elapsed = risk.daysSincePm == null ? "ไม่ทราบระยะเวลาตั้งแต่ PM ล่าสุด" : `ไม่ได้ทำ PM ${risk.daysSincePm} วัน`;
+    const date = risk.lastPmAt ? new Date(risk.lastPmAt) : null;
+    const lastPm = date && Number.isFinite(date.getTime())
+      ? date.toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric", timeZone: "Asia/Bangkok" })
+      : "ไม่มีข้อมูลวันที่";
+    return { fact: elapsed, note: `PM ล่าสุด: ${lastPm}` };
+  }
+  return { fact: part.detail.replace(/ \(เต็มที่ (\d+)\)/, ""), note: part.detail.match(/\(เต็มที่ (\d+)\)/)?.[1] ? `คะแนนเต็มเมื่อ ≥ ${part.detail.match(/\(เต็มที่ (\d+)\)/)?.[1]} ครั้ง` : "สถานะเคลมค้างปัจจุบัน" };
+}
+
+function FactorGauge({ part, risk, index, selected, onSelect }: { part: RiskPart; risk: AssetRisk; index: number; selected: boolean; onSelect: () => void }) {
   const ratio = part.max > 0 ? Math.min(1, Math.max(0, part.value / part.max)) : 0;
+  const detail = operationalDetail(part, risk);
   return <Button variant="ghost" className={cn("mission-factor", selected && "is-selected")} aria-pressed={selected} onClick={onSelect}>
     <svg viewBox="0 0 44 44" className="mission-ring" aria-hidden="true">
       <circle cx="22" cy="22" r="18" className="mission-ring-track" />
@@ -31,7 +44,9 @@ function FactorGauge({ part, index, selected, onSelect }: { part: RiskPart; inde
     </svg>
     <span className="min-w-0 flex-1">
       <span className="block text-xs font-semibold">{part.label}</span>
-      <span className="mt-1 flex items-baseline gap-1 font-mono"><strong className="text-lg">{part.value}</strong><span className="text-[11px] text-muted-foreground">/ {part.max}</span></span>
+      <span className="mt-1 block text-sm font-bold leading-relaxed">{detail.fact}</span>
+      <span className="block text-[10px] leading-relaxed text-muted-foreground">{detail.note}</span>
+      <span className="mt-1 flex flex-wrap items-baseline gap-1 font-mono"><strong className="text-lg">{part.value}</strong><span className="text-[11px] text-muted-foreground">/ {part.max} คะแนน</span></span>
       <span className="mission-segments mt-1.5" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} className={i < Math.round(ratio * 12) ? "filled" : ""} />)}</span>
     </span>
     <span className="mission-factor-dot" aria-hidden="true" />
@@ -142,7 +157,7 @@ export function AssetIsometricRisk({ risk, parts, actions, queueTitle, events, h
           <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{[risk.department, risk.mediaType, risk.district].filter(Boolean).join(" · ") || "ไม่ระบุข้อมูลพื้นที่"}</p>
           <div className="mt-4 flex items-end justify-between border-t pt-3"><span className="text-[11px] text-muted-foreground">คะแนนความเสี่ยง</span><span className="font-mono text-3xl font-bold mission-score">{risk.score}<span className="text-sm text-muted-foreground">/100</span></span></div>
         </div>
-        <div className="mission-factor-list">{parts.map((part,index)=><FactorGauge key={part.key} part={part} index={index} selected={part.key===activeKey} onSelect={()=>setActiveKey(part.key)} />)}</div>
+        <div className="mission-factor-list">{parts.map((part,index)=><FactorGauge key={part.key} part={part} risk={risk} index={index} selected={part.key===activeKey} onSelect={()=>setActiveKey(part.key)} />)}</div>
       </aside>
       <div className="mission-main">
         <div className="mission-visuals">
@@ -164,7 +179,7 @@ export function AssetIsometricRisk({ risk, parts, actions, queueTitle, events, h
             </div>
           </aside>
         </div>
-        {active && <div className="mission-context" aria-live="polite"><Activity className="size-5 shrink-0"/><div><h3 className="text-sm font-semibold">{active.label}</h3><p className="mt-1 text-[11px] text-muted-foreground">{active.detail}{active.key === "pm" && risk.daysSincePm == null ? " · ไม่มีข้อมูล PM ไม่ได้หมายความว่าทำ PM แล้ว" : ""}{active.key === "open" && risk.topProblem ? ` · ปัญหาที่พบ: ${risk.topProblem}` : ""}</p></div></div>}
+        {active && <div className="mission-context" aria-live="polite"><Activity className="size-5 shrink-0"/><div><h3 className="text-sm font-semibold">{active.label}</h3><p className="mt-1 text-[11px] text-muted-foreground">{operationalDetail(active, risk).fact} · {operationalDetail(active, risk).note}{active.key === "pm" ? ` · ${active.detail}` : ""}{active.key === "pm" && risk.daysSincePm == null ? " · ไม่มีข้อมูล PM ไม่ได้หมายความว่าทำ PM แล้ว" : ""}{active.key === "open" && risk.topProblem ? ` · ปัญหาที่พบ: ${risk.topProblem}` : ""}</p></div></div>}
         <div className="mission-actions"><h3 className="flex items-start gap-2 text-sm font-semibold"><Wrench className="size-4 shrink-0 mt-0.5"/>{queueTitle}</h3><div className="mission-protocol">{actions.map((action,index)=><div key={action.title} className="mission-action"><div className="flex items-start gap-2"><span className="mission-step">{index+1}</span><h4 className="text-xs font-semibold leading-relaxed">{action.title}</h4></div><p className="mt-2 text-[10px] text-muted-foreground">{action.owner} · {action.deadline}</p><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{action.done}</p>{index<actions.length-1&&<ArrowRight className="mission-action-arrow size-3.5"/>}</div>)}</div></div>
         <div className="mission-footer"><span className="text-[10px] text-muted-foreground">คะแนนบันทึกรอบล่าสุด · เคลมค้างจากข้อมูลล่าสุด</span><div className="flex flex-wrap gap-2"><Button asChild size="sm" variant="outline"><Link to="/search" search={{q:risk.code}}><History/>ตรวจสอบประวัติป้าย</Link></Button><Button size="sm" onClick={sendToRoutePlan}><Navigation/>ส่งเข้า Route Monitoring</Button></div></div>
       </div>

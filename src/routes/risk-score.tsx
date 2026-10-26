@@ -256,7 +256,7 @@ function RiskDetail({ code, liveOpenClaims }: { code: string; liveOpenClaims?: n
           {exporting ? "กำลังสร้าง PowerPoint…" : "Export to PowerPoint (.pptx)"}
         </Button>
       </div>
-    {detailView === "twin" ? <AssetIsometricRisk key={risk.code} risk={risk} parts={parts} actions={actions} queueTitle={queue.title} /> : <section className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)] lg:aspect-video lg:min-h-0">
+    {detailView === "twin" ? <AssetIsometricRisk key={risk.code} risk={risk} parts={parts} actions={actions} queueTitle={queue.title} events={summary?.events} historyAvailable={!!summary} /> : <section className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border bg-background shadow-[var(--shadow-elegant)] lg:aspect-video lg:min-h-0">
       <header className="flex min-h-20 shrink-0 items-center justify-between gap-4 border-b bg-card px-6 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">

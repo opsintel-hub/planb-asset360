@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Produce and review the requested Thai corporate Asset Risk Score video (maximum 90 seconds), using uploaded screenshots and sped-up recording, with history-link demonstration and one-slide PowerPoint closing.
+- [x] Produce the Thai corporate Asset Risk Score video (89.5 seconds), using uploaded screenshots and sped-up recording, with history-link demonstration and one-slide PowerPoint closing; reviewed rendered frames and audio levels. Synthetic Thai pronunciation remains unverified by ear; route planning is illustrated rather than captured live.
 
 - [x] Show actual claim counts, score ceilings, elapsed PM days and last PM date on the left risk-factor cards and selected-factor context; verified authenticated DP194 data, PM selection, desktop/mobile fit and no runtime errors.
 

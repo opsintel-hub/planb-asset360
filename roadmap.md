@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Revise the ExCom video using the user's exact seven-scene narration and spacing, remove the original benefits-card scene, preserve the original and deliver a versioned MP4 with Thai speech and visual QA qualifications.
+
 - [x] Produce the approved Thai Asset History 360 ExCom video: 112.1 seconds, Full HD, all five recordings plus Risk Score footage, executive/supervisor/technician benefits and a selected-asset one-slide PowerPoint closing. Rendered-scene frames and audio levels checked; pronunciation by ear and full-motion playback remain unverified. Deliver as a review draft with qualifications.
 
 - [x] Produce the Thai corporate Asset Risk Score video (89.5 seconds), using uploaded screenshots and sped-up recording, with history-link demonstration and one-slide PowerPoint closing; reviewed rendered frames and audio levels. Synthetic Thai pronunciation remains unverified by ear; route planning is illustrated rather than captured live.

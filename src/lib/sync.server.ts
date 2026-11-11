@@ -27,9 +27,10 @@ async function fetchPlanB(url: string, timeoutMs = 12000): Promise<unknown> {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
-      headers: apiKey ? { Authorization: `Bearer ${apiKey}`, Accept: "application/json" } : { Accept: "application/json" },
+      headers: apiKey ? { "X-Api-Key": apiKey, Accept: "application/json" } : { Accept: "application/json" },
       signal: controller.signal,
     });
+    if (res.status === 401) throw new Error(`HTTP 401 — Plan B API key ไม่ถูกต้องหรือไม่ได้ส่ง (X-Api-Key)`);
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
     return await res.json();
   } catch (e) {
